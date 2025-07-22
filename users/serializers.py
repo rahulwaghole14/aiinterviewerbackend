@@ -1,28 +1,28 @@
 from rest_framework import serializers
-from .models import CustomUser
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+
+from .models import CustomUser, Role
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
-    confirm_password = serializers.CharField(write_only=True, required=True)
-
+    
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'full_name', 'company_name', 'role', 'password', 'confirm_password']
+        fields = ['id', 'username', 'email', 'full_name', 'company_name', 'role', 'password']
+        extra_kwargs = {
+            'username': {'read_only': True}  # auto-generated from email
+        }
 
-    def validate(self, attrs):
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"password": "Password fields didn’t match."})
-        return attrs
+    def validate_role(self, value):
+        if value not in dict(Role.CHOICES):
+            raise serializers.ValidationError("Invalid role selected.")
+        return value
 
     def create(self, validated_data):
-        validated_data.pop('confirm_password')
-        user = CustomUser.objects.create_user(
-            username=validated_data['email'],  # Use email as username
-            email=validated_data['email'],
-            full_name=validated_data['full_name'],
-            company_name=validated_data['company_name'],
-            role=validated_data['role'],
-            password=validated_data['password']
-        )
-        return user
+        try:
+            validated_data['username'] = validated_data['email']
+            return CustomUser.objects.create_user(**validated_data)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({'error': e.messages})

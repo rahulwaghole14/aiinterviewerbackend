@@ -109,3 +109,6 @@ REST_FRAMEWORK = {
         "django_filters.rest_framework.DjangoFilterBackend"
     ]
 }
+
+import django_heroku
+django_heroku.settings(locals())

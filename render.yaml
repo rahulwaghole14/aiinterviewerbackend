@@ -13,7 +13,7 @@ services:
           name: aiinterviewer-db
           property: connectionString
       - key: SECRET_KEY
-        generateValue: true
+        value: django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt
       - key: DJANGO_SETTINGS_MODULE
         value: ai_interview.settings
 

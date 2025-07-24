@@ -1,5 +1,5 @@
 from django.db import models
-from users.models import CustomUser
+from authapp.models import CustomUser
 from jobs.models import Job
 from resumes.models import Resume
 
@@ -32,7 +32,7 @@ class Candidate(models.Model):
     resume = models.ForeignKey(Resume, on_delete=models.CASCADE, related_name='candidates')
 
     full_name = models.CharField(max_length=100, blank=True)
-    email = models.EmailField(unique=True, blank=True)
+    email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True)
     work_experience = models.PositiveIntegerField(null=True, blank=True)
     domain = models.CharField(max_length=100, blank=True)

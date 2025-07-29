@@ -31,7 +31,7 @@ INSTALLED_APPS = [
     # Project apps
     "authapp",
     "hiring_agency",
-    "users",
+    #"users",
     "candidates",
     "jobs",
     "resumes",

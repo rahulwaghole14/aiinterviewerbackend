@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: aiinterviewer-backend
+    name: ai_interviewer_backend
     runtime: python
     plan: free
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       python manage.py migrate --noinput
-    startCommand: gunicorn ai_interview.wsgi:application
+    startCommand: gunicorn ai_platform.wsgi:application
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -16,7 +16,7 @@ services:
       - key: SECRET_KEY
         value: django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt
       - key: DJANGO_SETTINGS_MODULE
-        value: ai_interview.settings
+        value: ai_platform.settings
 
 databases:
   - name: aiinterviewer-db

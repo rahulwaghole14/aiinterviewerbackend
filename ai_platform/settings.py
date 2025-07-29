@@ -12,7 +12,7 @@ DEBUG = config('DEBUG', cast=bool, default=False)
 # My secret key is: django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt
 
 # Allowed hosts
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -22,6 +22,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'corsheaders',
+
     # your custom apps
     "authapp",
     "hiring_agency",
@@ -34,6 +37,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -66,11 +70,7 @@ WSGI_APPLICATION = 'ai_platform.wsgi.application'
 
 # Database configuration using .env
 DATABASES = {
-    'default': dj_database_url.config(
-    default=config('DATABASE_URL'),
-    conn_max_age=600,
-    ssl_require=False
-)
+    'default': dj_database_url.config(default=config('DATABASE_URL', cast=str))
 }
 
 # Password validation
@@ -111,3 +111,5 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default auto field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CORS_ALLOW_ALL_ORIGINS = True

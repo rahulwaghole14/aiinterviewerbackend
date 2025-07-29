@@ -1,5 +1,5 @@
 from django.db import models
-from users.models import CustomUser
+from authapp.models import CustomUser
 from jobs.models import Job
 from resumes.models import Resume
 

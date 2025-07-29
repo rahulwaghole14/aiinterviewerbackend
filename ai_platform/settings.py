@@ -5,16 +5,16 @@ import django_heroku
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt")
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-placeholder")
+# My secret key is: django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt
 
-DEBUG = True
 
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 # Application definition
 INSTALLED_APPS = [
-    # Django core
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     # Project apps
     "authapp",
     "hiring_agency",
-    #"users",
     "candidates",
     "jobs",
     "resumes",
@@ -73,16 +72,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ai_platform.wsgi.application'
 
-# PostgreSQL database
+# PostgreSQL from DATABASE_URL
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ai_db',
-        'USER': 'postgres',
-        'PASSWORD': 'Rsl@2015',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(conn_max_age=600)
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -122,7 +114,7 @@ REST_FRAMEWORK = {
     ]
 }
 
-# Activate Django-Heroku settings (for Render/Heroku support later)
+# Django-Heroku (for auto settings on Render too)
 django_heroku.settings(locals())
 
-APPEND_SLASH=False
+APPEND_SLASH = False

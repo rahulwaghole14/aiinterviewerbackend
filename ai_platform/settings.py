@@ -2,8 +2,14 @@ from pathlib import Path
 import os
 import dj_database_url
 import django_heroku
+from decouple import config
+
+from dotenv import load_dotenv
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-placeholder")
 # My secret key is: django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt
@@ -74,8 +80,9 @@ WSGI_APPLICATION = 'ai_platform.wsgi.application'
 
 # PostgreSQL from DATABASE_URL
 DATABASES = {
-    'default': dj_database_url.config(conn_max_age=600)
+    'default': dj_database_url.config(default=config('DATABASE_URL'), conn_max_age=600, ssl_require=False)
 }
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

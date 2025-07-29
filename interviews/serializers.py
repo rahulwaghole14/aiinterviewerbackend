@@ -1,4 +1,6 @@
+# interviews/serializers.py
 from datetime import time
+
 from rest_framework import serializers
 from .models import Interview
 
@@ -9,41 +11,40 @@ class InterviewSerializer(serializers.ModelSerializer):
     Adds two read‑only convenience fields:
       • candidate_name – Candidate.full_name
       • job_title       – Job.job_title
-      • join_link       – Generated AI interview join link
 
     Includes a custom validate() that restricts the scheduled
     window to **08:00 – 22:00 UTC** for both start and end times.
     """
-
-    candidate_name = serializers.CharField(source="candidate.full_name", read_only=True)
-    job_title = serializers.CharField(source="job.job_title", read_only=True)
-    join_link = serializers.SerializerMethodField()
+    candidate_name = serializers.CharField(
+        source="candidate.full_name", read_only=True
+    )
+    job_title = serializers.CharField(
+        source="job.job_title", read_only=True
+    )
 
     class Meta:
-        model = Interview
+        model  = Interview
         fields = [
             "id",
             "candidate", "candidate_name",
+            # "job",
             "job_title",
             "status",
             "interview_round", "feedback",
             "started_at", "ended_at",
             "video_url",
             "created_at", "updated_at",
-            "join_link"
         ]
         read_only_fields = [
             "created_at",
             "updated_at",
             "candidate_name",
             "job_title",
-            "join_link"
         ]
 
-    def get_join_link(self, obj):
-        base_url = "https://your-domain.com/ai-interview"  # Change this to your frontend's actual domain
-        return f"{base_url}?interview_id={obj.id}"
-
+    # ──────────────────────────────────────────────────────────
+    # Custom validation: 08:00 – 22:00 UTC scheduling window
+    # ──────────────────────────────────────────────────────────
     def validate(self, data):
         """
         Ensure both started_at and ended_at fall between 08:00 and 22:00 UTC.
@@ -52,7 +53,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         instance’s values where the client omitted a field.
         """
         start_dt = data.get("started_at") or getattr(self.instance, "started_at", None)
-        end_dt = data.get("ended_at") or getattr(self.instance, "ended_at", None)
+        end_dt   = data.get("ended_at")   or getattr(self.instance, "ended_at", None)
 
         if not start_dt or not end_dt:
             raise serializers.ValidationError(
@@ -64,7 +65,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         max_time = time(22, 0)  # 22:00
 
         start_t = start_dt.time()
-        end_t = end_dt.time()
+        end_t   = end_dt.time()
 
         if not (min_time <= start_t <= max_time):
             raise serializers.ValidationError(
@@ -87,7 +88,6 @@ class InterviewFeedbackSerializer(serializers.ModelSerializer):
     Used exclusively by the /api/interviews/<id>/feedback/ PATCH endpoint.
     Allows admin to update interview_round and feedback text.
     """
-
     class Meta:
-        model = Interview
+        model  = Interview
         fields = ["interview_round", "feedback"]

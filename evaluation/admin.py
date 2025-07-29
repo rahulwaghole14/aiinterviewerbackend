@@ -1,3 +1,5 @@
 from django.contrib import admin
+from .models import Evaluation, Feedback
 
-# Register your models here.
+admin.site.register(Evaluation)
+admin.site.register(Feedback)

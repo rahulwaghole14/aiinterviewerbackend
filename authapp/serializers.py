@@ -1,6 +1,9 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
+from django.utils.translation import gettext_lazy as _
 from authapp.models import Role
+from authapp.models import CustomUser
+
 
 User = get_user_model()
 
@@ -25,3 +28,38 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.CharField()  # Not limited to EmailField
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        email_or_username = data.get("email")
+        password = data.get("password")
+
+        user = None
+
+        # First, try to find user by email
+        try:
+            user_obj = CustomUser.objects.get(email=email_or_username)
+            username = user_obj.username
+        except CustomUser.DoesNotExist:
+            # Try using it as username directly
+            username = email_or_username
+
+        user = authenticate(
+            request=self.context.get("request"),
+            username=username,
+            password=password
+        )
+
+        if not user:
+            raise serializers.ValidationError("Invalid email/username or password.")
+
+        if not user.is_active:
+            raise serializers.ValidationError("User account is disabled.")
+
+        data["user"] = user
+        return data
+        

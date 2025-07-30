@@ -20,7 +20,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value_upper
 
     def create(self, validated_data):
-        validated_data['role'] = self.validate_role(validated_data['role'])
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)

@@ -25,16 +25,31 @@ INSTALLED_APPS = [
 
     'corsheaders',
 
+    # third-party apps
+    'rest_framework',
+    'rest_framework.authtoken',
+
     # your custom apps
-    "authapp",
-    "hiring_agency",
-    "candidates",
-    "jobs",
-    "resumes",
-    "interviews",
-    "companies",
-    "evaluation",
+    'authapp',
+    'hiring_agency',
+    'candidates',
+    'jobs',
+    'resumes',
+    'interviews',
+    'companies',
+    'evaluation',
 ]
+
+# Django REST Framework settings
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',

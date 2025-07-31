@@ -1,15 +1,23 @@
 from django.db import models
 
-
 class Role:
     ADMIN = 'Admin'
-    SOURCING_PARTNER = 'Sourcing Partner'
+    COMPANY = 'Company'
+    RECRUITER = 'Recruiter'
+    HIRING_AGENCY = 'Hiring Agency'
 
     CHOICES = [
         (ADMIN, 'Admin'),
-        (SOURCING_PARTNER, 'Sourcing Partner'),
+        (COMPANY, 'Company'),
+        (RECRUITER, 'Recruiter'),
+        (HIRING_AGENCY, 'Hiring Agency'),
     ]
 
+    PUBLIC_CHOICES = [
+        (COMPANY, 'Company'),
+        (RECRUITER, 'Recruiter'),
+        (HIRING_AGENCY, 'Hiring Agency'),
+    ]
 
 class UserData(models.Model):
     email = models.EmailField(unique=True)
@@ -17,7 +25,10 @@ class UserData(models.Model):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=15)
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    linkedin_url = models.URLField(blank=True)
     permission_granted = models.DateField(auto_now_add=True)
+    created_by = models.ForeignKey('authapp.CustomUser', on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return f"{self.email} - {self.role}"

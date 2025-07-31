@@ -31,7 +31,7 @@ urlpatterns = [
     # All router‑based endpoints (/api/resumes/, /api/interviews/)
     path("api/", include(router.urls)),
 
-    path("hiring_agency/", include("hiring_agency.urls")),
+    path("", include("hiring_agency.urls")),
 
     path("api/interviews/", include("interviews.urls")),
 

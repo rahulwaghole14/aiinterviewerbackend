@@ -1,20 +1,23 @@
 from rest_framework import generics, permissions
+from rest_framework.response import Response
+from rest_framework import status
 from .models import Company, Recruiter
 from .serializers import (
     CompanySerializer,
     RecruiterSerializer,
     RecruiterCreateSerializer
 )
+from .permissions import AdminOnlyPermission, AdminOrReadOnlyPermission
 
 class CompanyListCreateView(generics.ListCreateAPIView):
     queryset = Company.objects.filter(is_active=True)
     serializer_class = CompanySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AdminOrReadOnlyPermission]
 
 class CompanyDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AdminOrReadOnlyPermission]
 
     def perform_destroy(self, instance):
         instance.is_active = False
@@ -34,12 +37,12 @@ class RecruiterListView(generics.ListAPIView):
 
 class RecruiterCreateView(generics.CreateAPIView):
     serializer_class = RecruiterCreateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AdminOnlyPermission]
 
 class RecruiterUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Recruiter.objects.all()
     serializer_class = RecruiterSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AdminOnlyPermission]
 
     def perform_destroy(self, instance):
         instance.is_active = False

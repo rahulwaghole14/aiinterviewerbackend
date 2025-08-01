@@ -42,6 +42,16 @@ class UserDataViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+    def update(self, request, *args, **kwargs):
+        if not hasattr(request.user, 'role') or request.user.role != 'COMPANY':
+            return Response({'detail': 'Only company users can edit hiring agency data.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if not hasattr(request.user, 'role') or request.user.role != 'COMPANY':
+            return Response({'detail': 'Only company users can edit hiring agency data.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().partial_update(request, *args, **kwargs)
+
     def has_permission_to_create(self, creator_role, new_user_role):
         if creator_role == "SUPER_ADMIN":
             return True

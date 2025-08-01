@@ -8,5 +8,5 @@ router.register(r'hiring_agency', UserDataViewSet, basename='hiring_agency')
 
 urlpatterns = [
     path('add_user/', CreateUserDataView.as_view(), name='add_user'),
-    *router.urls,
 ]
+urlpatterns += router.urls

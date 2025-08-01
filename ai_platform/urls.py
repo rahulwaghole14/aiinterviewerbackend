@@ -37,6 +37,9 @@ urlpatterns = [
 
     path("api/evaluation/", include("evaluation.urls")),
 
+    # Resume bulk upload endpoint
+    path("api/resumes/", include("resumes.urls")),
+
 ]
 
 # ──────────────────── Serve media in DEBUG ───────────────────────────────

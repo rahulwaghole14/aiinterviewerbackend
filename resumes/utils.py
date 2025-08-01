@@ -1,35 +1,47 @@
-import re, fitz, docx
-from pathlib import Path
+import re
 
-EMAIL_PATTERN = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
-PHONE_PATTERN = re.compile(r'\+?\d[\d\s\-\(\)]{8,20}')
-EXP_PATTERN   = re.compile(r'(\d{1,2})\s*(years?|yrs?)', re.I)
-NAME_PATTERN  = re.compile(r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})')
+# Email and phone regex patterns
+EMAIL_RE = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
+PHONE_RE = re.compile(r"\+?\d[\d\-\s\(\)]{8,20}")
+EXP_RE   = re.compile(r"(\d{1,2})\s*(?:\+?\s*)?(years?|yrs?)", re.I)
 
-def extract_text(path):
-    ext = Path(path).suffix.lower()
-    if ext == ".pdf":
-        doc = fitz.open(path)
-        return "\n".join(page.get_text() for page in doc)
-    elif ext in (".docx", ".doc"):
-        doc = docx.Document(path)
-        return "\n".join(p.text for p in doc.paragraphs)
-    return ""
+# Name detection patterns
+NAME_TCASE = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b")
+NAME_ALLCAP = re.compile(r"\b([A-Z]{3,}(?:\s+[A-Z]{3,})+)\b")
 
-def extract_resume_fields(text):
-    email = EMAIL_PATTERN.search(text)
-    phone = PHONE_PATTERN.search(text)
-    exp   = EXP_PATTERN.search(text)
-    name  = None
+def extract_resume_fields(text: str) -> dict:
+    """
+    Extract structured fields (name, email, phone, experience) from resume text.
+    
+    Args:
+        text (str): The parsed text from the resume
+        
+    Returns:
+        dict: Dictionary containing extracted fields
+    """
+    if not text:
+        return {}
+    
+    email_m = EMAIL_RE.search(text)
+    phone_m = PHONE_RE.search(text)
+    exp_m   = EXP_RE.search(text)
 
-    if email:
-        before_email = text.split(email.group(0))[0]
-        name_match = NAME_PATTERN.search(before_email)
-        name = name_match.group(0) if name_match else None
+    # Join first 15 lines for multiline name detection
+    lines = text.strip().splitlines()
+    name_block = " ".join(lines[:15])
+
+    name = None
+    m = NAME_TCASE.search(name_block)
+    if m:
+        name = m.group(1)
+    else:
+        m = NAME_ALLCAP.search(name_block)
+        if m:
+            name = m.group(1).title()
 
     return {
         "name": name,
-        "email": email.group(0) if email else None,
-        "phone": phone.group(0) if phone else None,
-        "work_experience": int(exp.group(1)) if exp else 0,
+        "email": email_m.group(0) if email_m else None,
+        "phone": phone_m.group(0).strip() if phone_m else None,
+        "work_experience": int(exp_m.group(1)) if exp_m else None,
     }

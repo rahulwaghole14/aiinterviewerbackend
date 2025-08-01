@@ -16,7 +16,23 @@ class ResumeViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        resume = serializer.save(user=self.request.user)
+        
+        # Process the file after saving to avoid FileDataError
+        try:
+            if resume.file and hasattr(resume.file, 'path'):
+                from .utils import extract_resume_fields
+                from .models import extract_text
+                
+                # Extract text from file
+                parsed_text = extract_text(resume.file.path)
+                if parsed_text:
+                    resume.parsed_text = parsed_text
+                    resume.save(update_fields=["parsed_text"])
+        except Exception as e:
+            # Log error but don't fail the upload
+            print(f"Error processing resume file: {e}")
+            pass
 
 class BulkResumeUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -29,24 +45,17 @@ class BulkResumeUploadView(APIView):
         files = serializer.validated_data['files']
         results = []
         
-        # Process files concurrently for better performance
-        with ThreadPoolExecutor(max_workers=min(len(files), 5)) as executor:
-            future_to_file = {
-                executor.submit(self._process_single_resume, file, request.user): file 
-                for file in files
-            }
-            
-            for future in future_to_file:
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    file = future_to_file[future]
-                    results.append({
-                        'success': False,
-                        'filename': file.name,
-                        'error_message': str(e)
-                    })
+        # Process files sequentially to avoid file handling issues
+        for file in files:
+            try:
+                result = self._process_single_resume(file, request.user)
+                results.append(result)
+            except Exception as e:
+                results.append({
+                    'success': False,
+                    'filename': file.name,
+                    'error_message': str(e)
+                })
         
         # Count successes and failures
         successful_uploads = sum(1 for r in results if r['success'])
@@ -79,8 +88,18 @@ class BulkResumeUploadView(APIView):
                 file=file
             )
             
+            # Wait a moment for file to be saved, then extract data
+            import time
+            time.sleep(0.1)  # Small delay to ensure file is saved
+            
+            # Refresh the resume object to get the parsed text
+            resume.refresh_from_db()
+            
             # Extract data from parsed text
-            extracted_data = extract_resume_fields(resume.parsed_text) if resume.parsed_text else {}
+            extracted_data = {}
+            if resume.parsed_text:
+                from .utils import extract_resume_fields
+                extracted_data = extract_resume_fields(resume.parsed_text)
             
             return {
                 'success': True,

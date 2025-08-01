@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 
-from resumes.views     import ResumeViewSet
+from resumes.views     import ResumeViewSet, BulkResumeUploadView
 from interviews.views  import InterviewViewSet, InterviewStatusSummaryView
 
 # ──────────────────── DRF router (viewsets) ──────────────────────────────
@@ -20,7 +20,7 @@ urlpatterns = [
     path("auth/", include("authapp.urls")),  
 
     #Companies
-    path('company/', include('companies.urls')),
+    path('companies/', include('companies.urls')),
 
     # Jobs API
     path("api/jobs/", include("jobs.urls")),
@@ -28,8 +28,8 @@ urlpatterns = [
     # Candidates API  (list / create / detail / summary)
     path("api/candidates/", include("candidates.urls")),   # ← NEW include
 
-    # Resume bulk upload endpoint (before router to avoid conflicts)
-    path("api/resumes/bulk-upload/", include("resumes.urls")),
+    # Resume bulk upload endpoint (direct import to avoid conflicts)
+    path("api/resumes/bulk-upload/", BulkResumeUploadView.as_view(), name='resume-bulk-upload'),
 
     # All router‑based endpoints (/api/resumes/, /api/interviews/)
     path("api/", include(router.urls)),

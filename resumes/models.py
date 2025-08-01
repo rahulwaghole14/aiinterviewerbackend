@@ -84,9 +84,21 @@ class Resume(models.Model):
         super().save(*args, **kwargs)
 
         # ➋ now that the file exists, populate parsed_text once
-        if not self.parsed_text:
-            self.parsed_text = extract_text(self.file.path)
-            super().save(update_fields=["parsed_text"])
+        if not self.parsed_text and self.file:
+            try:
+                # Check if file exists and is accessible
+                if hasattr(self.file, 'path') and self.file.path:
+                    self.parsed_text = extract_text(self.file.path)
+                    super().save(update_fields=["parsed_text"])
+                else:
+                    # If file is not yet saved to disk, skip parsing for now
+                    # It will be parsed when the file is actually saved
+                    pass
+            except Exception as e:
+                # Log error but don't fail the save
+                print(f"Error parsing resume file: {e}")
+                self.parsed_text = ""
+                super().save(update_fields=["parsed_text"])
 
     def __str__(self):
         return f"Resume {self.id}"

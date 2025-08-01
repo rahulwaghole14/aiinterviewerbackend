@@ -28,6 +28,9 @@ urlpatterns = [
     # Candidates API  (list / create / detail / summary)
     path("api/candidates/", include("candidates.urls")),   # ← NEW include
 
+    # Resume bulk upload endpoint (before router to avoid conflicts)
+    path("api/resumes/bulk-upload/", include("resumes.urls")),
+
     # All router‑based endpoints (/api/resumes/, /api/interviews/)
     path("api/", include(router.urls)),
 
@@ -36,9 +39,6 @@ urlpatterns = [
     path("api/interviews/", include("interviews.urls")),
 
     path("api/evaluation/", include("evaluation.urls")),
-
-    # Resume bulk upload endpoint
-    path("api/resumes/", include("resumes.urls")),
 
 ]
 

@@ -1,138 +1,232 @@
-from rest_framework.views import APIView
-from rest_framework import status, permissions, generics
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from django.contrib.auth import authenticate, get_user_model
-from rest_framework.permissions import IsAuthenticated
-from .serializers import LoginSerializer
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
+from .serializers import RegisterSerializer, LoginSerializer
+from .models import CustomUser
+from utils.logger import log_user_login, log_user_logout, log_user_registration, ActionLogger
 
-from .serializers import RegisterSerializer
-
-User = get_user_model()
-
-
-# 1. Registration View
-class RegisterView(generics.CreateAPIView):
-    serializer_class = RegisterSerializer
-    permission_classes = [permissions.AllowAny]
-
-
-# 2. Role-Based Login (Base Class)
-class RoleBasedLoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-    allowed_role = None
-
-    def post(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
-
-        user = authenticate(username=username, password=password)
-        if not user:
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        if self.allowed_role and user.role.upper() != self.allowed_role.upper():
-            return Response({"detail": f"Only {self.allowed_role} users can login here."}, status=status.HTTP_403_FORBIDDEN)
-
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            "token": token.key,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "full_name": getattr(user, "full_name", ""),
-                "role": getattr(user, "role", ""),
-                "company_name": getattr(user, "company_name", "")
-            }
-        })
-
-
-# 3. Role-Specific Login Views
-class AdminLoginView(RoleBasedLoginView):
-    allowed_role = "ADMIN"
-
-class CompanyLoginView(RoleBasedLoginView):
-    allowed_role = "COMPANY"
-
-class RecruiterLoginView(RoleBasedLoginView):
-    allowed_role = "RECRUITER"
-
-
-# 4. Profile View
-class ProfileView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user = request.user
-        return Response({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "full_name": getattr(user, "full_name", ""),
-            "role": user.get_role_display() if hasattr(user, "get_role_display") else user.role,
-            "company_name": getattr(user, "company_name", "")
-        })
-
-
-# 5. Role-Based User Creation View
-class CreateUserByRoleView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        current_user = request.user
-        target_role = request.data.get("role", "").strip().upper().replace(" ", "_")
-
-        if current_user.role.upper() == "ADMIN" and target_role != "COMPANY":
-            return Response({"error": "Admin can only create COMPANY users."}, status=403)
-        if current_user.role.upper() == "COMPANY" and target_role != "RECRUITER":
-            return Response({"error": "Company users can only create RECRUITER users."}, status=403)
-        if current_user.role.upper() not in ["ADMIN", "COMPANY"]:
-            return Response({"error": "You are not authorized to create users."}, status=403)
-
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_view(request):
+    """User registration with comprehensive logging"""
+    try:
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            token, created = Token.objects.get_or_create(user=user)
+            
+            # Log successful registration
+            log_user_registration(
+                user=user,
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            
+            ActionLogger.log_user_action(
+                user=user,
+                action='user_registration',
+                details={
+                    'registration_data': {
+                        'email': user.email,
+                        'role': user.role,
+                        'company_name': user.company_name
+                    },
+                    'ip_address': request.META.get('REMOTE_ADDR'),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', 'unknown')
+                },
+                status='SUCCESS'
+            )
+            
             return Response({
-                "message": f"{target_role} created successfully",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role
+                'token': token.key,
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'full_name': user.full_name,
+                    'role': user.role,
+                    'company_name': user.company_name
                 }
-            }, status=201)
-        return Response(serializer.errors, status=400)
+            }, status=status.HTTP_201_CREATED)
+        else:
+            # Log registration failure
+            ActionLogger.log_user_action(
+                user=None,
+                action='user_registration',
+                details={
+                    'errors': serializer.errors,
+                    'attempted_data': request.data,
+                    'ip_address': request.META.get('REMOTE_ADDR')
+                },
+                status='FAILED'
+            )
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        # Log registration error
+        ActionLogger.log_user_action(
+            user=None,
+            action='user_registration',
+            details={
+                'error': str(e),
+                'attempted_data': request.data,
+                'ip_address': request.META.get('REMOTE_ADDR')
+            },
+            status='FAILED'
+        )
+        raise
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    """User login with comprehensive logging"""
+    try:
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            
+            # Try to authenticate
+            user = authenticate(request, username=email, password=password)
+            
+            if user:
+                login(request, user)
+                token, created = Token.objects.get_or_create(user=user)
+                
+                # Log successful login
+                log_user_login(
+                    user=user,
+                    ip_address=request.META.get('REMOTE_ADDR')
+                )
+                
+                ActionLogger.log_user_action(
+                    user=user,
+                    action='user_login',
+                    details={
+                        'login_method': 'email_password',
+                        'ip_address': request.META.get('REMOTE_ADDR'),
+                        'user_agent': request.META.get('HTTP_USER_AGENT', 'unknown'),
+                        'token_created': created
+                    },
+                    status='SUCCESS'
+                )
+                
+                return Response({
+                    'token': token.key,
+                    'user': {
+                        'id': user.id,
+                        'email': user.email,
+                        'full_name': user.full_name,
+                        'role': user.role,
+                        'company_name': user.company_name
+                    }
+                }, status=status.HTTP_200_OK)
+            else:
+                # Log failed login attempt
+                ActionLogger.log_user_action(
+                    user=None,
+                    action='user_login',
+                    details={
+                        'attempted_email': email,
+                        'ip_address': request.META.get('REMOTE_ADDR'),
+                        'user_agent': request.META.get('HTTP_USER_AGENT', 'unknown'),
+                        'reason': 'Invalid credentials'
+                    },
+                    status='FAILED'
+                )
+                
+                return Response({
+                    'error': 'Invalid credentials'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            # Log login validation failure
+            ActionLogger.log_user_action(
+                user=None,
+                action='user_login',
+                details={
+                    'errors': serializer.errors,
+                    'attempted_data': request.data,
+                    'ip_address': request.META.get('REMOTE_ADDR')
+                },
+                status='FAILED'
+            )
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        # Log login error
+        ActionLogger.log_user_action(
+            user=None,
+            action='user_login',
+            details={
+                'error': str(e),
+                'attempted_data': request.data,
+                'ip_address': request.META.get('REMOTE_ADDR')
+            },
+            status='FAILED'
+        )
+        raise
 
-# 6. Logout View
-class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        try:
-            request.user.auth_token.delete()
-            return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
-        except:
-            return Response({"error": "Token not found or already deleted."}, status=status.HTTP_400_BAD_REQUEST)
-
-class CustomLoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data["user"]
-
-        token, _ = Token.objects.get_or_create(user=user)
-
-        return Response({
-            "token": token.key,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "full_name": getattr(user, "full_name", ""),
-                "role": user.role,
-                "company_name": getattr(user, "company_name", "")
-            }
-        })
+@api_view(['POST'])
+def logout_view(request):
+    """User logout with comprehensive logging"""
+    try:
+        if request.user.is_authenticated:
+            # Log successful logout
+            log_user_logout(
+                user=request.user,
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='user_logout',
+                details={
+                    'ip_address': request.META.get('REMOTE_ADDR'),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', 'unknown')
+                },
+                status='SUCCESS'
+            )
+            
+            # Delete token
+            try:
+                request.user.auth_token.delete()
+            except:
+                pass  # Token might not exist
+                
+            logout(request)
+            
+            return Response({
+                'message': 'Successfully logged out'
+            }, status=status.HTTP_200_OK)
+        else:
+            # Log logout attempt by unauthenticated user
+            ActionLogger.log_user_action(
+                user=None,
+                action='user_logout',
+                details={
+                    'ip_address': request.META.get('REMOTE_ADDR'),
+                    'reason': 'User not authenticated'
+                },
+                status='FAILED'
+            )
+            
+            return Response({
+                'error': 'User not authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+    except Exception as e:
+        # Log logout error
+        ActionLogger.log_user_action(
+            user=request.user if request.user.is_authenticated else None,
+            action='user_logout',
+            details={
+                'error': str(e),
+                'ip_address': request.META.get('REMOTE_ADDR')
+            },
+            status='FAILED'
+        )
+        raise

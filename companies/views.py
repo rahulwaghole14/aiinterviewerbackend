@@ -1,13 +1,14 @@
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import serializers
 from .models import Company, Recruiter
 from .serializers import (
     CompanySerializer,
     RecruiterSerializer,
     RecruiterCreateSerializer
 )
-from .permissions import AdminOnlyPermission, AdminOrReadOnlyPermission
+from .permissions import AdminOnlyPermission, AdminOrReadOnlyPermission, CompanyOrAdminRecruiterPermission
 
 class CompanyListCreateView(generics.ListCreateAPIView):
     queryset = Company.objects.filter(is_active=True)
@@ -37,12 +38,25 @@ class RecruiterListView(generics.ListAPIView):
 
 class RecruiterCreateView(generics.CreateAPIView):
     serializer_class = RecruiterCreateSerializer
-    permission_classes = [AdminOnlyPermission]
+    permission_classes = [CompanyOrAdminRecruiterPermission]
+
+    def perform_create(self, serializer):
+        # For Company users, ensure the recruiter is created for their company
+        if self.request.user.role == "COMPANY":
+            # Find the company for this user
+            from .models import Company
+            try:
+                company = Company.objects.get(name=self.request.user.company_name)
+                serializer.save(company=company)
+            except Company.DoesNotExist:
+                raise serializers.ValidationError("Company not found for this user")
+        else:
+            serializer.save()
 
 class RecruiterUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Recruiter.objects.all()
     serializer_class = RecruiterSerializer
-    permission_classes = [AdminOnlyPermission]
+    permission_classes = [CompanyOrAdminRecruiterPermission]
 
     def perform_destroy(self, instance):
         instance.is_active = False

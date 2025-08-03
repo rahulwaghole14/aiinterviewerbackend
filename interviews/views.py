@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 
 from .models      import Interview
 from .serializers import InterviewSerializer, InterviewFeedbackSerializer
+from .permissions import HiringAgencyOrRecruiterInterviewPermission
+from utils.logger import log_interview_schedule, log_permission_denied, ActionLogger
 
 
 # ──────────────────────────── Permissions ────────────────────────────────
@@ -54,7 +56,7 @@ class InterviewViewSet(viewsets.ModelViewSet):
     """
     queryset           = Interview.objects.select_related("candidate", "job")
     serializer_class   = InterviewSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [HiringAgencyOrRecruiterInterviewPermission]
 
     filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields   = ["status", "job", "candidate"]
@@ -62,7 +64,7 @@ class InterviewViewSet(viewsets.ModelViewSet):
     ordering_fields    = ["created_at", "started_at"]
     ordering           = ["-created_at"]
 
-    # non‑admin users only see their own candidates’ interviews
+    # non‑admin users only see their own candidates' interviews
     def get_queryset(self):
         if (
             getattr(self.request.user, "role", "").lower() == "admin"
@@ -70,6 +72,95 @@ class InterviewViewSet(viewsets.ModelViewSet):
         ):
             return self.queryset
         return self.queryset.filter(candidate__recruiter=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        """Log interview listing"""
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_list',
+            details={'count': self.get_queryset().count()},
+            status='SUCCESS'
+        )
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Log interview retrieval"""
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_retrieve',
+            details={'interview_id': kwargs.get('pk')},
+            status='SUCCESS'
+        )
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        """Log interview creation"""
+        try:
+            response = super().create(request, *args, **kwargs)
+            
+            # Log successful interview creation
+            if response.status_code == 201:
+                interview_data = response.data
+                log_interview_schedule(
+                    user=request.user,
+                    interview_id=interview_data.get('id'),
+                    candidate_id=interview_data.get('candidate'),
+                    job_id=interview_data.get('job'),
+                    status='SUCCESS',
+                    details={
+                        'scheduled_at': interview_data.get('scheduled_at'),
+                        'status': interview_data.get('status'),
+                        'ip_address': request.META.get('REMOTE_ADDR')
+                    }
+                )
+            
+            return response
+            
+        except Exception as e:
+            # Log interview creation failure
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='interview_create',
+                details={'error': str(e)},
+                status='FAILED'
+            )
+            raise
+
+    def update(self, request, *args, **kwargs):
+        """Log interview update"""
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_update',
+            details={
+                'interview_id': kwargs.get('pk'),
+                'update_data': request.data
+            },
+            status='SUCCESS'
+        )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        """Log interview partial update"""
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_partial_update',
+            details={
+                'interview_id': kwargs.get('pk'),
+                'update_data': request.data
+            },
+            status='SUCCESS'
+        )
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        """Log interview deletion"""
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_delete',
+            details={'interview_id': kwargs.get('pk')},
+            status='SUCCESS'
+        )
+        return super().destroy(request, *args, **kwargs)
 
     # admin‑only PATCH /api/interviews/<pk>/feedback/
     @action(
@@ -85,6 +176,18 @@ class InterviewViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        
+        # Log feedback update
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_feedback_update',
+            details={
+                'interview_id': pk,
+                'feedback_data': request.data
+            },
+            status='SUCCESS'
+        )
+        
         return Response(serializer.data)
 
 
@@ -105,4 +208,13 @@ class InterviewStatusSummaryView(APIView):
 
         summary = qs.values("status").annotate(count=Count("id"))
         data = {row["status"]: row["count"] for row in summary}
+        
+        # Log summary request
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_summary',
+            details={'summary': data},
+            status='SUCCESS'
+        )
+        
         return Response(data)

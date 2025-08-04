@@ -30,3 +30,94 @@ INFO 2025-08-04 16:18:41,563 logger 15544 7820 USER_ACTION: {"timestamp": "2025-
 2025-08-04 16:18:41,563 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T10:48:41.563400+00:00", "user_id": 53, "user_email": "recruiter@test.com", "user_role": "RECRUITER", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 11, "type": "system_alert", "channels": ["in_app"], "priority": "high"}}
 INFO 2025-08-04 16:18:42,512 logger 15544 7820 USER_ACTION: {"timestamp": "2025-08-04T10:48:42.512272+00:00", "user_id": 53, "user_email": "recruiter@test.com", "user_role": "RECRUITER", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 12, "type": "system_alert", "channels": ["in_app"], "priority": "urgent"}}
 2025-08-04 16:18:42,512 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T10:48:42.512272+00:00", "user_id": 53, "user_email": "recruiter@test.com", "user_role": "RECRUITER", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 12, "type": "system_alert", "channels": ["in_app"], "priority": "urgent"}}
+INFO 2025-08-04 16:58:40,333 autoreload 11880 6700 Watching for file changes with StatReloader
+WARNING 2025-08-04 16:59:10,799 log 11880 14152 Not Found: /api/auth/login/
+2025-08-04 16:59:10,799 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 16:59:10,801 basehttp 11880 14152 "POST /api/auth/login/ HTTP/1.1" 404 7718
+2025-08-04 16:59:10,801 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 404 7718
+WARNING 2025-08-04 16:59:12,861 log 11880 10196 Not Found: /api/auth/login/
+2025-08-04 16:59:12,861 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 16:59:12,862 basehttp 11880 10196 "POST /api/auth/login/ HTTP/1.1" 404 7718
+2025-08-04 16:59:12,862 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 404 7718
+WARNING 2025-08-04 16:59:14,916 log 11880 8328 Not Found: /api/auth/login/
+2025-08-04 16:59:14,916 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 16:59:14,917 basehttp 11880 8328 "POST /api/auth/login/ HTTP/1.1" 404 7718
+2025-08-04 16:59:14,917 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 404 7718
+INFO 2025-08-04 17:01:53,828 logger 11880 3044 USER_ACTION: {"timestamp": "2025-08-04T11:31:53.828306+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"email": ["This field is required."]}, "attempted_data": {"username": "admin", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:01:53,828 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:31:53.828306+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"email": ["This field is required."]}, "attempted_data": {"username": "admin", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:01:53,832 log 11880 3044 Bad Request: /auth/login/
+2025-08-04 17:01:53,832 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:01:53,834 basehttp 11880 3044 "POST /auth/login/ HTTP/1.1" 400 37
+2025-08-04 17:01:53,834 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 37
+INFO 2025-08-04 17:01:55,890 logger 11880 7964 USER_ACTION: {"timestamp": "2025-08-04T11:31:55.890879+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"email": ["This field is required."]}, "attempted_data": {"username": "company_user", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:01:55,890 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:31:55.890879+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"email": ["This field is required."]}, "attempted_data": {"username": "company_user", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:01:55,893 log 11880 7964 Bad Request: /auth/login/
+2025-08-04 17:01:55,893 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:01:55,895 basehttp 11880 7964 "POST /auth/login/ HTTP/1.1" 400 37
+2025-08-04 17:01:55,895 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 37
+INFO 2025-08-04 17:01:57,948 logger 11880 4448 USER_ACTION: {"timestamp": "2025-08-04T11:31:57.948494+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"email": ["This field is required."]}, "attempted_data": {"username": "agency_user", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:01:57,948 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:31:57.948494+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"email": ["This field is required."]}, "attempted_data": {"username": "agency_user", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:01:57,949 log 11880 4448 Bad Request: /auth/login/
+2025-08-04 17:01:57,949 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:01:57,950 basehttp 11880 4448 "POST /auth/login/ HTTP/1.1" 400 37
+2025-08-04 17:01:57,950 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 37
+INFO 2025-08-04 17:02:46,727 autoreload 11880 6700 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:02:46,727 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:02:47,658 autoreload 2212 4360 Watching for file changes with StatReloader
+INFO 2025-08-04 17:03:13,550 autoreload 2212 4360 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:03:13,550 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:03:14,471 autoreload 14556 11448 Watching for file changes with StatReloader
+INFO 2025-08-04 17:03:46,867 autoreload 14556 11448 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:03:46,867 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:03:47,917 autoreload 17652 7136 Watching for file changes with StatReloader
+INFO 2025-08-04 17:06:46,122 logger 17652 3056 USER_ACTION: {"timestamp": "2025-08-04T11:36:46.122036+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:06:46,122 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:36:46.122036+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:06:46,123 log 17652 3056 Bad Request: /auth/login/
+2025-08-04 17:06:46,123 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:06:46,124 basehttp 17652 3056 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:06:46,124 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 17:06:50,500 logger 17652 13212 USER_ACTION: {"timestamp": "2025-08-04T11:36:50.500401+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "company_user", "email": "company@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:06:50,500 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:36:50.500401+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "company_user", "email": "company@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:06:50,500 log 17652 13212 Bad Request: /auth/login/
+2025-08-04 17:06:50,500 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:06:50,501 basehttp 17652 13212 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:06:50,501 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 17:06:54,872 logger 17652 17944 USER_ACTION: {"timestamp": "2025-08-04T11:36:54.872086+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "agency_user", "email": "agency@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:06:54,872 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:36:54.872086+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "agency_user", "email": "agency@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:06:54,873 log 17652 17944 Bad Request: /auth/login/
+2025-08-04 17:06:54,873 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:06:54,876 basehttp 17652 17944 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:06:54,876 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 17:07:06,198 autoreload 17652 7136 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:07:06,198 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:07:07,194 autoreload 14312 14624 Watching for file changes with StatReloader
+INFO 2025-08-04 17:11:09,518 autoreload 14312 14624 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:11:09,518 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:11:10,514 autoreload 20456 18232 Watching for file changes with StatReloader
+INFO 2025-08-04 17:11:37,380 autoreload 20456 18232 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:11:37,380 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:11:38,423 autoreload 17036 14772 Watching for file changes with StatReloader
+INFO 2025-08-04 17:11:51,258 autoreload 17036 14772 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:11:51,258 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:11:52,232 autoreload 17668 22388 Watching for file changes with StatReloader
+INFO 2025-08-04 17:12:04,469 autoreload 17668 22388 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:12:04,469 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:12:05,337 autoreload 21028 19880 Watching for file changes with StatReloader
+INFO 2025-08-04 17:12:52,893 autoreload 21028 19880 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:12:52,893 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:12:53,813 autoreload 11276 5596 Watching for file changes with StatReloader
+INFO 2025-08-04 17:13:05,409 autoreload 11276 5596 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:13:05,409 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:13:06,246 autoreload 20612 7272 Watching for file changes with StatReloader
+INFO 2025-08-04 17:13:22,287 autoreload 20612 7272 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:13:22,287 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:13:23,192 autoreload 3608 22416 Watching for file changes with StatReloader
+INFO 2025-08-04 17:13:32,680 autoreload 3608 22416 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:13:32,680 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:13:33,652 autoreload 3308 6584 Watching for file changes with StatReloader
+INFO 2025-08-04 17:14:25,290 autoreload 3308 6584 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:14:25,290 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:14:26,068 autoreload 7104 2528 Watching for file changes with StatReloader
+INFO 2025-08-04 17:15:12,710 autoreload 7104 2528 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+2025-08-04 17:15:12,710 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
+INFO 2025-08-04 17:15:13,829 autoreload 4432 18904 Watching for file changes with StatReloader

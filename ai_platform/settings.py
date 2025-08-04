@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'companies',
     'evaluation',
     'notifications',
+    'dashboard',
 ]
 
 # Django REST Framework settings

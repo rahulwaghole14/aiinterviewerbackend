@@ -226,7 +226,7 @@ def log_resume_upload(user, resume_id, filename, status='SUCCESS', details=None)
         details={
             'resume_id': resume_id,
             'filename': filename,
-            **details or {}
+            **(details or {})
         },
         status=status
     )
@@ -240,7 +240,7 @@ def log_bulk_resume_upload(user, file_count, success_count, failed_count, status
             'file_count': file_count,
             'success_count': success_count,
             'failed_count': failed_count,
-            **details or {}
+            **(details or {})
         },
         status=status
     )
@@ -254,7 +254,7 @@ def log_interview_schedule(user, interview_id, candidate_id, job_id, status='SUC
             'interview_id': interview_id,
             'candidate_id': candidate_id,
             'job_id': job_id,
-            **details or {}
+            **(details or {})
         },
         status=status
     )

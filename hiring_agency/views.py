@@ -3,16 +3,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .serializers import UserDataSerializer
 from .models import UserData
-from .permissions import IsAdminOrReadOnly, CompanyOrAdminPermission
+from utils.hierarchy_permissions import HiringAgencyHierarchyPermission, DataIsolationMixin
 from rest_framework import generics, permissions
 from .models import UserData
 from .serializers import UserDataSerializer
 
 
-class UserDataViewSet(viewsets.ModelViewSet):
+class UserDataViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     queryset = UserData.objects.all()
     serializer_class = UserDataSerializer
-    permission_classes = [CompanyOrAdminPermission]
+    permission_classes = [HiringAgencyHierarchyPermission]
 
     def get_queryset(self):
         user = self.request.user
@@ -99,7 +99,7 @@ class UserDataViewSet(viewsets.ModelViewSet):
 class CreateUserDataView(generics.CreateAPIView):
     queryset = UserData.objects.all()
     serializer_class = UserDataSerializer
-    permission_classes = [CompanyOrAdminPermission]
+    permission_classes = [HiringAgencyHierarchyPermission]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from .models      import Interview
 from .serializers import InterviewSerializer, InterviewFeedbackSerializer
-from .permissions import HiringAgencyOrRecruiterInterviewPermission
+from utils.hierarchy_permissions import InterviewHierarchyPermission, DataIsolationMixin
 from utils.logger import log_interview_schedule, log_permission_denied, ActionLogger
 
 
@@ -49,14 +49,14 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 
 # ───────────────────────────── ViewSet ────────────────────────────────────
-class InterviewViewSet(viewsets.ModelViewSet):
+class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     """
     /api/interviews/  → list, create
     /api/interviews/<pk>/  → retrieve, update, delete
     """
     queryset           = Interview.objects.select_related("candidate", "job")
     serializer_class   = InterviewSerializer
-    permission_classes = [HiringAgencyOrRecruiterInterviewPermission]
+    permission_classes = [InterviewHierarchyPermission]
 
     filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields   = ["status", "job", "candidate"]

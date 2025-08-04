@@ -9,13 +9,13 @@ import threading
 from .models import Resume
 from .serializers import ResumeSerializer, BulkResumeSerializer, ResumeProcessingResultSerializer
 from .utils import extract_resume_fields
-from .permissions import HiringAgencyOrRecruiterPermission
+from utils.hierarchy_permissions import ResumeHierarchyPermission, DataIsolationMixin
 from utils.logger import log_resume_upload, log_bulk_resume_upload, log_permission_denied, ActionLogger
 
-class ResumeViewSet(ModelViewSet):
+class ResumeViewSet(DataIsolationMixin, ModelViewSet):
     queryset = Resume.objects.all()
     serializer_class = ResumeSerializer
-    permission_classes = [HiringAgencyOrRecruiterPermission]
+    permission_classes = [ResumeHierarchyPermission]
 
     def perform_create(self, serializer):
         try:
@@ -122,7 +122,7 @@ class ResumeViewSet(ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 class BulkResumeUploadView(APIView):
-    permission_classes = [HiringAgencyOrRecruiterPermission]
+    permission_classes = [ResumeHierarchyPermission]
     
     def post(self, request):
         try:

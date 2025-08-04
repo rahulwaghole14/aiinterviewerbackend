@@ -27,7 +27,7 @@ class HiringAgencyOrRecruiterInterviewPermission(permissions.BasePermission):
             return True
         
         # Check if user has permission for write operations
-        has_permission = request.user.role in ['HIRING_MANAGER', 'RECRUITER']
+        has_permission = request.user.role in ['HIRING_AGENCY', 'RECRUITER']
         
         if not has_permission:
             # Log permission denied
@@ -49,7 +49,7 @@ class HiringAgencyOrRecruiterInterviewPermission(permissions.BasePermission):
             return True
         
         # Check if user has permission for write operations
-        has_permission = request.user.role in ['HIRING_MANAGER', 'RECRUITER']
+        has_permission = request.user.role in ['HIRING_AGENCY', 'RECRUITER']
         
         if not has_permission:
             # Log permission denied for object

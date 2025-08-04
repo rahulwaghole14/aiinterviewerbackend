@@ -1,0 +1,1084 @@
+{
+	"info": {
+		"_postman_id": "ai-interviewer-api",
+		"name": "AI Interviewer Platform API",
+		"description": "Complete API documentation for the AI Interviewer Platform with authentication, resume management, interview scheduling, and user management.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "User Registration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "username",
+									"value": "test@example.com",
+									"description": "Email address (used as username)"
+								},
+								{
+									"key": "email",
+									"value": "test@example.com",
+									"description": "Email address"
+								},
+								{
+									"key": "password",
+									"value": "testpass123",
+									"description": "Password"
+								},
+								{
+									"key": "full_name",
+									"value": "Test User",
+									"description": "Full name"
+								},
+								{
+									"key": "company_name",
+									"value": "Test Company",
+									"description": "Company name"
+								},
+								{
+									"key": "role",
+									"value": "HIRING_MANAGER",
+									"description": "User role (ADMIN, COMPANY, HIRING_MANAGER, RECRUITER)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register", ""]
+						},
+						"description": "Register a new user account"
+					},
+					"response": []
+				},
+				{
+					"name": "User Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "email",
+									"value": "test@example.com",
+									"description": "Email address"
+								},
+								{
+									"key": "password",
+									"value": "testpass123",
+									"description": "Password"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						},
+						"description": "Login and get authentication token"
+					},
+					"response": []
+				},
+				{
+					"name": "User Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout", ""]
+						},
+						"description": "Logout and invalidate token"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for user registration, login, and logout"
+		},
+		{
+			"name": "Resume Management",
+			"item": [
+				{
+					"name": "Upload Single Resume",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Resume file (PDF, DOCX, DOC)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/resumes/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", ""]
+						},
+						"description": "Upload a single resume file (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Upload Resumes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": [],
+									"description": "Multiple resume files (up to 10)"
+								},
+								{
+									"key": "files",
+									"type": "file",
+									"src": [],
+									"description": "Additional resume file"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/resumes/bulk-upload/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "bulk-upload", ""]
+						},
+						"description": "Upload multiple resume files at once (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				},
+				{
+					"name": "List All Resumes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/resumes/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", ""]
+						},
+						"description": "Get list of all resumes (available to all authenticated users)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Resume Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/resumes/{{resume_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "{{resume_id}}", ""]
+						},
+						"description": "Get details of a specific resume"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Resume",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"parsed_text\": \"Updated resume text\",\n  \"extracted_data\": {\n    \"skills\": [\"Python\", \"Django\"],\n    \"experience\": \"5 years\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/resumes/{{resume_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "{{resume_id}}", ""]
+						},
+						"description": "Update resume details (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Resume",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/resumes/{{resume_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "{{resume_id}}", ""]
+						},
+						"description": "Delete a resume (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				}
+			],
+			"description": "Resume management endpoints for uploading, viewing, and managing resumes"
+		},
+		{
+			"name": "Interview Management",
+			"item": [
+				{
+					"name": "Schedule Interview",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"candidate\": 1,\n  \"job\": 1,\n  \"scheduled_at\": \"2024-01-15T10:00:00Z\",\n  \"status\": \"scheduled\",\n  \"notes\": \"Initial interview for Python developer position\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", ""]
+						},
+						"description": "Schedule a new interview (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				},
+				{
+					"name": "List All Interviews",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", ""]
+						},
+						"description": "Get list of all interviews (available to all authenticated users)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Interview Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Get details of a specific interview"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Interview",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"completed\",\n  \"notes\": \"Interview completed successfully\",\n  \"feedback\": \"Strong candidate with good technical skills\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Update interview details (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Interview Feedback",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"feedback\": \"Excellent technical skills and communication\",\n  \"rating\": 4.5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/feedback/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", "feedback", ""]
+						},
+						"description": "Update interview feedback (requires ADMIN role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Interview",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Delete an interview (requires HIRING_MANAGER or RECRUITER role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Interview Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "summary", ""]
+						},
+						"description": "Get interview statistics summary"
+					},
+					"response": []
+				}
+			],
+			"description": "Interview management endpoints for scheduling, viewing, and managing interviews"
+		},
+		{
+			"name": "Hiring Agency Management",
+			"item": [
+				{
+					"name": "List Hiring Agencies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/hiring_agency/",
+							"host": ["{{base_url}}"],
+							"path": ["hiring_agency", ""]
+						},
+						"description": "Get list of hiring agencies (filtered by user role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Hiring Agency User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@agency.com\",\n  \"phone_number\": \"+1234567890\",\n  \"role\": \"HIRING AGENCY\",\n  \"company_name\": \"Test Agency\",\n  \"department\": \"Recruitment\",\n  \"position\": \"Senior Recruiter\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/hiring_agency/",
+							"host": ["{{base_url}}"],
+							"path": ["hiring_agency", ""]
+						},
+						"description": "Create a new hiring agency user (requires ADMIN or COMPANY role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Hiring Agency User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/hiring_agency/{{user_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["hiring_agency", "{{user_id}}", ""]
+						},
+						"description": "Get details of a specific hiring agency user"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Hiring Agency User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"first_name\": \"John Updated\",\n  \"last_name\": \"Doe Updated\",\n  \"email\": \"john.updated@agency.com\",\n  \"phone_number\": \"+1234567890\",\n  \"role\": \"HIRING AGENCY\",\n  \"company_name\": \"Updated Agency\",\n  \"department\": \"Senior Recruitment\",\n  \"position\": \"Lead Recruiter\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/hiring_agency/{{user_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["hiring_agency", "{{user_id}}", ""]
+						},
+						"description": "Update hiring agency user details (requires ADMIN or COMPANY role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Hiring Agency User",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/hiring_agency/{{user_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["hiring_agency", "{{user_id}}", ""]
+						},
+						"description": "Delete a hiring agency user (requires ADMIN or COMPANY role)"
+					},
+					"response": []
+				}
+			],
+			"description": "Hiring agency management endpoints for managing hiring agency users"
+		},
+		{
+			"name": "Company Management",
+			"item": [
+				{
+					"name": "List Companies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", ""]
+						},
+						"description": "Get list of companies (requires ADMIN role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Company",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Tech Solutions Inc\",\n  \"description\": \"Leading technology solutions provider\",\n  \"industry\": \"Technology\",\n  \"size\": \"500-1000 employees\",\n  \"location\": \"San Francisco, CA\",\n  \"website\": \"https://techsolutions.com\",\n  \"contact_email\": \"hr@techsolutions.com\",\n  \"contact_phone\": \"+1-555-0123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", ""]
+						},
+						"description": "Create a new company (requires ADMIN role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}", ""]
+						},
+						"description": "Get details of a specific company"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Company",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Tech Solutions Inc\",\n  \"description\": \"Updated technology solutions provider\",\n  \"industry\": \"Technology\",\n  \"size\": \"1000+ employees\",\n  \"location\": \"San Francisco, CA\",\n  \"website\": \"https://updatedtechsolutions.com\",\n  \"contact_email\": \"hr@updatedtechsolutions.com\",\n  \"contact_phone\": \"+1-555-0124\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}", ""]
+						},
+						"description": "Update company details (requires ADMIN role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Company",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/{{company_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "{{company_id}}", ""]
+						},
+						"description": "Delete a company (requires ADMIN role)"
+					},
+					"response": []
+				}
+			],
+			"description": "Company management endpoints for managing companies"
+		},
+		{
+			"name": "Recruiter Management",
+			"item": [
+				{
+					"name": "Create Recruiter",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Jane Smith\",\n  \"email\": \"jane.smith@company.com\",\n  \"phone\": \"+1234567890\",\n  \"company_id\": 1,\n  \"specialization\": \"Technology\",\n  \"experience_years\": 5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/recruiters/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "recruiters", ""]
+						},
+						"description": "Create a new recruiter (requires ADMIN or COMPANY role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Recruiter Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/recruiters/{{recruiter_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "recruiters", "{{recruiter_id}}", ""]
+						},
+						"description": "Get details of a specific recruiter"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Recruiter",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Jane Smith Updated\",\n  \"email\": \"jane.updated@company.com\",\n  \"phone\": \"+1234567891\",\n  \"company_id\": 1,\n  \"specialization\": \"Senior Technology\",\n  \"experience_years\": 7\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/companies/recruiters/{{recruiter_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "recruiters", "{{recruiter_id}}", ""]
+						},
+						"description": "Update recruiter details (requires ADMIN or COMPANY role)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Recruiter",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/companies/recruiters/{{recruiter_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["companies", "recruiters", "{{recruiter_id}}", ""]
+						},
+						"description": "Delete a recruiter (requires ADMIN or COMPANY role)"
+					},
+					"response": []
+				}
+			],
+			"description": "Recruiter management endpoints for managing recruiters"
+		},
+		{
+			"name": "Job Management",
+			"item": [
+				{
+					"name": "List Jobs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", ""]
+						},
+						"description": "Get list of all jobs"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Job",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Senior Python Developer\",\n  \"description\": \"We are looking for a senior Python developer with Django experience\",\n  \"requirements\": \"Python, Django, PostgreSQL, 5+ years experience\",\n  \"salary_range\": \"$80,000 - $120,000\",\n  \"location\": \"Remote\",\n  \"job_type\": \"Full-time\",\n  \"company\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/jobs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", ""]
+						},
+						"description": "Create a new job posting"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Job Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/{{job_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "{{job_id}}", ""]
+						},
+						"description": "Get details of a specific job"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Job",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Senior Python Developer Updated\",\n  \"description\": \"Updated job description for senior Python developer\",\n  \"requirements\": \"Python, Django, PostgreSQL, React, 5+ years experience\",\n  \"salary_range\": \"$90,000 - $130,000\",\n  \"location\": \"Hybrid\",\n  \"job_type\": \"Full-time\",\n  \"company\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/jobs/{{job_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "{{job_id}}", ""]
+						},
+						"description": "Update job details"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Job",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/{{job_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "{{job_id}}", ""]
+						},
+						"description": "Delete a job posting"
+					},
+					"response": []
+				}
+			],
+			"description": "Job management endpoints for managing job postings"
+		},
+		{
+			"name": "Candidate Management",
+			"item": [
+				{
+					"name": "List Candidates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", ""]
+						},
+						"description": "Get list of all candidates"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Candidate",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Alice Johnson\",\n  \"email\": \"alice.johnson@email.com\",\n  \"phone\": \"+1234567890\",\n  \"resume\": 1,\n  \"experience_years\": 3,\n  \"skills\": [\"Python\", \"Django\", \"JavaScript\"],\n  \"current_company\": \"Tech Corp\",\n  \"expected_salary\": \"$70,000\",\n  \"recruiter\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", ""]
+						},
+						"description": "Create a new candidate profile"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Candidate Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "{{candidate_id}}", ""]
+						},
+						"description": "Get details of a specific candidate"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Candidate",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Alice Johnson Updated\",\n  \"email\": \"alice.updated@email.com\",\n  \"phone\": \"+1234567891\",\n  \"resume\": 1,\n  \"experience_years\": 4,\n  \"skills\": [\"Python\", \"Django\", \"JavaScript\", \"React\"],\n  \"current_company\": \"Updated Tech Corp\",\n  \"expected_salary\": \"$80,000\",\n  \"recruiter\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "{{candidate_id}}", ""]
+						},
+						"description": "Update candidate details"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Candidate",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "{{candidate_id}}", ""]
+						},
+						"description": "Delete a candidate profile"
+					},
+					"response": []
+				}
+			],
+			"description": "Candidate management endpoints for managing candidate profiles"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string",
+			"description": "Base URL for the API"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string",
+			"description": "Authentication token (obtained from login)"
+		},
+		{
+			"key": "resume_id",
+			"value": "",
+			"type": "string",
+			"description": "Resume ID for testing"
+		},
+		{
+			"key": "interview_id",
+			"value": "",
+			"type": "string",
+			"description": "Interview ID for testing"
+		},
+		{
+			"key": "company_id",
+			"value": "",
+			"type": "string",
+			"description": "Company ID for testing"
+		},
+		{
+			"key": "recruiter_id",
+			"value": "",
+			"type": "string",
+			"description": "Recruiter ID for testing"
+		},
+		{
+			"key": "job_id",
+			"value": "",
+			"type": "string",
+			"description": "Job ID for testing"
+		},
+		{
+			"key": "candidate_id",
+			"value": "",
+			"type": "string",
+			"description": "Candidate ID for testing"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string",
+			"description": "User ID for testing"
+		}
+	]
+} 

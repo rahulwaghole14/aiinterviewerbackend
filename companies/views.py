@@ -8,37 +8,29 @@ from .serializers import (
     RecruiterSerializer,
     RecruiterCreateSerializer
 )
-from .permissions import AdminOnlyPermission, AdminOrReadOnlyPermission, CompanyOrAdminRecruiterPermission
+from utils.hierarchy_permissions import CompanyHierarchyPermission, RecruiterHierarchyPermission, DataIsolationMixin
 
-class CompanyListCreateView(generics.ListCreateAPIView):
+class CompanyListCreateView(DataIsolationMixin, generics.ListCreateAPIView):
     queryset = Company.objects.filter(is_active=True)
     serializer_class = CompanySerializer
-    permission_classes = [AdminOrReadOnlyPermission]
+    permission_classes = [CompanyHierarchyPermission]
 
-class CompanyDetailView(generics.RetrieveUpdateDestroyAPIView):
+class CompanyDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
-    permission_classes = [AdminOrReadOnlyPermission]
+    permission_classes = [CompanyHierarchyPermission]
 
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save()
 
-class RecruiterListView(generics.ListAPIView):
+class RecruiterListView(DataIsolationMixin, generics.ListAPIView):
     serializer_class = RecruiterSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.role == "ADMIN":
-            return Recruiter.objects.filter(is_active=True)
-        elif user.role == "COMPANY":
-            return Recruiter.objects.filter(company__name=user.company_name, is_active=True)
-        return Recruiter.objects.none()
+    permission_classes = [RecruiterHierarchyPermission]
 
 class RecruiterCreateView(generics.CreateAPIView):
     serializer_class = RecruiterCreateSerializer
-    permission_classes = [CompanyOrAdminRecruiterPermission]
+    permission_classes = [RecruiterHierarchyPermission]
 
     def perform_create(self, serializer):
         # For Company users, ensure the recruiter is created for their company
@@ -53,10 +45,10 @@ class RecruiterCreateView(generics.CreateAPIView):
         else:
             serializer.save()
 
-class RecruiterUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+class RecruiterUpdateDeleteView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Recruiter.objects.all()
     serializer_class = RecruiterSerializer
-    permission_classes = [CompanyOrAdminRecruiterPermission]
+    permission_classes = [RecruiterHierarchyPermission]
 
     def perform_destroy(self, instance):
         instance.is_active = False

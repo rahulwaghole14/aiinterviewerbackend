@@ -17,6 +17,7 @@ from .serializers import (
 )
 from utils.hierarchy_permissions import ResumeHierarchyPermission, DataIsolationMixin
 from utils.logger import ActionLogger
+from notifications.services import NotificationService
 from resumes.models import Resume, extract_resume_fields
 from utils.name_parser import parse_candidate_name
 
@@ -280,6 +281,9 @@ class CandidateSubmissionView(APIView):
                 },
                 status='SUCCESS'
             )
+            
+            # Send notification for candidate addition
+            NotificationService.send_candidate_added_notification(candidate, request.user)
             
             return Response({
                 'message': 'Candidate submitted successfully',

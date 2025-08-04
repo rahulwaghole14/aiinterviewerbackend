@@ -40,6 +40,9 @@ urlpatterns = [
 
     path("api/evaluation/", include("evaluation.urls")),
 
+    # Notifications API
+    path("api/notifications/", include("notifications.urls")),
+
 ]
 
 # ──────────────────── Serve media in DEBUG ───────────────────────────────

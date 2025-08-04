@@ -12,6 +12,7 @@ from .models      import Interview
 from .serializers import InterviewSerializer, InterviewFeedbackSerializer
 from utils.hierarchy_permissions import InterviewHierarchyPermission, DataIsolationMixin
 from utils.logger import log_interview_schedule, log_permission_denied, ActionLogger
+from notifications.services import NotificationService
 
 
 # ──────────────────────────── Permissions ────────────────────────────────
@@ -113,6 +114,20 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                         'ip_address': request.META.get('REMOTE_ADDR')
                     }
                 )
+                
+                # Send notification for interview scheduling
+                try:
+                    from interviews.models import Interview
+                    interview = Interview.objects.get(id=interview_data.get('id'))
+                    NotificationService.send_interview_scheduled_notification(interview)
+                except Exception as e:
+                    # Log notification failure but don't fail the request
+                    ActionLogger.log_user_action(
+                        user=request.user,
+                        action='notification_failed',
+                        details={'error': str(e), 'interview_id': interview_data.get('id')},
+                        status='FAILED'
+                    )
             
             return response
             

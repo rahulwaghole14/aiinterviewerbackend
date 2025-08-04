@@ -11,6 +11,7 @@ from .serializers import ResumeSerializer, BulkResumeSerializer, ResumeProcessin
 from .utils import extract_resume_fields
 from utils.hierarchy_permissions import ResumeHierarchyPermission, DataIsolationMixin
 from utils.logger import log_resume_upload, log_bulk_resume_upload, log_permission_denied, ActionLogger
+from notifications.services import NotificationService
 
 class ResumeViewSet(DataIsolationMixin, ModelViewSet):
     queryset = Resume.objects.all()
@@ -55,6 +56,9 @@ class ResumeViewSet(DataIsolationMixin, ModelViewSet):
                             },
                             status='SUCCESS'
                         )
+                        
+                        # Send notification for resume processing
+                        NotificationService.send_resume_processed_notification(resume, self.request.user)
             except Exception as e:
                 # Log text extraction failure
                 ActionLogger.log_user_action(
@@ -180,7 +184,8 @@ class BulkResumeUploadView(APIView):
                 }
             )
             
-            return Response({
+            # Prepare response data
+            response_data = {
                 'message': f'Processed {len(results)} resumes: {successful_uploads} successful, {failed_uploads} failed',
                 'results': results,
                 'summary': {
@@ -188,7 +193,12 @@ class BulkResumeUploadView(APIView):
                     'successful': successful_uploads,
                     'failed': failed_uploads
                 }
-            }, status=status.HTTP_200_OK)
+            }
+            
+            # Send notification for bulk upload completion
+            NotificationService.send_bulk_upload_completed_notification(request.user, response_data)
+            
+            return Response(response_data, status=status.HTTP_200_OK)
             
         except Exception as e:
             # Log bulk upload failure

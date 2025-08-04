@@ -2,6 +2,25 @@ from django.db import models
 from django.core.validators import MinValueValidator
 
 
+class Domain(models.Model):
+    """
+    Domain/Technology area model for categorizing jobs and candidates
+    """
+    name = models.CharField(max_length=100, unique=True, help_text="Domain name (e.g., 'Python Development', 'React Frontend')")
+    description = models.TextField(blank=True, help_text="Description of the domain")
+    is_active = models.BooleanField(default=True, help_text="Whether this domain is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Domain"
+        verbose_name_plural = "Domains"
+
+    def __str__(self):
+        return self.name
+
+
 class Job(models.Model):
     class PositionLevel(models.TextChoices):
         IC = 'IC', 'Individual Contributor'
@@ -9,6 +28,7 @@ class Job(models.Model):
 
     job_title = models.CharField(max_length=255, db_index=True)
     company_name = models.CharField(max_length=255, db_index=True)
+    domain = models.ForeignKey(Domain, on_delete=models.CASCADE, related_name='jobs', help_text="Domain/technology area for this job", null=True, blank=True)
     spoc_email = models.EmailField()
     hiring_manager_email = models.EmailField()
     
@@ -29,4 +49,5 @@ class Job(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.job_title} at {self.company_name}"
+        domain_name = self.domain.name if self.domain else "No Domain"
+        return f"{self.job_title} at {self.company_name} ({domain_name})"

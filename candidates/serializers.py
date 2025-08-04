@@ -2,7 +2,7 @@ from rest_framework import serializers
 from candidates.models import Candidate, CandidateDraft
 from utils.name_parser import parse_candidate_name
 from resumes.models import Resume, extract_resume_fields
-from jobs.models import Job
+from jobs.models import Job, Domain
 from utils.logger import ActionLogger
 
 # ────────────────────────────────────────────────────────────────

@@ -121,3 +121,48 @@ INFO 2025-08-04 17:14:26,068 autoreload 7104 2528 Watching for file changes with
 INFO 2025-08-04 17:15:12,710 autoreload 7104 2528 D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
 2025-08-04 17:15:12,710 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\dashboard\models.py changed, reloading.
 INFO 2025-08-04 17:15:13,829 autoreload 4432 18904 Watching for file changes with StatReloader
+INFO 2025-08-04 17:29:17,965 logger 4432 6272 USER_ACTION: {"timestamp": "2025-08-04T11:59:17.965931+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:29:17,965 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:59:17.965931+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:29:17,967 log 4432 6272 Bad Request: /auth/login/
+2025-08-04 17:29:17,967 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:29:17,969 basehttp 4432 6272 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:29:17,969 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+WARNING 2025-08-04 17:29:20,043 log 4432 12664 Unauthorized: /api/resumes/bulk-upload/
+2025-08-04 17:29:20,043 - django.request - WARNING - Unauthorized: /api/resumes/bulk-upload/
+WARNING 2025-08-04 17:29:20,044 basehttp 4432 12664 "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+2025-08-04 17:29:20,044 - django.server - WARNING - "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+INFO 2025-08-04 17:29:24,599 logger 4432 1784 USER_ACTION: {"timestamp": "2025-08-04T11:59:24.599837+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:29:24,599 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T11:59:24.599837+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:29:24,602 log 4432 1784 Bad Request: /auth/login/
+2025-08-04 17:29:24,602 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:29:24,603 basehttp 4432 1784 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:29:24,603 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 17:30:16,335 logger 4432 10780 USER_ACTION: {"timestamp": "2025-08-04T12:00:16.334187+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"attempted_email": "test_bulk@example.com", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "reason": "Invalid credentials"}}
+2025-08-04 17:30:16,335 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T12:00:16.334187+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"attempted_email": "test_bulk@example.com", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "reason": "Invalid credentials"}}
+WARNING 2025-08-04 17:30:16,336 log 4432 10780 Unauthorized: /auth/login/
+2025-08-04 17:30:16,336 - django.request - WARNING - Unauthorized: /auth/login/
+WARNING 2025-08-04 17:30:16,338 basehttp 4432 10780 "POST /auth/login/ HTTP/1.1" 401 31
+2025-08-04 17:30:16,338 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 401 31
+INFO 2025-08-04 17:31:18,024 autoreload 21600 8084 Watching for file changes with StatReloader
+INFO 2025-08-04 17:32:02,081 logger 4432 6580 USER_ACTION: {"timestamp": "2025-08-04T12:02:02.080398+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:32:02,081 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T12:02:02.080398+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"username": "admin", "email": "admin@test.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:32:02,083 log 4432 6580 Bad Request: /auth/login/
+2025-08-04 17:32:02,083 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:32:02,083 basehttp 4432 6580 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:32:02,083 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+WARNING 2025-08-04 17:32:04,115 log 4432 23376 Unauthorized: /api/resumes/bulk-upload/
+2025-08-04 17:32:04,115 - django.request - WARNING - Unauthorized: /api/resumes/bulk-upload/
+WARNING 2025-08-04 17:32:04,116 basehttp 4432 23376 "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+2025-08-04 17:32:04,116 - django.server - WARNING - "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+INFO 2025-08-04 17:39:27,817 logger 4432 17996 USER_ACTION: {"timestamp": "2025-08-04T12:09:27.817157+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 17:39:27,817 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T12:09:27.817157+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 17:39:27,819 log 4432 17996 Bad Request: /auth/login/
+2025-08-04 17:39:27,819 - django.request - WARNING - Bad Request: /auth/login/
+WARNING 2025-08-04 17:39:27,820 basehttp 4432 17996 "POST /auth/login/ HTTP/1.1" 400 60
+2025-08-04 17:39:27,820 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 17:40:34,535 logger 4432 19932 USER_ACTION: {"timestamp": "2025-08-04T12:10:34.535845+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"attempted_email": "test_bulk@example.com", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "reason": "Invalid credentials"}}
+2025-08-04 17:40:34,535 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T12:10:34.535845+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"attempted_email": "test_bulk@example.com", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "reason": "Invalid credentials"}}
+WARNING 2025-08-04 17:40:34,537 log 4432 19932 Unauthorized: /auth/login/
+2025-08-04 17:40:34,537 - django.request - WARNING - Unauthorized: /auth/login/
+WARNING 2025-08-04 17:40:34,538 basehttp 4432 19932 "POST /auth/login/ HTTP/1.1" 401 31
+2025-08-04 17:40:34,538 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 401 31

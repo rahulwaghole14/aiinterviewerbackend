@@ -1,9 +1,105 @@
 from rest_framework import serializers
-from candidates.models import Candidate
+from candidates.models import Candidate, CandidateDraft
 from utils.name_parser import parse_candidate_name
 from resumes.models import Resume, extract_resume_fields
 from jobs.models import Job
-  
+from utils.logger import ActionLogger
+
+# ────────────────────────────────────────────────────────────────
+# Step-by-Step Candidate Creation Serializers
+# ────────────────────────────────────────────────────────────────
+
+class DomainRoleSelectionSerializer(serializers.Serializer):
+    """
+    Step 1: Domain and role selection
+    """
+    domain = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Domain/technology area (e.g., 'Python', 'React', 'DevOps')"
+    )
+    role = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Job role/position (e.g., 'Senior Developer', 'Team Lead', 'Architect')"
+    )
+
+class DataExtractionSerializer(serializers.Serializer):
+    """
+    Step 2: Resume upload and data extraction
+    """
+    resume_file = serializers.FileField(
+        required=True,
+        help_text="Resume file (PDF, DOCX, DOC)"
+    )
+    domain = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Domain/technology area"
+    )
+    role = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Job role/position"
+    )
+
+class CandidateVerificationSerializer(serializers.ModelSerializer):
+    """
+    Step 3 & 4: Preview and update extracted data
+    """
+    full_name = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
+    work_experience = serializers.IntegerField(required=False, allow_null=True)
+
+    class Meta:
+        model = CandidateDraft
+        fields = [
+            'id', 'domain', 'role', 'full_name', 'email', 
+            'phone', 'work_experience', 'extracted_data', 
+            'verified_data', 'status'
+        ]
+        read_only_fields = ['id', 'domain', 'role', 'extracted_data', 'status']
+
+    def update(self, instance, validated_data):
+        """Update verified data"""
+        # Update verified_data with user-provided values
+        verified_data = instance.verified_data.copy()
+        
+        for field in ['full_name', 'email', 'phone', 'work_experience']:
+            if field in validated_data:
+                verified_data[field] = validated_data[field]
+        
+        instance.verified_data = verified_data
+        instance.status = CandidateDraft.Status.VERIFIED
+        instance.save()
+        
+        # Log verification update
+        ActionLogger.log_user_action(
+            user=self.context['request'].user,
+            action='candidate_verification_update',
+            details={
+                'draft_id': instance.id,
+                'updated_fields': list(validated_data.keys())
+            },
+            status='SUCCESS'
+        )
+        
+        return instance
+
+class CandidateSubmissionSerializer(serializers.Serializer):
+    """
+    Step 5: Final submission confirmation
+    """
+    confirm_submission = serializers.BooleanField(
+        required=True,
+        help_text="Confirm that you want to submit this candidate"
+    )
+
+# ────────────────────────────────────────────────────────────────
+# Existing Serializers (Updated)
+# ────────────────────────────────────────────────────────────────
+
 class CandidateSerializer(serializers.ModelSerializer):
     resume_file_url = serializers.SerializerMethodField()
     job_title = serializers.CharField(required=False, allow_blank=True, write_only=True) 

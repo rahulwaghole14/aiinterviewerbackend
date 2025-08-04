@@ -4,6 +4,39 @@ from jobs.models import Job
 from resumes.models import Resume
 
 
+class CandidateDraft(models.Model):
+    """
+    Temporary storage for candidate data before final submission
+    Supports the step-by-step candidate creation flow
+    """
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        EXTRACTED = 'extracted', 'Data Extracted'
+        VERIFIED = 'verified', 'Verified'
+        SUBMITTED = 'submitted', 'Submitted'
+
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='candidate_drafts')
+    domain = models.CharField(max_length=100, help_text="Domain/technology area")
+    role = models.CharField(max_length=100, help_text="Job role/position")
+    resume_file = models.FileField(upload_to='candidate_drafts/', help_text="Uploaded resume file")
+    
+    # Extracted data from resume
+    extracted_data = models.JSONField(default=dict, help_text="Data extracted from resume")
+    
+    # User-verified/updated data
+    verified_data = models.JSONField(default=dict, help_text="User-verified data")
+    
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Draft {self.id} - {self.domain}/{self.role} ({self.status})"
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class Candidate(models.Model):
     class Status(models.TextChoices):
         NEW                 = "NEW",               "New"

@@ -90,7 +90,7 @@ def login_view(request):
             password = serializer.validated_data['password']
             
             # Try to authenticate
-            user = authenticate(request, username=email, password=password)
+            user = authenticate(request, email=email, password=password)
             
             if user:
                 login(request, user)

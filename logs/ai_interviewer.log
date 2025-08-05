@@ -166,3 +166,263 @@ WARNING 2025-08-04 17:40:34,537 log 4432 19932 Unauthorized: /auth/login/
 2025-08-04 17:40:34,537 - django.request - WARNING - Unauthorized: /auth/login/
 WARNING 2025-08-04 17:40:34,538 basehttp 4432 19932 "POST /auth/login/ HTTP/1.1" 401 31
 2025-08-04 17:40:34,538 - django.server - WARNING - "POST /auth/login/ HTTP/1.1" 401 31
+WARNING 2025-08-04 17:42:51,202 log 4432 19812 Unauthorized: /api/resumes/bulk-upload/
+2025-08-04 17:42:51,202 - django.request - WARNING - Unauthorized: /api/resumes/bulk-upload/
+WARNING 2025-08-04 17:42:51,204 basehttp 4432 19812 "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+2025-08-04 17:42:51,204 - django.server - WARNING - "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+WARNING 2025-08-04 17:42:53,269 log 4432 13720 Unauthorized: /api/resumes/bulk-upload/
+2025-08-04 17:42:53,269 - django.request - WARNING - Unauthorized: /api/resumes/bulk-upload/
+WARNING 2025-08-04 17:42:53,271 basehttp 4432 13720 "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+2025-08-04 17:42:53,271 - django.server - WARNING - "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+WARNING 2025-08-04 17:42:55,337 log 4432 7192 Unauthorized: /api/resumes/bulk-upload/
+2025-08-04 17:42:55,337 - django.request - WARNING - Unauthorized: /api/resumes/bulk-upload/
+WARNING 2025-08-04 17:42:55,339 basehttp 4432 7192 "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+2025-08-04 17:42:55,339 - django.server - WARNING - "POST /api/resumes/bulk-upload/ HTTP/1.1" 401 58
+WARNING 2025-08-04 17:42:57,385 log 4432 8628 Unauthorized: /api/resumes/
+2025-08-04 17:42:57,385 - django.request - WARNING - Unauthorized: /api/resumes/
+WARNING 2025-08-04 17:42:57,386 basehttp 4432 8628 "GET /api/resumes/ HTTP/1.1" 401 58
+2025-08-04 17:42:57,386 - django.server - WARNING - "GET /api/resumes/ HTTP/1.1" 401 58
+INFO 2025-08-04 18:58:59,097 autoreload 21296 23140 Watching for file changes with StatReloader
+WARNING 2025-08-04 19:01:02,101 log 4432 9724 Not Found: /api/auth/login/
+2025-08-04 19:01:02,101 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:01:02,103 basehttp 4432 9724 "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+2025-08-04 19:01:02,103 - django.server - WARNING - "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+WARNING 2025-08-04 19:01:10,046 log 4432 9724 Not Found: /api/auth/login/
+2025-08-04 19:01:10,046 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:01:10,046 basehttp 4432 9724 "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+2025-08-04 19:01:10,046 - django.server - WARNING - "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+WARNING 2025-08-04 19:01:53,758 log 4432 9724 Not Found: /api/auth/login/
+2025-08-04 19:01:53,758 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:01:53,758 basehttp 4432 9724 "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+2025-08-04 19:01:53,758 - django.server - WARNING - "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+WARNING 2025-08-04 19:01:54,551 log 4432 9724 Not Found: /api/auth/login/
+2025-08-04 19:01:54,551 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:01:54,552 basehttp 4432 9724 "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+2025-08-04 19:01:54,552 - django.server - WARNING - "OPTIONS /api/auth/login/ HTTP/1.1" 404 7721
+INFO 2025-08-04 19:05:53,781 autoreload 4432 18904 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+2025-08-04 19:05:53,781 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+INFO 2025-08-04 19:05:53,782 autoreload 21600 8084 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+2025-08-04 19:05:53,782 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+INFO 2025-08-04 19:05:54,940 autoreload 9528 21712 Watching for file changes with StatReloader
+INFO 2025-08-04 19:05:54,944 autoreload 19744 23388 Watching for file changes with StatReloader
+INFO 2025-08-04 19:06:28,297 autoreload 19744 23388 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+2025-08-04 19:06:28,297 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+INFO 2025-08-04 19:06:28,299 autoreload 9528 21712 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+2025-08-04 19:06:28,299 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+INFO 2025-08-04 19:06:29,321 autoreload 23376 2604 Watching for file changes with StatReloader
+INFO 2025-08-04 19:06:29,336 autoreload 21684 8176 Watching for file changes with StatReloader
+INFO 2025-08-04 19:06:37,956 autoreload 21684 8176 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+2025-08-04 19:06:37,956 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+INFO 2025-08-04 19:06:37,979 autoreload 23376 2604 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+2025-08-04 19:06:37,979 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\settings.py changed, reloading.
+INFO 2025-08-04 19:06:38,930 autoreload 22736 21580 Watching for file changes with StatReloader
+INFO 2025-08-04 19:06:38,932 autoreload 2292 19204 Watching for file changes with StatReloader
+INFO 2025-08-04 19:06:53,554 autoreload 8996 20256 Watching for file changes with StatReloader
+INFO 2025-08-04 19:07:22,389 basehttp 2292 4156 "OPTIONS /api/auth/login/ HTTP/1.1" 200 0
+2025-08-04 19:07:22,389 - django.server - INFO - "OPTIONS /api/auth/login/ HTTP/1.1" 200 0
+WARNING 2025-08-04 19:07:22,429 log 2292 4156 Not Found: /api/auth/login/
+2025-08-04 19:07:22,429 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:07:22,429 basehttp 2292 4156 "POST /api/auth/login/ HTTP/1.1" 404 7718
+2025-08-04 19:07:22,429 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 404 7718
+WARNING 2025-08-04 19:08:43,135 log 2292 4156 Not Found: /api/auth/login/
+2025-08-04 19:08:43,135 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:08:43,136 basehttp 2292 4156 "POST /api/auth/login/ HTTP/1.1" 404 7718
+2025-08-04 19:08:43,136 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 404 7718
+INFO 2025-08-04 19:09:15,983 autoreload 16536 22864 Watching for file changes with StatReloader
+WARNING 2025-08-04 19:09:30,626 log 2292 4156 Not Found: /api/auth/login/
+2025-08-04 19:09:30,626 - django.request - WARNING - Not Found: /api/auth/login/
+WARNING 2025-08-04 19:09:30,627 basehttp 2292 4156 "POST /api/auth/login/ HTTP/1.1" 404 7718
+2025-08-04 19:09:30,627 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 404 7718
+INFO 2025-08-04 19:11:39,362 autoreload 8996 20256 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:11:39,362 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:11:39,377 autoreload 22736 21580 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:11:39,377 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:11:39,425 autoreload 2292 19204 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:11:39,425 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:11:40,075 autoreload 16536 22864 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:11:40,075 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:11:40,419 autoreload 20632 19136 Watching for file changes with StatReloader
+INFO 2025-08-04 19:11:40,422 autoreload 524 21100 Watching for file changes with StatReloader
+INFO 2025-08-04 19:11:40,459 autoreload 3676 10692 Watching for file changes with StatReloader
+INFO 2025-08-04 19:11:41,134 autoreload 8968 20804 Watching for file changes with StatReloader
+INFO 2025-08-04 19:12:08,381 autoreload 16732 6796 Watching for file changes with StatReloader
+INFO 2025-08-04 19:12:48,309 autoreload 8968 20804 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:12:48,309 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:12:48,360 autoreload 3676 10692 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:12:48,360 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:12:48,367 autoreload 16732 6796 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:12:48,367 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:12:48,667 autoreload 20632 19136 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:12:48,667 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:12:48,801 autoreload 524 21100 D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+2025-08-04 19:12:48,801 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\ai_platform\urls.py changed, reloading.
+INFO 2025-08-04 19:12:49,788 autoreload 17952 19108 Watching for file changes with StatReloader
+INFO 2025-08-04 19:12:49,852 autoreload 3772 15984 Watching for file changes with StatReloader
+INFO 2025-08-04 19:12:49,882 autoreload 19340 12000 Watching for file changes with StatReloader
+INFO 2025-08-04 19:12:50,190 autoreload 4412 18520 Watching for file changes with StatReloader
+INFO 2025-08-04 19:12:50,369 autoreload 14256 11448 Watching for file changes with StatReloader
+INFO 2025-08-04 19:13:09,028 logger 17952 21828 USER_ACTION: {"timestamp": "2025-08-04T13:43:09.028618+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:13:09,028 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:43:09.028618+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:13:09,031 log 17952 21828 Bad Request: /api/auth/login/
+2025-08-04 19:13:09,031 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:13:09,033 basehttp 17952 21828 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-04 19:13:09,033 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 19:14:07,781 logger 17952 21828 USER_ACTION: {"timestamp": "2025-08-04T13:44:07.781589+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:14:07,781 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:44:07.781589+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:14:07,783 log 17952 21828 Bad Request: /api/auth/login/
+2025-08-04 19:14:07,783 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:14:07,784 basehttp 17952 21828 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-04 19:14:07,784 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 19:19:11,424 logger 17952 11512 USER_ACTION: {"timestamp": "2025-08-04T13:49:11.424504+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:19:11,424 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:49:11.424504+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:19:11,426 log 17952 11512 Bad Request: /api/auth/login/
+2025-08-04 19:19:11,426 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:19:11,427 basehttp 17952 11512 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-04 19:19:11,427 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 19:19:41,762 autoreload 6912 10860 Watching for file changes with StatReloader
+INFO 2025-08-04 19:20:06,080 logger 3772 4360 USER_ACTION: {"timestamp": "2025-08-04T13:50:06.080897+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:20:06,080 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:50:06.080897+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:20:06,082 log 3772 4360 Bad Request: /api/auth/login/
+2025-08-04 19:20:06,082 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:20:06,083 basehttp 3772 4360 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-04 19:20:06,083 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+WARNING 2025-08-04 19:20:22,676 log 3772 7852 Method Not Allowed: /api/auth/login/
+2025-08-04 19:20:22,676 - django.request - WARNING - Method Not Allowed: /api/auth/login/
+WARNING 2025-08-04 19:20:22,677 basehttp 3772 7852 "GET /api/auth/login/ HTTP/1.1" 405 5812
+2025-08-04 19:20:22,677 - django.server - WARNING - "GET /api/auth/login/ HTTP/1.1" 405 5812
+INFO 2025-08-04 19:20:22,919 basehttp 3772 15220 "GET /static/rest_framework/css/bootstrap-tweaks.css HTTP/1.1" 200 3426
+2025-08-04 19:20:22,919 - django.server - INFO - "GET /static/rest_framework/css/bootstrap-tweaks.css HTTP/1.1" 200 3426
+INFO 2025-08-04 19:20:22,929 basehttp 3772 7852 "GET /static/rest_framework/css/bootstrap.min.css HTTP/1.1" 200 121457
+2025-08-04 19:20:22,929 - django.server - INFO - "GET /static/rest_framework/css/bootstrap.min.css HTTP/1.1" 200 121457
+INFO 2025-08-04 19:20:22,934 basehttp 3772 8540 "GET /static/rest_framework/css/prettify.css HTTP/1.1" 200 817
+2025-08-04 19:20:22,934 - django.server - INFO - "GET /static/rest_framework/css/prettify.css HTTP/1.1" 200 817
+INFO 2025-08-04 19:20:22,939 basehttp 3772 15220 "GET /static/rest_framework/css/default.css HTTP/1.1" 200 1152
+2025-08-04 19:20:22,939 - django.server - INFO - "GET /static/rest_framework/css/default.css HTTP/1.1" 200 1152
+INFO 2025-08-04 19:20:22,967 basehttp 3772 8540 "GET /static/rest_framework/js/ajax-form.js HTTP/1.1" 200 3796
+INFO 2025-08-04 19:20:22,969 basehttp 3772 15220 "GET /static/rest_framework/js/csrf.js HTTP/1.1" 200 1793
+2025-08-04 19:20:22,967 - django.server - INFO - "GET /static/rest_framework/js/ajax-form.js HTTP/1.1" 200 3796
+2025-08-04 19:20:22,969 - django.server - INFO - "GET /static/rest_framework/js/csrf.js HTTP/1.1" 200 1793
+INFO 2025-08-04 19:20:23,015 basehttp 3772 7852 "GET /static/rest_framework/js/jquery-3.7.1.min.js HTTP/1.1" 200 87533
+2025-08-04 19:20:23,015 - django.server - INFO - "GET /static/rest_framework/js/jquery-3.7.1.min.js HTTP/1.1" 200 87533
+INFO 2025-08-04 19:20:23,022 basehttp 3772 15220 "GET /static/rest_framework/js/prettify-min.js HTTP/1.1" 200 13632
+2025-08-04 19:20:23,022 - django.server - INFO - "GET /static/rest_framework/js/prettify-min.js HTTP/1.1" 200 13632
+INFO 2025-08-04 19:20:23,036 basehttp 3772 12484 "GET /static/rest_framework/img/grid.png HTTP/1.1" 200 1458
+2025-08-04 19:20:23,036 - django.server - INFO - "GET /static/rest_framework/img/grid.png HTTP/1.1" 200 1458
+INFO 2025-08-04 19:20:23,043 basehttp 3772 21824 "GET /static/rest_framework/js/load-ajax-form.js HTTP/1.1" 200 59
+2025-08-04 19:20:23,043 - django.server - INFO - "GET /static/rest_framework/js/load-ajax-form.js HTTP/1.1" 200 59
+INFO 2025-08-04 19:20:23,045 basehttp 3772 8540 "GET /static/rest_framework/js/bootstrap.min.js HTTP/1.1" 200 39680
+INFO 2025-08-04 19:20:23,048 basehttp 3772 7852 "GET /static/rest_framework/js/default.js HTTP/1.1" 200 1268
+2025-08-04 19:20:23,045 - django.server - INFO - "GET /static/rest_framework/js/bootstrap.min.js HTTP/1.1" 200 39680
+2025-08-04 19:20:23,048 - django.server - INFO - "GET /static/rest_framework/js/default.js HTTP/1.1" 200 1268
+WARNING 2025-08-04 19:20:23,169 log 3772 7852 Not Found: /favicon.ico
+2025-08-04 19:20:23,169 - django.request - WARNING - Not Found: /favicon.ico
+WARNING 2025-08-04 19:20:23,173 basehttp 3772 7852 "GET /favicon.ico HTTP/1.1" 404 6142
+2025-08-04 19:20:23,173 - django.server - WARNING - "GET /favicon.ico HTTP/1.1" 404 6142
+INFO 2025-08-04 19:20:35,765 basehttp 3772 7852 "OPTIONS /api/auth/login/ HTTP/1.1" 200 6119
+2025-08-04 19:20:35,765 - django.server - INFO - "OPTIONS /api/auth/login/ HTTP/1.1" 200 6119
+INFO 2025-08-04 19:21:08,294 logger 3772 7852 USER_ACTION: {"timestamp": "2025-08-04T13:51:08.294091+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"error": "JSON parse error - Expecting value: line 1 column 2 (char 1)", "attempted_data": {}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:21:08,294 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:51:08.294091+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"error": "JSON parse error - Expecting value: line 1 column 2 (char 1)", "attempted_data": {}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:21:08,300 log 3772 7852 Bad Request: /api/auth/login/
+2025-08-04 19:21:08,300 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:21:08,301 basehttp 3772 7852 "POST /api/auth/login/ HTTP/1.1" 400 5829
+2025-08-04 19:21:08,301 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 5829
+INFO 2025-08-04 19:21:44,643 logger 3772 7852 USER_ACTION: {"timestamp": "2025-08-04T13:51:44.642870+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:21:44,643 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:51:44.642870+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:21:44,649 log 3772 7852 Bad Request: /api/auth/login/
+2025-08-04 19:21:44,649 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:21:44,650 basehttp 3772 7852 "POST /api/auth/login/ HTTP/1.1" 400 5830
+2025-08-04 19:21:44,650 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 5830
+WARNING 2025-08-04 19:22:24,417 log 3772 7852 Not Found: /.well-known/appspecific/com.chrome.devtools.json
+2025-08-04 19:22:24,417 - django.request - WARNING - Not Found: /.well-known/appspecific/com.chrome.devtools.json
+WARNING 2025-08-04 19:22:24,439 basehttp 3772 7852 "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+2025-08-04 19:22:24,439 - django.server - WARNING - "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+INFO 2025-08-04 19:22:24,605 basehttp 3772 7852 "GET /static/rest_framework/css/bootstrap.min.css.map HTTP/1.1" 200 540434
+2025-08-04 19:22:24,605 - django.server - INFO - "GET /static/rest_framework/css/bootstrap.min.css.map HTTP/1.1" 200 540434
+WARNING 2025-08-04 19:23:13,948 log 3772 7852 Method Not Allowed: /api/auth/login/
+2025-08-04 19:23:13,948 - django.request - WARNING - Method Not Allowed: /api/auth/login/
+WARNING 2025-08-04 19:23:13,949 basehttp 3772 7852 "GET /api/auth/login/ HTTP/1.1" 405 5812
+2025-08-04 19:23:13,949 - django.server - WARNING - "GET /api/auth/login/ HTTP/1.1" 405 5812
+WARNING 2025-08-04 19:23:14,001 log 3772 7852 Not Found: /.well-known/appspecific/com.chrome.devtools.json
+2025-08-04 19:23:14,001 - django.request - WARNING - Not Found: /.well-known/appspecific/com.chrome.devtools.json
+WARNING 2025-08-04 19:23:14,008 basehttp 3772 7852 "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+2025-08-04 19:23:14,008 - django.server - WARNING - "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+WARNING 2025-08-04 19:23:20,938 log 3772 7852 Not Found: /login
+2025-08-04 19:23:20,938 - django.request - WARNING - Not Found: /login
+WARNING 2025-08-04 19:23:20,939 basehttp 3772 7852 "GET /login HTTP/1.1" 404 6124
+2025-08-04 19:23:20,939 - django.server - WARNING - "GET /login HTTP/1.1" 404 6124
+WARNING 2025-08-04 19:23:20,969 log 3772 7852 Not Found: /.well-known/appspecific/com.chrome.devtools.json
+2025-08-04 19:23:20,969 - django.request - WARNING - Not Found: /.well-known/appspecific/com.chrome.devtools.json
+WARNING 2025-08-04 19:23:20,970 basehttp 3772 7852 "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+2025-08-04 19:23:20,970 - django.server - WARNING - "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+WARNING 2025-08-04 19:23:24,776 log 3772 7852 Method Not Allowed: /api/auth/login/
+2025-08-04 19:23:24,776 - django.request - WARNING - Method Not Allowed: /api/auth/login/
+WARNING 2025-08-04 19:23:24,777 basehttp 3772 7852 "GET /api/auth/login/ HTTP/1.1" 405 5812
+2025-08-04 19:23:24,777 - django.server - WARNING - "GET /api/auth/login/ HTTP/1.1" 405 5812
+WARNING 2025-08-04 19:23:24,819 log 3772 7852 Not Found: /.well-known/appspecific/com.chrome.devtools.json
+2025-08-04 19:23:24,819 - django.request - WARNING - Not Found: /.well-known/appspecific/com.chrome.devtools.json
+WARNING 2025-08-04 19:23:24,838 basehttp 3772 7852 "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+2025-08-04 19:23:24,838 - django.server - WARNING - "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 6253
+INFO 2025-08-04 19:25:06,773 autoreload 21324 10148 Watching for file changes with StatReloader
+INFO 2025-08-04 19:26:05,073 logger 21324 11860 USER_ACTION: {"timestamp": "2025-08-04T13:56:05.073253+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:26:05,073 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:56:05.073253+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:26:05,075 log 21324 11860 Bad Request: /api/auth/login/
+2025-08-04 19:26:05,075 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:26:05,076 basehttp 21324 11860 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-04 19:26:05,076 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 19:29:17,288 logger 21324 11108 USER_ACTION: {"timestamp": "2025-08-04T13:59:17.288779+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-04 19:29:17,288 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T13:59:17.288779+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@rslsolution.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-04 19:29:17,290 log 21324 11108 Bad Request: /api/auth/login/
+2025-08-04 19:29:17,290 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-04 19:29:17,291 basehttp 21324 11108 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-04 19:29:17,291 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-04 19:30:29,021 logger 21324 1264 USER_ACTION: {"timestamp": "2025-08-04T14:00:29.021249+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"attempted_email": "admin@rslsolution.com", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "reason": "Invalid credentials"}}
+2025-08-04 19:30:29,021 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T14:00:29.021249+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"attempted_email": "admin@rslsolution.com", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "reason": "Invalid credentials"}}
+WARNING 2025-08-04 19:30:29,022 log 21324 1264 Unauthorized: /api/auth/login/
+2025-08-04 19:30:29,022 - django.request - WARNING - Unauthorized: /api/auth/login/
+WARNING 2025-08-04 19:30:29,023 basehttp 21324 1264 "POST /api/auth/login/ HTTP/1.1" 401 31
+2025-08-04 19:30:29,023 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 401 31
+INFO 2025-08-04 19:31:01,965 autoreload 21324 10148 D:\RSL\AI-Interview\aiinterviewerbackend\authapp\views.py changed, reloading.
+2025-08-04 19:31:01,965 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\authapp\views.py changed, reloading.
+INFO 2025-08-04 19:31:02,919 autoreload 16356 9724 Watching for file changes with StatReloader
+INFO 2025-08-04 19:31:13,641 autoreload 16356 9724 D:\RSL\AI-Interview\aiinterviewerbackend\authapp\views.py changed, reloading.
+2025-08-04 19:31:13,641 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewerbackend\authapp\views.py changed, reloading.
+INFO 2025-08-04 19:31:14,624 autoreload 15668 10704 Watching for file changes with StatReloader
+INFO 2025-08-04 19:31:40,416 logger 15668 15664 SECURITY_EVENT: {"timestamp": "2025-08-04T14:01:40.416311+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-04 19:31:40,416 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-04T14:01:40.416311+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-04 19:31:40,418 logger 15668 15664 USER_ACTION: {"timestamp": "2025-08-04T14:01:40.418311+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-04 19:31:40,418 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T14:01:40.418311+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-04 19:31:41,239 basehttp 15668 15664 "POST /api/auth/login/ HTTP/1.1" 200 151
+2025-08-04 19:31:41,239 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 151
+INFO 2025-08-04 19:32:31,411 logger 15668 3676 SECURITY_EVENT: {"timestamp": "2025-08-04T14:02:31.411502+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-04 19:32:31,411 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-04T14:02:31.411502+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-04 19:32:31,413 logger 15668 3676 USER_ACTION: {"timestamp": "2025-08-04T14:02:31.413398+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36", "token_created": "[REDACTED]"}}
+2025-08-04 19:32:31,413 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-04T14:02:31.413398+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36", "token_created": "[REDACTED]"}}
+INFO 2025-08-04 19:32:32,230 basehttp 15668 3676 "POST /api/auth/login/ HTTP/1.1" 200 151
+2025-08-04 19:32:32,230 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 151
+INFO 2025-08-05 11:19:40,488 autoreload 22500 340 Watching for file changes with StatReloader
+INFO 2025-08-05 11:20:12,941 basehttp 22500 27140 "OPTIONS /api/jobs/ HTTP/1.1" 200 0
+INFO 2025-08-05 11:20:12,942 basehttp 22500 25748 "OPTIONS /api/jobs/domains/ HTTP/1.1" 200 0
+INFO 2025-08-05 11:20:12,947 basehttp 22500 10708 "OPTIONS /api/jobs/domains/ HTTP/1.1" 200 0
+2025-08-05 11:20:12,941 - django.server - INFO - "OPTIONS /api/jobs/ HTTP/1.1" 200 0
+2025-08-05 11:20:12,942 - django.server - INFO - "OPTIONS /api/jobs/domains/ HTTP/1.1" 200 0
+INFO 2025-08-05 11:20:12,950 basehttp 22500 24324 "OPTIONS /api/jobs/ HTTP/1.1" 200 0
+2025-08-05 11:20:12,947 - django.server - INFO - "OPTIONS /api/jobs/domains/ HTTP/1.1" 200 0
+2025-08-05 11:20:12,950 - django.server - INFO - "OPTIONS /api/jobs/ HTTP/1.1" 200 0
+INFO 2025-08-05 11:20:15,501 logger 22500 25748 USER_ACTION: {"timestamp": "2025-08-05T05:50:15.501981+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 0}}
+2025-08-05 11:20:15,501 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-05T05:50:15.501981+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 0}}
+INFO 2025-08-05 11:20:15,599 basehttp 22500 27140 "GET /api/jobs/ HTTP/1.1" 200 1654
+2025-08-05 11:20:15,599 - django.server - INFO - "GET /api/jobs/ HTTP/1.1" 200 1654
+INFO 2025-08-05 11:20:15,743 basehttp 22500 25748 "GET /api/jobs/domains/ HTTP/1.1" 200 2
+2025-08-05 11:20:15,743 - django.server - INFO - "GET /api/jobs/domains/ HTTP/1.1" 200 2
+INFO 2025-08-05 11:20:17,327 basehttp 22500 27140 "GET /api/jobs/ HTTP/1.1" 200 1654
+2025-08-05 11:20:17,327 - django.server - INFO - "GET /api/jobs/ HTTP/1.1" 200 1654
+INFO 2025-08-05 11:20:17,512 logger 22500 25748 USER_ACTION: {"timestamp": "2025-08-05T05:50:17.512510+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 0}}
+2025-08-05 11:20:17,512 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-05T05:50:17.512510+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 0}}
+INFO 2025-08-05 11:20:17,750 basehttp 22500 25748 "GET /api/jobs/domains/ HTTP/1.1" 200 2
+2025-08-05 11:20:17,750 - django.server - INFO - "GET /api/jobs/domains/ HTTP/1.1" 200 2
+INFO 2025-08-05 11:20:59,045 logger 22500 21724 USER_ACTION: {"timestamp": "2025-08-05T05:50:59.045681+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 0}}
+2025-08-05 11:20:59,045 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-05T05:50:59.045681+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 0}}
+INFO 2025-08-05 11:20:59,051 basehttp 22500 27136 - Broken pipe from ('127.0.0.1', 53219)
+2025-08-05 11:20:59,051 - django.server - INFO - - Broken pipe from ('127.0.0.1', 53219)
+INFO 2025-08-05 11:20:59,290 basehttp 22500 21724 - Broken pipe from ('127.0.0.1', 53220)
+2025-08-05 11:20:59,290 - django.server - INFO - - Broken pipe from ('127.0.0.1', 53220)

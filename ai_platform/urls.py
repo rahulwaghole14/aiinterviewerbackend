@@ -17,7 +17,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     # Auth (login / register / token)
-    path("auth/", include("authapp.urls")),  
+    path("api/auth/", include("authapp.urls")),  
 
     #Companies
     path('companies/', include('companies.urls')),

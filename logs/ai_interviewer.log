@@ -677,3 +677,36 @@ INFO 2025-08-05 12:48:10,545 logger 11636 13320 USER_ACTION: {"timestamp": "2025
 2025-08-05 12:48:10,545 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-05T07:18:10.545084+00:00", "user_id": 66, "user_email": "new_company@example.com", "user_role": "COMPANY", "action": "user_registration", "status": "SUCCESS", "ip_address": null, "details": {"registration_data": {"email": "new_company@example.com", "role": "COMPANY", "company_name": "New Company"}, "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4"}}
 INFO 2025-08-05 12:48:10,547 basehttp 11636 13320 "POST /api/auth/register/ HTTP/1.1" 201 180
 2025-08-05 12:48:10,547 - django.server - INFO - "POST /api/auth/register/ HTTP/1.1" 201 180
+INFO 2025-08-05 12:53:00,530 logger 11636 14332 SECURITY_EVENT: {"timestamp": "2025-08-05T07:23:00.530764+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-05 12:53:00,530 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-05T07:23:00.530764+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-05 12:53:00,530 logger 11636 14332 USER_ACTION: {"timestamp": "2025-08-05T07:23:00.530764+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0", "token_created": "[REDACTED]"}}
+2025-08-05 12:53:00,530 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-05T07:23:00.530764+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0", "token_created": "[REDACTED]"}}
+INFO 2025-08-05 12:53:01,241 basehttp 11636 14332 "POST /api/auth/login/ HTTP/1.1" 200 151
+2025-08-05 12:53:01,241 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 151
+INFO 2025-08-05 13:42:16,772 autoreload 13272 23636 Watching for file changes with StatReloader
+INFO 2025-08-05 13:42:30,518 logger 13272 14900 SECURITY_EVENT: {"timestamp": "2025-08-05T08:12:30.518583+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 62, "user_email": "company_test@example.com", "user_role": "COMPANY"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-05 13:42:30,518 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-05T08:12:30.518583+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 62, "user_email": "company_test@example.com", "user_role": "COMPANY"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-05 13:42:30,519 logger 13272 14900 USER_ACTION: {"timestamp": "2025-08-05T08:12:30.519583+00:00", "user_id": 62, "user_email": "company_test@example.com", "user_role": "COMPANY", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0", "token_created": "[REDACTED]"}}
+2025-08-05 13:42:30,519 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-05T08:12:30.519583+00:00", "user_id": 62, "user_email": "company_test@example.com", "user_role": "COMPANY", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0", "token_created": "[REDACTED]"}}
+INFO 2025-08-05 13:42:31,471 basehttp 13272 14900 "POST /api/auth/login/ HTTP/1.1" 200 183
+2025-08-05 13:42:31,471 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 183
+WARNING 2025-08-05 13:43:42,674 log 13272 17272 Bad Request: /hiring_agency/
+2025-08-05 13:43:42,674 - django.request - WARNING - Bad Request: /hiring_agency/
+WARNING 2025-08-05 13:43:42,675 basehttp 13272 17272 "POST /hiring_agency/ HTTP/1.1" 400 231
+2025-08-05 13:43:42,675 - django.server - WARNING - "POST /hiring_agency/ HTTP/1.1" 400 231
+WARNING 2025-08-05 13:44:10,290 log 13272 17272 Bad Request: /hiring_agency/
+2025-08-05 13:44:10,290 - django.request - WARNING - Bad Request: /hiring_agency/
+WARNING 2025-08-05 13:44:10,291 basehttp 13272 17272 "POST /hiring_agency/ HTTP/1.1" 400 179
+2025-08-05 13:44:10,291 - django.server - WARNING - "POST /hiring_agency/ HTTP/1.1" 400 179
+WARNING 2025-08-05 13:45:00,167 log 13272 17272 Bad Request: /hiring_agency/
+2025-08-05 13:45:00,167 - django.request - WARNING - Bad Request: /hiring_agency/
+WARNING 2025-08-05 13:45:00,167 basehttp 13272 17272 "POST /hiring_agency/ HTTP/1.1" 400 55
+2025-08-05 13:45:00,167 - django.server - WARNING - "POST /hiring_agency/ HTTP/1.1" 400 55
+INFO 2025-08-05 13:45:14,729 basehttp 13272 17272 "POST /hiring_agency/ HTTP/1.1" 201 225
+2025-08-05 13:45:14,729 - django.server - INFO - "POST /hiring_agency/ HTTP/1.1" 201 225
+INFO 2025-08-05 13:46:09,815 basehttp 13272 17272 "GET /hiring_agency/9/ HTTP/1.1" 200 225
+2025-08-05 13:46:09,815 - django.server - INFO - "GET /hiring_agency/9/ HTTP/1.1" 200 225
+WARNING 2025-08-05 13:46:42,255 log 13272 17272 Bad Request: /hiring_agency/9/
+2025-08-05 13:46:42,255 - django.request - WARNING - Bad Request: /hiring_agency/9/
+WARNING 2025-08-05 13:46:42,257 basehttp 13272 17272 "PUT /hiring_agency/9/ HTTP/1.1" 400 214
+2025-08-05 13:46:42,257 - django.server - WARNING - "PUT /hiring_agency/9/ HTTP/1.1" 400 214

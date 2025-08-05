@@ -1,0 +1,903 @@
+{
+	"info": {
+		"_postman_id": "ai-interviewer-api",
+		"name": "AI Interviewer API",
+		"description": "Complete API documentation for the AI Interviewer platform backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "ai-interviewer"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "User Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@rslsolution.com\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login", ""]
+						},
+						"description": "Authenticate user and get access token"
+					},
+					"response": []
+				},
+				{
+					"name": "User Registration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"password\": \"password123\",\n    \"full_name\": \"New User\",\n    \"role\": \"HIRING_AGENCY\",\n    \"company_name\": \"Example Company\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "register", ""]
+						},
+						"description": "Register a new user"
+					},
+					"response": []
+				},
+				{
+					"name": "User Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "logout", ""]
+						},
+						"description": "Logout user and invalidate token"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for user login, registration, and logout"
+		},
+		{
+			"name": "Jobs Management",
+			"item": [
+				{
+					"name": "Get All Jobs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", ""]
+						},
+						"description": "Retrieve all jobs with optional filtering"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Job",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/{{job_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "{{job_id}}", ""]
+						},
+						"description": "Retrieve a specific job by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Create New Job",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"job_title\": \"Senior Software Engineer\",\n    \"company_name\": \"Tech Corp\",\n    \"spoc_email\": \"hr@techcorp.com\",\n    \"hiring_manager_email\": \"manager@techcorp.com\",\n    \"current_team_size_info\": \"15 developers\",\n    \"number_to_hire\": 2,\n    \"position_level\": \"Senior\",\n    \"work_experience\": \"5-8 years\",\n    \"tech_stack_details\": \"Python, Django, React, AWS\",\n    \"jd_link\": \"https://example.com/jd\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/jobs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", ""]
+						},
+						"description": "Create a new job posting"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Job",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"job_title\": \"Updated Senior Software Engineer\",\n    \"company_name\": \"Tech Corp\",\n    \"spoc_email\": \"hr@techcorp.com\",\n    \"hiring_manager_email\": \"manager@techcorp.com\",\n    \"current_team_size_info\": \"15 developers\",\n    \"number_to_hire\": 3,\n    \"position_level\": \"Senior\",\n    \"work_experience\": \"5-8 years\",\n    \"tech_stack_details\": \"Python, Django, React, AWS, Docker\",\n    \"jd_link\": \"https://example.com/updated-jd\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/jobs/{{job_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "{{job_id}}", ""]
+						},
+						"description": "Update an existing job"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Job",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/{{job_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "{{job_id}}", ""]
+						},
+						"description": "Delete a job posting"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Domains",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/jobs/domains/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "domains", ""]
+						},
+						"description": "Get all available job domains"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Domain",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Machine Learning\",\n    \"description\": \"Machine Learning and AI related jobs\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/jobs/domains/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "jobs", "domains", ""]
+						},
+						"description": "Create a new job domain (Admin only)"
+					},
+					"response": []
+				}
+			],
+			"description": "Job management endpoints for CRUD operations on job postings"
+		},
+		{
+			"name": "Candidates Management",
+			"item": [
+				{
+					"name": "Get All Candidates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", ""]
+						},
+						"description": "Retrieve all candidates with optional filtering"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Candidate",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "{{candidate_id}}", ""]
+						},
+						"description": "Retrieve a specific candidate by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Candidate (Single Step)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone_number\": \"+1234567890\",\n    \"domain\": \"Software Development\",\n    \"experience_years\": 5,\n    \"current_company\": \"Tech Corp\",\n    \"current_role\": \"Senior Developer\",\n    \"expected_salary\": 80000,\n    \"notice_period\": 30,\n    \"resume_file\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", ""]
+						},
+						"description": "Create a candidate in a single step"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Candidate Draft",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"domain\": \"Software Development\",\n    \"role\": \"Senior Developer\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/create-draft/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "create-draft", ""]
+						},
+						"description": "Create a candidate draft (Step 1 of multi-step process)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Candidate Draft",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone_number\": \"+1234567890\",\n    \"experience_years\": 5,\n    \"current_company\": \"Tech Corp\",\n    \"current_role\": \"Senior Developer\",\n    \"expected_salary\": 80000,\n    \"notice_period\": 30\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/drafts/{{draft_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "drafts", "{{draft_id}}", ""]
+						},
+						"description": "Update candidate draft with extracted data (Step 2)"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Candidate Draft",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/drafts/{{draft_id}}/submit/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "drafts", "{{draft_id}}", "submit", ""]
+						},
+						"description": "Submit candidate draft to create final candidate (Step 3)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Candidate",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"John Doe Updated\",\n    \"email\": \"john.doe.updated@example.com\",\n    \"phone_number\": \"+1234567890\",\n    \"domain\": \"Software Development\",\n    \"experience_years\": 6,\n    \"current_company\": \"New Tech Corp\",\n    \"current_role\": \"Lead Developer\",\n    \"expected_salary\": 90000,\n    \"notice_period\": 30\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "{{candidate_id}}", ""]
+						},
+						"description": "Update an existing candidate"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Candidate",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "{{candidate_id}}", ""]
+						},
+						"description": "Delete a candidate"
+					},
+					"response": []
+				}
+			],
+			"description": "Candidate management endpoints including multi-step creation process"
+		},
+		{
+			"name": "Resume Management",
+			"item": [
+				{
+					"name": "Get All Resumes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/resumes/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", ""]
+						},
+						"description": "Retrieve all resumes"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Resume",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/resumes/{{resume_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "{{resume_id}}", ""]
+						},
+						"description": "Retrieve a specific resume by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Single Resume",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/resumes/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", ""]
+						},
+						"description": "Upload a single resume file (PDF/DOCX)"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Upload Resumes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "files",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/resumes/bulk-upload/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "bulk-upload", ""]
+						},
+						"description": "Upload multiple resume files (up to 10 files)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Resume",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/resumes/{{resume_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "resumes", "{{resume_id}}", ""]
+						},
+						"description": "Delete a resume"
+					},
+					"response": []
+				}
+			],
+			"description": "Resume management endpoints for upload, download, and bulk operations"
+		},
+		{
+			"name": "Interviews Management",
+			"item": [
+				{
+					"name": "Get All Interviews",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", ""]
+						},
+						"description": "Retrieve all interviews"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Interview",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Retrieve a specific interview by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Interview",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"candidate\": {{candidate_id}},\n    \"job\": {{job_id}},\n    \"started_at\": \"2024-08-15T10:00:00Z\",\n    \"ended_at\": \"2024-08-15T11:00:00Z\",\n    \"interview_round\": 1,\n    \"status\": \"scheduled\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", ""]
+						},
+						"description": "Schedule a new interview"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Interview",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"candidate\": {{candidate_id}},\n    \"job\": {{job_id}},\n    \"started_at\": \"2024-08-15T14:00:00Z\",\n    \"ended_at\": \"2024-08-15T15:00:00Z\",\n    \"interview_round\": 1,\n    \"status\": \"completed\",\n    \"feedback\": \"Great technical skills, good communication\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Update an existing interview"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Interview",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Delete an interview"
+					},
+					"response": []
+				}
+			],
+			"description": "Interview management endpoints for scheduling and managing interviews"
+		},
+		{
+			"name": "Dashboard & Analytics",
+			"item": [
+				{
+					"name": "Get Dashboard Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/data/?start_date=2024-01-01&end_date=2024-12-31",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "data", ""],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2024-01-01"
+								},
+								{
+									"key": "end_date",
+									"value": "2024-12-31"
+								}
+							]
+						},
+						"description": "Get comprehensive dashboard data with date range filtering"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Dashboard Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "summary", ""]
+						},
+						"description": "Get dashboard summary statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Activity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/activity/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "activity", ""]
+						},
+						"description": "Get user activity logs"
+					},
+					"response": []
+				}
+			],
+			"description": "Dashboard and analytics endpoints for data visualization"
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Get Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", ""]
+						},
+						"description": "Get user notifications"
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Notification as Read",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/{{notification_id}}/mark-read/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "{{notification_id}}", "mark-read", ""]
+						},
+						"description": "Mark a notification as read"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notification Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "summary", ""]
+						},
+						"description": "Get notification summary (unread count, etc.)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Notification Preferences",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email_notifications\": true,\n    \"in_app_notifications\": true,\n    \"sms_notifications\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications/preferences/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "preferences", ""]
+						},
+						"description": "Update user notification preferences"
+					},
+					"response": []
+				}
+			],
+			"description": "Notification management endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "job_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "candidate_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "resume_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "interview_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "draft_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "notification_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+} 

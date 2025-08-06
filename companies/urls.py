@@ -10,6 +10,7 @@ from .views import (
 urlpatterns = [
     # Company routes
     path('', CompanyListCreateView.as_view(), name='company-list-create'),
+    path('profile/', CompanyListCreateView.as_view(), name='company-profile'),
     path('<int:pk>/', CompanyDetailView.as_view(), name='company-detail'),
 
     # Recruiter routes

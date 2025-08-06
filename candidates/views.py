@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
+import uuid
+import os
 
 from .models      import Candidate, CandidateDraft
 from .serializers import (
@@ -81,10 +83,15 @@ class BulkCandidateCreationView(APIView):
             try:
                 extracted_data = self._extract_candidate_data(resume_file, request.user)
                 if extracted_data:
+                    # Try to get the resume_url if the file has a url attribute
+                    resume_url = None
+                    unique_filename = extracted_data.pop('unique_resume_filename', None)
+                    if unique_filename:
+                        resume_url = request.build_absolute_uri(f'/media/resumes/{unique_filename}')
                     extracted_candidates.append({
                         'filename': resume_file.name,
                         'extracted_data': extracted_data,
-                        'resume_file': resume_file.name,  # For frontend reference
+                        'resume_url': resume_url,
                         'can_edit': True
                     })
                 else:
@@ -93,6 +100,7 @@ class BulkCandidateCreationView(APIView):
                         'filename': resume_file.name,
                         'error': 'Failed to extract data from resume',
                         'extracted_data': {},
+                        'resume_url': None,
                         'can_edit': False
                     })
 
@@ -102,6 +110,7 @@ class BulkCandidateCreationView(APIView):
                     'filename': resume_file.name,
                     'error': str(e),
                     'extracted_data': {},
+                    'resume_url': None,
                     'can_edit': False
                 })
 
@@ -136,21 +145,16 @@ class BulkCandidateCreationView(APIView):
 
     def _submit_candidates(self, request):
         """Step 2: Create candidates from edited data"""
-        # Validate request data
         domain = request.data.get('domain')
         role = request.data.get('role')
         candidates_data = request.data.get('candidates', [])
-
         if not domain or not role or not candidates_data:
             return Response({
                 'error': 'Missing required fields: domain, role, or candidates data'
             }, status=status.HTTP_400_BAD_REQUEST)
-
         results = []
         successful_creations = 0
         failed_creations = 0
-
-        # Log bulk submission start
         ActionLogger.log_user_action(
             user=request.user,
             action='bulk_candidate_submission_start',
@@ -161,13 +165,10 @@ class BulkCandidateCreationView(APIView):
             },
             status='SUCCESS'
         )
-
-        # Process each candidate data
         for candidate_info in candidates_data:
             try:
                 filename = candidate_info.get('filename')
                 edited_data = candidate_info.get('edited_data', {})
-                
                 if not filename or not edited_data:
                     failed_creations += 1
                     results.append({
@@ -176,16 +177,21 @@ class BulkCandidateCreationView(APIView):
                         'error': 'Missing filename or edited data'
                     })
                     continue
-
-                # Create candidate from edited data
                 candidate = self._create_candidate_from_data(edited_data, domain, role, request.user)
-                if candidate:
+                if isinstance(candidate, str):
+                    failed_creations += 1
+                    results.append({
+                        'filename': filename,
+                        'status': 'failed',
+                        'error': candidate  # Specific error message
+                    })
+                elif candidate:
                     successful_creations += 1
                     results.append({
                         'filename': filename,
                         'status': 'success',
                         'candidate_id': candidate.id,
-                        'candidate_name': candidate.name,
+                        'candidate_name': candidate.full_name,
                         'resume_url': request.build_absolute_uri(candidate.resume.file.url) if candidate.resume else None
                     })
                 else:
@@ -193,9 +199,8 @@ class BulkCandidateCreationView(APIView):
                     results.append({
                         'filename': filename,
                         'status': 'failed',
-                        'error': 'Failed to create candidate'
+                        'error': 'Unknown error during candidate creation'
                     })
-
             except Exception as e:
                 failed_creations += 1
                 results.append({
@@ -203,8 +208,6 @@ class BulkCandidateCreationView(APIView):
                     'status': 'failed',
                     'error': str(e)
                 })
-
-        # Log submission completion
         ActionLogger.log_user_action(
             user=request.user,
             action='bulk_candidate_submission_complete',
@@ -217,16 +220,6 @@ class BulkCandidateCreationView(APIView):
             },
             status='SUCCESS'
         )
-
-        # Send notification
-        if successful_creations > 0:
-            NotificationService.send_bulk_candidate_creation_notification(
-                user=request.user,
-                successful_count=successful_creations,
-                domain=domain,
-                role=role
-            )
-
         response_data = {
             'message': f'Candidate creation completed: {successful_creations} successful, {failed_creations} failed',
             'results': results,
@@ -236,8 +229,7 @@ class BulkCandidateCreationView(APIView):
                 'failed_creations': failed_creations
             }
         }
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        return Response(response_data, status=status.HTTP_200_OK)
 
     def _create_candidates_directly(self, request):
         """Original behavior - direct creation (backward compatibility)"""
@@ -271,7 +263,7 @@ class BulkCandidateCreationView(APIView):
                 if candidate:
                     created_candidates.append({
                         'id': candidate.id,
-                        'name': candidate.name,
+                        'name': candidate.full_name,
                         'email': candidate.email,
                         'resume_url': request.build_absolute_uri(candidate.resume.file.url) if candidate.resume else None
                     })
@@ -326,34 +318,39 @@ class BulkCandidateCreationView(APIView):
         return Response(response_data, status=status.HTTP_201_CREATED)
 
     def _extract_candidate_data(self, resume_file: UploadedFile, user):
-        """Extract candidate data from a single resume file"""
+        """Extract candidate data from a single resume file, saving with a unique name"""
         try:
-            # Create temporary resume object for text extraction
-            temp_resume = Resume.objects.create(user=user, file=resume_file)
+            # Generate a unique filename
+            ext = os.path.splitext(resume_file.name)[1]
+            unique_filename = f"{uuid.uuid4().hex}{ext}"
+            unique_path = os.path.join('resumes', unique_filename)
 
-            # Wait a moment for file to be saved, then extract data
+            # Save the file to the media/resumes/ directory
+            from django.core.files.storage import default_storage
+            saved_path = default_storage.save(unique_path, resume_file)
+
+            # Create temporary resume object for text extraction
+            from resumes.models import Resume
+            temp_resume = Resume.objects.create(user=user, file=saved_path)
+
             import time
             time.sleep(0.1)  # Small delay to ensure file is saved
-
-            # Refresh the resume object to get the parsed text
             temp_resume.refresh_from_db()
 
-            # Extract data from parsed text
             extracted_data = {}
             if temp_resume.parsed_text:
                 extracted_data = extract_resume_fields(temp_resume.parsed_text)
-
-                # Clean name if extracted
                 if extracted_data.get('name'):
                     extracted_data['name'] = parse_candidate_name(extracted_data['name'])
+
+            # Save the unique filename for use in resume_url
+            extracted_data['unique_resume_filename'] = unique_filename
 
             # Clean up temporary resume
             temp_resume.delete()
 
             return extracted_data
-
         except Exception as e:
-            # Log extraction failure
             ActionLogger.log_user_action(
                 user=user,
                 action='resume_extraction_failed',
@@ -368,16 +365,18 @@ class BulkCandidateCreationView(APIView):
     def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user):
         """Create candidate from edited data"""
         try:
-            # Create resume object (you might need to handle file upload separately)
-            # For now, we'll create a candidate without resume association
+            # For bulk creation from edited data, we don't have an actual file
+            # So we'll create a candidate without a resume file for now
+            # In a real scenario, you might want to handle this differently
+            
             candidate_info = {
-                'name': candidate_data.get('name', 'Unknown'),
+                'full_name': candidate_data.get('name', 'Unknown'),
                 'email': candidate_data.get('email', ''),
                 'phone': candidate_data.get('phone', ''),
-                'work_experience': candidate_data.get('experience', 0),
-                'skills': candidate_data.get('skills', []),
-                'education': candidate_data.get('education', ''),
-                'created_by': user.id
+                'work_experience': candidate_data.get('work_experience', 0),
+                'domain': domain,
+                'recruiter': user,
+                'resume': None  # No resume file for bulk creation from edited data
             }
 
             # Create candidate
@@ -402,7 +401,7 @@ class BulkCandidateCreationView(APIView):
                 },
                 status='FAILED'
             )
-            return None
+            return str(e)
 
     def _process_single_candidate(self, resume_file: UploadedFile, domain: str, role: str, user):
         """Process a single resume file and create candidate"""
@@ -421,14 +420,13 @@ class BulkCandidateCreationView(APIView):
 
             # Create candidate with extracted data
             candidate_data = {
-                'name': extracted_data.get('name', 'Unknown'),
+                'full_name': extracted_data.get('name', 'Unknown'),
                 'email': extracted_data.get('email', ''),
                 'phone': extracted_data.get('phone', ''),
                 'work_experience': extracted_data.get('experience', 0),
-                'skills': extracted_data.get('skills', []),
-                'education': extracted_data.get('education', ''),
-                'resume': resume.id,
-                'created_by': user.id
+                'domain': domain,
+                'recruiter': user,
+                'resume': resume
             }
 
             # Create candidate

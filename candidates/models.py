@@ -62,7 +62,7 @@ class Candidate(models.Model):
 
     recruiter = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='candidates')
     job = models.ForeignKey(Job, on_delete=models.SET_NULL, null=True, blank=True, related_name='candidates')
-    resume = models.ForeignKey(Resume, on_delete=models.CASCADE, related_name='candidates')
+    resume = models.ForeignKey(Resume, on_delete=models.CASCADE, related_name='candidates', null=True, blank=True)
     domain = models.CharField(max_length=100, blank=True, help_text="Domain/technology area")
 
     full_name = models.CharField(max_length=100, blank=True)

@@ -17,10 +17,10 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     # Auth (login / register / token)
-    path("api/auth/", include("authapp.urls")),  
+    path("api/auth/", include("authapp.urls")),
 
     #Companies
-    path('companies/', include('companies.urls')),
+    path('api/companies/', include('companies.urls')),
 
     # Jobs API
     path("api/jobs/", include("jobs.urls")),
@@ -34,7 +34,7 @@ urlpatterns = [
     # All router‑based endpoints (/api/resumes/, /api/interviews/)
     path("api/", include(router.urls)),
 
-    path("", include("hiring_agency.urls")),
+    path("api/hiring_agency/", include("hiring_agency.urls")),
 
     path("api/interviews/", include("interviews.urls")),
 

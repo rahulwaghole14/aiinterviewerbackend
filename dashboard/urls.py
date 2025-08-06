@@ -9,6 +9,8 @@ urlpatterns = [
     # Main dashboard endpoints
     path('', DashboardDataView.as_view(), name='dashboard-data'),
     path('summary/', DashboardSummaryView.as_view(), name='dashboard-summary'),
+    path('analytics/', DashboardDataView.as_view(), name='dashboard-analytics'),
+    path('recent-activities/', UserActivityListView.as_view(), name='recent-activities'),
     
     # Individual statistics endpoints
     path('resume-stats/', ResumeStatsView.as_view(), name='resume-stats'),

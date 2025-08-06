@@ -28,3 +28,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'error': e.messages})
         except Exception as e:
             raise serializers.ValidationError({'error': str(e)})
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'email', 'full_name', 'company_name', 'role', 'username']
+        read_only_fields = ['id', 'email', 'role', 'username']

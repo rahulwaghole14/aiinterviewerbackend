@@ -87,7 +87,9 @@ WSGI_APPLICATION = 'ai_platform.wsgi.application'
 
 # Database configuration using .env
 DATABASES = {
-    'default': dj_database_url.config(default=config('DATABASE_URL', cast=str))
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL', cast=str, default='sqlite:///db.sqlite3')
+    )
 }
 
 # Password validation

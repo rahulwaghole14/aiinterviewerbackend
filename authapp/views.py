@@ -230,3 +230,46 @@ def logout_view(request):
             status='FAILED'
         )
         raise
+
+@api_view(['GET', 'PATCH'])
+def user_profile_view(request):
+    """Get and update user profile"""
+    try:
+        if request.method == 'GET':
+            # Get user profile
+            user = request.user
+            return Response({
+                'id': user.id,
+                'email': user.email,
+                'full_name': user.full_name,
+                'role': user.role,
+                'company_name': user.company_name,
+                'username': user.username
+            }, status=status.HTTP_200_OK)
+            
+        elif request.method == 'PATCH':
+            # Update user profile
+            user = request.user
+            data = request.data
+            
+            # Update allowed fields
+            if 'full_name' in data:
+                user.full_name = data['full_name']
+            if 'company_name' in data:
+                user.company_name = data['company_name']
+            
+            user.save()
+            
+            return Response({
+                'id': user.id,
+                'email': user.email,
+                'full_name': user.full_name,
+                'role': user.role,
+                'company_name': user.company_name,
+                'username': user.username
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)

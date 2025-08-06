@@ -1,0 +1,686 @@
+[
+  {
+    "timestamp": "2025-08-06T11:19:12.150890",
+    "endpoint": "/api/auth/login/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": {
+      "token": "60b829027a60c9095d5ab06770d82dfa50c5d43d",
+      "user": {
+        "id": 62,
+        "email": "company_test@example.com",
+        "full_name": "Company Test User",
+        "role": "COMPANY",
+        "company_name": "Test Company"
+      }
+    },
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:14.803042",
+    "endpoint": "/api/auth/register/",
+    "method": "POST",
+    "status_code": 500,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:17.093580",
+    "endpoint": "/api/auth/logout/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:17.104690",
+    "endpoint": "/api/users/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:18.681177",
+    "endpoint": "/api/jobs/domains/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:20.291181",
+    "endpoint": "/api/jobs/domains/active/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:21.977085",
+    "endpoint": "/api/jobs/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:23.605357",
+    "endpoint": "/api/jobs/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:19:25.357658",
+    "endpoint": "/api/candidates/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:26.978050",
+    "endpoint": "/api/candidates/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:19:28.610057",
+    "endpoint": "/api/resumes/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:30.193868",
+    "endpoint": "/api/interviews/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:31.741526",
+    "endpoint": "/api/notifications/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:33.326002",
+    "endpoint": "/api/notifications/mark-read/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:33.341155",
+    "endpoint": "/api/dashboard/analytics/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:33.358673",
+    "endpoint": "/api/dashboard/recent-activities/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:33.377155",
+    "endpoint": "/api/companies/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:33.393594",
+    "endpoint": "/api/companies/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:40.497500",
+    "endpoint": "/api/auth/login/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": {
+      "token": "d4753b91963418f700a80b9f87bea310929a3b74",
+      "user": {
+        "id": 63,
+        "email": "agency_test@example.com",
+        "full_name": "Agency Test User",
+        "role": "HIRING_AGENCY",
+        "company_name": "Test Agency"
+      }
+    },
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:43.166950",
+    "endpoint": "/api/auth/register/",
+    "method": "POST",
+    "status_code": 500,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:45.491940",
+    "endpoint": "/api/auth/logout/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:45.507070",
+    "endpoint": "/api/users/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:47.070103",
+    "endpoint": "/api/jobs/domains/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:48.628705",
+    "endpoint": "/api/jobs/domains/active/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:50.202093",
+    "endpoint": "/api/jobs/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:51.793655",
+    "endpoint": "/api/jobs/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:19:53.424932",
+    "endpoint": "/api/candidates/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:55.127521",
+    "endpoint": "/api/candidates/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:19:56.841609",
+    "endpoint": "/api/resumes/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:19:58.433747",
+    "endpoint": "/api/interviews/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:00.009797",
+    "endpoint": "/api/notifications/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:01.615782",
+    "endpoint": "/api/notifications/mark-read/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:01.639743",
+    "endpoint": "/api/dashboard/analytics/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:01.649638",
+    "endpoint": "/api/dashboard/recent-activities/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:01.661038",
+    "endpoint": "/api/companies/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:01.667149",
+    "endpoint": "/api/companies/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:08.998021",
+    "endpoint": "/api/auth/login/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": {
+      "token": "6b8369aac557dbf80577a8d53092eb33dc08632a",
+      "user": {
+        "id": 64,
+        "email": "recruiter_test@example.com",
+        "full_name": "Recruiter Test User",
+        "role": "RECRUITER",
+        "company_name": "Test Company"
+      }
+    },
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:11.866308",
+    "endpoint": "/api/auth/register/",
+    "method": "POST",
+    "status_code": 500,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:14.243568",
+    "endpoint": "/api/auth/logout/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:14.252032",
+    "endpoint": "/api/users/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:16.012525",
+    "endpoint": "/api/jobs/domains/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:17.709914",
+    "endpoint": "/api/jobs/domains/active/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:19.550369",
+    "endpoint": "/api/jobs/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:21.186174",
+    "endpoint": "/api/jobs/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:20:22.744233",
+    "endpoint": "/api/candidates/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:24.380835",
+    "endpoint": "/api/candidates/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:20:26.007825",
+    "endpoint": "/api/resumes/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:27.592070",
+    "endpoint": "/api/interviews/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:29.194103",
+    "endpoint": "/api/notifications/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:30.826496",
+    "endpoint": "/api/notifications/mark-read/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:30.844984",
+    "endpoint": "/api/dashboard/analytics/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:30.858581",
+    "endpoint": "/api/dashboard/recent-activities/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:30.866931",
+    "endpoint": "/api/companies/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:30.878450",
+    "endpoint": "/api/companies/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:38.125416",
+    "endpoint": "/api/auth/login/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": {
+      "token": "ade4d25fdefb3186bb1e9d4e2cfae115afa4fa54",
+      "user": {
+        "id": 16,
+        "email": "admin@rslsolution.com",
+        "full_name": "",
+        "role": "ADMIN",
+        "company_name": null
+      }
+    },
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:40.746296",
+    "endpoint": "/api/auth/register/",
+    "method": "POST",
+    "status_code": 500,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:43.145852",
+    "endpoint": "/api/auth/logout/",
+    "method": "POST",
+    "status_code": 200,
+    "success": true,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:43.159563",
+    "endpoint": "/api/users/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:44.779902",
+    "endpoint": "/api/jobs/domains/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:46.361058",
+    "endpoint": "/api/jobs/domains/active/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:47.986660",
+    "endpoint": "/api/jobs/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:49.608969",
+    "endpoint": "/api/jobs/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:20:51.161670",
+    "endpoint": "/api/candidates/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:52.746323",
+    "endpoint": "/api/candidates/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": "{\"detail\":\"Invalid token.\"}"
+  },
+  {
+    "timestamp": "2025-08-06T11:20:54.342359",
+    "endpoint": "/api/resumes/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:55.965517",
+    "endpoint": "/api/interviews/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:57.590846",
+    "endpoint": "/api/notifications/",
+    "method": "GET",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:59.189781",
+    "endpoint": "/api/notifications/mark-read/",
+    "method": "POST",
+    "status_code": 401,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:59.197218",
+    "endpoint": "/api/dashboard/analytics/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:59.207011",
+    "endpoint": "/api/dashboard/recent-activities/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:59.214195",
+    "endpoint": "/api/companies/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  },
+  {
+    "timestamp": "2025-08-06T11:20:59.224428",
+    "endpoint": "/api/companies/profile/",
+    "method": "GET",
+    "status_code": 404,
+    "success": false,
+    "response_data": null,
+    "error": null
+  }
+]

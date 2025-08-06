@@ -97,6 +97,103 @@ class CandidateSubmissionSerializer(serializers.Serializer):
     )
 
 # ────────────────────────────────────────────────────────────────
+# Enhanced Bulk Candidate Creation Serializers
+# ────────────────────────────────────────────────────────────────
+
+class BulkCandidateSubmissionSerializer(serializers.Serializer):
+    """
+    Submit edited candidate data for bulk creation
+    """
+    domain = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Domain/technology area for all candidates"
+    )
+    role = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Job role/position for all candidates"
+    )
+    candidates = serializers.ListField(
+        child=serializers.DictField(),
+        min_length=1,
+        help_text="List of candidate data with edited information"
+    )
+    
+    def validate_candidates(self, value):
+        """Validate candidate data"""
+        if not value:
+            raise serializers.ValidationError("At least one candidate is required.")
+        
+        for candidate in value:
+            if not candidate.get('filename'):
+                raise serializers.ValidationError("Each candidate must have a filename.")
+            
+            edited_data = candidate.get('edited_data', {})
+            if not edited_data.get('name'):
+                raise serializers.ValidationError("Each candidate must have a name.")
+        
+        return value
+
+# ────────────────────────────────────────────────────────────────
+# Bulk Candidate Creation Serializer
+# ────────────────────────────────────────────────────────────────
+
+class BulkCandidateCreationSerializer(serializers.Serializer):
+    """
+    Bulk candidate creation from multiple resumes
+    """
+    domain = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Domain/technology area for all candidates (e.g., 'Python', 'React', 'DevOps')"
+    )
+    role = serializers.CharField(
+        max_length=100, 
+        required=True,
+        help_text="Job role/position for all candidates (e.g., 'Senior Developer', 'Team Lead', 'Architect')"
+    )
+    resume_files = serializers.ListField(
+        child=serializers.FileField(
+            help_text="Resume file (PDF, DOCX, DOC)"
+        ),
+        min_length=1,
+        max_length=20,  # Limit to 20 files per request
+        help_text="List of resume files (1-20 files)"
+    )
+    
+    def validate_resume_files(self, value):
+        """Validate resume files"""
+        if not value:
+            raise serializers.ValidationError("At least one resume file is required.")
+        
+        if len(value) > 20:
+            raise serializers.ValidationError("Maximum 20 files allowed per request.")
+        
+        # Validate file types
+        for file in value:
+            if not file.name.lower().endswith(('.pdf', '.docx', '.doc')):
+                raise serializers.ValidationError(
+                    f"Unsupported file type for {file.name}. Only PDF, DOCX, and DOC files are allowed."
+                )
+            
+            # Validate file size (10MB limit)
+            if file.size > 10 * 1024 * 1024:  # 10MB
+                raise serializers.ValidationError(
+                    f"File {file.name} is too large. Maximum size is 10MB."
+                )
+        
+        return value
+    
+    def validate_domain(self, value):
+        """Validate domain exists"""
+        try:
+            Domain.objects.get(name=value)
+        except Domain.DoesNotExist:
+            raise serializers.ValidationError(f"Domain '{value}' does not exist.")
+        return value
+
+# ────────────────────────────────────────────────────────────────
 # Existing Serializers (Updated)
 # ────────────────────────────────────────────────────────────────
 

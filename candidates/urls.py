@@ -7,10 +7,19 @@ from .views import (
     DomainRoleSelectionView,
     DataExtractionView,
     CandidateVerificationView,
-    CandidateSubmissionView
+    CandidateSubmissionView,
+    # New bulk candidate creation view
+    BulkCandidateCreationView,
+
 )
 
 urlpatterns = [
+    # Enhanced bulk candidate creation endpoints (for frontend flow)
+
+    
+    # Original bulk candidate creation endpoint
+    path('bulk-create/', BulkCandidateCreationView.as_view(), name='bulk-candidate-creation'),
+    
     # Step-by-step candidate creation endpoints
     path('select-domain/', DomainRoleSelectionView.as_view(), name='domain-role-selection'),
     path('extract-data/', DataExtractionView.as_view(), name='data-extraction'),

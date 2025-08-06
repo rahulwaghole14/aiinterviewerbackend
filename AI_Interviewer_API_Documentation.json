@@ -1000,9 +1000,266 @@
 						"description": "Delete a candidate profile"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Candidate Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "summary", ""]
+						},
+						"description": "Get candidate summary statistics and analytics"
+					},
+					"response": []
 				}
 			],
-			"description": "Candidate management endpoints for managing candidate profiles"
+			"description": "Basic candidate management endpoints for managing individual candidate profiles"
+		},
+		{
+			"name": "Enhanced Bulk Candidate Creation",
+			"item": [
+				{
+					"name": "Bulk Extract Candidates (Step 1)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "domain",
+									"value": "Data Science",
+									"type": "text",
+									"description": "Domain for the candidates (e.g., Data Science, Software Development)"
+								},
+								{
+									"key": "role",
+									"value": "Data Scientist",
+									"type": "text",
+									"description": "Role for the candidates (e.g., Data Scientist, Python Developer)"
+								},
+								{
+									"key": "resume_files",
+									"type": "file",
+									"src": [],
+									"description": "Multiple resume files (PDF, DOC, DOCX) - up to 20 files"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/bulk-create/?step=extract",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "bulk-create", ""],
+							"query": [
+								{
+									"key": "step",
+									"value": "extract"
+								}
+							]
+						},
+						"description": "Step 1: Extract data from multiple resumes for preview/editing. Returns extracted data without creating candidates. Use this for the frontend flow where users can review and edit extracted data before final submission."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Submit Candidates (Step 2)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"domain\": \"Data Science\",\n    \"role\": \"Data Scientist\",\n    \"candidates\": [\n        {\n            \"filename\": \"resume1.pdf\",\n            \"edited_data\": {\n                \"name\": \"John Doe\",\n                \"email\": \"john.doe@example.com\",\n                \"phone\": \"+1234567890\",\n                \"work_experience\": 5\n            }\n        },\n        {\n            \"filename\": \"resume2.pdf\",\n            \"edited_data\": {\n                \"name\": \"Jane Smith\",\n                \"email\": \"jane.smith@example.com\",\n                \"phone\": \"+1234567891\",\n                \"work_experience\": 3\n            }\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/bulk-create/?step=submit",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "bulk-create", ""],
+							"query": [
+								{
+									"key": "step",
+									"value": "submit"
+								}
+							]
+						},
+						"description": "Step 2: Submit edited candidate data to create candidates. Use after bulk-extract and frontend editing. This endpoint creates the actual candidate records in the database."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Candidates (Direct)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "domain",
+									"value": "Data Science",
+									"type": "text",
+									"description": "Domain for the candidates"
+								},
+								{
+									"key": "role",
+									"value": "Data Scientist",
+									"type": "text",
+									"description": "Role for the candidates"
+								},
+								{
+									"key": "resume_files",
+									"type": "file",
+									"src": [],
+									"description": "Multiple resume files (PDF, DOC, DOCX) - up to 20 files"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/bulk-create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "bulk-create", ""]
+						},
+						"description": "Create multiple candidates from multiple resume files in one step. Upload 1-20 resume files with domain and role selection. This is the direct creation method (backward compatibility)."
+					},
+					"response": []
+				}
+			],
+			"description": "Enhanced bulk candidate creation flow with two-step process: Extract → Preview/Edit → Submit. Supports both direct creation and step-by-step flow for better user experience."
+		},
+		{
+			"name": "Step-by-Step Candidate Creation",
+			"item": [
+				{
+					"name": "Select Domain and Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"domain\": \"Data Science\",\n    \"role\": \"Data Scientist\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/select-domain/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "select-domain", ""]
+						},
+						"description": "Step 1: Select domain and role for candidate creation. This creates a draft session for the candidate creation process."
+					},
+					"response": []
+				},
+				{
+					"name": "Extract Data from Resume",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "resume_file",
+									"type": "file",
+									"src": [],
+									"description": "Resume file (PDF, DOC, DOCX)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/extract-data/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "extract-data", ""]
+						},
+						"description": "Step 2: Upload a single resume and extract candidate data. Returns extracted information for review and editing."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify and Update Candidate Data",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+1234567890\",\n    \"work_experience\": 5,\n    \"skills\": [\"Python\", \"Machine Learning\", \"Data Analysis\"],\n    \"current_company\": \"Tech Corp\",\n    \"expected_salary\": \"$80,000\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/verify/{{draft_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "verify", "{{draft_id}}", ""]
+						},
+						"description": "Step 3: Verify and update extracted candidate data. Use the draft_id returned from extract-data endpoint."
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Candidate",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/submit/{{draft_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "submit", "{{draft_id}}", ""]
+						},
+						"description": "Step 4: Submit the candidate for final creation. This creates the actual candidate record in the database."
+					},
+					"response": []
+				}
+			],
+			"description": "Step-by-step candidate creation process for individual candidates. This flow allows for detailed review and editing of extracted data before final submission."
 		}
 	],
 	"event": [
@@ -1073,6 +1330,12 @@
 			"value": "",
 			"type": "string",
 			"description": "Candidate ID for testing"
+		},
+		{
+			"key": "draft_id",
+			"value": "",
+			"type": "string",
+			"description": "Draft ID for step-by-step candidate creation"
 		},
 		{
 			"key": "user_id",

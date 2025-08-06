@@ -400,9 +400,126 @@
 		},
 		{
 			"name": "👥 Candidates Management",
-			"item": [
-				{
-					"name": "Get All Candidates",
+			                        "item": [
+                                {
+                                        "name": "Bulk Extract Candidates (Enhanced Flow)",
+                                        "request": {
+                                                "method": "POST",
+                                                "header": [
+                                                        {
+                                                                "key": "Authorization",
+                                                                "value": "Token {{auth_token}}"
+                                                        }
+                                                ],
+                                                "body": {
+                                                        "mode": "formdata",
+                                                        "formdata": [
+                                                                {
+                                                                        "key": "domain",
+                                                                        "value": "Data Science",
+                                                                        "type": "text"
+                                                                },
+                                                                {
+                                                                        "key": "role",
+                                                                        "value": "Data Scientist",
+                                                                        "type": "text"
+                                                                },
+                                                                {
+                                                                        "key": "resume_files",
+                                                                        "type": "file",
+                                                                        "src": []
+                                                                }
+                                                        ]
+                                                },
+                                                "url": {
+                                                        "raw": "{{base_url}}/api/candidates/bulk-create/?step=extract",
+                                                        "host": ["{{base_url}}"],
+                                                        "path": ["api", "candidates", "bulk-create", ""],
+                                                        "query": [
+                                                                {
+                                                                        "key": "step",
+                                                                        "value": "extract"
+                                                                }
+                                                        ]
+                                                },
+                                                "description": "Step 1: Extract data from multiple resumes for preview/editing. Returns extracted data without creating candidates."
+                                        },
+                                        "response": []
+                                },
+                                {
+                                        "name": "Bulk Submit Candidates (Enhanced Flow)",
+                                        "request": {
+                                                "method": "POST",
+                                                "header": [
+                                                        {
+                                                                "key": "Authorization",
+                                                                "value": "Token {{auth_token}}"
+                                                        },
+                                                        {
+                                                                "key": "Content-Type",
+                                                                "value": "application/json"
+                                                        }
+                                                ],
+                                                "body": {
+                                                        "mode": "raw",
+                                                        "raw": "{\n    \"domain\": \"Data Science\",\n    \"role\": \"Data Scientist\",\n    \"candidates\": [\n        {\n            \"filename\": \"resume1.pdf\",\n            \"edited_data\": {\n                \"name\": \"John Doe\",\n                \"email\": \"john.doe@example.com\",\n                \"phone\": \"+1234567890\",\n                \"work_experience\": 5\n            }\n        }\n    ]\n}"
+                                                },
+                                                "url": {
+                                                        "raw": "{{base_url}}/api/candidates/bulk-create/?step=submit",
+                                                        "host": ["{{base_url}}"],
+                                                        "path": ["api", "candidates", "bulk-create", ""],
+                                                        "query": [
+                                                                {
+                                                                        "key": "step",
+                                                                        "value": "submit"
+                                                                }
+                                                        ]
+                                                },
+                                                "description": "Step 2: Submit edited candidate data to create candidates. Use after bulk-extract and frontend editing."
+                                        },
+                                        "response": []
+                                },
+                                {
+                                        "name": "Bulk Create Candidates",
+                                        "request": {
+                                                "method": "POST",
+                                                "header": [
+                                                        {
+                                                                "key": "Authorization",
+                                                                "value": "Token {{auth_token}}"
+                                                        }
+                                                ],
+                                                "body": {
+                                                        "mode": "formdata",
+                                                        "formdata": [
+                                                                {
+                                                                        "key": "domain",
+                                                                        "value": "Data Science",
+                                                                        "type": "text"
+                                                                },
+                                                                {
+                                                                        "key": "role",
+                                                                        "value": "Data Scientist",
+                                                                        "type": "text"
+                                                                },
+                                                                {
+                                                                        "key": "resume_files",
+                                                                        "type": "file",
+                                                                        "src": []
+                                                                }
+                                                        ]
+                                                },
+                                                "url": {
+                                                        "raw": "{{base_url}}/api/candidates/bulk-create/",
+                                                        "host": ["{{base_url}}"],
+                                                        "path": ["api", "candidates", "bulk-create", ""]
+                                                },
+                                                "description": "Create multiple candidates from multiple resume files. Upload 1-20 resume files with domain and role selection. Supports direct creation (default) or two-step flow with ?step=extract and ?step=submit query parameters."
+                                        },
+                                        "response": []
+                                },
+                                {
+                                        "name": "Get All Candidates",
 					"request": {
 						"method": "GET",
 						"header": [

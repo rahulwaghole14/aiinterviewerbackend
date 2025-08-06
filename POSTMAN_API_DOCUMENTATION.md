@@ -222,7 +222,130 @@ The following credentials are ready to use for testing:
 
 ## 👥 Candidates Management Endpoints
 
-### 1. Get All Candidates
+### 1. Bulk Candidate Creation (Unified API)
+
+**Base Endpoint:** `POST /api/candidates/bulk-create/`
+
+**Description:** Create multiple candidates from multiple resume files. Supports both direct creation and two-step flow using query parameters.
+
+#### Step 1: Bulk Extract Candidates
+- **URL**: `POST /api/candidates/bulk-create/?step=extract`
+- **Description**: Extract data from multiple resumes for preview/editing (does not create candidates)
+- **Headers**: `Authorization: Token <auth_token>`, `Content-Type: multipart/form-data`
+- **Body** (Form Data):
+  - `domain`: Domain/technology area (e.g., "Data Science")
+  - `role`: Job role/position (e.g., "Data Scientist")
+  - `resume_files`: Multiple resume files (1-20 files, PDF/DOCX/DOC)
+- **Response**:
+```json
+{
+    "message": "Data extraction completed: 3 successful, 0 failed",
+    "domain": "Data Science",
+    "role": "Data Scientist",
+    "extracted_candidates": [
+        {
+            "filename": "john_doe_resume.pdf",
+            "extracted_data": {
+                "name": "John Doe",
+                "email": "john.doe@example.com",
+                "phone": "+1234567890",
+                "work_experience": 5
+            },
+            "can_edit": true
+        }
+    ],
+    "summary": {
+        "total_files": 3,
+        "successful_extractions": 3,
+        "failed_extractions": 0
+    },
+    "next_step": "review_and_edit"
+}
+```
+
+#### Step 2: Bulk Submit Candidates
+- **URL**: `POST /api/candidates/bulk-create/?step=submit`
+- **Description**: Submit edited candidate data to create candidates
+- **Headers**: `Authorization: Token <auth_token>`, `Content-Type: application/json`
+- **Body**:
+```json
+{
+    "domain": "Data Science",
+    "role": "Data Scientist",
+    "candidates": [
+        {
+            "filename": "john_doe_resume.pdf",
+            "edited_data": {
+                "name": "John Doe",
+                "email": "john.doe@example.com",
+                "phone": "+1234567890",
+                "work_experience": 5
+            }
+        }
+    ]
+}
+```
+- **Response**:
+```json
+{
+    "message": "Bulk candidate creation completed: 3 successful, 0 failed",
+    "domain": "Data Science",
+    "role": "Data Scientist",
+    "results": [
+        {
+            "success": true,
+            "filename": "john_doe_resume.pdf",
+            "candidate_id": 123,
+            "resume_id": 456,
+            "candidate_name": "John Doe"
+        }
+    ],
+    "summary": {
+        "total_candidates": 3,
+        "successful_creations": 3,
+        "failed_creations": 0
+    }
+}
+```
+
+### 2. Bulk Create Candidates (Direct)
+- **URL**: `POST /api/candidates/bulk-create/` (no query parameters)
+- **Description**: Create multiple candidates from multiple resume files (direct creation without preview)
+- **Headers**: `Authorization: Token <auth_token>`, `Content-Type: multipart/form-data`
+- **Body** (Form Data):
+  - `domain`: Domain/technology area (e.g., "Data Science")
+  - `role`: Job role/position (e.g., "Data Scientist")
+  - `resume_files`: Multiple resume files (1-20 files, PDF/DOCX/DOC)
+- **Response**:
+```json
+{
+    "message": "Bulk candidate creation completed: 3 successful, 0 failed",
+    "domain": "Data Science",
+    "role": "Data Scientist",
+    "results": [
+        {
+            "success": true,
+            "filename": "john_doe_resume.pdf",
+            "candidate_id": 123,
+            "resume_id": 456,
+            "extracted_data": {
+                "name": "John Doe",
+                "email": "john.doe@example.com",
+                "phone": "+1234567890",
+                "work_experience": 5
+            },
+            "candidate_name": "John Doe"
+        }
+    ],
+    "summary": {
+        "total_files": 3,
+        "successful_creations": 3,
+        "failed_creations": 0
+    }
+}
+```
+
+### 2. Get All Candidates
 - **URL**: `GET /api/candidates/`
 - **Description**: Retrieve all candidates
 - **Headers**: `Authorization: Token <auth_token>`

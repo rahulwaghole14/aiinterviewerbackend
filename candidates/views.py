@@ -4,6 +4,8 @@ from rest_framework import generics, permissions, filters, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from django.core.files.uploadedfile import UploadedFile
+from django.db import transaction
 
 from .models      import Candidate, CandidateDraft
 from .serializers import (
@@ -13,13 +15,446 @@ from .serializers import (
     DomainRoleSelectionSerializer,
     DataExtractionSerializer,
     CandidateVerificationSerializer,
-    CandidateSubmissionSerializer
+    CandidateSubmissionSerializer,
+    # New bulk candidate serializers
+    BulkCandidateCreationSerializer,
+    BulkCandidateSubmissionSerializer
 )
 from utils.hierarchy_permissions import ResumeHierarchyPermission, DataIsolationMixin
 from utils.logger import ActionLogger
 from notifications.services import NotificationService
 from resumes.models import Resume, extract_resume_fields
 from utils.name_parser import parse_candidate_name
+from jobs.models import Job
+
+# ────────────────────────────────────────────────────────────────
+# Enhanced Bulk Candidate Creation Views
+# ────────────────────────────────────────────────────────────────
+
+class BulkCandidateCreationView(APIView):
+    """
+    Bulk candidate creation from multiple resume files with two-step flow support
+    POST /api/candidates/bulk-create/?step=extract (for data extraction and preview)
+    POST /api/candidates/bulk-create/?step=submit (for final candidate creation)
+    """
+    permission_classes = [ResumeHierarchyPermission]
+
+    def post(self, request):
+        """Handle bulk candidate creation with two-step flow"""
+        step = request.query_params.get('step', 'create')  # Default to direct creation
+        
+        if step == 'extract':
+            return self._extract_data(request)
+        elif step == 'submit':
+            return self._submit_candidates(request)
+        else:
+            # Default behavior - direct creation (backward compatibility)
+            return self._create_candidates_directly(request)
+
+    def _extract_data(self, request):
+        """Step 1: Extract data from resumes for preview/editing"""
+        serializer = BulkCandidateCreationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        domain = serializer.validated_data['domain']
+        role = serializer.validated_data['role']
+        resume_files = serializer.validated_data['resume_files']
+
+        extracted_candidates = []
+        failed_extractions = 0
+
+        # Log bulk extraction start
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='bulk_candidate_extraction_start',
+            details={
+                'domain': domain,
+                'role': role,
+                'file_count': len(resume_files)
+            },
+            status='SUCCESS'
+        )
+
+        # Process each resume file
+        for resume_file in resume_files:
+            try:
+                extracted_data = self._extract_candidate_data(resume_file, request.user)
+                if extracted_data:
+                    extracted_candidates.append({
+                        'filename': resume_file.name,
+                        'extracted_data': extracted_data,
+                        'resume_file': resume_file.name,  # For frontend reference
+                        'can_edit': True
+                    })
+                else:
+                    failed_extractions += 1
+                    extracted_candidates.append({
+                        'filename': resume_file.name,
+                        'error': 'Failed to extract data from resume',
+                        'extracted_data': {},
+                        'can_edit': False
+                    })
+
+            except Exception as e:
+                failed_extractions += 1
+                extracted_candidates.append({
+                    'filename': resume_file.name,
+                    'error': str(e),
+                    'extracted_data': {},
+                    'can_edit': False
+                })
+
+        # Log extraction completion
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='bulk_candidate_extraction_complete',
+            details={
+                'domain': domain,
+                'role': role,
+                'total_files': len(resume_files),
+                'successful_extractions': len(extracted_candidates) - failed_extractions,
+                'failed_extractions': failed_extractions
+            },
+            status='SUCCESS'
+        )
+
+        response_data = {
+            'message': f'Data extraction completed: {len(extracted_candidates) - failed_extractions} successful, {failed_extractions} failed',
+            'domain': domain,
+            'role': role,
+            'extracted_candidates': extracted_candidates,
+            'summary': {
+                'total_files': len(resume_files),
+                'successful_extractions': len(extracted_candidates) - failed_extractions,
+                'failed_extractions': failed_extractions
+            },
+            'next_step': 'review_and_edit'
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    def _submit_candidates(self, request):
+        """Step 2: Create candidates from edited data"""
+        # Validate request data
+        domain = request.data.get('domain')
+        role = request.data.get('role')
+        candidates_data = request.data.get('candidates', [])
+
+        if not domain or not role or not candidates_data:
+            return Response({
+                'error': 'Missing required fields: domain, role, or candidates data'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        results = []
+        successful_creations = 0
+        failed_creations = 0
+
+        # Log bulk submission start
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='bulk_candidate_submission_start',
+            details={
+                'domain': domain,
+                'role': role,
+                'candidate_count': len(candidates_data)
+            },
+            status='SUCCESS'
+        )
+
+        # Process each candidate data
+        for candidate_info in candidates_data:
+            try:
+                filename = candidate_info.get('filename')
+                edited_data = candidate_info.get('edited_data', {})
+                
+                if not filename or not edited_data:
+                    failed_creations += 1
+                    results.append({
+                        'filename': filename or 'Unknown',
+                        'status': 'failed',
+                        'error': 'Missing filename or edited data'
+                    })
+                    continue
+
+                # Create candidate from edited data
+                candidate = self._create_candidate_from_data(edited_data, domain, role, request.user)
+                if candidate:
+                    successful_creations += 1
+                    results.append({
+                        'filename': filename,
+                        'status': 'success',
+                        'candidate_id': candidate.id,
+                        'candidate_name': candidate.name,
+                        'resume_url': request.build_absolute_uri(candidate.resume.file.url) if candidate.resume else None
+                    })
+                else:
+                    failed_creations += 1
+                    results.append({
+                        'filename': filename,
+                        'status': 'failed',
+                        'error': 'Failed to create candidate'
+                    })
+
+            except Exception as e:
+                failed_creations += 1
+                results.append({
+                    'filename': candidate_info.get('filename', 'Unknown'),
+                    'status': 'failed',
+                    'error': str(e)
+                })
+
+        # Log submission completion
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='bulk_candidate_submission_complete',
+            details={
+                'domain': domain,
+                'role': role,
+                'total_candidates': len(candidates_data),
+                'successful_creations': successful_creations,
+                'failed_creations': failed_creations
+            },
+            status='SUCCESS'
+        )
+
+        # Send notification
+        if successful_creations > 0:
+            NotificationService.send_bulk_candidate_creation_notification(
+                user=request.user,
+                successful_count=successful_creations,
+                domain=domain,
+                role=role
+            )
+
+        response_data = {
+            'message': f'Candidate creation completed: {successful_creations} successful, {failed_creations} failed',
+            'results': results,
+            'summary': {
+                'total_candidates': len(candidates_data),
+                'successful_creations': successful_creations,
+                'failed_creations': failed_creations
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    def _create_candidates_directly(self, request):
+        """Original behavior - direct creation (backward compatibility)"""
+        serializer = BulkCandidateCreationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        domain = serializer.validated_data['domain']
+        role = serializer.validated_data['role']
+        resume_files = serializer.validated_data['resume_files']
+
+        created_candidates = []
+        failed_creations = 0
+
+        # Log bulk creation start
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='bulk_candidate_creation_start',
+            details={
+                'domain': domain,
+                'role': role,
+                'file_count': len(resume_files)
+            },
+            status='SUCCESS'
+        )
+
+        # Process each resume file
+        for resume_file in resume_files:
+            try:
+                candidate = self._process_single_candidate(resume_file, domain, role, request.user)
+                if candidate:
+                    created_candidates.append({
+                        'id': candidate.id,
+                        'name': candidate.name,
+                        'email': candidate.email,
+                        'resume_url': request.build_absolute_uri(candidate.resume.file.url) if candidate.resume else None
+                    })
+                else:
+                    failed_creations += 1
+
+            except Exception as e:
+                failed_creations += 1
+                ActionLogger.log_user_action(
+                    user=request.user,
+                    action='candidate_creation_failed',
+                    details={
+                        'filename': resume_file.name,
+                        'error': str(e)
+                    },
+                    status='FAILED'
+                )
+
+        # Log creation completion
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='bulk_candidate_creation_complete',
+            details={
+                'domain': domain,
+                'role': role,
+                'total_files': len(resume_files),
+                'successful_creations': len(created_candidates),
+                'failed_creations': failed_creations
+            },
+            status='SUCCESS'
+        )
+
+        # Send notification
+        if created_candidates:
+            NotificationService.send_bulk_candidate_creation_notification(
+                user=request.user,
+                successful_count=len(created_candidates),
+                domain=domain,
+                role=role
+            )
+
+        response_data = {
+            'message': f'Bulk candidate creation completed: {len(created_candidates)} successful, {failed_creations} failed',
+            'created_candidates': created_candidates,
+            'summary': {
+                'total_files': len(resume_files),
+                'successful_creations': len(created_candidates),
+                'failed_creations': failed_creations
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    def _extract_candidate_data(self, resume_file: UploadedFile, user):
+        """Extract candidate data from a single resume file"""
+        try:
+            # Create temporary resume object for text extraction
+            temp_resume = Resume.objects.create(user=user, file=resume_file)
+
+            # Wait a moment for file to be saved, then extract data
+            import time
+            time.sleep(0.1)  # Small delay to ensure file is saved
+
+            # Refresh the resume object to get the parsed text
+            temp_resume.refresh_from_db()
+
+            # Extract data from parsed text
+            extracted_data = {}
+            if temp_resume.parsed_text:
+                extracted_data = extract_resume_fields(temp_resume.parsed_text)
+
+                # Clean name if extracted
+                if extracted_data.get('name'):
+                    extracted_data['name'] = parse_candidate_name(extracted_data['name'])
+
+            # Clean up temporary resume
+            temp_resume.delete()
+
+            return extracted_data
+
+        except Exception as e:
+            # Log extraction failure
+            ActionLogger.log_user_action(
+                user=user,
+                action='resume_extraction_failed',
+                details={
+                    'filename': resume_file.name,
+                    'error': str(e)
+                },
+                status='FAILED'
+            )
+            return None
+
+    def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user):
+        """Create candidate from edited data"""
+        try:
+            # Create resume object (you might need to handle file upload separately)
+            # For now, we'll create a candidate without resume association
+            candidate_info = {
+                'name': candidate_data.get('name', 'Unknown'),
+                'email': candidate_data.get('email', ''),
+                'phone': candidate_data.get('phone', ''),
+                'work_experience': candidate_data.get('experience', 0),
+                'skills': candidate_data.get('skills', []),
+                'education': candidate_data.get('education', ''),
+                'created_by': user.id
+            }
+
+            # Create candidate
+            candidate = Candidate.objects.create(**candidate_info)
+
+            # Associate with job if domain/role match exists
+            try:
+                job = Job.objects.get(domain__name__iexact=domain, job_title__iexact=role)
+                candidate.job = job
+                candidate.save()
+            except Job.DoesNotExist:
+                pass  # Job not found, candidate created without job association
+
+            return candidate
+
+        except Exception as e:
+            ActionLogger.log_user_action(
+                user=user,
+                action='candidate_creation_failed',
+                details={
+                    'error': str(e)
+                },
+                status='FAILED'
+            )
+            return None
+
+    def _process_single_candidate(self, resume_file: UploadedFile, domain: str, role: str, user):
+        """Process a single resume file and create candidate"""
+        try:
+            # Create resume object
+            resume = Resume.objects.create(user=user, file=resume_file)
+
+            # Extract data from resume
+            extracted_data = {}
+            if resume.parsed_text:
+                extracted_data = extract_resume_fields(resume.parsed_text)
+
+                # Clean name if extracted
+                if extracted_data.get('name'):
+                    extracted_data['name'] = parse_candidate_name(extracted_data['name'])
+
+            # Create candidate with extracted data
+            candidate_data = {
+                'name': extracted_data.get('name', 'Unknown'),
+                'email': extracted_data.get('email', ''),
+                'phone': extracted_data.get('phone', ''),
+                'work_experience': extracted_data.get('experience', 0),
+                'skills': extracted_data.get('skills', []),
+                'education': extracted_data.get('education', ''),
+                'resume': resume.id,
+                'created_by': user.id
+            }
+
+            # Create candidate
+            candidate = Candidate.objects.create(**candidate_data)
+
+            # Associate with job if domain/role match exists
+            try:
+                job = Job.objects.get(domain__name__iexact=domain, job_title__iexact=role)
+                candidate.job = job
+                candidate.save()
+            except Job.DoesNotExist:
+                pass  # Job not found, candidate created without job association
+
+            return candidate
+
+        except Exception as e:
+            ActionLogger.log_user_action(
+                user=user,
+                action='candidate_creation_failed',
+                details={
+                    'filename': resume_file.name,
+                    'error': str(e)
+                },
+                status='FAILED'
+            )
+            return None
 
 # ────────────────────────────────────────────────────────────────
 # Step-by-Step Candidate Creation Views

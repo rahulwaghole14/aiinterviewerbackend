@@ -174,19 +174,51 @@ class NotificationService:
     
     @staticmethod
     def send_bulk_upload_completed_notification(user, results):
-        """Send notification when bulk upload is completed"""
-        context = {
-            'total_files': results.get('summary', {}).get('total_files', 0),
-            'successful': results.get('summary', {}).get('successful', 0),
-            'failed': results.get('summary', {}).get('failed', 0)
-        }
-        
-        return NotificationService.create_notification_from_template(
-            recipient=user,
-            template_name='bulk_upload_completed',
-            context=context,
-            priority=NotificationPriority.MEDIUM
-        )
+        """Send notification for bulk resume upload completion"""
+        try:
+            summary = results.get('summary', {})
+            total_files = summary.get('total_files', 0)
+            successful = summary.get('successful', 0)
+            failed = summary.get('failed', 0)
+            
+            message = f"Bulk resume upload completed: {successful}/{total_files} successful"
+            if failed > 0:
+                message += f", {failed} failed"
+            
+            NotificationService.create_notification(
+                user=user,
+                notification_type='BULK_UPLOAD_COMPLETED',
+                title='Bulk Resume Upload Completed',
+                message=message,
+                details={
+                    'total_files': total_files,
+                    'successful': successful,
+                    'failed': failed,
+                    'results': results.get('results', [])
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send bulk upload notification: {e}")
+
+    @staticmethod
+    def send_bulk_candidate_creation_notification(user, successful_count, domain, role):
+        """Send notification for bulk candidate creation completion"""
+        try:
+            message = f"Bulk candidate creation completed: {successful_count} candidates created for {domain}/{role}"
+            
+            NotificationService.create_notification(
+                user=user,
+                notification_type='BULK_CANDIDATE_CREATION_COMPLETED',
+                title='Bulk Candidate Creation Completed',
+                message=message,
+                details={
+                    'successful_count': successful_count,
+                    'domain': domain,
+                    'role': role
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send bulk candidate creation notification: {e}")
     
     @staticmethod
     def send_candidate_added_notification(candidate, recipient=None):

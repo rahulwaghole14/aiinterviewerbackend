@@ -1,6 +1,6 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate, login, logout
@@ -8,6 +8,10 @@ from django.contrib.auth.models import User
 from .serializers import RegisterSerializer, LoginSerializer
 from .models import CustomUser
 from utils.logger import log_user_login, log_user_logout, log_user_registration, ActionLogger
+
+class IsAdminUserCustom(IsAuthenticated):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and getattr(request.user, 'role', '').upper() == 'ADMIN'
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -273,3 +277,21 @@ def user_profile_view(request):
         return Response({
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAdminUserCustom])
+def admin_list_view(request):
+    """List all admin users (admin-only access)"""
+    admins = CustomUser.objects.filter(role__iexact='ADMIN')
+    data = [
+        {
+            'id': user.id,
+            'email': user.email,
+            'full_name': user.full_name,
+            'role': user.role,
+            'company_name': user.company_name,
+            'username': user.username
+        }
+        for user in admins
+    ]
+    return Response({'admins': data}, status=status.HTTP_200_OK)

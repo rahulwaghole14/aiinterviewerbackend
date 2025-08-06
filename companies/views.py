@@ -25,6 +25,7 @@ class CompanyDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIVie
         instance.save()
 
 class RecruiterListView(DataIsolationMixin, generics.ListAPIView):
+    queryset = Recruiter.objects.filter(is_active=True)
     serializer_class = RecruiterSerializer
     permission_classes = [RecruiterHierarchyPermission]
 

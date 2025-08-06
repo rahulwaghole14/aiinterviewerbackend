@@ -1085,9 +1085,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/companies/",
+							"raw": "{{base_url}}/api/companies/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", ""]
+							"path": ["api", "companies", ""]
 						},
 						"description": "Retrieve all companies (Admin only)"
 					},
@@ -1112,9 +1112,9 @@
 							"raw": "{\n    \"name\": \"New Company\",\n    \"description\": \"A new company description\",\n    \"is_active\": true\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/companies/",
+							"raw": "{{base_url}}/api/companies/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", ""]
+							"path": ["api", "companies", ""]
 						},
 						"description": "Create a new company (Admin only)"
 					},
@@ -1131,9 +1131,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/companies/{{company_id}}/",
+							"raw": "{{base_url}}/api/companies/{{company_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "{{company_id}}", ""]
+							"path": ["api", "companies", "{{company_id}}", ""]
 						},
 						"description": "Get detailed information about a specific company"
 					},
@@ -1158,9 +1158,9 @@
 							"raw": "{\n    \"name\": \"Updated Company Name\",\n    \"description\": \"Updated company description\",\n    \"is_active\": true\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/companies/{{company_id}}/",
+							"raw": "{{base_url}}/api/companies/{{company_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "{{company_id}}", ""]
+							"path": ["api", "companies", "{{company_id}}", ""]
 						},
 						"description": "Update company information"
 					},
@@ -1177,9 +1177,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/companies/{{company_id}}/",
+							"raw": "{{base_url}}/api/companies/{{company_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "{{company_id}}", ""]
+							"path": ["api", "companies", "{{company_id}}", ""]
 						},
 						"description": "Delete a company (soft delete - sets is_active to False)"
 					},
@@ -1202,11 +1202,11 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/hiring_agency/",
+							"raw": "{{base_url}}/api/hiring_agency/",
 							"host": ["{{base_url}}"],
-							"path": ["hiring_agency", ""]
+							"path": ["api", "hiring_agency", ""]
 						},
-						"description": "Retrieve all hiring agencies (filtered by company for Company users)"
+						"description": "Retrieve all hiring agencies (filtered by company for Company users; returns all for Admin)"
 					},
 					"response": []
 				},
@@ -1229,9 +1229,9 @@
 							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john.doe@agency.com\",\n    \"phone_number\": \"+1234567890\",\n    \"role\": \"Hiring Agency\",\n    \"company_name\": \"Example Company\",\n    \"linkedin_url\": \"https://linkedin.com/in/johndoe\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/hiring_agency/",
+							"raw": "{{base_url}}/api/hiring_agency/",
 							"host": ["{{base_url}}"],
-							"path": ["hiring_agency", ""]
+							"path": ["api", "hiring_agency", ""]
 						},
 						"description": "Create a new hiring agency user (Admin/Company only)"
 					},
@@ -1248,9 +1248,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/hiring_agency/{{hiring_agency_id}}/",
+							"raw": "{{base_url}}/api/hiring_agency/{{hiring_agency_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["hiring_agency", "{{hiring_agency_id}}", ""]
+							"path": ["api", "hiring_agency", "{{hiring_agency_id}}", ""]
 						},
 						"description": "Get detailed information about a specific hiring agency"
 					},
@@ -1275,9 +1275,9 @@
 							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe Updated\",\n    \"email\": \"john.updated@agency.com\",\n    \"phone_number\": \"+1234567890\",\n    \"company_name\": \"Updated Example Company\",\n    \"linkedin_url\": \"https://linkedin.com/in/johndoeupdated\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/hiring_agency/{{hiring_agency_id}}/",
+							"raw": "{{base_url}}/api/hiring_agency/{{hiring_agency_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["hiring_agency", "{{hiring_agency_id}}", ""]
+							"path": ["api", "hiring_agency", "{{hiring_agency_id}}", ""]
 						},
 						"description": "Update hiring agency information"
 					},
@@ -1294,9 +1294,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/hiring_agency/{{hiring_agency_id}}/",
+							"raw": "{{base_url}}/api/hiring_agency/{{hiring_agency_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["hiring_agency", "{{hiring_agency_id}}", ""]
+							"path": ["api", "hiring_agency", "{{hiring_agency_id}}", ""]
 						},
 						"description": "Delete a hiring agency user"
 					},
@@ -1319,9 +1319,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/companies/recruiters/",
+							"raw": "{{base_url}}/api/companies/recruiters/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "recruiters", ""]
+							"path": ["api", "companies", "recruiters", ""]
 						},
 						"description": "Retrieve all recruiters (filtered by company for Company users)"
 					},
@@ -1346,9 +1346,9 @@
 							"raw": "{\n    \"username\": \"jane.smith\",\n    \"email\": \"jane.smith@company.com\",\n    \"full_name\": \"Jane Smith\",\n    \"password\": \"password123\",\n    \"company_id\": 1\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/companies/recruiters/create/",
+							"raw": "{{base_url}}/api/companies/recruiters/create/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "recruiters", "create", ""]
+							"path": ["api", "companies", "recruiters", "create", ""]
 						},
 						"description": "Create a new recruiter (Admin/Company only)"
 					},
@@ -1365,9 +1365,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/companies/recruiters/{{recruiter_id}}/",
+							"raw": "{{base_url}}/api/companies/recruiters/{{recruiter_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "recruiters", "{{recruiter_id}}", ""]
+							"path": ["api", "companies", "recruiters", "{{recruiter_id}}", ""]
 						},
 						"description": "Get detailed information about a specific recruiter"
 					},
@@ -1392,9 +1392,9 @@
 							"raw": "{\n    \"full_name\": \"Jane Smith Updated\",\n    \"email\": \"jane.updated@company.com\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/companies/recruiters/{{recruiter_id}}/",
+							"raw": "{{base_url}}/api/companies/recruiters/{{recruiter_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "recruiters", "{{recruiter_id}}", ""]
+							"path": ["api", "companies", "recruiters", "{{recruiter_id}}", ""]
 						},
 						"description": "Update recruiter information"
 					},
@@ -1411,9 +1411,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/companies/recruiters/{{recruiter_id}}/",
+							"raw": "{{base_url}}/api/companies/recruiters/{{recruiter_id}}/",
 							"host": ["{{base_url}}"],
-							"path": ["companies", "recruiters", "{{recruiter_id}}", ""]
+							"path": ["api", "companies", "recruiters", "{{recruiter_id}}", ""]
 						},
 						"description": "Delete a recruiter (soft delete - sets is_active to False)"
 					},
@@ -1611,6 +1611,25 @@
 				}
 			],
 			"description": "Notification management endpoints"
+		},
+		{
+			"name": "Get All Admins",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Token {{auth_token}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/auth/admins/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "auth", "admins", ""]
+				},
+				"description": "List all admin users (admin only)"
+			},
+			"response": []
 		}
 	],
 	"event": [

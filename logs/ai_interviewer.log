@@ -4255,3 +4255,410 @@ WARNING 2025-08-06 14:00:24,104 log 61484 34116 Not Found: /favicon.ico
 2025-08-06 14:00:24,104 - django.request - WARNING - Not Found: /favicon.ico
 WARNING 2025-08-06 14:00:24,106 basehttp 61484 34116 "GET /favicon.ico HTTP/1.1" 404 4306
 2025-08-06 14:00:24,106 - django.server - WARNING - "GET /favicon.ico HTTP/1.1" 404 4306
+INFO 2025-08-06 15:02:48,704 autoreload 61484 31444 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\candidates\views.py changed, reloading.
+2025-08-06 15:02:48,704 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\candidates\views.py changed, reloading.
+INFO 2025-08-06 15:02:49,725 autoreload 59400 21728 Watching for file changes with StatReloader
+INFO 2025-08-06 15:05:43,718 autoreload 10268 26240 Watching for file changes with StatReloader
+INFO 2025-08-06 15:30:02,401 logger 10268 34392 USER_ACTION: {"timestamp": "2025-08-06T10:00:02.401710+00:00", "user_id": 81, "user_email": "newhiring@example.com", "user_role": "HIRING_AGENCY", "action": "bulk_candidate_submission_start", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "candidate_count": 1}}
+2025-08-06 15:30:02,401 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:00:02.401710+00:00", "user_id": 81, "user_email": "newhiring@example.com", "user_role": "HIRING_AGENCY", "action": "bulk_candidate_submission_start", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "candidate_count": 1}}
+INFO 2025-08-06 15:30:02,979 logger 10268 34392 USER_ACTION: {"timestamp": "2025-08-06T10:00:02.979072+00:00", "user_id": 81, "user_email": "newhiring@example.com", "user_role": "HIRING_AGENCY", "action": "bulk_candidate_submission_complete", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "total_candidates": 1, "successful_creations": 1, "failed_creations": 0}}
+2025-08-06 15:30:02,979 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:00:02.979072+00:00", "user_id": 81, "user_email": "newhiring@example.com", "user_role": "HIRING_AGENCY", "action": "bulk_candidate_submission_complete", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "total_candidates": 1, "successful_creations": 1, "failed_creations": 0}}
+INFO 2025-08-06 15:30:02,981 basehttp 10268 34392 "POST /api/candidates/bulk-create/?step=submit HTTP/1.1" 200 294
+2025-08-06 15:30:02,981 - django.server - INFO - "POST /api/candidates/bulk-create/?step=submit HTTP/1.1" 200 294
+INFO 2025-08-06 15:47:51,918 autoreload 10268 26240 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\candidates\views.py changed, reloading.
+2025-08-06 15:47:51,918 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\candidates\views.py changed, reloading.
+INFO 2025-08-06 15:47:53,141 autoreload 40680 57232 Watching for file changes with StatReloader
+INFO 2025-08-06 15:48:17,944 autoreload 40680 57232 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\authapp\views.py changed, reloading.
+2025-08-06 15:48:17,944 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\authapp\views.py changed, reloading.
+INFO 2025-08-06 15:48:19,134 autoreload 11392 56588 Watching for file changes with StatReloader
+INFO 2025-08-06 15:48:23,003 autoreload 11392 56588 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\authapp\urls.py changed, reloading.
+2025-08-06 15:48:23,003 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\authapp\urls.py changed, reloading.
+INFO 2025-08-06 15:48:24,061 autoreload 26304 3824 Watching for file changes with StatReloader
+INFO 2025-08-06 15:55:29,321 autoreload 26304 3824 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\authapp\views.py changed, reloading.
+2025-08-06 15:55:29,321 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\authapp\views.py changed, reloading.
+INFO 2025-08-06 15:55:30,355 autoreload 6956 39820 Watching for file changes with StatReloader
+INFO 2025-08-06 15:56:35,963 logger 6956 40144 SECURITY_EVENT: {"timestamp": "2025-08-06T10:26:35.962907+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-06 15:56:35,963 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-06T10:26:35.962907+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-06 15:56:35,964 logger 6956 40144 USER_ACTION: {"timestamp": "2025-08-06T10:26:35.964381+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-06 15:56:35,964 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:26:35.964381+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-06 15:56:36,806 basehttp 6956 40144 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-06 15:56:36,806 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-06 15:56:40,620 logger 6956 52916 USER_ACTION: {"timestamp": "2025-08-06T10:26:40.620727+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "bulk_candidate_submission_start", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "candidate_count": 1}}
+2025-08-06 15:56:40,620 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:26:40.620727+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "bulk_candidate_submission_start", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "candidate_count": 1}}
+INFO 2025-08-06 15:56:41,576 logger 6956 52916 USER_ACTION: {"timestamp": "2025-08-06T10:26:41.576065+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "bulk_candidate_submission_complete", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "total_candidates": 1, "successful_creations": 1, "failed_creations": 0}}
+2025-08-06 15:56:41,576 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:26:41.576065+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "bulk_candidate_submission_complete", "status": "SUCCESS", "ip_address": null, "details": {"domain": "Data Science", "role": "Data Scientist", "total_candidates": 1, "successful_creations": 1, "failed_creations": 0}}
+INFO 2025-08-06 15:56:41,579 basehttp 6956 52916 "POST /api/candidates/bulk-create/?step=submit HTTP/1.1" 200 373
+2025-08-06 15:56:41,579 - django.server - INFO - "POST /api/candidates/bulk-create/?step=submit HTTP/1.1" 200 373
+INFO 2025-08-06 15:56:45,662 logger 6956 45088 USER_ACTION: {"timestamp": "2025-08-06T10:26:45.662402+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 40}}
+2025-08-06 15:56:45,662 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:26:45.662402+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 40}}
+INFO 2025-08-06 15:56:54,476 basehttp 6956 45088 "GET /api/candidates/ HTTP/1.1" 200 11131
+2025-08-06 15:56:54,476 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 11131
+WARNING 2025-08-06 15:56:56,546 log 6956 14488 Unauthorized: /api/companies/
+2025-08-06 15:56:56,546 - django.request - WARNING - Unauthorized: /api/companies/
+WARNING 2025-08-06 15:56:56,548 basehttp 6956 14488 "GET /api/companies/ HTTP/1.1" 401 58
+2025-08-06 15:56:56,548 - django.server - WARNING - "GET /api/companies/ HTTP/1.1" 401 58
+WARNING 2025-08-06 15:56:58,598 log 6956 45080 Unauthorized: /api/hiring_agency/
+2025-08-06 15:56:58,598 - django.request - WARNING - Unauthorized: /api/hiring_agency/
+WARNING 2025-08-06 15:56:58,600 basehttp 6956 45080 "GET /api/hiring_agency/ HTTP/1.1" 401 58
+2025-08-06 15:56:58,600 - django.server - WARNING - "GET /api/hiring_agency/ HTTP/1.1" 401 58
+WARNING 2025-08-06 15:57:00,656 log 6956 65808 Unauthorized: /api/companies/recruiters/
+2025-08-06 15:57:00,656 - django.request - WARNING - Unauthorized: /api/companies/recruiters/
+WARNING 2025-08-06 15:57:00,658 basehttp 6956 65808 "GET /api/companies/recruiters/ HTTP/1.1" 401 58
+2025-08-06 15:57:00,658 - django.server - WARNING - "GET /api/companies/recruiters/ HTTP/1.1" 401 58
+INFO 2025-08-06 15:57:04,817 basehttp 6956 49940 "GET /api/auth/admins/ HTTP/1.1" 200 2901
+2025-08-06 15:57:04,817 - django.server - INFO - "GET /api/auth/admins/ HTTP/1.1" 200 2901
+INFO 2025-08-06 16:06:58,833 logger 6956 35192 SECURITY_EVENT: {"timestamp": "2025-08-06T10:36:58.833390+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 80, "user_email": "newadmin@example.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-06 16:06:58,833 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-06T10:36:58.833390+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 80, "user_email": "newadmin@example.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-06 16:06:58,834 logger 6956 35192 USER_ACTION: {"timestamp": "2025-08-06T10:36:58.834675+00:00", "user_id": 80, "user_email": "newadmin@example.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0", "token_created": "[REDACTED]"}}
+2025-08-06 16:06:58,834 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:36:58.834675+00:00", "user_id": 80, "user_email": "newadmin@example.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0", "token_created": "[REDACTED]"}}
+INFO 2025-08-06 16:07:00,021 basehttp 6956 35192 "POST /api/auth/login/ HTTP/1.1" 200 180
+2025-08-06 16:07:00,021 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 180
+WARNING 2025-08-06 16:13:55,692 log 6956 35184 Not Found: /companies/
+2025-08-06 16:13:55,692 - django.request - WARNING - Not Found: /companies/
+WARNING 2025-08-06 16:13:55,694 basehttp 6956 35184 "GET /companies/ HTTP/1.1" 404 4303
+2025-08-06 16:13:55,694 - django.server - WARNING - "GET /companies/ HTTP/1.1" 404 4303
+INFO 2025-08-06 16:14:59,991 logger 6956 35184 SECURITY_EVENT: {"timestamp": "2025-08-06T10:44:59.990940+00:00", "event_type": "USER_REGISTRATION", "severity": "INFO", "user": {"user_id": 88, "user_email": "newcompany01@example.com", "user_role": "COMPANY"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-06 16:14:59,991 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-06T10:44:59.990940+00:00", "event_type": "USER_REGISTRATION", "severity": "INFO", "user": {"user_id": 88, "user_email": "newcompany01@example.com", "user_role": "COMPANY"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-06 16:14:59,992 logger 6956 35184 USER_ACTION: {"timestamp": "2025-08-06T10:44:59.991954+00:00", "user_id": 88, "user_email": "newcompany01@example.com", "user_role": "COMPANY", "action": "user_registration", "status": "SUCCESS", "ip_address": null, "details": {"registration_data": {"email": "newcompany01@example.com", "role": "COMPANY", "company_name": "New Test Company"}, "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0"}}
+2025-08-06 16:14:59,992 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-06T10:44:59.991954+00:00", "user_id": 88, "user_email": "newcompany01@example.com", "user_role": "COMPANY", "action": "user_registration", "status": "SUCCESS", "ip_address": null, "details": {"registration_data": {"email": "newcompany01@example.com", "role": "COMPANY", "company_name": "New Test Company"}, "ip_address": "[REDACTED]", "user_agent": "PostmanRuntime/7.45.0"}}
+INFO 2025-08-06 16:14:59,993 basehttp 6956 35184 "POST /api/auth/register/ HTTP/1.1" 201 186
+2025-08-06 16:14:59,993 - django.server - INFO - "POST /api/auth/register/ HTTP/1.1" 201 186
+INFO 2025-08-06 16:15:37,311 basehttp 6956 59708 "GET /api/companies/ HTTP/1.1" 200 980
+2025-08-06 16:15:37,311 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 980
+INFO 2025-08-06 16:15:41,244 basehttp 6956 19296 "GET /api/hiring_agency/ HTTP/1.1" 200 74
+2025-08-06 16:15:41,244 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 74
+ERROR 2025-08-06 16:15:45,055 log 6956 36452 Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+2025-08-06 16:15:45,055 - django.request - ERROR - Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+ERROR 2025-08-06 16:15:45,070 basehttp 6956 36452 "GET /api/companies/recruiters/ HTTP/1.1" 500 114132
+2025-08-06 16:15:45,070 - django.server - ERROR - "GET /api/companies/recruiters/ HTTP/1.1" 500 114132
+WARNING 2025-08-06 16:17:58,950 log 6956 54388 Not Found: /companies/
+2025-08-06 16:17:58,950 - django.request - WARNING - Not Found: /companies/
+WARNING 2025-08-06 16:17:58,952 basehttp 6956 54388 "GET /companies/ HTTP/1.1" 404 4303
+2025-08-06 16:17:58,952 - django.server - WARNING - "GET /companies/ HTTP/1.1" 404 4303
+INFO 2025-08-06 16:19:13,259 basehttp 6956 61664 "GET /api/companies/ HTTP/1.1" 200 980
+2025-08-06 16:19:13,259 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 980
+INFO 2025-08-06 16:19:33,014 basehttp 6956 61664 "GET /api/hiring_agency/ HTTP/1.1" 200 74
+2025-08-06 16:19:33,014 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 74
+INFO 2025-08-06 16:20:14,586 basehttp 6956 61664 "GET /api/hiring_agency/ HTTP/1.1" 200 74
+2025-08-06 16:20:14,586 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 74
+WARNING 2025-08-06 16:20:38,887 log 6956 61664 Unauthorized: /api/companies/recruiters/
+2025-08-06 16:20:38,887 - django.request - WARNING - Unauthorized: /api/companies/recruiters/
+WARNING 2025-08-06 16:20:38,888 basehttp 6956 61664 "GET /api/companies/recruiters/ HTTP/1.1" 401 59
+2025-08-06 16:20:38,888 - django.server - WARNING - "GET /api/companies/recruiters/ HTTP/1.1" 401 59
+ERROR 2025-08-06 16:20:49,141 log 6956 61664 Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+2025-08-06 16:20:49,141 - django.request - ERROR - Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+ERROR 2025-08-06 16:20:49,149 basehttp 6956 61664 "GET /api/companies/recruiters/ HTTP/1.1" 500 115193
+2025-08-06 16:20:49,149 - django.server - ERROR - "GET /api/companies/recruiters/ HTTP/1.1" 500 115193
+ERROR 2025-08-06 16:21:19,533 log 6956 61664 Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+2025-08-06 16:21:19,533 - django.request - ERROR - Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+ERROR 2025-08-06 16:21:19,540 basehttp 6956 61664 "GET /api/companies/recruiters/ HTTP/1.1" 500 115193
+2025-08-06 16:21:19,540 - django.server - ERROR - "GET /api/companies/recruiters/ HTTP/1.1" 500 115193
+WARNING 2025-08-06 16:21:35,323 log 6956 61664 Unauthorized: /api/companies/recruiters/
+2025-08-06 16:21:35,323 - django.request - WARNING - Unauthorized: /api/companies/recruiters/
+WARNING 2025-08-06 16:21:35,325 basehttp 6956 61664 "GET /api/companies/recruiters/ HTTP/1.1" 401 58
+2025-08-06 16:21:35,325 - django.server - WARNING - "GET /api/companies/recruiters/ HTTP/1.1" 401 58
+WARNING 2025-08-06 16:22:33,310 log 6956 61664 Unauthorized: /api/companies/recruiters/
+2025-08-06 16:22:33,310 - django.request - WARNING - Unauthorized: /api/companies/recruiters/
+WARNING 2025-08-06 16:22:33,312 basehttp 6956 61664 "GET /api/companies/recruiters/ HTTP/1.1" 401 58
+2025-08-06 16:22:33,312 - django.server - WARNING - "GET /api/companies/recruiters/ HTTP/1.1" 401 58
+ERROR 2025-08-06 16:22:53,218 log 6956 61664 Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+2025-08-06 16:22:53,218 - django.request - ERROR - Internal Server Error: /api/companies/recruiters/
+Traceback (most recent call last):
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 203, in get
+    return self.list(request, *args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\mixins.py", line 38, in list
+    queryset = self.filter_queryset(self.get_queryset())
+                                    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\utils\hierarchy_permissions.py", line 194, in get_queryset
+    queryset = super().get_queryset()
+  File "C:\Users\bhava\AppData\Local\Programs\Python\Python313\Lib\site-packages\rest_framework\generics.py", line 67, in get_queryset
+    assert self.queryset is not None, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'RecruiterListView' should either include a `queryset` attribute, or override the `get_queryset()` method.
+ERROR 2025-08-06 16:22:53,225 basehttp 6956 61664 "GET /api/companies/recruiters/ HTTP/1.1" 500 115193
+2025-08-06 16:22:53,225 - django.server - ERROR - "GET /api/companies/recruiters/ HTTP/1.1" 500 115193
+WARNING 2025-08-06 16:23:30,057 log 6956 51264 Unauthorized: /api/hiring_agency/hiring_agency/
+2025-08-06 16:23:30,057 - django.request - WARNING - Unauthorized: /api/hiring_agency/hiring_agency/
+WARNING 2025-08-06 16:23:30,059 basehttp 6956 51264 "GET /api/hiring_agency/hiring_agency/ HTTP/1.1" 401 5376
+2025-08-06 16:23:30,059 - django.server - WARNING - "GET /api/hiring_agency/hiring_agency/ HTTP/1.1" 401 5376
+INFO 2025-08-06 16:23:30,240 basehttp 6956 56832 "GET /static/rest_framework/css/bootstrap-tweaks.css HTTP/1.1" 200 3426
+2025-08-06 16:23:30,240 - django.server - INFO - "GET /static/rest_framework/css/bootstrap-tweaks.css HTTP/1.1" 200 3426
+INFO 2025-08-06 16:23:30,246 basehttp 6956 56832 "GET /static/rest_framework/css/prettify.css HTTP/1.1" 200 817
+2025-08-06 16:23:30,246 - django.server - INFO - "GET /static/rest_framework/css/prettify.css HTTP/1.1" 200 817
+INFO 2025-08-06 16:23:30,253 basehttp 6956 56832 "GET /static/rest_framework/css/default.css HTTP/1.1" 200 1152
+2025-08-06 16:23:30,253 - django.server - INFO - "GET /static/rest_framework/css/default.css HTTP/1.1" 200 1152
+INFO 2025-08-06 16:23:30,260 basehttp 6956 56832 "GET /static/rest_framework/js/jquery-3.7.1.min.js HTTP/1.1" 200 87533
+2025-08-06 16:23:30,260 - django.server - INFO - "GET /static/rest_framework/js/jquery-3.7.1.min.js HTTP/1.1" 200 87533
+INFO 2025-08-06 16:23:30,264 basehttp 6956 56832 "GET /static/rest_framework/js/ajax-form.js HTTP/1.1" 200 3796
+2025-08-06 16:23:30,264 - django.server - INFO - "GET /static/rest_framework/js/ajax-form.js HTTP/1.1" 200 3796
+INFO 2025-08-06 16:23:30,269 basehttp 6956 56832 "GET /static/rest_framework/js/csrf.js HTTP/1.1" 200 1793
+2025-08-06 16:23:30,269 - django.server - INFO - "GET /static/rest_framework/js/csrf.js HTTP/1.1" 200 1793
+INFO 2025-08-06 16:23:30,274 basehttp 6956 51264 "GET /static/rest_framework/css/bootstrap.min.css HTTP/1.1" 200 121457
+2025-08-06 16:23:30,274 - django.server - INFO - "GET /static/rest_framework/css/bootstrap.min.css HTTP/1.1" 200 121457
+INFO 2025-08-06 16:23:30,277 basehttp 6956 56832 "GET /static/rest_framework/js/bootstrap.min.js HTTP/1.1" 200 39680
+2025-08-06 16:23:30,277 - django.server - INFO - "GET /static/rest_framework/js/bootstrap.min.js HTTP/1.1" 200 39680
+INFO 2025-08-06 16:23:30,279 basehttp 6956 51264 "GET /static/rest_framework/js/prettify-min.js HTTP/1.1" 200 13632
+2025-08-06 16:23:30,279 - django.server - INFO - "GET /static/rest_framework/js/prettify-min.js HTTP/1.1" 200 13632
+INFO 2025-08-06 16:23:30,283 basehttp 6956 32012 "GET /static/rest_framework/js/default.js HTTP/1.1" 200 1268
+2025-08-06 16:23:30,283 - django.server - INFO - "GET /static/rest_framework/js/default.js HTTP/1.1" 200 1268
+ 59
+2025-08-06 16:23:30,284 - django.server - INFO - "GET /static/rest_framework/js/load-ajax-form.js HTTP/1.1" 200 59
+INFO 2025-08-06 16:23:30,648 basehttp 6956 56832 "GET /static/rest_framework/img/grid.png HTTP/1.1" 200 1458
+2025-08-06 16:23:30,648 - django.server - INFO - "GET /static/rest_framework/img/grid.png HTTP/1.1" 200 1458
+INFO 2025-08-06 16:29:15,973 basehttp 6956 58060 "GET /api/hiring_agency/hiring_agency/ HTTP/1.1" 200 1673
+2025-08-06 16:29:15,973 - django.server - INFO - "GET /api/hiring_agency/hiring_agency/ HTTP/1.1" 200 1673
+INFO 2025-08-06 16:31:16,692 autoreload 6956 39820 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\companies\views.py changed, reloading.
+2025-08-06 16:31:16,692 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\companies\views.py changed, reloading.
+INFO 2025-08-06 16:31:17,951 autoreload 52908 54484 Watching for file changes with StatReloader
+INFO 2025-08-06 16:31:36,059 basehttp 52908 28820 "GET /api/companies/ HTTP/1.1" 200 980
+2025-08-06 16:31:36,059 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 980
+INFO 2025-08-06 16:31:39,815 basehttp 52908 57992 "GET /api/hiring_agency/ HTTP/1.1" 200 74
+2025-08-06 16:31:39,815 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 74
+INFO 2025-08-06 16:31:44,159 basehttp 52908 37976 "GET /api/companies/recruiters/ HTTP/1.1" 200 107
+2025-08-06 16:31:44,159 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 107
+INFO 2025-08-06 16:31:56,095 autoreload 52908 54484 C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\companies\views.py changed, reloading.
+2025-08-06 16:31:56,095 - django.utils.autoreload - INFO - C:\Users\bhava\OneDrive\Desktop\backend_code\aiinterviewerbackend\companies\views.py changed, reloading.
+INFO 2025-08-06 16:31:57,073 autoreload 4044 37508 Watching for file changes with StatReloader
+INFO 2025-08-06 16:32:21,065 basehttp 4044 10500 "GET /api/companies/recruiters/ HTTP/1.1" 200 107
+2025-08-06 16:32:21,065 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 107
+INFO 2025-08-06 16:36:31,990 basehttp 4044 37428 "GET /api/auth/admins/ HTTP/1.1" 200 2901
+2025-08-06 16:36:31,990 - django.server - INFO - "GET /api/auth/admins/ HTTP/1.1" 200 2901
+INFO 2025-08-06 16:53:21,755 autoreload 11968 4300 Watching for file changes with StatReloader
+INFO 2025-08-06 16:53:33,180 basehttp 11968 21588 "GET /api/hiring_agency/ HTTP/1.1" 200 1673
+2025-08-06 16:53:33,180 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 1673

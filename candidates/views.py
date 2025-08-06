@@ -144,7 +144,7 @@ class BulkCandidateCreationView(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
     def _submit_candidates(self, request):
-        """Step 2: Create candidates from edited data"""
+        """Step 2: Create candidates from edited data, associating resumes"""
         domain = request.data.get('domain')
         role = request.data.get('role')
         candidates_data = request.data.get('candidates', [])
@@ -165,10 +165,18 @@ class BulkCandidateCreationView(APIView):
             },
             status='SUCCESS'
         )
+        from resumes.models import Resume
         for candidate_info in candidates_data:
             try:
                 filename = candidate_info.get('filename')
                 edited_data = candidate_info.get('edited_data', {})
+                unique_resume_filename = edited_data.get('unique_resume_filename')
+                resume_obj = None
+                if unique_resume_filename:
+                    try:
+                        resume_obj = Resume.objects.get(file=f"resumes/{unique_resume_filename}")
+                    except Resume.DoesNotExist:
+                        resume_obj = None
                 if not filename or not edited_data:
                     failed_creations += 1
                     results.append({
@@ -177,7 +185,7 @@ class BulkCandidateCreationView(APIView):
                         'error': 'Missing filename or edited data'
                     })
                     continue
-                candidate = self._create_candidate_from_data(edited_data, domain, role, request.user)
+                candidate = self._create_candidate_from_data(edited_data, domain, role, request.user, resume=resume_obj)
                 if isinstance(candidate, str):
                     failed_creations += 1
                     results.append({
@@ -362,13 +370,9 @@ class BulkCandidateCreationView(APIView):
             )
             return None
 
-    def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user):
-        """Create candidate from edited data"""
+    def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user, resume=None):
+        """Create candidate from edited data, associating with a Resume object if provided"""
         try:
-            # For bulk creation from edited data, we don't have an actual file
-            # So we'll create a candidate without a resume file for now
-            # In a real scenario, you might want to handle this differently
-            
             candidate_info = {
                 'full_name': candidate_data.get('name', 'Unknown'),
                 'email': candidate_data.get('email', ''),
@@ -376,22 +380,16 @@ class BulkCandidateCreationView(APIView):
                 'work_experience': candidate_data.get('work_experience', 0),
                 'domain': domain,
                 'recruiter': user,
-                'resume': None  # No resume file for bulk creation from edited data
+                'resume': resume
             }
-
-            # Create candidate
             candidate = Candidate.objects.create(**candidate_info)
-
-            # Associate with job if domain/role match exists
             try:
                 job = Job.objects.get(domain__name__iexact=domain, job_title__iexact=role)
                 candidate.job = job
                 candidate.save()
             except Job.DoesNotExist:
-                pass  # Job not found, candidate created without job association
-
+                pass
             return candidate
-
         except Exception as e:
             ActionLogger.log_user_action(
                 user=user,

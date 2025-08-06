@@ -613,12 +613,12 @@ The following credentials are ready to use for testing:
 ## 👥 Hiring Agency Management Endpoints
 
 ### 1. Get All Hiring Agencies
-- **URL**: `GET /hiring_agency/`
-- **Description**: Retrieve all hiring agencies (filtered by company for Company users)
+- **URL**: `GET /api/hiring_agency/`
+- **Description**: Retrieve all hiring agencies (filtered by company for Company users; returns all for Admin)
 - **Headers**: `Authorization: Token <auth_token>`
 
 ### 2. Create Hiring Agency User
-- **URL**: `POST /hiring_agency/`
+- **URL**: `POST /api/hiring_agency/`
 - **Description**: Create a new hiring agency user (Admin/Company only)
 - **Headers**: `Authorization: Token <auth_token>`, `Content-Type: application/json`
 - **Body**:
@@ -635,12 +635,12 @@ The following credentials are ready to use for testing:
 ```
 
 ### 3. Get Hiring Agency Details
-- **URL**: `GET /hiring_agency/{hiring_agency_id}/`
+- **URL**: `GET /api/hiring_agency/{hiring_agency_id}/`
 - **Description**: Get detailed information about a specific hiring agency
 - **Headers**: `Authorization: Token <auth_token>`
 
 ### 4. Update Hiring Agency
-- **URL**: `PUT /hiring_agency/{hiring_agency_id}/`
+- **URL**: `PUT /api/hiring_agency/{hiring_agency_id}/`
 - **Description**: Update hiring agency information
 - **Headers**: `Authorization: Token <auth_token>`, `Content-Type: application/json`
 - **Body**:
@@ -655,7 +655,7 @@ The following credentials are ready to use for testing:
 ```
 
 ### 5. Delete Hiring Agency
-- **URL**: `DELETE /hiring_agency/{hiring_agency_id}/`
+- **URL**: `DELETE /api/hiring_agency/{hiring_agency_id}/`
 - **Description**: Delete a hiring agency user
 - **Headers**: `Authorization: Token <auth_token>`
 

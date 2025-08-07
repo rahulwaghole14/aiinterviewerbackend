@@ -30,6 +30,23 @@ class RegisterSerializer(serializers.ModelSerializer):
         if 'username' not in validated_data or not validated_data['username']:
             validated_data['username'] = validated_data['email']
         
+        # Handle company relationships for users with company_name
+        if validated_data.get('company_name'):
+            from companies.models import Company
+            company_name = validated_data['company_name']
+            
+            # Try to get existing company or create new one
+            company, created = Company.objects.get_or_create(
+                name=company_name,
+                defaults={
+                    'description': f'Company created during registration for {company_name}',
+                    'is_active': True
+                }
+            )
+            
+            # Set the company relationship
+            validated_data['company'] = company
+        
         user = User(**validated_data)
         user.set_password(password)
         user.save()

@@ -114,6 +114,11 @@ class BulkCandidateSubmissionSerializer(serializers.Serializer):
         required=True,
         help_text="Job role/position for all candidates"
     )
+    poc_email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        help_text="POC email for all candidates (optional)"
+    )
     candidates = serializers.ListField(
         child=serializers.DictField(),
         min_length=1,
@@ -152,6 +157,11 @@ class BulkCandidateCreationSerializer(serializers.Serializer):
         max_length=100, 
         required=True,
         help_text="Job role/position for all candidates (e.g., 'Senior Developer', 'Team Lead', 'Architect')"
+    )
+    poc_email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        help_text="POC email for all candidates (optional)"
     )
     resume_files = serializers.ListField(
         child=serializers.FileField(

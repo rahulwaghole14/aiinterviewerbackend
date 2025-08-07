@@ -148,6 +148,7 @@ class BulkCandidateCreationView(APIView):
         domain = request.data.get('domain')
         role = request.data.get('role')
         candidates_data = request.data.get('candidates', [])
+        poc_email = request.data.get('poc_email')  # Get global poc_email for all candidates
         if not domain or not role or not candidates_data:
             return Response({
                 'error': 'Missing required fields: domain, role, or candidates data'
@@ -185,7 +186,7 @@ class BulkCandidateCreationView(APIView):
                         'error': 'Missing filename or edited data'
                     })
                     continue
-                candidate = self._create_candidate_from_data(edited_data, domain, role, request.user, resume=resume_obj)
+                candidate = self._create_candidate_from_data(edited_data, domain, role, request.user, resume=resume_obj, poc_email=poc_email)
                 if isinstance(candidate, str):
                     failed_creations += 1
                     results.append({
@@ -248,6 +249,7 @@ class BulkCandidateCreationView(APIView):
         domain = serializer.validated_data['domain']
         role = serializer.validated_data['role']
         resume_files = serializer.validated_data['resume_files']
+        poc_email = request.data.get('poc_email')  # Get poc_email from request data
 
         created_candidates = []
         failed_creations = 0
@@ -267,7 +269,7 @@ class BulkCandidateCreationView(APIView):
         # Process each resume file
         for resume_file in resume_files:
             try:
-                candidate = self._process_single_candidate(resume_file, domain, role, request.user)
+                candidate = self._process_single_candidate(resume_file, domain, role, request.user, poc_email=poc_email)
                 if candidate:
                     created_candidates.append({
                         'id': candidate.id,
@@ -370,7 +372,7 @@ class BulkCandidateCreationView(APIView):
             )
             return None
 
-    def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user, resume=None):
+    def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user, resume=None, poc_email=None):
         """Create candidate from edited data, associating with a Resume object if provided"""
         try:
             candidate_info = {
@@ -380,7 +382,8 @@ class BulkCandidateCreationView(APIView):
                 'work_experience': candidate_data.get('work_experience', 0),
                 'domain': domain,
                 'recruiter': user,
-                'resume': resume
+                'resume': resume,
+                'poc_email': poc_email or candidate_data.get('poc_email', '')  # Use global poc_email or individual poc_email
             }
             candidate = Candidate.objects.create(**candidate_info)
             try:
@@ -401,7 +404,7 @@ class BulkCandidateCreationView(APIView):
             )
             return str(e)
 
-    def _process_single_candidate(self, resume_file: UploadedFile, domain: str, role: str, user):
+    def _process_single_candidate(self, resume_file: UploadedFile, domain: str, role: str, user, poc_email=None):
         """Process a single resume file and create candidate"""
         try:
             # Create resume object
@@ -424,7 +427,8 @@ class BulkCandidateCreationView(APIView):
                 'work_experience': extracted_data.get('experience', 0),
                 'domain': domain,
                 'recruiter': user,
-                'resume': resume
+                'resume': resume,
+                'poc_email': poc_email or extracted_data.get('poc_email', '')
             }
 
             # Create candidate

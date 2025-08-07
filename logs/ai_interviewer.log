@@ -6368,3 +6368,33 @@ INFO 2025-08-07 16:33:16,925 autoreload 12776 9852 D:\RSL\AI-Interview\aiintervi
 2025-08-07 16:33:16,925 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\serializers.py changed, reloading.
 INFO 2025-08-07 16:33:17,889 autoreload 20168 17312 Watching for file changes with StatReloader
 INFO 2025-08-07 16:33:17,891 autoreload 10708 7420 Watching for file changes with StatReloader
+INFO 2025-08-07 16:40:13,139 autoreload 10708 7420 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\models.py changed, reloading.
+2025-08-07 16:40:13,139 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\models.py changed, reloading.
+INFO 2025-08-07 16:40:13,167 autoreload 20168 17312 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\models.py changed, reloading.
+2025-08-07 16:40:13,167 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\models.py changed, reloading.
+INFO 2025-08-07 16:40:14,082 autoreload 18100 4248 Watching for file changes with StatReloader
+INFO 2025-08-07 16:40:14,134 autoreload 3300 360 Watching for file changes with StatReloader
+INFO 2025-08-07 16:40:23,890 autoreload 3300 360 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+2025-08-07 16:40:23,890 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+INFO 2025-08-07 16:40:23,912 autoreload 18100 4248 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+2025-08-07 16:40:23,912 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+INFO 2025-08-07 16:40:24,763 autoreload 18624 16616 Watching for file changes with StatReloader
+INFO 2025-08-07 16:40:24,786 autoreload 22840 18056 Watching for file changes with StatReloader
+INFO 2025-08-07 16:45:58,325 logger 18624 9504 USER_ACTION: {"timestamp": "2025-08-07T11:15:58.325260+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@example.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+2025-08-07 16:45:58,325 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-07T11:15:58.325260+00:00", "user_id": null, "user_email": "unknown", "user_role": "unknown", "action": "user_login", "status": "FAILED", "ip_address": null, "details": {"errors": {"non_field_errors": ["Invalid email/username or password."]}, "attempted_data": {"email": "admin@example.com", "password": "[REDACTED]"}, "ip_address": "[REDACTED]"}}
+WARNING 2025-08-07 16:45:58,329 log 18624 9504 Bad Request: /api/auth/login/
+2025-08-07 16:45:58,329 - django.request - WARNING - Bad Request: /api/auth/login/
+WARNING 2025-08-07 16:45:58,329 basehttp 18624 9504 "POST /api/auth/login/ HTTP/1.1" 400 60
+2025-08-07 16:45:58,329 - django.server - WARNING - "POST /api/auth/login/ HTTP/1.1" 400 60
+INFO 2025-08-07 16:49:36,824 logger 18624 27116 SECURITY_EVENT: {"timestamp": "2025-08-07T11:19:36.824260+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-07 16:49:36,824 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-07T11:19:36.824260+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-07 16:49:36,824 logger 18624 27116 USER_ACTION: {"timestamp": "2025-08-07T11:19:36.824260+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-07 16:49:36,824 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-07T11:19:36.824260+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-07 16:49:37,783 basehttp 18624 27116 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-07 16:49:37,783 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-07 16:49:42,298 basehttp 18624 19568 "POST /api/companies/ HTTP/1.1" 201 148
+2025-08-07 16:49:42,298 - django.server - INFO - "POST /api/companies/ HTTP/1.1" 201 148
+INFO 2025-08-07 16:49:46,238 basehttp 18624 20068 "GET /api/companies/ HTTP/1.1" 200 2197
+2025-08-07 16:49:46,238 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 2197
+INFO 2025-08-07 16:49:51,411 basehttp 18624 15356 "POST /api/companies/ HTTP/1.1" 201 133
+2025-08-07 16:49:51,411 - django.server - INFO - "POST /api/companies/ HTTP/1.1" 201 133

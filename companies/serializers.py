@@ -3,9 +3,22 @@ from .models import Company, Recruiter
 from authapp.models import CustomUser, Role
 
 class CompanySerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    
     class Meta:
         model = Company
-        fields = '__all__'
+        fields = ['id', 'name', 'email', 'password', 'description', 'is_active']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
+    
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        company = Company.objects.create(**validated_data)
+        if password:
+            company.password = password
+            company.save()
+        return company
 
 class RecruiterSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)

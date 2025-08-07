@@ -3,6 +3,8 @@ from authapp.models import CustomUser
 
 class Company(models.Model):
     name = models.CharField(max_length=255)
+    email = models.EmailField(unique=True, null=True, blank=True)
+    password = models.CharField(max_length=128, null=True, blank=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 

@@ -74,6 +74,8 @@ class HierarchyPermission(permissions.BasePermission):
             return obj.company.name == user_company
         elif hasattr(obj, 'created_by') and obj.created_by:
             return obj.created_by.get_company_name() == user_company
+        elif hasattr(obj, 'recruiter') and obj.recruiter:
+            return obj.recruiter.get_company_name() == user_company
         
         return False
 
@@ -210,5 +212,8 @@ class DataIsolationMixin:
             return queryset.filter(company__name=user_company)
         elif hasattr(queryset.model, 'created_by'):
             return queryset.filter(created_by__company_name=user_company)
+        elif hasattr(queryset.model, 'recruiter'):
+            # For candidates, filter by recruiter's company
+            return queryset.filter(recruiter__company_name=user_company)
         
         return queryset 

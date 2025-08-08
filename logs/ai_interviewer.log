@@ -6777,3 +6777,116 @@ INFO 2025-08-08 11:58:13,194 autoreload 14736 1180 D:\RSL\AI-Interview\aiintervi
 INFO 2025-08-08 11:58:13,916 autoreload 12848 20452 Watching for file changes with StatReloader
 INFO 2025-08-08 11:58:13,930 autoreload 15268 9136 Watching for file changes with StatReloader
 INFO 2025-08-08 11:58:14,181 autoreload 11272 4856 Watching for file changes with StatReloader
+INFO 2025-08-08 12:01:21,153 logger 15268 6624 SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:21.153844+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:01:21,153 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:21.153844+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:01:21,156 logger 15268 6624 USER_ACTION: {"timestamp": "2025-08-08T06:31:21.156051+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:01:21,156 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:31:21.156051+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:01:21,932 basehttp 15268 6624 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:01:21,932 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 12:01:25,992 basehttp 15268 22280 "GET /api/companies/ HTTP/1.1" 200 3117
+2025-08-08 12:01:25,992 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 3117
+INFO 2025-08-08 12:01:32,409 logger 15268 6284 SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:32.409127+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:01:32,409 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:32.409127+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:01:32,410 logger 15268 6284 USER_ACTION: {"timestamp": "2025-08-08T06:31:32.409127+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:01:32,410 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:31:32.409127+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:01:33,175 basehttp 15268 6284 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:01:33,175 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 12:01:37,818 basehttp 15268 23232 "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 291
+2025-08-08 12:01:37,818 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 291
+INFO 2025-08-08 12:01:44,346 logger 15268 14084 SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:44.346164+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:01:44,346 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:44.346164+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:01:44,347 logger 15268 14084 USER_ACTION: {"timestamp": "2025-08-08T06:31:44.346164+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:01:44,347 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:31:44.346164+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:01:45,113 basehttp 15268 14084 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:01:45,113 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 12:01:51,465 basehttp 15268 10220 "GET /api/hiring_agency/ HTTP/1.1" 200 4709
+2025-08-08 12:01:51,465 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 4709
+INFO 2025-08-08 12:01:58,015 logger 15268 20540 SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:58.014644+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:01:58,015 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:31:58.014644+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:01:58,016 logger 15268 20540 USER_ACTION: {"timestamp": "2025-08-08T06:31:58.015636+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:01:58,016 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:31:58.015636+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:01:58,787 basehttp 15268 20540 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:01:58,787 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+WARNING 2025-08-08 12:02:00,805 log 15268 7308 Not Found: /api/hiring_agency/21/
+2025-08-08 12:02:00,805 - django.request - WARNING - Not Found: /api/hiring_agency/21/
+WARNING 2025-08-08 12:02:00,805 basehttp 15268 7308 "DELETE /api/hiring_agency/21/ HTTP/1.1" 404 8150
+2025-08-08 12:02:00,805 - django.server - WARNING - "DELETE /api/hiring_agency/21/ HTTP/1.1" 404 8150
+INFO 2025-08-08 12:02:39,813 autoreload 12848 20452 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+2025-08-08 12:02:39,813 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+INFO 2025-08-08 12:02:39,957 autoreload 11272 4856 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+2025-08-08 12:02:39,957 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+INFO 2025-08-08 12:02:40,064 autoreload 15268 9136 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+2025-08-08 12:02:40,064 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+INFO 2025-08-08 12:02:40,903 autoreload 16576 10508 Watching for file changes with StatReloader
+INFO 2025-08-08 12:02:40,986 autoreload 3340 17000 Watching for file changes with StatReloader
+INFO 2025-08-08 12:02:41,060 autoreload 8664 15120 Watching for file changes with StatReloader
+INFO 2025-08-08 12:12:45,483 logger 3340 18308 SECURITY_EVENT: {"timestamp": "2025-08-08T06:42:45.483707+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:12:45,483 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:42:45.483707+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:12:45,483 logger 3340 18308 USER_ACTION: {"timestamp": "2025-08-08T06:42:45.483707+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:12:45,483 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:42:45.483707+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:12:46,293 basehttp 3340 18308 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:12:46,293 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 12:12:50,215 logger 3340 16560 USER_ACTION: {"timestamp": "2025-08-08T06:42:50.215774+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 49}}
+2025-08-08 12:12:50,215 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:42:50.215774+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 49}}
+INFO 2025-08-08 12:13:00,376 basehttp 3340 16560 "GET /api/candidates/ HTTP/1.1" 200 13272
+2025-08-08 12:13:00,376 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 13272
+INFO 2025-08-08 12:13:03,931 basehttp 3340 7992 "GET /api/auth/profile/ HTTP/1.1" 200 127
+2025-08-08 12:13:03,931 - django.server - INFO - "GET /api/auth/profile/ HTTP/1.1" 200 127
+INFO 2025-08-08 12:13:10,456 basehttp 3340 27760 "GET /api/hiring_agency/ HTTP/1.1" 200 4709
+2025-08-08 12:13:10,456 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 4709
+INFO 2025-08-08 12:13:16,979 logger 3340 25832 SECURITY_EVENT: {"timestamp": "2025-08-08T06:43:16.979673+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:13:16,979 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:43:16.979673+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:13:16,979 logger 3340 25832 USER_ACTION: {"timestamp": "2025-08-08T06:43:16.979673+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:13:16,979 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:43:16.979673+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:13:17,742 basehttp 3340 25832 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:13:17,742 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 12:13:21,334 logger 3340 9736 USER_ACTION: {"timestamp": "2025-08-08T06:43:21.334320+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+2025-08-08 12:13:21,334 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:43:21.334320+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+WARNING 2025-08-08 12:13:21,344 log 3340 9736 Bad Request: /api/candidates/
+2025-08-08 12:13:21,344 - django.request - WARNING - Bad Request: /api/candidates/
+WARNING 2025-08-08 12:13:21,344 basehttp 3340 9736 "POST /api/candidates/ HTTP/1.1" 400 42
+2025-08-08 12:13:21,344 - django.server - WARNING - "POST /api/candidates/ HTTP/1.1" 400 42
+INFO 2025-08-08 12:13:43,757 autoreload 16576 10508 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+2025-08-08 12:13:43,757 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+INFO 2025-08-08 12:13:43,875 autoreload 3340 17000 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+2025-08-08 12:13:43,875 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+INFO 2025-08-08 12:13:43,900 autoreload 8664 15120 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+2025-08-08 12:13:43,900 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+INFO 2025-08-08 12:13:44,633 autoreload 6476 13280 Watching for file changes with StatReloader
+INFO 2025-08-08 12:13:44,730 autoreload 22484 21428 Watching for file changes with StatReloader
+INFO 2025-08-08 12:13:44,743 autoreload 26464 21652 Watching for file changes with StatReloader
+INFO 2025-08-08 12:13:57,499 autoreload 6476 13280 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+2025-08-08 12:13:57,499 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+INFO 2025-08-08 12:13:57,693 autoreload 22484 21428 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+2025-08-08 12:13:57,693 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+INFO 2025-08-08 12:13:57,697 autoreload 26464 21652 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+2025-08-08 12:13:57,697 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\utils\hierarchy_permissions.py changed, reloading.
+INFO 2025-08-08 12:13:58,325 autoreload 4624 1048 Watching for file changes with StatReloader
+INFO 2025-08-08 12:13:58,547 autoreload 15672 13704 Watching for file changes with StatReloader
+INFO 2025-08-08 12:13:58,549 autoreload 9172 25028 Watching for file changes with StatReloader
+INFO 2025-08-08 12:16:18,400 logger 9172 23540 SECURITY_EVENT: {"timestamp": "2025-08-08T06:46:18.400986+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:16:18,400 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:46:18.400986+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:16:18,400 logger 9172 23540 USER_ACTION: {"timestamp": "2025-08-08T06:46:18.400986+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:16:18,400 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:46:18.400986+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:16:19,143 basehttp 9172 23540 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:16:19,143 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 12:16:23,018 logger 9172 576 USER_ACTION: {"timestamp": "2025-08-08T06:46:23.018838+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 49}}
+2025-08-08 12:16:23,018 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:46:23.018838+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 49}}
+INFO 2025-08-08 12:16:32,444 basehttp 9172 576 "GET /api/candidates/ HTTP/1.1" 200 13272
+2025-08-08 12:16:32,444 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 13272
+INFO 2025-08-08 12:16:36,110 logger 9172 20752 USER_ACTION: {"timestamp": "2025-08-08T06:46:36.110467+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+2025-08-08 12:16:36,110 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:46:36.110467+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+INFO 2025-08-08 12:16:36,895 basehttp 9172 20752 "POST /api/candidates/ HTTP/1.1" 201 169
+2025-08-08 12:16:36,895 - django.server - INFO - "POST /api/candidates/ HTTP/1.1" 201 169
+INFO 2025-08-08 12:16:43,348 basehttp 9172 26728 "GET /api/hiring_agency/ HTTP/1.1" 200 4709
+2025-08-08 12:16:43,348 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 4709
+INFO 2025-08-08 12:16:47,255 logger 9172 8400 USER_ACTION: {"timestamp": "2025-08-08T06:46:47.255821+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 50}}
+2025-08-08 12:16:47,255 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:46:47.255821+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 50}}
+INFO 2025-08-08 12:16:55,863 basehttp 9172 8400 "GET /api/candidates/ HTTP/1.1" 200 13562
+2025-08-08 12:16:55,863 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 13562
+INFO 2025-08-08 12:17:02,306 logger 9172 27260 SECURITY_EVENT: {"timestamp": "2025-08-08T06:47:02.306114+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 12:17:02,306 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T06:47:02.306114+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 12:17:02,306 logger 9172 27260 USER_ACTION: {"timestamp": "2025-08-08T06:47:02.306114+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 12:17:02,306 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T06:47:02.306114+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 12:17:03,086 basehttp 9172 27260 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 12:17:03,086 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168

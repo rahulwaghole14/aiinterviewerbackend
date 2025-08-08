@@ -71,6 +71,11 @@
 			"key": "notification_id",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "evaluation_id",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -1007,6 +1012,207 @@
 				}
 			],
 			"description": "Interview management endpoints"
+		},
+		{
+			"name": "📊 Evaluation Management",
+			"item": [
+				{
+					"name": "Get All Evaluations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/crud/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "crud", ""]
+						},
+						"description": "Retrieve all evaluations with data isolation\n\n📊 **Data Isolation**:\n• Admin: Sees all evaluations\n• Non-Admin: Sees only evaluations for their candidates\n\n✅ **Response**: List of evaluations with scores, traits, and suggestions"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Evaluation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"interview\": \"{{interview_id}}\",\n    \"overall_score\": 8.5,\n    \"traits\": \"Strong technical skills, excellent problem-solving ability, good communication\",\n    \"suggestions\": \"Consider for next round, focus on system design in future interviews\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/crud/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "crud", ""]
+						},
+						"description": "Create a new evaluation for a completed interview\n\n✅ **Validation Rules**:\n• Overall score must be between 0-10\n• Interview must be in 'completed' status\n• Only one evaluation per interview\n\n📋 **Required Fields**:\n• interview: Interview UUID\n• overall_score: Float (0-10)\n\n📝 **Optional Fields**:\n• traits: Text description of candidate traits\n• suggestions: Text suggestions for improvement"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Evaluation Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/crud/{{evaluation_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "crud", "{{evaluation_id}}", ""]
+						},
+						"description": "Get detailed information about a specific evaluation"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Evaluation",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"interview\": \"{{interview_id}}\",\n    \"overall_score\": 9.0,\n    \"traits\": \"Updated: Exceptional technical skills, outstanding problem-solving ability\",\n    \"suggestions\": \"Updated: Highly recommend for next round, exceptional candidate\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/crud/{{evaluation_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "crud", "{{evaluation_id}}", ""]
+						},
+						"description": "Update an existing evaluation\n\n✅ **Validation**: Same rules as creation\n• Overall score must be between 0-10\n• Interview must be in 'completed' status\n\n📝 **Fields**: All fields can be updated"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Evaluation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/crud/{{evaluation_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "crud", "{{evaluation_id}}", ""]
+						},
+						"description": "Delete an evaluation permanently"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Evaluation Summary (Legacy)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/summary/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "summary", "{{interview_id}}", ""]
+						},
+						"description": "Get evaluation summary for a specific interview (Legacy endpoint)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Evaluation Report (Legacy)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/report/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "report", "{{interview_id}}", ""]
+						},
+						"description": "Get detailed evaluation report for a specific interview (Legacy endpoint)"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Manual Feedback",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"interview\": \"{{interview_id}}\",\n    \"reviewer\": \"John Doe\",\n    \"feedback_text\": \"Excellent technical skills, strong problem-solving ability\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/feedback/manual/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "feedback", "manual", ""]
+						},
+						"description": "Submit manual feedback for an interview\n\n📝 **Required Fields**:\n• interview: Interview UUID\n• reviewer: Reviewer name\n• feedback_text: Detailed feedback comments"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Feedbacks for Candidate",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/evaluation/feedback/all/{{candidate_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "evaluation", "feedback", "all", "{{candidate_id}}", ""]
+						},
+						"description": "Get all feedbacks submitted for a specific candidate"
+					},
+					"response": []
+				}
+			],
+			"description": "Evaluation and feedback management endpoints"
 		},
 		{
 			"name": "📊 Dashboard & Analytics",

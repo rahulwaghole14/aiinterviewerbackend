@@ -653,8 +653,171 @@ Delete a resume.
 
 ## 📊 Evaluation APIs
 
-### 1. Evaluation Endpoints
-**GET/POST** `/api/evaluation/`
+### 1. Evaluation CRUD Operations
+
+#### **Create Evaluation**
+**POST** `/api/evaluation/crud/`
+
+Create a new evaluation for a completed interview.
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/api/evaluation/crud/ \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "interview": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0",
+    "overall_score": 8.5,
+    "traits": "Strong technical skills, excellent problem-solving ability, good communication",
+    "suggestions": "Consider for next round, focus on system design in future interviews"
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+    "id": 1,
+    "interview": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0",
+    "overall_score": 8.5,
+    "traits": "Strong technical skills, excellent problem-solving ability, good communication",
+    "suggestions": "Consider for next round, focus on system design in future interviews",
+    "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+#### **List All Evaluations**
+**GET** `/api/evaluation/crud/`
+
+Retrieve all evaluations with data isolation.
+
+**Request:**
+```bash
+curl -X GET http://localhost:8000/api/evaluation/crud/ \
+  -H "Authorization: Token your-token"
+```
+
+**Response (200 OK):**
+```json
+[
+    {
+        "id": 1,
+        "interview": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0",
+        "overall_score": 8.5,
+        "traits": "Strong technical skills...",
+        "suggestions": "Consider for next round...",
+        "created_at": "2024-01-15T10:30:00Z"
+    }
+]
+```
+
+#### **Get Evaluation Details**
+**GET** `/api/evaluation/crud/{id}/`
+
+Get detailed information about a specific evaluation.
+
+**Request:**
+```bash
+curl -X GET http://localhost:8000/api/evaluation/crud/1/ \
+  -H "Authorization: Token your-token"
+```
+
+#### **Update Evaluation**
+**PUT** `/api/evaluation/crud/{id}/`
+
+Update an existing evaluation.
+
+**Request:**
+```bash
+curl -X PUT http://localhost:8000/api/evaluation/crud/1/ \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "interview": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0",
+    "overall_score": 9.0,
+    "traits": "Updated: Exceptional technical skills, outstanding problem-solving ability",
+    "suggestions": "Updated: Highly recommend for next round, exceptional candidate"
+  }'
+```
+
+#### **Delete Evaluation**
+**DELETE** `/api/evaluation/crud/{id}/`
+
+Delete an evaluation permanently.
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:8000/api/evaluation/crud/1/ \
+  -H "Authorization: Token your-token"
+```
+
+**Response (204 No Content)**
+
+### 2. Evaluation Validation Rules
+
+#### **Score Validation**
+- **Range**: Overall score must be between 0 and 10
+- **Type**: Float value
+- **Required**: Yes
+
+#### **Interview Validation**
+- **Status**: Interview must be in "completed" status
+- **Uniqueness**: Only one evaluation per interview
+- **Required**: Yes
+
+#### **Data Validation**
+- **Traits**: Optional text field
+- **Suggestions**: Optional text field
+- **Duplicate Prevention**: Cannot create multiple evaluations for same interview
+
+### 3. Legacy Evaluation Endpoints
+
+#### **Get Evaluation Summary**
+**GET** `/api/evaluation/summary/{interview_id}/`
+
+Get evaluation summary for a specific interview (Legacy endpoint).
+
+#### **Get Evaluation Report**
+**GET** `/api/evaluation/report/{interview_id}/`
+
+Get detailed evaluation report for a specific interview (Legacy endpoint).
+
+#### **Submit Manual Feedback**
+**POST** `/api/evaluation/feedback/manual/`
+
+Submit manual feedback for an interview.
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/api/evaluation/feedback/manual/ \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "interview": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0",
+    "reviewer": "John Doe",
+    "feedback_text": "Excellent technical skills, strong problem-solving ability"
+  }'
+```
+
+#### **Get All Feedbacks for Candidate**
+**GET** `/api/evaluation/feedback/all/{candidate_id}/`
+
+Get all feedbacks submitted for a specific candidate.
+
+### 4. Security & Permissions
+
+#### **Authentication**
+- **Required**: Token-based authentication
+- **Header**: `Authorization: Token <auth_token>`
+
+#### **Data Isolation**
+- **Admin Users**: Can see all evaluations
+- **Non-Admin Users**: Can only see evaluations for their candidates
+- **Role-based Access**: Proper permission enforcement
+
+#### **Logging**
+- **Action Logging**: All CRUD operations are logged
+- **Success/Failure Tracking**: Comprehensive audit trail
+- **User Tracking**: All actions linked to authenticated users
 
 ---
 
@@ -800,6 +963,14 @@ curl -X POST http://localhost:8000/api/resumes/ \
 - Company users can edit hiring agency data
 - Admin and company role management
 - Secure authentication
+
+### 📊 **Evaluation CRUD Operations**
+- **Full CRUD Support**: Create, Read, Update, Delete operations for evaluations
+- **Validation Rules**: Score range (0-10), interview status validation, duplicate prevention
+- **Data Isolation**: Admin sees all evaluations, non-admin sees only their candidates' evaluations
+- **Backward Compatibility**: Legacy endpoints preserved for existing integrations
+- **Comprehensive Logging**: All CRUD operations logged with audit trail
+- **Security**: Token-based authentication and proper permission enforcement
 
 ---
 

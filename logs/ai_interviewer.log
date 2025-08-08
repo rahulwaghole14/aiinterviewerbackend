@@ -7342,3 +7342,654 @@ INFO 2025-08-08 14:08:11,042 basehttp 5860 21268 "DELETE /api/candidates/69/ HTT
 INFO 2025-08-08 14:10:52,889 autoreload 5860 10244 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
 2025-08-08 14:10:52,889 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
 INFO 2025-08-08 14:10:53,774 autoreload 208 13144 Watching for file changes with StatReloader
+INFO 2025-08-08 14:45:51,772 logger 208 19892 SECURITY_EVENT: {"timestamp": "2025-08-08T09:15:51.771795+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 14:45:51,772 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T09:15:51.771795+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 14:45:51,772 logger 208 19892 USER_ACTION: {"timestamp": "2025-08-08T09:15:51.772179+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 14:45:51,772 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:15:51.772179+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 14:45:52,538 basehttp 208 19892 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 14:45:52,538 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 14:45:56,170 logger 208 26836 USER_ACTION: {"timestamp": "2025-08-08T09:15:56.170016+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_create", "status": "SUCCESS", "ip_address": null, "details": {"domain_name": "Test Domain 1754644552"}}
+2025-08-08 14:45:56,170 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:15:56.170016+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_create", "status": "SUCCESS", "ip_address": null, "details": {"domain_name": "Test Domain 1754644552"}}
+INFO 2025-08-08 14:45:56,691 basehttp 208 26836 "POST /api/jobs/domains/ HTTP/1.1" 201 202
+2025-08-08 14:45:56,691 - django.server - INFO - "POST /api/jobs/domains/ HTTP/1.1" 201 202
+INFO 2025-08-08 14:46:00,601 logger 208 4224 USER_ACTION: {"timestamp": "2025-08-08T09:16:00.601539+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 9}}
+2025-08-08 14:46:00,601 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:16:00.601539+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 9}}
+INFO 2025-08-08 14:46:00,850 basehttp 208 4224 "GET /api/jobs/domains/ HTTP/1.1" 200 853
+2025-08-08 14:46:00,850 - django.server - INFO - "GET /api/jobs/domains/ HTTP/1.1" 200 853
+INFO 2025-08-08 14:46:04,503 logger 208 21196 USER_ACTION: {"timestamp": "2025-08-08T09:16:04.503757+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 21}}
+2025-08-08 14:46:04,503 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:16:04.503757+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 21}}
+INFO 2025-08-08 14:46:04,769 basehttp 208 21196 "GET /api/jobs/domains/21/ HTTP/1.1" 200 202
+2025-08-08 14:46:04,769 - django.server - INFO - "GET /api/jobs/domains/21/ HTTP/1.1" 200 202
+INFO 2025-08-08 14:46:08,382 logger 208 9324 USER_ACTION: {"timestamp": "2025-08-08T09:16:08.382277+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_update", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 21}}
+2025-08-08 14:46:08,382 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:16:08.382277+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_update", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 21}}
+INFO 2025-08-08 14:46:09,166 basehttp 208 9324 "PUT /api/jobs/domains/21/ HTTP/1.1" 200 205
+2025-08-08 14:46:09,166 - django.server - INFO - "PUT /api/jobs/domains/21/ HTTP/1.1" 200 205
+INFO 2025-08-08 14:46:13,183 logger 208 17664 USER_ACTION: {"timestamp": "2025-08-08T09:16:13.183982+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_delete", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 21, "domain_name": "Updated Domain 1754644564"}}
+2025-08-08 14:46:13,183 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:16:13.183982+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_delete", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 21, "domain_name": "Updated Domain 1754644564"}}
+INFO 2025-08-08 14:46:13,183 basehttp 208 17664 "DELETE /api/jobs/domains/21/ HTTP/1.1" 200 45
+2025-08-08 14:46:13,183 - django.server - INFO - "DELETE /api/jobs/domains/21/ HTTP/1.1" 200 45
+WARNING 2025-08-08 14:46:17,060 log 208 26784 Bad Request: /api/jobs/
+2025-08-08 14:46:17,060 - django.request - WARNING - Bad Request: /api/jobs/
+WARNING 2025-08-08 14:46:17,060 basehttp 208 26784 "POST /api/jobs/ HTTP/1.1" 400 57
+2025-08-08 14:46:17,060 - django.server - WARNING - "POST /api/jobs/ HTTP/1.1" 400 57
+INFO 2025-08-08 14:51:02,085 logger 208 8936 SECURITY_EVENT: {"timestamp": "2025-08-08T09:21:02.085875+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 14:51:02,085 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T09:21:02.085875+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 14:51:02,085 logger 208 8936 USER_ACTION: {"timestamp": "2025-08-08T09:21:02.085875+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 14:51:02,085 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:02.085875+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 14:51:02,833 basehttp 208 8936 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 14:51:02,833 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 14:51:06,462 logger 208 22212 USER_ACTION: {"timestamp": "2025-08-08T09:21:06.462931+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_create", "status": "SUCCESS", "ip_address": null, "details": {"domain_name": "Test Domain 1754644862"}}
+2025-08-08 14:51:06,462 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:06.462931+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_create", "status": "SUCCESS", "ip_address": null, "details": {"domain_name": "Test Domain 1754644862"}}
+INFO 2025-08-08 14:51:06,963 basehttp 208 22212 "POST /api/jobs/domains/ HTTP/1.1" 201 202
+2025-08-08 14:51:06,963 - django.server - INFO - "POST /api/jobs/domains/ HTTP/1.1" 201 202
+INFO 2025-08-08 14:51:10,799 logger 208 1924 USER_ACTION: {"timestamp": "2025-08-08T09:21:10.799517+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 9}}
+2025-08-08 14:51:10,799 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:10.799517+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 9}}
+INFO 2025-08-08 14:51:11,045 basehttp 208 1924 "GET /api/jobs/domains/ HTTP/1.1" 200 853
+2025-08-08 14:51:11,045 - django.server - INFO - "GET /api/jobs/domains/ HTTP/1.1" 200 853
+INFO 2025-08-08 14:51:14,664 logger 208 2732 USER_ACTION: {"timestamp": "2025-08-08T09:21:14.664053+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 22}}
+2025-08-08 14:51:14,664 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:14.664053+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 22}}
+INFO 2025-08-08 14:51:14,928 basehttp 208 2732 "GET /api/jobs/domains/22/ HTTP/1.1" 200 202
+2025-08-08 14:51:14,928 - django.server - INFO - "GET /api/jobs/domains/22/ HTTP/1.1" 200 202
+INFO 2025-08-08 14:51:18,580 logger 208 25560 USER_ACTION: {"timestamp": "2025-08-08T09:21:18.580891+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_update", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 22}}
+2025-08-08 14:51:18,580 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:18.580891+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_update", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 22}}
+INFO 2025-08-08 14:51:19,359 basehttp 208 25560 "PUT /api/jobs/domains/22/ HTTP/1.1" 200 205
+2025-08-08 14:51:19,359 - django.server - INFO - "PUT /api/jobs/domains/22/ HTTP/1.1" 200 205
+INFO 2025-08-08 14:51:23,549 logger 208 18940 USER_ACTION: {"timestamp": "2025-08-08T09:21:23.549854+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_delete", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 22, "domain_name": "Updated Domain 1754644874"}}
+2025-08-08 14:51:23,549 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:23.549854+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_delete", "status": "SUCCESS", "ip_address": null, "details": {"domain_id": 22, "domain_name": "Updated Domain 1754644874"}}
+INFO 2025-08-08 14:51:23,549 basehttp 208 18940 "DELETE /api/jobs/domains/22/ HTTP/1.1" 200 45
+2025-08-08 14:51:23,549 - django.server - INFO - "DELETE /api/jobs/domains/22/ HTTP/1.1" 200 45
+INFO 2025-08-08 14:51:27,357 logger 208 644 USER_ACTION: {"timestamp": "2025-08-08T09:21:27.357915+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 8}}
+2025-08-08 14:51:27,357 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:27.357915+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "domain_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 8}}
+INFO 2025-08-08 14:51:27,606 basehttp 208 644 "GET /api/jobs/domains/ HTTP/1.1" 200 746
+2025-08-08 14:51:27,606 - django.server - INFO - "GET /api/jobs/domains/ HTTP/1.1" 200 746
+INFO 2025-08-08 14:51:31,508 logger 208 20860 USER_ACTION: {"timestamp": "2025-08-08T09:21:31.508490+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "job_create", "status": "SUCCESS", "ip_address": null, "details": {"job_title": "Test Job 1754644887", "domain_id": 17, "domain_name": "DevOps"}}
+2025-08-08 14:51:31,508 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:31.508490+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "job_create", "status": "SUCCESS", "ip_address": null, "details": {"job_title": "Test Job 1754644887", "domain_id": 17, "domain_name": "DevOps"}}
+INFO 2025-08-08 14:51:32,548 basehttp 208 20860 "POST /api/jobs/ HTTP/1.1" 201 452
+2025-08-08 14:51:32,548 - django.server - INFO - "POST /api/jobs/ HTTP/1.1" 201 452
+INFO 2025-08-08 14:51:36,431 basehttp 208 26096 "GET /api/jobs/ HTTP/1.1" 200 4506
+2025-08-08 14:51:36,431 - django.server - INFO - "GET /api/jobs/ HTTP/1.1" 200 4506
+ERROR 2025-08-08 14:51:40,511 log 208 17656 Internal Server Error: /api/jobs/11/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 286, in get
+    return self.retrieve(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 54, in retrieve
+    instance = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+2025-08-08 14:51:40,511 - django.request - ERROR - Internal Server Error: /api/jobs/11/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 286, in get
+    return self.retrieve(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 54, in retrieve
+    instance = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+ERROR 2025-08-08 14:51:40,511 basehttp 208 17656 "GET /api/jobs/11/ HTTP/1.1" 500 108666
+2025-08-08 14:51:40,511 - django.server - ERROR - "GET /api/jobs/11/ HTTP/1.1" 500 108666
+ERROR 2025-08-08 14:51:44,453 log 208 2608 Internal Server Error: /api/jobs/11/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 289, in put
+    return self.update(request, *args, **kwargs)
+  File "D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\jobs\views.py", line 195, in update
+    job = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+2025-08-08 14:51:44,453 - django.request - ERROR - Internal Server Error: /api/jobs/11/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 289, in put
+    return self.update(request, *args, **kwargs)
+  File "D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\jobs\views.py", line 195, in update
+    job = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+ERROR 2025-08-08 14:51:44,453 basehttp 208 2608 "PUT /api/jobs/11/ HTTP/1.1" 500 108876
+2025-08-08 14:51:44,453 - django.server - ERROR - "PUT /api/jobs/11/ HTTP/1.1" 500 108876
+ERROR 2025-08-08 14:51:48,330 log 208 16944 Internal Server Error: /api/jobs/11/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 295, in delete
+    return self.destroy(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 90, in destroy
+    instance = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+2025-08-08 14:51:48,330 - django.request - ERROR - Internal Server Error: /api/jobs/11/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 295, in delete
+    return self.destroy(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 90, in destroy
+    instance = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+ERROR 2025-08-08 14:51:48,330 basehttp 208 16944 "DELETE /api/jobs/11/ HTTP/1.1" 500 107511
+2025-08-08 14:51:48,330 - django.server - ERROR - "DELETE /api/jobs/11/ HTTP/1.1" 500 107511
+INFO 2025-08-08 14:51:52,190 logger 208 7488 USER_ACTION: {"timestamp": "2025-08-08T09:21:52.190443+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "job_create", "status": "SUCCESS", "ip_address": null, "details": {"job_title": "Domain Test Job 1754644908", "domain_id": 17, "domain_name": "DevOps"}}
+2025-08-08 14:51:52,190 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:52.190443+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "job_create", "status": "SUCCESS", "ip_address": null, "details": {"job_title": "Domain Test Job 1754644908", "domain_id": 17, "domain_name": "DevOps"}}
+INFO 2025-08-08 14:51:52,689 logger 208 7488 USER_ACTION: {"timestamp": "2025-08-08T09:21:52.689696+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "notification_failed", "status": "FAILED", "ip_address": null, "details": {"error": "'UserData' object has no attribute 'user'", "job_title": "Domain Test Job 1754644908"}}
+2025-08-08 14:51:52,689 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:21:52.689696+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "notification_failed", "status": "FAILED", "ip_address": null, "details": {"error": "'UserData' object has no attribute 'user'", "job_title": "Domain Test Job 1754644908"}}
+INFO 2025-08-08 14:51:53,207 basehttp 208 7488 "POST /api/jobs/ HTTP/1.1" 201 448
+2025-08-08 14:51:53,207 - django.server - INFO - "POST /api/jobs/ HTTP/1.1" 201 448
+INFO 2025-08-08 14:51:57,303 basehttp 208 24136 "GET /api/jobs/by-domain/17/ HTTP/1.1" 200 1709
+2025-08-08 14:51:57,303 - django.server - INFO - "GET /api/jobs/by-domain/17/ HTTP/1.1" 200 1709
+ERROR 2025-08-08 14:52:01,316 log 208 5520 Internal Server Error: /api/jobs/12/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 295, in delete
+    return self.destroy(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 90, in destroy
+    instance = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+2025-08-08 14:52:01,316 - django.request - ERROR - Internal Server Error: /api/jobs/12/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 295, in delete
+    return self.destroy(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 90, in destroy
+    instance = self.get_object()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 92, in get_object
+    assert lookup_url_kwarg in self.kwargs, (
+AssertionError: Expected view JobDetailView to be called with a URL keyword argument named "id". Fix your URL conf, or set the `.lookup_field` attribute on the view correctly.
+ERROR 2025-08-08 14:52:01,319 basehttp 208 5520 "DELETE /api/jobs/12/ HTTP/1.1" 500 107584
+2025-08-08 14:52:01,319 - django.server - ERROR - "DELETE /api/jobs/12/ HTTP/1.1" 500 107584
+INFO 2025-08-08 14:52:05,140 basehttp 208 21364 "GET /api/jobs/titles/ HTTP/1.1" 200 703
+2025-08-08 14:52:05,140 - django.server - INFO - "GET /api/jobs/titles/ HTTP/1.1" 200 703
+INFO 2025-08-08 14:56:13,083 logger 208 21868 SECURITY_EVENT: {"timestamp": "2025-08-08T09:26:13.083316+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 14:56:13,083 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T09:26:13.083316+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 14:56:13,099 logger 208 21868 USER_ACTION: {"timestamp": "2025-08-08T09:26:13.099306+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 14:56:13,099 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:13.099306+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 14:56:13,862 basehttp 208 21868 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 14:56:13,862 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 14:56:17,784 logger 208 10288 USER_ACTION: {"timestamp": "2025-08-08T09:26:17.784739+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+2025-08-08 14:56:17,784 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:17.784739+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+INFO 2025-08-08 14:56:28,025 basehttp 208 10288 "GET /api/candidates/ HTTP/1.1" 200 14722
+2025-08-08 14:56:28,025 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 14722
+INFO 2025-08-08 14:56:31,957 basehttp 208 13868 "GET /api/jobs/ HTTP/1.1" 200 4955
+2025-08-08 14:56:31,957 - django.server - INFO - "GET /api/jobs/ HTTP/1.1" 200 4955
+INFO 2025-08-08 14:56:36,082 logger 208 28148 USER_ACTION: {"timestamp": "2025-08-08T09:26:36.082916+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "scheduled", "ip_address": "[REDACTED]"}}
+2025-08-08 14:56:36,082 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:36.082916+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "scheduled", "ip_address": "[REDACTED]"}}
+INFO 2025-08-08 14:56:40,806 logger 208 28148 USER_ACTION: {"timestamp": "2025-08-08T09:26:40.806888+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 14, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+2025-08-08 14:56:40,806 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:40.806888+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 14, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+INFO 2025-08-08 14:56:40,806 basehttp 208 28148 "POST /api/interviews/ HTTP/1.1" 201 375
+2025-08-08 14:56:40,806 - django.server - INFO - "POST /api/interviews/ HTTP/1.1" 201 375
+INFO 2025-08-08 14:56:44,665 logger 208 21336 USER_ACTION: {"timestamp": "2025-08-08T09:26:44.665222+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+2025-08-08 14:56:44,665 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:44.665222+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+INFO 2025-08-08 14:56:44,931 basehttp 208 21336 "GET /api/interviews/ HTTP/1.1" 200 377
+2025-08-08 14:56:44,931 - django.server - INFO - "GET /api/interviews/ HTTP/1.1" 200 377
+INFO 2025-08-08 14:56:48,603 logger 208 10488 USER_ACTION: {"timestamp": "2025-08-08T09:26:48.603202+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e"}}
+2025-08-08 14:56:48,603 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:48.603202+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e"}}
+INFO 2025-08-08 14:56:48,867 basehttp 208 10488 "GET /api/interviews/0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e/ HTTP/1.1" 200 375
+2025-08-08 14:56:48,867 - django.server - INFO - "GET /api/interviews/0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e/ HTTP/1.1" 200 375
+INFO 2025-08-08 14:56:52,467 logger 208 18856 USER_ACTION: {"timestamp": "2025-08-08T09:26:52.467332+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_update", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e", "update_data": {"candidate": 15, "job": 12, "interview_round": "Updated Round 1754645208", "status": "completed", "started_at": "2025-08-08T14:00:00", "ended_at": "2025-08-08T15:00:00", "feedback": "Updated test interview feedback", "video_url": "https://example.com/video/test-interview"}}}
+2025-08-08 14:56:52,467 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:52.467332+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_update", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e", "update_data": {"candidate": 15, "job": 12, "interview_round": "Updated Round 1754645208", "status": "completed", "started_at": "2025-08-08T14:00:00", "ended_at": "2025-08-08T15:00:00", "feedback": "Updated test interview feedback", "video_url": "https://example.com/video/test-interview"}}}
+INFO 2025-08-08 14:56:53,251 basehttp 208 18856 "PUT /api/interviews/0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e/ HTTP/1.1" 200 427
+2025-08-08 14:56:53,251 - django.server - INFO - "PUT /api/interviews/0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e/ HTTP/1.1" 200 427
+INFO 2025-08-08 14:56:56,825 logger 208 26080 USER_ACTION: {"timestamp": "2025-08-08T09:26:56.825039+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_delete", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e"}}
+2025-08-08 14:56:56,825 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:26:56.825039+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_delete", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e"}}
+INFO 2025-08-08 14:56:58,411 basehttp 208 26080 "DELETE /api/interviews/0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e/ HTTP/1.1" 204 0
+2025-08-08 14:56:58,411 - django.server - INFO - "DELETE /api/interviews/0f23f6b1-9668-44f3-9a9c-42e67c7a1f8e/ HTTP/1.1" 204 0
+INFO 2025-08-08 14:57:02,318 logger 208 20728 USER_ACTION: {"timestamp": "2025-08-08T09:27:02.318544+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_summary", "status": "SUCCESS", "ip_address": null, "details": {"summary": {}}}
+2025-08-08 14:57:02,318 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:02.318544+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_summary", "status": "SUCCESS", "ip_address": null, "details": {"summary": {}}}
+INFO 2025-08-08 14:57:02,318 basehttp 208 20728 "GET /api/interviews/summary/ HTTP/1.1" 200 2
+2025-08-08 14:57:02,318 - django.server - INFO - "GET /api/interviews/summary/ HTTP/1.1" 200 2
+INFO 2025-08-08 14:57:06,494 logger 208 26992 USER_ACTION: {"timestamp": "2025-08-08T09:27:06.494348+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "f249a6ea-4796-4e91-9e1a-6682ed9fcde6", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "scheduled", "ip_address": "[REDACTED]"}}
+2025-08-08 14:57:06,494 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:06.494348+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "f249a6ea-4796-4e91-9e1a-6682ed9fcde6", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "scheduled", "ip_address": "[REDACTED]"}}
+INFO 2025-08-08 14:57:10,346 logger 208 26992 USER_ACTION: {"timestamp": "2025-08-08T09:27:10.346358+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 15, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+2025-08-08 14:57:10,346 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:10.346358+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 15, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+INFO 2025-08-08 14:57:10,346 basehttp 208 26992 "POST /api/interviews/ HTTP/1.1" 201 388
+2025-08-08 14:57:10,346 - django.server - INFO - "POST /api/interviews/ HTTP/1.1" 201 388
+INFO 2025-08-08 14:57:14,169 logger 208 13472 USER_ACTION: {"timestamp": "2025-08-08T09:27:14.169581+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+2025-08-08 14:57:14,169 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:14.169581+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+INFO 2025-08-08 14:57:14,422 basehttp 208 13472 "GET /api/interviews/?status=scheduled HTTP/1.1" 200 390
+2025-08-08 14:57:14,422 - django.server - INFO - "GET /api/interviews/?status=scheduled HTTP/1.1" 200 390
+INFO 2025-08-08 14:57:18,309 logger 208 23256 USER_ACTION: {"timestamp": "2025-08-08T09:27:18.309187+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+2025-08-08 14:57:18,309 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:18.309187+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+INFO 2025-08-08 14:57:18,848 basehttp 208 23256 "GET /api/interviews/?candidate=15 HTTP/1.1" 200 390
+2025-08-08 14:57:18,848 - django.server - INFO - "GET /api/interviews/?candidate=15 HTTP/1.1" 200 390
+INFO 2025-08-08 14:57:22,740 logger 208 25480 USER_ACTION: {"timestamp": "2025-08-08T09:27:22.739525+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+2025-08-08 14:57:22,740 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:22.739525+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 1}}
+INFO 2025-08-08 14:57:23,273 basehttp 208 25480 "GET /api/interviews/?job=12 HTTP/1.1" 200 2
+2025-08-08 14:57:23,273 - django.server - INFO - "GET /api/interviews/?job=12 HTTP/1.1" 200 2
+INFO 2025-08-08 14:57:26,889 logger 208 25736 USER_ACTION: {"timestamp": "2025-08-08T09:27:26.889844+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_delete", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "f249a6ea-4796-4e91-9e1a-6682ed9fcde6"}}
+2025-08-08 14:57:26,889 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:26.889844+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_delete", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "f249a6ea-4796-4e91-9e1a-6682ed9fcde6"}}
+INFO 2025-08-08 14:57:28,451 basehttp 208 25736 "DELETE /api/interviews/f249a6ea-4796-4e91-9e1a-6682ed9fcde6/ HTTP/1.1" 204 0
+2025-08-08 14:57:28,451 - django.server - INFO - "DELETE /api/interviews/f249a6ea-4796-4e91-9e1a-6682ed9fcde6/ HTTP/1.1" 204 0
+INFO 2025-08-08 14:57:32,271 logger 208 12440 USER_ACTION: {"timestamp": "2025-08-08T09:27:32.271823+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'non_field_errors': [ErrorDetail(string='started_at must be between 08:00 and 22:00 UTC.', code='invalid')]}"}}
+2025-08-08 14:57:32,271 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:32.271823+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'non_field_errors': [ErrorDetail(string='started_at must be between 08:00 and 22:00 UTC.', code='invalid')]}"}}
+WARNING 2025-08-08 14:57:32,271 log 208 12440 Bad Request: /api/interviews/
+2025-08-08 14:57:32,271 - django.request - WARNING - Bad Request: /api/interviews/
+WARNING 2025-08-08 14:57:32,271 basehttp 208 12440 "POST /api/interviews/ HTTP/1.1" 400 72
+2025-08-08 14:57:32,271 - django.server - WARNING - "POST /api/interviews/ HTTP/1.1" 400 72
+INFO 2025-08-08 14:57:36,102 logger 208 19984 USER_ACTION: {"timestamp": "2025-08-08T09:27:36.102698+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'non_field_errors': [ErrorDetail(string='ended_at must be after started_at.', code='invalid')]}"}}
+2025-08-08 14:57:36,102 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:27:36.102698+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'non_field_errors': [ErrorDetail(string='ended_at must be after started_at.', code='invalid')]}"}}
+WARNING 2025-08-08 14:57:36,102 log 208 19984 Bad Request: /api/interviews/
+2025-08-08 14:57:36,102 - django.request - WARNING - Bad Request: /api/interviews/
+WARNING 2025-08-08 14:57:36,102 basehttp 208 19984 "POST /api/interviews/ HTTP/1.1" 400 59
+2025-08-08 14:57:36,102 - django.server - WARNING - "POST /api/interviews/ HTTP/1.1" 400 59
+INFO 2025-08-08 15:04:36,924 logger 208 2920 SECURITY_EVENT: {"timestamp": "2025-08-08T09:34:36.924901+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 15:04:36,924 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T09:34:36.924901+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 15:04:36,924 logger 208 2920 USER_ACTION: {"timestamp": "2025-08-08T09:34:36.924901+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 15:04:36,924 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:34:36.924901+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 15:04:37,741 basehttp 208 2920 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 15:04:37,741 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 15:04:41,690 logger 208 25940 USER_ACTION: {"timestamp": "2025-08-08T09:34:41.690337+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+2025-08-08 15:04:41,690 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:34:41.690337+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+INFO 2025-08-08 15:04:51,675 basehttp 208 25940 "GET /api/candidates/ HTTP/1.1" 200 14722
+2025-08-08 15:04:51,675 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 14722
+INFO 2025-08-08 15:04:55,574 basehttp 208 18144 "GET /api/jobs/ HTTP/1.1" 200 4955
+2025-08-08 15:04:55,574 - django.server - INFO - "GET /api/jobs/ HTTP/1.1" 200 4955
+INFO 2025-08-08 15:04:59,702 logger 208 20972 USER_ACTION: {"timestamp": "2025-08-08T09:34:59.702768+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "e5df7aa9-1103-401e-9957-73f8e51b396e", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "completed", "ip_address": "[REDACTED]"}}
+2025-08-08 15:04:59,702 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:34:59.702768+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "e5df7aa9-1103-401e-9957-73f8e51b396e", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "completed", "ip_address": "[REDACTED]"}}
+INFO 2025-08-08 15:05:03,530 logger 208 20972 USER_ACTION: {"timestamp": "2025-08-08T09:35:03.530367+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 16, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+2025-08-08 15:05:03,530 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:35:03.530367+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 16, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+INFO 2025-08-08 15:05:03,530 basehttp 208 20972 "POST /api/interviews/ HTTP/1.1" 201 393
+2025-08-08 15:05:03,530 - django.server - INFO - "POST /api/interviews/ HTTP/1.1" 201 393
+ERROR 2025-08-08 15:05:07,134 log 208 3340 Internal Server Error: /api/evaluation/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+TypeError: EvaluationSummaryView.get() missing 1 required positional argument: 'interview_id'
+2025-08-08 15:05:07,134 - django.request - ERROR - Internal Server Error: /api/evaluation/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+TypeError: EvaluationSummaryView.get() missing 1 required positional argument: 'interview_id'
+ERROR 2025-08-08 15:05:07,134 basehttp 208 3340 "GET /api/evaluation/ HTTP/1.1" 500 94694
+2025-08-08 15:05:07,134 - django.server - ERROR - "GET /api/evaluation/ HTTP/1.1" 500 94694
+WARNING 2025-08-08 15:05:11,072 log 208 25220 Not Found: /api/evaluation/e5df7aa9-1103-401e-9957-73f8e51b396e/
+2025-08-08 15:05:11,072 - django.request - WARNING - Not Found: /api/evaluation/e5df7aa9-1103-401e-9957-73f8e51b396e/
+WARNING 2025-08-08 15:05:11,072 basehttp 208 25220 "GET /api/evaluation/e5df7aa9-1103-401e-9957-73f8e51b396e/ HTTP/1.1" 404 33
+2025-08-08 15:05:11,072 - django.server - WARNING - "GET /api/evaluation/e5df7aa9-1103-401e-9957-73f8e51b396e/ HTTP/1.1" 404 33
+WARNING 2025-08-08 15:05:14,937 log 208 16280 Not Found: /api/evaluation/report/e5df7aa9-1103-401e-9957-73f8e51b396e/
+2025-08-08 15:05:14,937 - django.request - WARNING - Not Found: /api/evaluation/report/e5df7aa9-1103-401e-9957-73f8e51b396e/
+WARNING 2025-08-08 15:05:14,937 basehttp 208 16280 "GET /api/evaluation/report/e5df7aa9-1103-401e-9957-73f8e51b396e/ HTTP/1.1" 404 33
+2025-08-08 15:05:14,937 - django.server - WARNING - "GET /api/evaluation/report/e5df7aa9-1103-401e-9957-73f8e51b396e/ HTTP/1.1" 404 33
+ERROR 2025-08-08 15:05:20,053 log 208 9248 Internal Server Error: /api/evaluation/feedback/manual/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+psycopg2.errors.NotNullViolation: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (1, Test Reviewer, Test feedback for evaluation 1754645714, 2025-08-08 09:35:18.876343+00, null, e5df7aa9-1103-401e-9957-73f8e51b396e).
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 194, in post
+    return self.create(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 19, in create
+    self.perform_create(serializer)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 24, in perform_create
+    serializer.save()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 210, in save
+    self.instance = self.create(validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 991, in create
+    instance = ModelClass._default_manager.create(**validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 679, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 892, in save
+    self.save_base(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 998, in save_base
+    updated = self._save_table(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1161, in _save_table
+    results = self._do_insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1202, in _do_insert
+    return manager._insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 1847, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\sql\compiler.py", line 1836, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+django.db.utils.IntegrityError: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (1, Test Reviewer, Test feedback for evaluation 1754645714, 2025-08-08 09:35:18.876343+00, null, e5df7aa9-1103-401e-9957-73f8e51b396e).
+
+2025-08-08 15:05:20,053 - django.request - ERROR - Internal Server Error: /api/evaluation/feedback/manual/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+psycopg2.errors.NotNullViolation: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (1, Test Reviewer, Test feedback for evaluation 1754645714, 2025-08-08 09:35:18.876343+00, null, e5df7aa9-1103-401e-9957-73f8e51b396e).
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 194, in post
+    return self.create(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 19, in create
+    self.perform_create(serializer)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 24, in perform_create
+    serializer.save()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 210, in save
+    self.instance = self.create(validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 991, in create
+    instance = ModelClass._default_manager.create(**validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 679, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 892, in save
+    self.save_base(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 998, in save_base
+    updated = self._save_table(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1161, in _save_table
+    results = self._do_insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1202, in _do_insert
+    return manager._insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 1847, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\sql\compiler.py", line 1836, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+django.db.utils.IntegrityError: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (1, Test Reviewer, Test feedback for evaluation 1754645714, 2025-08-08 09:35:18.876343+00, null, e5df7aa9-1103-401e-9957-73f8e51b396e).
+
+ERROR 2025-08-08 15:05:20,069 basehttp 208 9248 "POST /api/evaluation/feedback/manual/ HTTP/1.1" 500 208452
+2025-08-08 15:05:20,069 - django.server - ERROR - "POST /api/evaluation/feedback/manual/ HTTP/1.1" 500 208452
+INFO 2025-08-08 15:05:23,985 basehttp 208 25080 "GET /api/evaluation/feedback/all/15/ HTTP/1.1" 200 2
+2025-08-08 15:05:23,985 - django.server - INFO - "GET /api/evaluation/feedback/all/15/ HTTP/1.1" 200 2
+WARNING 2025-08-08 15:05:27,648 log 208 25576 Method Not Allowed: /api/evaluation/
+2025-08-08 15:05:27,648 - django.request - WARNING - Method Not Allowed: /api/evaluation/
+WARNING 2025-08-08 15:05:27,648 basehttp 208 25576 "POST /api/evaluation/ HTTP/1.1" 405 41
+2025-08-08 15:05:27,648 - django.server - WARNING - "POST /api/evaluation/ HTTP/1.1" 405 41
+INFO 2025-08-08 15:09:56,355 autoreload 208 13144 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\views.py changed, reloading.
+2025-08-08 15:09:56,355 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\views.py changed, reloading.
+INFO 2025-08-08 15:09:57,098 autoreload 17900 11852 Watching for file changes with StatReloader
+INFO 2025-08-08 15:10:15,903 autoreload 17900 11852 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\serializers.py changed, reloading.
+2025-08-08 15:10:15,903 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\serializers.py changed, reloading.
+INFO 2025-08-08 15:10:16,561 autoreload 3204 20312 Watching for file changes with StatReloader
+INFO 2025-08-08 15:10:30,263 autoreload 3204 20312 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\urls.py changed, reloading.
+2025-08-08 15:10:30,263 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\urls.py changed, reloading.
+INFO 2025-08-08 15:10:30,944 autoreload 21180 16932 Watching for file changes with StatReloader
+INFO 2025-08-08 15:14:08,918 logger 21180 8876 SECURITY_EVENT: {"timestamp": "2025-08-08T09:44:08.918719+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 15:14:08,918 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T09:44:08.918719+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 15:14:08,918 logger 21180 8876 USER_ACTION: {"timestamp": "2025-08-08T09:44:08.918719+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 15:14:08,918 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:44:08.918719+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 15:14:09,728 basehttp 21180 8876 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 15:14:09,728 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 15:14:13,677 logger 21180 21684 USER_ACTION: {"timestamp": "2025-08-08T09:44:13.677884+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+2025-08-08 15:14:13,677 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:44:13.677884+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+INFO 2025-08-08 15:14:23,699 basehttp 21180 21684 "GET /api/candidates/ HTTP/1.1" 200 14722
+2025-08-08 15:14:23,699 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 14722
+INFO 2025-08-08 15:14:27,596 basehttp 21180 15392 "GET /api/jobs/ HTTP/1.1" 200 4955
+2025-08-08 15:14:27,596 - django.server - INFO - "GET /api/jobs/ HTTP/1.1" 200 4955
+INFO 2025-08-08 15:14:31,759 logger 21180 11100 USER_ACTION: {"timestamp": "2025-08-08T09:44:31.759032+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "completed", "ip_address": "[REDACTED]"}}
+2025-08-08 15:14:31,759 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:44:31.759032+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_schedule", "status": "SUCCESS", "ip_address": null, "details": {"interview_id": "69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0", "candidate_id": 15, "job_id": null, "scheduled_at": null, "status": "completed", "ip_address": "[REDACTED]"}}
+INFO 2025-08-08 15:14:35,692 logger 21180 11100 USER_ACTION: {"timestamp": "2025-08-08T09:44:35.692030+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 17, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+2025-08-08 15:14:35,692 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:44:35.692030+00:00", "user_id": 3, "user_email": "user3@example.com", "user_role": "ADMIN", "action": "notification_sent", "status": "SUCCESS", "ip_address": null, "details": {"notification_id": 17, "type": "interview_scheduled", "channels": ["email", "in_app"], "priority": "high"}}
+INFO 2025-08-08 15:14:35,692 basehttp 21180 11100 "POST /api/interviews/ HTTP/1.1" 201 403
+2025-08-08 15:14:35,692 - django.server - INFO - "POST /api/interviews/ HTTP/1.1" 201 403
+ERROR 2025-08-08 15:14:40,368 logger 21180 9924 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:14:40,368 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:14:40,368 basehttp 21180 9924 "POST /api/evaluation/crud/ HTTP/1.1" 201 302
+2025-08-08 15:14:40,368 - django.server - INFO - "POST /api/evaluation/crud/ HTTP/1.1" 201 302
+INFO 2025-08-08 15:14:44,281 basehttp 21180 23580 "GET /api/evaluation/crud/ HTTP/1.1" 200 304
+2025-08-08 15:14:44,281 - django.server - INFO - "GET /api/evaluation/crud/ HTTP/1.1" 200 304
+INFO 2025-08-08 15:14:48,233 basehttp 21180 11884 "GET /api/evaluation/crud/1/ HTTP/1.1" 200 302
+2025-08-08 15:14:48,233 - django.server - INFO - "GET /api/evaluation/crud/1/ HTTP/1.1" 200 302
+ERROR 2025-08-08 15:14:53,229 logger 21180 17476 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:14:53,229 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:14:53,229 basehttp 21180 17476 "PUT /api/evaluation/crud/1/ HTTP/1.1" 200 318
+2025-08-08 15:14:53,229 - django.server - INFO - "PUT /api/evaluation/crud/1/ HTTP/1.1" 200 318
+ERROR 2025-08-08 15:14:57,680 logger 21180 28196 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:14:57,680 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:14:57,680 basehttp 21180 28196 "DELETE /api/evaluation/crud/1/ HTTP/1.1" 204 0
+2025-08-08 15:14:57,680 - django.server - INFO - "DELETE /api/evaluation/crud/1/ HTTP/1.1" 204 0
+INFO 2025-08-08 15:15:03,314 logger 21180 20324 USER_ACTION: {"timestamp": "2025-08-08T09:45:03.314215+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+2025-08-08 15:15:03,314 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:45:03.314215+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+WARNING 2025-08-08 15:15:03,325 log 21180 20324 Bad Request: /api/evaluation/crud/
+2025-08-08 15:15:03,325 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-08 15:15:03,325 basehttp 21180 20324 "POST /api/evaluation/crud/ HTTP/1.1" 400 61
+2025-08-08 15:15:03,325 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 61
+INFO 2025-08-08 15:15:08,106 logger 21180 22172 USER_ACTION: {"timestamp": "2025-08-08T09:45:08.106903+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+2025-08-08 15:15:08,106 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:45:08.106903+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+WARNING 2025-08-08 15:15:08,106 log 21180 22172 Bad Request: /api/evaluation/crud/
+2025-08-08 15:15:08,106 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-08 15:15:08,106 basehttp 21180 22172 "POST /api/evaluation/crud/ HTTP/1.1" 400 61
+2025-08-08 15:15:08,106 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 61
+ERROR 2025-08-08 15:15:12,811 logger 21180 5780 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:15:12,811 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:15:12,811 basehttp 21180 5780 "POST /api/evaluation/crud/ HTTP/1.1" 201 197
+2025-08-08 15:15:12,811 - django.server - INFO - "POST /api/evaluation/crud/ HTTP/1.1" 201 197
+INFO 2025-08-08 15:15:16,912 logger 21180 2284 USER_ACTION: {"timestamp": "2025-08-08T09:45:16.912417+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')]}"}}
+2025-08-08 15:15:16,912 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T09:45:16.912417+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')]}"}}
+WARNING 2025-08-08 15:15:16,912 log 21180 2284 Bad Request: /api/evaluation/crud/
+2025-08-08 15:15:16,912 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-08 15:15:16,912 basehttp 21180 2284 "POST /api/evaluation/crud/ HTTP/1.1" 400 64
+2025-08-08 15:15:16,912 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 64
+ERROR 2025-08-08 15:15:21,387 logger 21180 3144 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:15:21,387 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:15:21,387 basehttp 21180 3144 "DELETE /api/evaluation/crud/2/ HTTP/1.1" 204 0
+2025-08-08 15:15:21,387 - django.server - INFO - "DELETE /api/evaluation/crud/2/ HTTP/1.1" 204 0
+ERROR 2025-08-08 15:15:26,073 logger 21180 11940 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:15:26,073 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:15:26,084 basehttp 21180 11940 "POST /api/evaluation/crud/ HTTP/1.1" 201 197
+2025-08-08 15:15:26,084 - django.server - INFO - "POST /api/evaluation/crud/ HTTP/1.1" 201 197
+INFO 2025-08-08 15:15:30,221 basehttp 21180 10324 "GET /api/evaluation/summary/69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0/ HTTP/1.1" 200 157
+2025-08-08 15:15:30,221 - django.server - INFO - "GET /api/evaluation/summary/69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0/ HTTP/1.1" 200 157
+INFO 2025-08-08 15:15:34,081 basehttp 21180 10544 "GET /api/evaluation/report/69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0/ HTTP/1.1" 200 197
+2025-08-08 15:15:34,081 - django.server - INFO - "GET /api/evaluation/report/69c4b3f7-c93d-4ddf-a93a-960f7dbf03b0/ HTTP/1.1" 200 197
+ERROR 2025-08-08 15:15:38,603 logger 21180 21768 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-08 15:15:38,603 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-08 15:15:38,603 basehttp 21180 21768 "DELETE /api/evaluation/crud/3/ HTTP/1.1" 204 0
+2025-08-08 15:15:38,603 - django.server - INFO - "DELETE /api/evaluation/crud/3/ HTTP/1.1" 204 0

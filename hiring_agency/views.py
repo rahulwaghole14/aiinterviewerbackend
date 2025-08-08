@@ -19,7 +19,12 @@ class UserDataViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         if user.role == "ADMIN":
             return UserData.objects.all()
         elif user.role == "COMPANY":
-            return UserData.objects.filter(company_name=user.company_name)
+            # Use company ForeignKey relationship instead of company_name text field
+            if user.company:
+                return UserData.objects.filter(company=user.company)
+            else:
+                # Fallback to company_name for backward compatibility
+                return UserData.objects.filter(company_name=user.company_name)
         return UserData.objects.none()
 
     def get_serializer_context(self):
@@ -44,9 +49,12 @@ class UserDataViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Set company_name for Company users
+        # Set company relationship for Company users
         if creator_role == "COMPANY":
-            data['company_name'] = creator.company_name
+            data['company'] = creator.company.id if creator.company else None
+            # Also set company_name for backward compatibility
+            if creator.company:
+                data['company_name'] = creator.company.name
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -91,6 +99,10 @@ class UserDataViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         
         # Company users can only manage hiring agencies from their own company
         if request.user.role == 'COMPANY':
+            # Use company ForeignKey relationship for better performance
+            if request.user.company and obj.company:
+                return obj.company == request.user.company
+            # Fallback to company_name for backward compatibility
             return obj.company_name == request.user.company_name
         
         return False
@@ -107,8 +119,15 @@ class CreateUserDataView(generics.CreateAPIView):
         return context
 
     def perform_create(self, serializer):
-        # Set company_name for Company users
+        # Set company relationship for Company users
         if self.request.user.role == "COMPANY":
-            serializer.save(company_name=self.request.user.company_name)
+            if self.request.user.company:
+                serializer.save(
+                    company=self.request.user.company,
+                    company_name=self.request.user.company.name
+                )
+            else:
+                # Fallback to company_name for backward compatibility
+                serializer.save(company_name=self.request.user.company_name)
         else:
             serializer.save()

@@ -6,6 +6,7 @@ from datetime import date
 
 class UserDataSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    company_name = serializers.CharField(source='get_company_name', read_only=True)
     
     class Meta:
         model = UserData
@@ -87,6 +88,14 @@ class UserDataSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request:
             validated_data['created_by'] = request.user
+        
+        # Handle company relationship
+        if request and request.user.role == "COMPANY":
+            # If creator is a company user, set the company relationship
+            validated_data['company'] = request.user.company
+            # Also set company_name for backward compatibility
+            if request.user.company:
+                validated_data['company_name'] = request.user.company.name
         
         user_data = UserData.objects.create(**validated_data)
         if password:

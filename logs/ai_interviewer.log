@@ -6450,3 +6450,26 @@ INFO 2025-08-08 10:32:32,290 basehttp 18544 10788 "POST /api/hiring_agency/add_u
 2025-08-08 10:32:32,290 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 270
 INFO 2025-08-08 10:32:36,175 basehttp 18544 19808 "GET /api/hiring_agency/ HTTP/1.1" 200 2212
 2025-08-08 10:32:36,175 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 2212
+INFO 2025-08-08 10:43:59,365 autoreload 18544 18140 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\models.py changed, reloading.
+2025-08-08 10:43:59,365 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\models.py changed, reloading.
+INFO 2025-08-08 10:44:07,600 autoreload 10964 25564 Watching for file changes with StatReloader
+INFO 2025-08-08 10:44:19,141 autoreload 10964 25564 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+2025-08-08 10:44:19,141 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+INFO 2025-08-08 10:44:19,849 autoreload 12836 24124 Watching for file changes with StatReloader
+INFO 2025-08-08 10:44:44,128 autoreload 12836 24124 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\views.py changed, reloading.
+2025-08-08 10:44:44,128 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\views.py changed, reloading.
+INFO 2025-08-08 10:44:44,921 autoreload 4348 7900 Watching for file changes with StatReloader
+INFO 2025-08-08 10:47:56,364 logger 4348 28492 SECURITY_EVENT: {"timestamp": "2025-08-08T05:17:56.364316+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 10:47:56,364 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T05:17:56.364316+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 10:47:56,364 logger 4348 28492 USER_ACTION: {"timestamp": "2025-08-08T05:17:56.364316+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 10:47:56,364 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T05:17:56.364316+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 10:47:57,613 basehttp 4348 28492 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 10:47:57,613 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 10:48:03,961 basehttp 4348 572 "GET /api/hiring_agency/ HTTP/1.1" 200 2346
+2025-08-08 10:48:03,961 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 2346
+INFO 2025-08-08 10:48:08,459 basehttp 4348 16560 "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 302
+2025-08-08 10:48:08,459 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 302
+INFO 2025-08-08 10:48:12,424 basehttp 4348 9568 "GET /api/companies/ HTTP/1.1" 200 2995
+2025-08-08 10:48:12,424 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 2995
+INFO 2025-08-08 10:48:18,156 basehttp 4348 13412 "GET /api/hiring_agency/ HTTP/1.1" 200 2649
+2025-08-08 10:48:18,156 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 2649

@@ -1089,7 +1089,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", ""]
 						},
-						"description": "Retrieve all companies (Admin only)"
+						"description": "Retrieve all companies with email information\n\n📧 **Email Support**: Company email field is now included in responses\n\n📋 **Access Control**:\n• Admin: Sees all companies\n• Company User: Sees only their own company\n• Other Users: Limited access\n\n✅ **Response**: Includes email field for all companies"
 					},
 					"response": []
 				},
@@ -1109,14 +1109,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"New Company\",\n    \"description\": \"A new company description\",\n    \"is_active\": true\n}"
+							"raw": "{\n    \"name\": \"New Company\",\n    \"email\": \"contact@newcompany.com\",\n    \"password\": \"company123\",\n    \"description\": \"A new company description\",\n    \"is_active\": true\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/companies/",
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", ""]
 						},
-						"description": "Create a new company (Admin only)"
+						"description": "Create a new company with email and password support\n\n📧 **Email Support**: Company email field for contact information\n🔑 **Password Support**: Company password field (write-only)\n\n📋 **Required Fields**:\n• name, description\n\n📋 **Optional Fields**:\n• email (string): Company contact email\n• password (string): Company password (write-only)\n• is_active (boolean): Company status\n\n✅ **Security**: Password field is never returned in responses"
 					},
 					"response": []
 				},
@@ -1206,12 +1206,12 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "hiring_agency", ""]
 						},
-						"description": "Retrieve all hiring agencies (filtered by company for Company users; returns all for Admin)"
+						"description": "Retrieve all hiring agencies (filtered by company for Company users; returns all for Admin)\n\n🔒 **Role Filtering**: This API now returns ONLY hiring agencies (role='Hiring Agency'), not other user roles.\n\n📋 **Access Control**:\n• Admin: Sees all hiring agencies from all companies\n• Company User: Sees only hiring agencies from their own company\n• Other Users: Empty list (no access)\n\n✅ **Security**: Prevents data leakage of other user roles (Recruiter, Company, etc.)"
 					},
 					"response": []
 				},
 				{
-					"name": "Create Hiring Agency User",
+					"name": "Create Hiring Agency User (Correct Endpoint)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -1226,14 +1226,41 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john.doe@agency.com\",\n    \"phone_number\": \"+1234567890\",\n    \"role\": \"Hiring Agency\",\n    \"company_name\": \"Example Company\",\n    \"linkedin_url\": \"https://linkedin.com/in/johndoe\"\n}"
+							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john.doe@agency.com\",\n    \"password\": \"agency123\",\n    \"phone_number\": \"+1234567890\",\n    \"role\": \"Hiring Agency\",\n    \"company_name\": \"Example Company\",\n    \"linkedin_url\": \"https://linkedin.com/in/johndoe\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/hiring_agency/add_user/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "hiring_agency", "add_user", ""]
+						},
+						"description": "Create a new hiring agency user (Admin/Company only)\n\n🔑 **Password Support**: The API now supports password field for hiring agency creation.\n\n🏢 **Company Relationship**:\n• Company users: Auto-assigns to their company\n• Admin users: Can assign to any company\n\n📋 **Required Fields**:\n• email, role, first_name, last_name, phone_number\n• password (optional)\n• company_name (optional, auto-set for company users)\n\n✅ **Role Validation**: Only accepts 'Hiring Agency' role\n\n⚠️ **Note**: Use this endpoint (/add_user/) instead of the root endpoint for creation"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Hiring Agency User (Legacy Endpoint)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john.doe@agency.com\",\n    \"password\": \"agency123\",\n    \"phone_number\": \"+1234567890\",\n    \"role\": \"Hiring Agency\",\n    \"company_name\": \"Example Company\",\n    \"linkedin_url\": \"https://linkedin.com/in/johndoe\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/hiring_agency/",
 							"host": ["{{base_url}}"],
 							"path": ["api", "hiring_agency", ""]
 						},
-						"description": "Create a new hiring agency user (Admin/Company only)"
+						"description": "Create a new hiring agency user (Admin/Company only) - LEGACY ENDPOINT\n\n⚠️ **Deprecated**: Use /api/hiring_agency/add_user/ instead\n\n🔑 **Password Support**: The API now supports password field for hiring agency creation.\n\n🏢 **Company Relationship**:\n• Company users: Auto-assigns to their company\n• Admin users: Can assign to any company\n\n📋 **Required Fields**:\n• email, role, first_name, last_name, phone_number\n• password (optional)\n• company_name (optional, auto-set for company users)\n\n✅ **Role Validation**: Only accepts 'Hiring Agency' role"
 					},
 					"response": []
 				},

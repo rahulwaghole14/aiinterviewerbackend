@@ -151,11 +151,98 @@ Delete a resume.
 
 ## 👥 Candidate Management APIs
 
-### 1. List/Create Candidates
-**GET/POST** `/api/candidates/`
+### 1. List All Candidates
+**GET** `/api/candidates/`
 
-### 2. Candidate Details
+**Description**: Retrieve all candidates with POC email information.
+
+**Access Control**:
+- **Admin**: Sees all candidates
+- **Company User**: Sees candidates from their company
+- **Hiring Agency**: Sees candidates they created
+
+**Response Example**:
+```json
+[
+    {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "phone": "+1234567890",
+        "poc_email": "contact@agency.com",
+        "experience_years": 5,
+        "domain": "Technology",
+        "resume": "/media/resumes/john_doe.pdf",
+        "created_at": "2025-08-08T10:30:00Z"
+    }
+]
+```
+
+### 2. Create Candidate
+**POST** `/api/candidates/`
+
+**Description**: Create a new candidate with POC email support.
+
+**Required Fields**:
+- `name` (string): Candidate name
+- `email` (string): Candidate email
+- `phone` (string): Phone number
+- `experience_years` (integer): Years of experience
+- `domain` (string): Domain/field
+
+**Optional Fields**:
+- `poc_email` (string): Point of contact email
+- `resume` (file): Resume file
+
+**Request Example**:
+```json
+{
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+1234567890",
+    "poc_email": "contact@agency.com",
+    "experience_years": 5,
+    "domain": "Technology"
+}
+```
+
+### 3. Bulk Create Candidates
+**POST** `/api/candidates/bulk-create/?step=extract`
+
+**Description**: Extract candidate data from uploaded files (first step).
+
+**POST** `/api/candidates/bulk-create/?step=submit`
+
+**Description**: Submit extracted candidate data with POC email support.
+
+**Request Example**:
+```json
+{
+    "candidates": [
+        {
+            "name": "John Doe",
+            "email": "john.doe@example.com",
+            "phone": "+1234567890",
+            "poc_email": "contact@agency.com",
+            "experience_years": 5,
+            "domain": "Technology"
+        }
+    ],
+    "poc_email": "agency@example.com"
+}
+```
+
+### 4. Candidate Details
 **GET/PUT/DELETE** `/api/candidates/{id}/`
+
+**Description**: Get, update, or delete a specific candidate.
+
+---
+
+**🔒 Security Notes**:
+- POC email field is included in responses
+- Bulk creation supports POC email for all candidates
+- Company-specific data isolation
 
 ---
 
@@ -191,22 +278,205 @@ Delete a resume.
 ## 🏢 Hiring Agency Management APIs
 
 ### 1. List Hiring Agency Users
-**GET** `/hiring_agency/`
+**GET** `/api/hiring_agency/`
 
-### 2. Add Hiring Agency User
-**POST** `/hiring_agency/add_user/`
+**Description**: Retrieve all hiring agencies with role-based filtering and company-specific access control.
 
-### 3. Edit Hiring Agency User (Company Only)
-**PUT/PATCH** `/hiring_agency/{id}/`
+**Access Control**:
+- **Admin**: Sees all hiring agencies from all companies
+- **Company User**: Sees only hiring agencies from their own company
+- **Other Users**: Empty list (no access)
 
-*Note: Only users with 'COMPANY' role can edit hiring agency data.*
+**Security Features**:
+- ✅ **Role Filtering**: Returns ONLY hiring agencies (role='Hiring Agency')
+- ✅ **Data Isolation**: Prevents exposure of other user roles (Recruiter, Company, etc.)
+- ✅ **Company Filtering**: Company users only see their own hiring agencies
+
+**Response Example**:
+```json
+[
+    {
+        "id": 1,
+        "email": "agency@example.com",
+        "role": "Hiring Agency",
+        "first_name": "John",
+        "last_name": "Doe",
+        "phone_number": "+1234567890",
+        "company_name": "Example Company",
+        "linkedin_url": "https://linkedin.com/in/johndoe",
+        "permission_granted": "2025-08-08",
+        "created_by": 1
+    }
+]
+```
+
+### 2. Create Hiring Agency User
+**POST** `/api/hiring_agency/add_user/`
+
+**Description**: Create a new hiring agency user with password support and company relationship management.
+
+**Required Fields**:
+- `email` (string): Unique email address
+- `role` (string): Must be "Hiring Agency"
+- `first_name` (string): First name
+- `last_name` (string): Last name
+- `phone_number` (string): Phone number
+
+**Optional Fields**:
+- `password` (string): Password for authentication (write-only)
+- `company_name` (string): Company name (auto-set for company users)
+- `linkedin_url` (string): LinkedIn profile URL
+
+**Access Control**:
+- **Admin**: Can create hiring agencies for any company
+- **Company User**: Can create hiring agencies (auto-assigned to their company)
+- **Other Users**: No access
+
+**Request Example**:
+```json
+{
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@agency.com",
+    "password": "agency123",
+    "phone_number": "+1234567890",
+    "role": "Hiring Agency",
+    "company_name": "Example Company",
+    "linkedin_url": "https://linkedin.com/in/johndoe"
+}
+```
+
+**Response Example**:
+```json
+{
+    "id": 1,
+    "email": "john.doe@agency.com",
+    "role": "Hiring Agency",
+    "first_name": "John",
+    "last_name": "Doe",
+    "phone_number": "+1234567890",
+    "company_name": "Example Company",
+    "linkedin_url": "https://linkedin.com/in/johndoe",
+    "permission_granted": "2025-08-08",
+    "created_by": 1
+}
+```
+
+### 3. Get Hiring Agency Details
+**GET** `/api/hiring_agency/{id}/`
+
+**Description**: Get detailed information about a specific hiring agency.
+
+**Access Control**:
+- **Admin**: Can view any hiring agency
+- **Company User**: Can only view hiring agencies from their company
+- **Other Users**: No access
+
+### 4. Update Hiring Agency
+**PUT/PATCH** `/api/hiring_agency/{id}/`
+
+**Description**: Update hiring agency information.
+
+**Access Control**:
+- **Admin**: Can update any hiring agency
+- **Company User**: Can only update hiring agencies from their company
+- **Other Users**: No access
+
+### 5. Delete Hiring Agency
+**DELETE** `/api/hiring_agency/{id}/`
+
+**Description**: Delete a hiring agency user.
+
+**Access Control**:
+- **Admin**: Can delete any hiring agency
+- **Company User**: Can only delete hiring agencies from their company
+- **Other Users**: No access
+
+---
+
+**🔒 Security Notes**:
+- All endpoints require authentication
+- Role-based access control enforced
+- Company-specific data isolation
+- Password field is write-only (never returned in responses)
+- Only hiring agencies are returned (no other user roles)
 
 ---
 
 ## 🏢 Company Management APIs
 
-### 1. Company Endpoints
-**GET/POST** `/company/`
+### 1. List All Companies
+**GET** `/api/companies/`
+
+**Description**: Retrieve all companies with email information.
+
+**Access Control**:
+- **Admin**: Sees all companies
+- **Company User**: Sees only their own company
+- **Other Users**: Limited access
+
+**Response Example**:
+```json
+[
+    {
+        "id": 1,
+        "name": "Example Company",
+        "email": "contact@example.com",
+        "description": "A technology company",
+        "is_active": true
+    }
+]
+```
+
+### 2. Create Company
+**POST** `/api/companies/`
+
+**Description**: Create a new company with email and password support.
+
+**Required Fields**:
+- `name` (string): Company name
+- `description` (string): Company description
+
+**Optional Fields**:
+- `email` (string): Company contact email
+- `password` (string): Company password (write-only)
+
+**Request Example**:
+```json
+{
+    "name": "New Company",
+    "email": "contact@newcompany.com",
+    "password": "company123",
+    "description": "A new technology company"
+}
+```
+
+**Response Example**:
+```json
+{
+    "id": 2,
+    "name": "New Company",
+    "email": "contact@newcompany.com",
+    "description": "A new technology company",
+    "is_active": true
+}
+```
+
+### 3. Get Company Details
+**GET** `/api/companies/{id}/`
+
+### 4. Update Company
+**PUT/PATCH** `/api/companies/{id}/`
+
+### 5. Delete Company
+**DELETE** `/api/companies/{id}/`
+
+---
+
+**🔒 Security Notes**:
+- Email field is returned in responses
+- Password field is write-only (never returned)
+- Company users can only access their own company data
 
 ---
 
@@ -287,6 +557,47 @@ curl -X POST http://localhost:8000/api/resumes/ \
 ### ✅ Interview Scheduling
 - Schedule interviews between candidates and jobs
 - Track interview status and feedback
+
+### ✅ Enhanced Security & Data Integrity
+- **Role-based filtering**: Hiring agency API returns only hiring agencies
+- **Company relationships**: Strong ForeignKey relationships for data integrity
+- **Password support**: Secure password fields for companies and hiring agencies
+- **Email integration**: POC email support for candidates and company contact emails
+- **Data isolation**: Company-specific access control for all endpoints
+
+---
+
+## 🆕 Recent Updates
+
+### 🔒 Hiring Agency Role Filtering (Latest)
+- **Issue Fixed**: Hiring agency API was returning users with other roles (Recruiter, Company)
+- **Solution**: Added role filtering to return only hiring agencies (role='Hiring Agency')
+- **Security**: Prevents data leakage and ensures API consistency
+- **Testing**: Comprehensive test scripts verify role filtering and company-specific access
+
+### 🏢 Company Email & Password Support
+- **New Fields**: Added email and password fields to Company model
+- **API Updates**: Company creation and listing now support email/password
+- **Security**: Password field is write-only (never returned in responses)
+- **Response**: Email field included in company listing responses
+
+### 👥 Candidate POC Email Support
+- **New Field**: Added poc_email field to Candidate model
+- **Bulk Creation**: POC email support in bulk candidate creation
+- **API Integration**: POC email included in candidate responses
+- **Workflow**: Supports both direct and two-step bulk creation processes
+
+### 🔗 Hiring Agency Company Relationship
+- **Architecture**: Converted weak text-based relationship to strong ForeignKey
+- **Performance**: Database joins instead of string matching
+- **Data Integrity**: Referential constraints and automatic updates
+- **Backward Compatibility**: Maintains existing functionality while improving structure
+
+### 🔑 Hiring Agency Password Support
+- **New Field**: Added password field to Hiring Agency UserData model
+- **Authentication**: Support for hiring agency login with email/password
+- **Security**: Password field is write-only and properly handled
+- **Flexibility**: Optional password field maintains backward compatibility
 - Video URL management
 
 ### ✅ Role-based Access Control

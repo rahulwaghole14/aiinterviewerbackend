@@ -514,7 +514,7 @@
                                                         "host": ["{{base_url}}"],
                                                         "path": ["api", "candidates", "bulk-create", ""]
                                                 },
-                                                "description": "Create multiple candidates from multiple resume files. Upload 1-20 resume files with domain and role selection. Supports direct creation (default) or two-step flow with ?step=extract and ?step=submit query parameters."
+                                                						"description": "Create multiple candidates from multiple resume files. Upload 1-20 resume files with domain and role selection. Supports direct creation (default) or two-step flow with ?step=extract and ?step=submit query parameters.\n\n📧 **POC Email Support**: The API now supports poc_email field for candidate creation.\n\n📋 **Available Fields**:\n• domain, role, resume_files (required)\n• poc_email (optional - for point of contact email)\n\n✅ **Recent Enhancement**: Added poc_email field support for better candidate management"
                                         },
                                         "response": []
                                 },
@@ -533,7 +533,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "candidates", ""]
 						},
-						"description": "Retrieve all candidates"
+						"description": "Retrieve all candidates\n\n📊 **Data Isolation**:\n• Admin users: Can see all candidates\n• Company users: Can see candidates from their company only\n• Hiring Agency users: Can see candidates they created only\n• Recruiter users: Can see candidates they created only\n\n📧 **POC Email**: The response now includes poc_email field for candidates\n\n✅ **Recent Enhancement**: Enhanced data isolation and added poc_email field support"
 					},
 					"response": []
 				},
@@ -560,7 +560,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "candidates", ""]
 						},
-						"description": "Create a candidate in single step"
+						"description": "Create a candidate in single step\n\n📧 **POC Email Support**: The API now supports poc_email field for candidate creation.\n\n📋 **Available Fields**:\n• full_name, email, phone, work_experience, domain, resume_file, job (required)\n• poc_email (optional - for point of contact email)\n\n✅ **Recent Enhancement**: Added poc_email field support for better candidate management"
 					},
 					"response": []
 				},
@@ -1306,7 +1306,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "hiring_agency", "{{hiring_agency_id}}", ""]
 						},
-						"description": "Update hiring agency information"
+						"description": "Update hiring agency information\n\n✅ **Partial Updates Supported**: You can update individual fields without providing all required fields\n\n📋 **Optional Fields for Updates**:\n• first_name, last_name, email, phone_number\n• company_name, linkedin_url, password\n• role (if changing role)\n\n🔧 **Recent Fix**: Update operations now support partial updates and don't require all fields"
 					},
 					"response": []
 				},
@@ -1377,7 +1377,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", "recruiters", "create", ""]
 						},
-						"description": "Create a new recruiter (Admin/Company only)"
+						"description": "Create a new recruiter (Admin/Company only)\n\n🔧 **Flexible Field Requirements**:\n• username (optional - defaults to email)\n• company_id (optional - can use company_name instead)\n• company_name (optional - will create company if doesn't exist)\n\n📋 **Required Fields**:\n• email, full_name, password\n\n📋 **Optional Fields**:\n• username, company_id, company_name, phone_number, linkedin_url\n\n✅ **Recent Fix**: Made field requirements more flexible for easier creation"
 					},
 					"response": []
 				},
@@ -1423,7 +1423,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", "recruiters", "{{recruiter_id}}", ""]
 						},
-						"description": "Update recruiter information"
+						"description": "Update recruiter information\n\n✅ **Partial Updates Supported**: You can update individual fields without providing all required fields\n\n📋 **Optional Fields for Updates**:\n• company, is_active\n\n🔧 **Recent Fix**: Update operations now support partial updates and don't require all fields"
 					},
 					"response": []
 				},

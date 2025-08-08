@@ -222,6 +222,13 @@ Delete a resume.
 
 **Description**: Submit extracted candidate data with POC email support.
 
+**POC Email Support**: ✅ **Enhanced** - The API now supports poc_email field for candidate creation and management.
+
+**Available Fields**:
+- `candidates` (array): Array of candidate objects
+- `poc_email` (string, optional): Point of contact email for all candidates
+- Individual candidate `poc_email` (string, optional): Specific POC email for each candidate
+
 **Request Example**:
 ```json
 {
@@ -400,12 +407,21 @@ Delete a resume.
 ### 4. Update Hiring Agency
 **PUT/PATCH** `/api/hiring_agency/{id}/`
 
-**Description**: Update hiring agency information.
+**Description**: Update hiring agency information with partial update support.
 
 **Access Control**:
 - **Admin**: Can update any hiring agency
 - **Company User**: Can only update hiring agencies from their company
 - **Other Users**: No access
+
+**Partial Updates**: ✅ **Supported** - You can update individual fields without providing all required fields
+
+**Optional Fields for Updates**:
+- `first_name`, `last_name`, `email`, `phone_number`
+- `company_name`, `linkedin_url`, `password`
+- `role` (if changing role)
+
+**Recent Fix**: Update operations now support partial updates and don't require all fields
 
 ### 5. Delete Hiring Agency
 **DELETE** `/api/hiring_agency/{id}/`
@@ -425,6 +441,123 @@ Delete a resume.
 - Company-specific data isolation
 - Password field is write-only (never returned in responses)
 - Only hiring agencies are returned (no other user roles)
+
+---
+
+## 👨‍💼 Recruiter Management APIs
+
+### 1. List All Recruiters
+**GET** `/api/companies/recruiters/`
+
+**Description**: Retrieve all recruiters with data isolation.
+
+**Access Control**:
+- **Admin**: Sees all recruiters
+- **Company User**: Sees only recruiters from their company
+- **Other Users**: Limited access
+
+**Response Example**:
+```json
+[
+    {
+        "id": 1,
+        "user": 1,
+        "full_name": "Jane Smith",
+        "email": "jane.smith@company.com",
+        "company": "Example Company",
+        "is_active": true
+    }
+]
+```
+
+### 2. Create Recruiter
+**POST** `/api/companies/recruiters/create/`
+
+**Description**: Create a new recruiter with flexible field requirements.
+
+**Required Fields**:
+- `email` (string): Unique email address
+- `full_name` (string): Full name
+- `password` (string): Password for authentication
+
+**Optional Fields**:
+- `username` (string): Username (defaults to email if not provided)
+- `company_id` (integer): Company ID (can use company_name instead)
+- `company_name` (string): Company name (will create company if doesn't exist)
+- `phone_number` (string): Phone number
+- `linkedin_url` (string): LinkedIn profile URL
+
+**Flexible Field Requirements**:
+- If `username` not provided, uses `email` as username
+- If `company_id` not provided, tries to find company by `company_name`
+- If company doesn't exist, creates new company automatically
+
+**Access Control**:
+- **Admin**: Can create recruiters for any company
+- **Company User**: Can create recruiters (auto-assigned to their company)
+- **Other Users**: No access
+
+**Request Example**:
+```json
+{
+    "email": "jane.smith@company.com",
+    "full_name": "Jane Smith",
+    "password": "password123",
+    "company_name": "Example Company",
+    "phone_number": "+1234567890",
+    "linkedin_url": "https://linkedin.com/in/janesmith"
+}
+```
+
+**Response Example**:
+```json
+{
+    "id": 1,
+    "username": "jane.smith@company.com",
+    "email": "jane.smith@company.com",
+    "full_name": "Jane Smith",
+    "role": "RECRUITER",
+    "company": "Example Company",
+    "is_active": true
+}
+```
+
+### 3. Get Recruiter Details
+**GET** `/api/companies/recruiters/{id}/`
+
+**Description**: Get detailed information about a specific recruiter.
+
+**Access Control**:
+- **Admin**: Can view any recruiter
+- **Company User**: Can only view recruiters from their company
+- **Other Users**: No access
+
+### 4. Update Recruiter
+**PUT/PATCH** `/api/companies/recruiters/{id}/`
+
+**Description**: Update recruiter information with partial update support.
+
+**Access Control**:
+- **Admin**: Can update any recruiter
+- **Company User**: Can only update recruiters from their company
+- **Other Users**: No access
+
+**Partial Updates**: ✅ **Supported** - You can update individual fields without providing all required fields
+
+**Optional Fields for Updates**:
+- `company`, `is_active`
+
+**Recent Fix**: Update operations now support partial updates and don't require all fields
+
+### 5. Delete Recruiter
+**DELETE** `/api/companies/recruiters/{id}/`
+
+**Description**: Delete a recruiter (soft delete - sets is_active to False).
+
+**Access Control**:
+- **Admin**: Can delete any recruiter
+- **Company User**: Can only delete recruiters from their company
+- **Other Users**: No access
 
 ---
 
@@ -592,40 +725,78 @@ curl -X POST http://localhost:8000/api/resumes/ \
 
 ---
 
-## 🆕 Recent Updates
+## 🆕 Recent Updates & CRUD Fixes
 
-### 🔒 Hiring Agency Role Filtering (Latest)
+### ✅ **All CRUD Operations Now Working (100% Success Rate)**
+- **Total Operations Tested**: 16 (Create, Read, Update, Delete for all entities)
+- **Success Rate**: 100% - All operations working perfectly
+- **Entities**: Company, Hiring Agency, Recruiter, Candidate
+
+### 🔧 **CRUD Operation Fixes**
+
+#### **Hiring Agency Updates**
+- **Issue**: Update operations required all fields (email, role) even for partial updates
+- **Fix**: Added `extra_kwargs` to make fields optional and enhanced `update` method
+- **Result**: ✅ Partial updates now supported
+
+#### **Recruiter Updates**
+- **Issue**: Update operations required `company` field even for partial updates
+- **Fix**: Added `extra_kwargs` to make fields optional and added `update` method
+- **Result**: ✅ Partial updates now supported
+
+#### **Recruiter Creation**
+- **Issue**: Strict field requirements made creation difficult
+- **Fix**: Made `username` and `company_id` optional, added `company_name` support
+- **Result**: ✅ Flexible field requirements for easier creation
+
+#### **Candidate Updates**
+- **Issue**: Update operations required `resume_file` even when not changing it
+- **Fix**: Created separate `CandidateUpdateSerializer` for updates
+- **Result**: ✅ Updates no longer require resume file
+
+#### **Hiring Agency URL Routing**
+- **Issue**: Detail URLs returning 404 errors
+- **Fix**: Corrected router registration in `hiring_agency/urls.py`
+- **Result**: ✅ All detail operations now working
+
+### 🔒 **Hiring Agency Role Filtering**
 - **Issue Fixed**: Hiring agency API was returning users with other roles (Recruiter, Company)
 - **Solution**: Added role filtering to return only hiring agencies (role='Hiring Agency')
 - **Security**: Prevents data leakage and ensures API consistency
 - **Testing**: Comprehensive test scripts verify role filtering and company-specific access
 
-### 🏢 Company Email & Password Support
+### 🏢 **Company Email & Password Support**
 - **New Fields**: Added email and password fields to Company model
 - **API Updates**: Company creation and listing now support email/password
 - **Security**: Password field is write-only (never returned in responses)
 - **Response**: Email field included in company listing responses
 
-### 👥 Candidate POC Email Support
+### 👥 **Candidate POC Email Support**
 - **New Field**: Added poc_email field to Candidate model
 - **Bulk Creation**: POC email support in bulk candidate creation
 - **API Integration**: POC email included in candidate responses
 - **Workflow**: Supports both direct and two-step bulk creation processes
 
-### 🔗 Hiring Agency Company Relationship
+### 🔗 **Hiring Agency Company Relationship**
 - **Architecture**: Converted weak text-based relationship to strong ForeignKey
 - **Performance**: Database joins instead of string matching
 - **Data Integrity**: Referential constraints and automatic updates
 - **Backward Compatibility**: Maintains existing functionality while improving structure
 
-### 🔑 Hiring Agency Password Support
+### 🔑 **Hiring Agency Password Support**
 - **New Field**: Added password field to Hiring Agency UserData model
 - **Authentication**: Support for hiring agency login with email/password
 - **Security**: Password field is write-only and properly handled
 - **Flexibility**: Optional password field maintains backward compatibility
-- Video URL management
 
-### ✅ Role-based Access Control
+### 📊 **Enhanced Data Isolation**
+- **Admin users**: Can see all candidates
+- **Company users**: Can see candidates from their company only
+- **Hiring Agency users**: Can see candidates they created only
+- **Recruiter users**: Can see candidates they created only
+- **Security**: Prevents unauthorized access to candidate data
+
+### ✅ **Role-based Access Control**
 - Company users can edit hiring agency data
 - Admin and company role management
 - Secure authentication

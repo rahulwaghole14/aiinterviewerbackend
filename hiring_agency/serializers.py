@@ -8,6 +8,8 @@ class UserDataSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     company_name = serializers.CharField(source='get_company_name', read_only=True)
     company = serializers.SerializerMethodField()  # Override the default company field
+    # Add a writable field for company_name input
+    input_company_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     def get_company_id(self, obj):
         """Get company ID, resolving from company_name if ForeignKey is null"""
@@ -115,6 +117,22 @@ class UserDataSerializer(serializers.ModelSerializer):
             # Also set company_name for backward compatibility
             if request.user.company:
                 validated_data['company_name'] = request.user.company.name
+        elif request and request.user.role == "ADMIN":
+            # For admin users, resolve company from input_company_name if provided
+            input_company_name = validated_data.pop('input_company_name', None)
+            if input_company_name and input_company_name.strip():
+                from companies.models import Company
+                try:
+                    company = Company.objects.filter(name=input_company_name.strip()).first()
+                    if company:
+                        validated_data['company'] = company
+                        validated_data['company_name'] = company.name
+                    else:
+                        # If company doesn't exist, just set the company_name
+                        validated_data['company_name'] = input_company_name.strip()
+                except:
+                    # If lookup fails, just set the company_name
+                    validated_data['company_name'] = input_company_name.strip()
         
         user_data = UserData.objects.create(**validated_data)
         if password:

@@ -21,6 +21,7 @@ class Role:
 
 class UserData(models.Model):
     email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128, null=True, blank=True)
     role = models.CharField(max_length=50, choices=Role.CHOICES)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)

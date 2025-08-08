@@ -5,10 +5,15 @@ from datetime import date
 
 
 class UserDataSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    
     class Meta:
         model = UserData
         fields = '__all__'
         read_only_fields = ['created_by']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
 
     def validate_email(self, value):
         email_regex = r'^[\w\.-]+@[\w\.-]+\.\w+$'
@@ -78,7 +83,13 @@ class UserDataSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        password = validated_data.pop('password', None)
         request = self.context.get('request')
         if request:
             validated_data['created_by'] = request.user
-        return super().create(validated_data)
+        
+        user_data = UserData.objects.create(**validated_data)
+        if password:
+            user_data.password = password
+            user_data.save()
+        return user_data

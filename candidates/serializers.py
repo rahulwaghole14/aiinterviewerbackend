@@ -273,6 +273,19 @@ class CandidateCreateSerializer(serializers.ModelSerializer):
         return Candidate.objects.create(**validated_data)
 
 
+class CandidateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating candidate information without requiring resume file"""
+    
+    class Meta:
+        model = Candidate
+        fields = [
+            'id',
+            'full_name', 'email', 'phone',
+            'work_experience', 'domain', 'poc_email',
+        ]
+        read_only_fields = ['id']
+
+
 class CandidateListSerializer(serializers.ModelSerializer):
     job_title   = serializers.CharField(source='job.job_title', read_only=True)
     resume_url = serializers.SerializerMethodField()

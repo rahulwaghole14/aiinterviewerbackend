@@ -30,22 +30,60 @@ class RecruiterSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'full_name', 'email', 'company', 'is_active']
 
 class RecruiterCreateSerializer(serializers.Serializer):
-    username = serializers.CharField()
+    username = serializers.CharField(required=False)
     email = serializers.EmailField()
     full_name = serializers.CharField()
     password = serializers.CharField(write_only=True)
-    company_id = serializers.IntegerField()
+    company_id = serializers.IntegerField(required=False)
+    company_name = serializers.CharField(required=False)
+    phone_number = serializers.CharField(required=False, allow_blank=True)
+    linkedin_url = serializers.URLField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        # If username is not provided, use email as username
+        if not data.get('username'):
+            data['username'] = data['email']
+        
+        # If company_id is not provided, try to find company by name
+        if not data.get('company_id') and data.get('company_name'):
+            try:
+                company = Company.objects.get(name=data['company_name'])
+                data['company_id'] = company.id
+            except Company.DoesNotExist:
+                # Create company if it doesn't exist
+                company = Company.objects.create(
+                    name=data['company_name'],
+                    description=f"Company created for recruiter {data['full_name']}",
+                    is_active=True
+                )
+                data['company_id'] = company.id
+        
+        return data
 
     def create(self, validated_data):
+        # Extract fields
+        username = validated_data['username']
+        email = validated_data['email']
+        full_name = validated_data['full_name']
+        password = validated_data['password']
+        company_id = validated_data['company_id']
+        
+        # Create user
         user = CustomUser.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            full_name=validated_data['full_name'],
-            password=validated_data['password'],
+            username=username,
+            email=email,
+            full_name=full_name,
+            password=password,
             role=Role.RECRUITER
         )
-        company = Company.objects.get(id=validated_data['company_id'])
-        return Recruiter.objects.create(user=user, company=company)
+        
+        # Get company
+        company = Company.objects.get(id=company_id)
+        
+        # Create recruiter
+        recruiter = Recruiter.objects.create(user=user, company=company)
+        
+        return recruiter
 
     def to_representation(self, instance):
         return {

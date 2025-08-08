@@ -1,0 +1,11 @@
+[33mcommit 970471a3e227136b92af40276503aec39cc888a6[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Rahul W <rahulwaghole14@gmail.com>
+Date:   Fri Aug 8 12:02:23 2025 +0530
+
+    Complete company null fix for new hiring agencies - Add input_company_name field for admin users - Fix company resolution during creation - Test verified working for both creation and list APIs
+
+hiring_agency/serializers.py
+logs/ai_interviewer.log
+simple_test.py
+test_company_null_simple.py
+test_create_hiring_agency_company_null.py

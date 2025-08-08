@@ -6972,3 +6972,248 @@ INFO 2025-08-08 12:51:44,406 logger 9172 3608 USER_ACTION: {"timestamp": "2025-0
 2025-08-08 12:51:44,406 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T07:21:44.406820+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
 INFO 2025-08-08 12:51:45,186 basehttp 9172 3608 "POST /api/auth/login/ HTTP/1.1" 200 168
 2025-08-08 12:51:45,186 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 13:37:30,292 autoreload 25464 6792 Watching for file changes with StatReloader
+INFO 2025-08-08 13:37:52,176 logger 25464 13932 SECURITY_EVENT: {"timestamp": "2025-08-08T08:07:52.176608+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 13:37:52,176 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T08:07:52.176608+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 13:37:52,176 logger 25464 13932 USER_ACTION: {"timestamp": "2025-08-08T08:07:52.176608+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 13:37:52,176 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:07:52.176608+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 13:37:53,041 basehttp 25464 13932 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 13:37:53,041 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 13:37:55,530 basehttp 25464 13932 "POST /api/companies/ HTTP/1.1" 201 157
+2025-08-08 13:37:55,530 - django.server - INFO - "POST /api/companies/ HTTP/1.1" 201 157
+INFO 2025-08-08 13:37:57,408 basehttp 25464 13932 "GET /api/companies/ HTTP/1.1" 200 3275
+2025-08-08 13:37:57,408 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 3275
+INFO 2025-08-08 13:37:59,468 basehttp 25464 13932 "GET /api/companies/35/ HTTP/1.1" 200 157
+2025-08-08 13:37:59,468 - django.server - INFO - "GET /api/companies/35/ HTTP/1.1" 200 157
+INFO 2025-08-08 13:38:01,549 basehttp 25464 13932 "PUT /api/companies/35/ HTTP/1.1" 200 161
+2025-08-08 13:38:01,549 - django.server - INFO - "PUT /api/companies/35/ HTTP/1.1" 200 161
+INFO 2025-08-08 13:38:03,637 basehttp 25464 13932 "DELETE /api/companies/35/ HTTP/1.1" 204 0
+2025-08-08 13:38:03,637 - django.server - INFO - "DELETE /api/companies/35/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:38:06,545 basehttp 25464 13932 "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+2025-08-08 13:38:06,545 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+INFO 2025-08-08 13:38:11,271 basehttp 25464 13932 "GET /api/hiring_agency/ HTTP/1.1" 200 5299
+2025-08-08 13:38:11,271 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 5299
+WARNING 2025-08-08 13:38:11,307 log 25464 13932 Not Found: /api/hiring_agency/23/
+2025-08-08 13:38:11,307 - django.request - WARNING - Not Found: /api/hiring_agency/23/
+WARNING 2025-08-08 13:38:11,307 basehttp 25464 13932 "GET /api/hiring_agency/23/ HTTP/1.1" 404 8147
+2025-08-08 13:38:11,307 - django.server - WARNING - "GET /api/hiring_agency/23/ HTTP/1.1" 404 8147
+WARNING 2025-08-08 13:38:11,319 log 25464 13932 Not Found: /api/hiring_agency/23/
+2025-08-08 13:38:11,319 - django.request - WARNING - Not Found: /api/hiring_agency/23/
+WARNING 2025-08-08 13:38:11,320 basehttp 25464 13932 "PUT /api/hiring_agency/23/ HTTP/1.1" 404 8147
+2025-08-08 13:38:11,320 - django.server - WARNING - "PUT /api/hiring_agency/23/ HTTP/1.1" 404 8147
+WARNING 2025-08-08 13:38:11,331 log 25464 13932 Not Found: /api/hiring_agency/23/
+2025-08-08 13:38:11,331 - django.request - WARNING - Not Found: /api/hiring_agency/23/
+WARNING 2025-08-08 13:38:11,332 basehttp 25464 13932 "DELETE /api/hiring_agency/23/ HTTP/1.1" 404 8150
+2025-08-08 13:38:11,332 - django.server - WARNING - "DELETE /api/hiring_agency/23/ HTTP/1.1" 404 8150
+WARNING 2025-08-08 13:38:12,909 log 25464 13932 Method Not Allowed: /api/companies/recruiters/
+2025-08-08 13:38:12,909 - django.request - WARNING - Method Not Allowed: /api/companies/recruiters/
+WARNING 2025-08-08 13:38:12,913 basehttp 25464 13932 "POST /api/companies/recruiters/ HTTP/1.1" 405 41
+2025-08-08 13:38:12,913 - django.server - WARNING - "POST /api/companies/recruiters/ HTTP/1.1" 405 41
+INFO 2025-08-08 13:38:15,268 basehttp 25464 13932 "GET /api/companies/recruiters/ HTTP/1.1" 200 213
+2025-08-08 13:38:15,268 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 213
+INFO 2025-08-08 13:38:16,893 logger 25464 13932 USER_ACTION: {"timestamp": "2025-08-08T08:08:16.893772+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+2025-08-08 13:38:16,893 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:08:16.893772+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+WARNING 2025-08-08 13:38:16,893 log 25464 13932 Bad Request: /api/candidates/
+2025-08-08 13:38:16,893 - django.request - WARNING - Bad Request: /api/candidates/
+WARNING 2025-08-08 13:38:16,893 basehttp 25464 13932 "POST /api/candidates/ HTTP/1.1" 400 42
+2025-08-08 13:38:16,893 - django.server - WARNING - "POST /api/candidates/ HTTP/1.1" 400 42
+INFO 2025-08-08 13:38:18,758 logger 25464 13932 USER_ACTION: {"timestamp": "2025-08-08T08:08:18.758058+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+2025-08-08 13:38:18,758 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:08:18.758058+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 54}}
+INFO 2025-08-08 13:38:28,587 basehttp 25464 13932 "GET /api/candidates/ HTTP/1.1" 200 14722
+2025-08-08 13:38:28,587 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 14722
+INFO 2025-08-08 13:40:36,463 logger 25464 27816 SECURITY_EVENT: {"timestamp": "2025-08-08T08:10:36.463773+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 13:40:36,463 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T08:10:36.463773+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 13:40:36,465 logger 25464 27816 USER_ACTION: {"timestamp": "2025-08-08T08:10:36.465795+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 13:40:36,465 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:10:36.465795+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 13:40:37,330 basehttp 25464 27816 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 13:40:37,330 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 13:40:39,704 basehttp 25464 27816 "POST /api/companies/ HTTP/1.1" 201 157
+2025-08-08 13:40:39,704 - django.server - INFO - "POST /api/companies/ HTTP/1.1" 201 157
+INFO 2025-08-08 13:40:41,527 basehttp 25464 27816 "GET /api/companies/ HTTP/1.1" 200 3275
+2025-08-08 13:40:41,527 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 3275
+INFO 2025-08-08 13:40:43,342 basehttp 25464 27816 "GET /api/companies/36/ HTTP/1.1" 200 157
+2025-08-08 13:40:43,342 - django.server - INFO - "GET /api/companies/36/ HTTP/1.1" 200 157
+INFO 2025-08-08 13:40:45,938 basehttp 25464 27816 "PUT /api/companies/36/ HTTP/1.1" 200 161
+2025-08-08 13:40:45,938 - django.server - INFO - "PUT /api/companies/36/ HTTP/1.1" 200 161
+INFO 2025-08-08 13:40:47,992 basehttp 25464 27816 "DELETE /api/companies/36/ HTTP/1.1" 204 0
+2025-08-08 13:40:47,992 - django.server - INFO - "DELETE /api/companies/36/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:40:51,459 basehttp 25464 27816 "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+2025-08-08 13:40:51,459 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+INFO 2025-08-08 13:40:57,552 basehttp 25464 27816 "GET /api/hiring_agency/ HTTP/1.1" 200 5619
+2025-08-08 13:40:57,552 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 5619
+WARNING 2025-08-08 13:40:57,568 log 25464 27816 Not Found: /api/hiring_agency/24/
+2025-08-08 13:40:57,568 - django.request - WARNING - Not Found: /api/hiring_agency/24/
+WARNING 2025-08-08 13:40:57,568 basehttp 25464 27816 "GET /api/hiring_agency/24/ HTTP/1.1" 404 8147
+2025-08-08 13:40:57,568 - django.server - WARNING - "GET /api/hiring_agency/24/ HTTP/1.1" 404 8147
+WARNING 2025-08-08 13:40:59,686 log 25464 27816 Bad Request: /api/hiring_agency/hiring_agency/24/
+2025-08-08 13:40:59,686 - django.request - WARNING - Bad Request: /api/hiring_agency/hiring_agency/24/
+WARNING 2025-08-08 13:40:59,686 basehttp 25464 27816 "PUT /api/hiring_agency/hiring_agency/24/ HTTP/1.1" 400 72
+2025-08-08 13:40:59,686 - django.server - WARNING - "PUT /api/hiring_agency/hiring_agency/24/ HTTP/1.1" 400 72
+INFO 2025-08-08 13:41:01,997 basehttp 25464 27816 "DELETE /api/hiring_agency/hiring_agency/24/ HTTP/1.1" 204 0
+2025-08-08 13:41:01,997 - django.server - INFO - "DELETE /api/hiring_agency/hiring_agency/24/ HTTP/1.1" 204 0
+WARNING 2025-08-08 13:41:03,546 log 25464 27816 Bad Request: /api/companies/recruiters/create/
+2025-08-08 13:41:03,546 - django.request - WARNING - Bad Request: /api/companies/recruiters/create/
+WARNING 2025-08-08 13:41:03,546 basehttp 25464 27816 "POST /api/companies/recruiters/create/ HTTP/1.1" 400 160
+2025-08-08 13:41:03,546 - django.server - WARNING - "POST /api/companies/recruiters/create/ HTTP/1.1" 400 160
+INFO 2025-08-08 13:41:05,929 basehttp 25464 27816 "GET /api/companies/recruiters/ HTTP/1.1" 200 213
+2025-08-08 13:41:05,929 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 213
+INFO 2025-08-08 13:41:07,536 logger 25464 27816 USER_ACTION: {"timestamp": "2025-08-08T08:11:07.536133+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+2025-08-08 13:41:07,536 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:11:07.536133+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+INFO 2025-08-08 13:41:08,321 basehttp 25464 27816 "POST /api/candidates/ HTTP/1.1" 201 189
+2025-08-08 13:41:08,321 - django.server - INFO - "POST /api/candidates/ HTTP/1.1" 201 189
+INFO 2025-08-08 13:41:10,136 logger 25464 27816 USER_ACTION: {"timestamp": "2025-08-08T08:11:10.136100+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 55}}
+2025-08-08 13:41:10,136 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:11:10.136100+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 55}}
+INFO 2025-08-08 13:41:19,972 basehttp 25464 27816 "GET /api/candidates/ HTTP/1.1" 200 15035
+2025-08-08 13:41:19,972 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 15035
+INFO 2025-08-08 13:41:21,647 logger 25464 27816 USER_ACTION: {"timestamp": "2025-08-08T08:11:21.647964+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 65}}
+2025-08-08 13:41:21,647 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:11:21.647964+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 65}}
+INFO 2025-08-08 13:41:22,187 basehttp 25464 27816 "GET /api/candidates/65/ HTTP/1.1" 200 312
+2025-08-08 13:41:22,187 - django.server - INFO - "GET /api/candidates/65/ HTTP/1.1" 200 312
+INFO 2025-08-08 13:41:23,752 logger 25464 27816 USER_ACTION: {"timestamp": "2025-08-08T08:11:23.752544+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_update", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 65}}
+2025-08-08 13:41:23,752 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:11:23.752544+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_update", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 65}}
+WARNING 2025-08-08 13:41:24,014 log 25464 27816 Bad Request: /api/candidates/65/
+2025-08-08 13:41:24,014 - django.request - WARNING - Bad Request: /api/candidates/65/
+WARNING 2025-08-08 13:41:24,014 basehttp 25464 27816 "PUT /api/candidates/65/ HTTP/1.1" 400 42
+2025-08-08 13:41:24,014 - django.server - WARNING - "PUT /api/candidates/65/ HTTP/1.1" 400 42
+INFO 2025-08-08 13:41:25,913 logger 25464 27816 USER_ACTION: {"timestamp": "2025-08-08T08:11:25.913826+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_delete", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 65}}
+2025-08-08 13:41:25,913 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:11:25.913826+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_delete", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 65}}
+INFO 2025-08-08 13:41:27,485 basehttp 25464 27816 "DELETE /api/candidates/65/ HTTP/1.1" 204 0
+2025-08-08 13:41:27,485 - django.server - INFO - "DELETE /api/candidates/65/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:46:48,452 autoreload 25464 6792 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\urls.py changed, reloading.
+2025-08-08 13:46:48,452 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\urls.py changed, reloading.
+INFO 2025-08-08 13:46:49,161 autoreload 23416 8980 Watching for file changes with StatReloader
+INFO 2025-08-08 13:47:06,101 autoreload 23416 8980 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+2025-08-08 13:47:06,101 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\hiring_agency\serializers.py changed, reloading.
+INFO 2025-08-08 13:47:06,929 autoreload 11012 3372 Watching for file changes with StatReloader
+INFO 2025-08-08 13:47:21,682 autoreload 11012 3372 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\serializers.py changed, reloading.
+2025-08-08 13:47:21,682 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\serializers.py changed, reloading.
+INFO 2025-08-08 13:47:22,371 autoreload 6492 22636 Watching for file changes with StatReloader
+INFO 2025-08-08 13:47:35,986 autoreload 6492 22636 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\views.py changed, reloading.
+2025-08-08 13:47:35,986 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\views.py changed, reloading.
+INFO 2025-08-08 13:47:36,715 autoreload 27308 27832 Watching for file changes with StatReloader
+INFO 2025-08-08 13:47:46,061 autoreload 27308 27832 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\views.py changed, reloading.
+2025-08-08 13:47:46,061 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\candidates\views.py changed, reloading.
+INFO 2025-08-08 13:47:46,809 autoreload 19948 28536 Watching for file changes with StatReloader
+INFO 2025-08-08 13:48:15,218 autoreload 19948 28536 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+2025-08-08 13:48:15,218 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+INFO 2025-08-08 13:48:16,006 autoreload 15940 21628 Watching for file changes with StatReloader
+INFO 2025-08-08 13:51:53,882 logger 15940 5132 SECURITY_EVENT: {"timestamp": "2025-08-08T08:21:53.882838+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 13:51:53,882 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T08:21:53.882838+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 13:51:53,882 logger 15940 5132 USER_ACTION: {"timestamp": "2025-08-08T08:21:53.882838+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 13:51:53,882 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:21:53.882838+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 13:51:54,649 basehttp 15940 5132 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 13:51:54,649 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 13:51:57,068 basehttp 15940 5132 "POST /api/companies/ HTTP/1.1" 201 157
+2025-08-08 13:51:57,068 - django.server - INFO - "POST /api/companies/ HTTP/1.1" 201 157
+INFO 2025-08-08 13:51:58,931 basehttp 15940 5132 "GET /api/companies/ HTTP/1.1" 200 3275
+2025-08-08 13:51:58,931 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 3275
+INFO 2025-08-08 13:52:00,830 basehttp 15940 5132 "GET /api/companies/37/ HTTP/1.1" 200 157
+2025-08-08 13:52:00,830 - django.server - INFO - "GET /api/companies/37/ HTTP/1.1" 200 157
+INFO 2025-08-08 13:52:02,997 basehttp 15940 5132 "PUT /api/companies/37/ HTTP/1.1" 200 161
+2025-08-08 13:52:02,997 - django.server - INFO - "PUT /api/companies/37/ HTTP/1.1" 200 161
+INFO 2025-08-08 13:52:05,096 basehttp 15940 5132 "DELETE /api/companies/37/ HTTP/1.1" 204 0
+2025-08-08 13:52:05,096 - django.server - INFO - "DELETE /api/companies/37/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:52:08,011 basehttp 15940 5132 "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+2025-08-08 13:52:08,011 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+INFO 2025-08-08 13:52:13,043 basehttp 15940 5132 "GET /api/hiring_agency/ HTTP/1.1" 200 5619
+2025-08-08 13:52:13,043 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 5619
+INFO 2025-08-08 13:52:15,093 basehttp 15940 5132 "GET /api/hiring_agency/25/ HTTP/1.1" 200 319
+2025-08-08 13:52:15,093 - django.server - INFO - "GET /api/hiring_agency/25/ HTTP/1.1" 200 319
+WARNING 2025-08-08 13:52:17,225 log 15940 5132 Bad Request: /api/hiring_agency/25/
+2025-08-08 13:52:17,225 - django.request - WARNING - Bad Request: /api/hiring_agency/25/
+WARNING 2025-08-08 13:52:17,225 basehttp 15940 5132 "PUT /api/hiring_agency/25/ HTTP/1.1" 400 72
+2025-08-08 13:52:17,225 - django.server - WARNING - "PUT /api/hiring_agency/25/ HTTP/1.1" 400 72
+INFO 2025-08-08 13:52:19,540 basehttp 15940 5132 "DELETE /api/hiring_agency/25/ HTTP/1.1" 204 0
+2025-08-08 13:52:19,540 - django.server - INFO - "DELETE /api/hiring_agency/25/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:52:22,707 basehttp 15940 5132 "POST /api/companies/recruiters/create/ HTTP/1.1" 201 218
+2025-08-08 13:52:22,707 - django.server - INFO - "POST /api/companies/recruiters/create/ HTTP/1.1" 201 218
+INFO 2025-08-08 13:52:25,422 basehttp 15940 5132 "GET /api/companies/recruiters/ HTTP/1.1" 200 349
+2025-08-08 13:52:25,422 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 349
+INFO 2025-08-08 13:52:27,504 basehttp 15940 5132 "GET /api/companies/recruiters/5/ HTTP/1.1" 200 135
+2025-08-08 13:52:27,504 - django.server - INFO - "GET /api/companies/recruiters/5/ HTTP/1.1" 200 135
+WARNING 2025-08-08 13:52:29,320 log 15940 5132 Bad Request: /api/companies/recruiters/5/
+2025-08-08 13:52:29,320 - django.request - WARNING - Bad Request: /api/companies/recruiters/5/
+WARNING 2025-08-08 13:52:29,320 basehttp 15940 5132 "PUT /api/companies/recruiters/5/ HTTP/1.1" 400 39
+2025-08-08 13:52:29,320 - django.server - WARNING - "PUT /api/companies/recruiters/5/ HTTP/1.1" 400 39
+INFO 2025-08-08 13:52:31,586 basehttp 15940 5132 "DELETE /api/companies/recruiters/5/ HTTP/1.1" 204 0
+2025-08-08 13:52:31,586 - django.server - INFO - "DELETE /api/companies/recruiters/5/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:52:33,137 logger 15940 5132 USER_ACTION: {"timestamp": "2025-08-08T08:22:33.137356+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+2025-08-08 13:52:33,137 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:22:33.137356+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+INFO 2025-08-08 13:52:33,902 basehttp 15940 5132 "POST /api/candidates/ HTTP/1.1" 201 189
+2025-08-08 13:52:33,902 - django.server - INFO - "POST /api/candidates/ HTTP/1.1" 201 189
+INFO 2025-08-08 13:52:35,686 logger 15940 5132 USER_ACTION: {"timestamp": "2025-08-08T08:22:35.686239+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 55}}
+2025-08-08 13:52:35,686 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:22:35.686239+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 55}}
+INFO 2025-08-08 13:52:45,395 basehttp 15940 5132 "GET /api/candidates/ HTTP/1.1" 200 15035
+2025-08-08 13:52:45,395 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 15035
+INFO 2025-08-08 13:52:47,015 logger 15940 5132 USER_ACTION: {"timestamp": "2025-08-08T08:22:47.015075+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 66}}
+2025-08-08 13:52:47,015 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:22:47.015075+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 66}}
+INFO 2025-08-08 13:52:47,545 basehttp 15940 5132 "GET /api/candidates/66/ HTTP/1.1" 200 312
+2025-08-08 13:52:47,545 - django.server - INFO - "GET /api/candidates/66/ HTTP/1.1" 200 312
+INFO 2025-08-08 13:52:49,079 logger 15940 5132 USER_ACTION: {"timestamp": "2025-08-08T08:22:49.079510+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_update", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 66}}
+2025-08-08 13:52:49,079 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:22:49.079510+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_update", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 66}}
+INFO 2025-08-08 13:52:49,573 basehttp 15940 5132 "PUT /api/candidates/66/ HTTP/1.1" 200 200
+2025-08-08 13:52:49,573 - django.server - INFO - "PUT /api/candidates/66/ HTTP/1.1" 200 200
+INFO 2025-08-08 13:52:51,098 logger 15940 5132 USER_ACTION: {"timestamp": "2025-08-08T08:22:51.098171+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_delete", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 66}}
+2025-08-08 13:52:51,098 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:22:51.098171+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_delete", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 66}}
+INFO 2025-08-08 13:52:52,571 basehttp 15940 5132 "DELETE /api/candidates/66/ HTTP/1.1" 204 0
+2025-08-08 13:52:52,571 - django.server - INFO - "DELETE /api/candidates/66/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:53:38,329 logger 15940 8412 SECURITY_EVENT: {"timestamp": "2025-08-08T08:23:38.314444+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-08 13:53:38,329 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-08T08:23:38.314444+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-08 13:53:38,330 logger 15940 8412 USER_ACTION: {"timestamp": "2025-08-08T08:23:38.330596+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-08 13:53:38,330 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:23:38.330596+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-08 13:53:39,097 basehttp 15940 8412 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-08 13:53:39,097 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-08 13:53:41,396 basehttp 15940 8412 "POST /api/companies/ HTTP/1.1" 201 157
+2025-08-08 13:53:41,396 - django.server - INFO - "POST /api/companies/ HTTP/1.1" 201 157
+INFO 2025-08-08 13:53:43,195 basehttp 15940 8412 "GET /api/companies/ HTTP/1.1" 200 3423
+2025-08-08 13:53:43,195 - django.server - INFO - "GET /api/companies/ HTTP/1.1" 200 3423
+INFO 2025-08-08 13:53:45,032 basehttp 15940 8412 "GET /api/companies/39/ HTTP/1.1" 200 157
+2025-08-08 13:53:45,032 - django.server - INFO - "GET /api/companies/39/ HTTP/1.1" 200 157
+INFO 2025-08-08 13:53:47,111 basehttp 15940 8412 "PUT /api/companies/39/ HTTP/1.1" 200 161
+2025-08-08 13:53:47,111 - django.server - INFO - "PUT /api/companies/39/ HTTP/1.1" 200 161
+INFO 2025-08-08 13:53:49,210 basehttp 15940 8412 "DELETE /api/companies/39/ HTTP/1.1" 204 0
+2025-08-08 13:53:49,210 - django.server - INFO - "DELETE /api/companies/39/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:53:52,074 basehttp 15940 8412 "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+2025-08-08 13:53:52,074 - django.server - INFO - "POST /api/hiring_agency/add_user/ HTTP/1.1" 201 319
+INFO 2025-08-08 13:53:57,124 basehttp 15940 8412 "GET /api/hiring_agency/ HTTP/1.1" 200 5619
+2025-08-08 13:53:57,124 - django.server - INFO - "GET /api/hiring_agency/ HTTP/1.1" 200 5619
+INFO 2025-08-08 13:53:59,223 basehttp 15940 8412 "GET /api/hiring_agency/26/ HTTP/1.1" 200 319
+2025-08-08 13:53:59,223 - django.server - INFO - "GET /api/hiring_agency/26/ HTTP/1.1" 200 319
+WARNING 2025-08-08 13:54:01,373 log 15940 8412 Bad Request: /api/hiring_agency/26/
+2025-08-08 13:54:01,373 - django.request - WARNING - Bad Request: /api/hiring_agency/26/
+WARNING 2025-08-08 13:54:01,373 basehttp 15940 8412 "PUT /api/hiring_agency/26/ HTTP/1.1" 400 72
+2025-08-08 13:54:01,373 - django.server - WARNING - "PUT /api/hiring_agency/26/ HTTP/1.1" 400 72
+INFO 2025-08-08 13:54:03,689 basehttp 15940 8412 "DELETE /api/hiring_agency/26/ HTTP/1.1" 204 0
+2025-08-08 13:54:03,689 - django.server - INFO - "DELETE /api/hiring_agency/26/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:54:06,521 basehttp 15940 8412 "POST /api/companies/recruiters/create/ HTTP/1.1" 201 218
+2025-08-08 13:54:06,521 - django.server - INFO - "POST /api/companies/recruiters/create/ HTTP/1.1" 201 218
+INFO 2025-08-08 13:54:09,137 basehttp 15940 8412 "GET /api/companies/recruiters/ HTTP/1.1" 200 349
+2025-08-08 13:54:09,137 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 349
+INFO 2025-08-08 13:54:11,388 basehttp 15940 8412 "GET /api/companies/recruiters/6/ HTTP/1.1" 200 135
+2025-08-08 13:54:11,388 - django.server - INFO - "GET /api/companies/recruiters/6/ HTTP/1.1" 200 135
+WARNING 2025-08-08 13:54:13,204 log 15940 8412 Bad Request: /api/companies/recruiters/6/
+2025-08-08 13:54:13,204 - django.request - WARNING - Bad Request: /api/companies/recruiters/6/
+WARNING 2025-08-08 13:54:13,204 basehttp 15940 8412 "PUT /api/companies/recruiters/6/ HTTP/1.1" 400 39
+2025-08-08 13:54:13,204 - django.server - WARNING - "PUT /api/companies/recruiters/6/ HTTP/1.1" 400 39
+INFO 2025-08-08 13:54:15,318 basehttp 15940 8412 "DELETE /api/companies/recruiters/6/ HTTP/1.1" 204 0
+2025-08-08 13:54:15,318 - django.server - INFO - "DELETE /api/companies/recruiters/6/ HTTP/1.1" 204 0
+INFO 2025-08-08 13:54:16,935 logger 15940 8412 USER_ACTION: {"timestamp": "2025-08-08T08:24:16.935073+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+2025-08-08 13:54:16,935 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:24:16.935073+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_create", "status": "SUCCESS", "ip_address": null, "details": {"method": "legacy_direct_creation"}}
+INFO 2025-08-08 13:54:17,867 basehttp 15940 8412 "POST /api/candidates/ HTTP/1.1" 201 189
+2025-08-08 13:54:17,867 - django.server - INFO - "POST /api/candidates/ HTTP/1.1" 201 189
+INFO 2025-08-08 13:54:19,983 logger 15940 8412 USER_ACTION: {"timestamp": "2025-08-08T08:24:19.983750+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 55}}
+2025-08-08 13:54:19,983 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:24:19.983750+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 55}}
+INFO 2025-08-08 13:54:30,800 basehttp 15940 8412 "GET /api/candidates/ HTTP/1.1" 200 15035
+2025-08-08 13:54:30,800 - django.server - INFO - "GET /api/candidates/ HTTP/1.1" 200 15035
+INFO 2025-08-08 13:54:32,399 logger 15940 8412 USER_ACTION: {"timestamp": "2025-08-08T08:24:32.399711+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 67}}
+2025-08-08 13:54:32,399 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:24:32.399711+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_retrieve", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 67}}
+INFO 2025-08-08 13:54:32,910 basehttp 15940 8412 "GET /api/candidates/67/ HTTP/1.1" 200 312
+2025-08-08 13:54:32,910 - django.server - INFO - "GET /api/candidates/67/ HTTP/1.1" 200 312
+INFO 2025-08-08 13:54:34,547 logger 15940 8412 USER_ACTION: {"timestamp": "2025-08-08T08:24:34.547411+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_update", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 67}}
+2025-08-08 13:54:34,547 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:24:34.547411+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_update", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 67}}
+INFO 2025-08-08 13:54:35,083 basehttp 15940 8412 "PUT /api/candidates/67/ HTTP/1.1" 200 200
+2025-08-08 13:54:35,083 - django.server - INFO - "PUT /api/candidates/67/ HTTP/1.1" 200 200
+INFO 2025-08-08 13:54:36,679 logger 15940 8412 USER_ACTION: {"timestamp": "2025-08-08T08:24:36.679551+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_delete", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 67}}
+2025-08-08 13:54:36,679 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-08T08:24:36.679551+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "candidate_delete", "status": "SUCCESS", "ip_address": null, "details": {"candidate_id": 67}}
+INFO 2025-08-08 13:54:38,242 basehttp 15940 8412 "DELETE /api/candidates/67/ HTTP/1.1" 204 0
+2025-08-08 13:54:38,242 - django.server - INFO - "DELETE /api/candidates/67/ HTTP/1.1" 204 0

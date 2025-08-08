@@ -139,3 +139,19 @@ class UserDataSerializer(serializers.ModelSerializer):
             user_data.password = password
             user_data.save()
         return user_data
+    
+    def update(self, instance, validated_data):
+        """Handle partial updates for hiring agency users"""
+        # Remove password from validated_data if present
+        password = validated_data.pop('password', None)
+        
+        # Update the instance with validated data
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Handle password update if provided
+        if password:
+            instance.password = password
+        
+        instance.save()
+        return instance

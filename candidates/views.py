@@ -13,6 +13,7 @@ from .models      import Candidate, CandidateDraft
 from .serializers import (
     CandidateCreateSerializer,   # serializer for POST / PUT / PATCH
     CandidateListSerializer,     # serializer for GET (list / detail)
+    CandidateUpdateSerializer,   # serializer for PUT / PATCH updates
     # New step-by-step serializers
     DomainRoleSelectionSerializer,
     DataExtractionSerializer,
@@ -800,9 +801,9 @@ class CandidateDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
     permission_classes = [ResumeHierarchyPermission]
 
     def get_serializer_class(self):
-        # PUT / PATCH use write serializer; GET uses read serializer
+        # PUT / PATCH use update serializer; GET uses read serializer
         return (
-            CandidateCreateSerializer
+            CandidateUpdateSerializer
             if self.request.method in ("PUT", "PATCH")
             else CandidateListSerializer
         )

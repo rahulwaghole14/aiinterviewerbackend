@@ -16,15 +16,18 @@ class UserDataViewSet(DataIsolationMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        # Always filter by role='Hiring Agency' to ensure only hiring agencies are returned
+        base_queryset = UserData.objects.filter(role='Hiring Agency')
+        
         if user.role == "ADMIN":
-            return UserData.objects.all()
+            return base_queryset
         elif user.role == "COMPANY":
             # Use company ForeignKey relationship instead of company_name text field
             if user.company:
-                return UserData.objects.filter(company=user.company)
+                return base_queryset.filter(company=user.company)
             else:
                 # Fallback to company_name for backward compatibility
-                return UserData.objects.filter(company_name=user.company_name)
+                return base_queryset.filter(company_name=user.company_name)
         return UserData.objects.none()
 
     def get_serializer_context(self):

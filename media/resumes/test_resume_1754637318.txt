@@ -1,0 +1,14 @@
+
+    JOHN DOE
+    Software Developer
+    john.doe@example.com
+    +1234567890
+    
+    EXPERIENCE:
+    - Senior Developer at Tech Corp (3 years)
+    - Junior Developer at Startup Inc (2 years)
+    
+    SKILLS:
+    - Python, JavaScript, React
+    - AWS, Docker, Kubernetes
+    

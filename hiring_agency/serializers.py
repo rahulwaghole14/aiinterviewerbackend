@@ -7,6 +7,25 @@ from datetime import date
 class UserDataSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     company_name = serializers.CharField(source='get_company_name', read_only=True)
+    company = serializers.SerializerMethodField()  # Override the default company field
+    
+    def get_company_id(self, obj):
+        """Get company ID, resolving from company_name if ForeignKey is null"""
+        if obj.company:
+            return obj.company.id
+        elif obj.company_name and obj.company_name != "No Company":
+            # Try to find the company by name and return its ID
+            from companies.models import Company
+            try:
+                company = Company.objects.filter(name=obj.company_name).first()
+                return company.id if company else None
+            except:
+                return None
+        return None
+    
+    def get_company(self, obj):
+        """Get company ID using the custom resolution logic"""
+        return self.get_company_id(obj)
     
     class Meta:
         model = UserData

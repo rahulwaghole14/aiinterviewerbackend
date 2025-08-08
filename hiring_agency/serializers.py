@@ -34,7 +34,16 @@ class UserDataSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['created_by']
         extra_kwargs = {
-            'password': {'write_only': True}
+            'password': {'write_only': True},
+            'email': {'required': False},
+            'role': {'required': False},
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'phone_number': {'required': False},
+            'company': {'required': False},
+            'company_name': {'required': False},
+            'linkedin_url': {'required': False},
+            'permission_granted': {'required': False}
         }
 
     def validate_email(self, value):

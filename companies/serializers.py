@@ -28,6 +28,19 @@ class RecruiterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recruiter
         fields = ['id', 'user', 'full_name', 'email', 'company', 'is_active']
+        extra_kwargs = {
+            'company': {'required': False},
+            'is_active': {'required': False}
+        }
+    
+    def update(self, instance, validated_data):
+        """Handle partial updates for recruiter"""
+        # Update the instance with validated data
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance
 
 class RecruiterCreateSerializer(serializers.Serializer):
     username = serializers.CharField(required=False)

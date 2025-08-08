@@ -157,9 +157,16 @@ Delete a resume.
 **Description**: Retrieve all candidates with POC email information.
 
 **Access Control**:
-- **Admin**: Sees all candidates
-- **Company User**: Sees candidates from their company
-- **Hiring Agency**: Sees candidates they created
+- **Admin**: Sees all candidates (bypasses data isolation)
+- **Company User**: Sees candidates from their company only (filtered by recruiter's company)
+- **Hiring Agency**: Sees candidates they created only (filtered by recruiter's company)
+- **Recruiter**: Sees candidates they created only (filtered by recruiter's company)
+
+**Data Isolation**:
+- Candidates are filtered based on the recruiter who created them
+- Company users see candidates created by recruiters in their company
+- Hiring Agency/Recruiter users see only candidates they personally created
+- Admin users bypass all data isolation and see all candidates
 
 **Response Example**:
 ```json
@@ -324,15 +331,20 @@ Delete a resume.
 
 **Optional Fields**:
 - `password` (string): Password for authentication (write-only)
-- `company_name` (string): Company name (auto-set for company users)
+- `input_company_name` (string): Company name for admin users to resolve company relationship (write-only)
 - `linkedin_url` (string): LinkedIn profile URL
+
+**Company Resolution Logic**:
+- **Admin Users**: Can provide `input_company_name` to link hiring agency to existing company
+- **Company Users**: Company relationship auto-assigned to their company
+- **Company Field**: Automatically resolved from `input_company_name` or user's company
 
 **Access Control**:
 - **Admin**: Can create hiring agencies for any company
 - **Company User**: Can create hiring agencies (auto-assigned to their company)
 - **Other Users**: No access
 
-**Request Example**:
+**Request Example (Admin User)**:
 ```json
 {
     "first_name": "John",
@@ -341,7 +353,20 @@ Delete a resume.
     "password": "agency123",
     "phone_number": "+1234567890",
     "role": "Hiring Agency",
-    "company_name": "Example Company",
+    "input_company_name": "Example Company",
+    "linkedin_url": "https://linkedin.com/in/johndoe"
+}
+```
+
+**Request Example (Company User)**:
+```json
+{
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@agency.com",
+    "password": "agency123",
+    "phone_number": "+1234567890",
+    "role": "Hiring Agency",
     "linkedin_url": "https://linkedin.com/in/johndoe"
 }
 ```

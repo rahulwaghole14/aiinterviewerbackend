@@ -21,6 +21,9 @@ class EvaluationCreateUpdateSerializer(serializers.ModelSerializer):
         model = Evaluation
         fields = ['id', 'interview', 'overall_score', 'traits', 'suggestions', 'created_at']
         read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'interview': {'required': False}
+        }
     
     def validate_overall_score(self, value):
         """Validate overall score is between 0 and 10"""
@@ -50,11 +53,7 @@ class EvaluationCreateUpdateSerializer(serializers.ModelSerializer):
         return data
 
 class FeedbackSerializer(serializers.ModelSerializer):
-    reviewer = serializers.CharField(source='reviewer_name')
-    feedback_text = serializers.CharField(source='comments')
-    created_at = serializers.DateTimeField(source='submitted_at', read_only=True)
-
     class Meta:
         model = Feedback
-        fields = ['id', 'interview', 'reviewer', 'feedback_text', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'candidate', 'interview', 'reviewer_name', 'comments', 'submitted_at']
+        read_only_fields = ['id', 'submitted_at']

@@ -8325,3 +8325,249 @@ INFO 2025-08-11 11:50:36,824 basehttp 8780 7308 "DELETE /api/interviews/02bc622b
 INFO 2025-08-11 11:50:59,317 autoreload 8780 17884 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\serializers.py changed, reloading.
 2025-08-11 11:50:59,317 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\serializers.py changed, reloading.
 INFO 2025-08-11 11:51:00,217 autoreload 17628 22360 Watching for file changes with StatReloader
+INFO 2025-08-11 12:24:01,779 logger 17628 8496 SECURITY_EVENT: {"timestamp": "2025-08-11T06:54:01.779796+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-11 12:24:01,779 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-11T06:54:01.779796+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-11 12:24:01,795 logger 17628 8496 USER_ACTION: {"timestamp": "2025-08-11T06:54:01.795467+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-11 12:24:01,795 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:54:01.795467+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-11 12:24:02,527 basehttp 17628 8496 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-11 12:24:02,527 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-11 12:24:06,411 logger 17628 10192 USER_ACTION: {"timestamp": "2025-08-11T06:54:06.411966+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 4}}
+2025-08-11 12:24:06,411 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:54:06.411966+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 4}}
+INFO 2025-08-11 12:24:06,689 basehttp 17628 10192 "GET /api/interviews/ HTTP/1.1" 200 1575
+2025-08-11 12:24:06,689 - django.server - INFO - "GET /api/interviews/ HTTP/1.1" 200 1575
+ERROR 2025-08-11 12:24:11,430 logger 17628 23644 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:24:11,430 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:24:11,430 basehttp 17628 23644 "POST /api/evaluation/crud/ HTTP/1.1" 201 302
+2025-08-11 12:24:11,430 - django.server - INFO - "POST /api/evaluation/crud/ HTTP/1.1" 201 302
+INFO 2025-08-11 12:24:15,361 basehttp 17628 20956 "GET /api/evaluation/crud/4/ HTTP/1.1" 200 302
+2025-08-11 12:24:15,361 - django.server - INFO - "GET /api/evaluation/crud/4/ HTTP/1.1" 200 302
+INFO 2025-08-11 12:24:19,268 basehttp 17628 11864 "GET /api/evaluation/crud/ HTTP/1.1" 200 304
+2025-08-11 12:24:19,268 - django.server - INFO - "GET /api/evaluation/crud/ HTTP/1.1" 200 304
+INFO 2025-08-11 12:24:23,104 logger 17628 19664 USER_ACTION: {"timestamp": "2025-08-11T06:54:23.104858+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_update", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='This field is required.', code='required')]}"}}
+2025-08-11 12:24:23,104 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:54:23.104858+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_update", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='This field is required.', code='required')]}"}}
+WARNING 2025-08-11 12:24:23,104 log 17628 19664 Bad Request: /api/evaluation/crud/4/
+2025-08-11 12:24:23,104 - django.request - WARNING - Bad Request: /api/evaluation/crud/4/
+WARNING 2025-08-11 12:24:23,104 basehttp 17628 19664 "PUT /api/evaluation/crud/4/ HTTP/1.1" 400 41
+2025-08-11 12:24:23,104 - django.server - WARNING - "PUT /api/evaluation/crud/4/ HTTP/1.1" 400 41
+ERROR 2025-08-11 12:24:27,382 logger 17628 20584 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:24:27,382 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:24:27,388 basehttp 17628 20584 "PATCH /api/evaluation/crud/4/ HTTP/1.1" 200 302
+2025-08-11 12:24:27,388 - django.server - INFO - "PATCH /api/evaluation/crud/4/ HTTP/1.1" 200 302
+INFO 2025-08-11 12:24:31,969 logger 17628 5076 USER_ACTION: {"timestamp": "2025-08-11T06:54:31.969409+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')], 'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+2025-08-11 12:24:31,969 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:54:31.969409+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')], 'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+WARNING 2025-08-11 12:24:31,969 log 17628 5076 Bad Request: /api/evaluation/crud/
+2025-08-11 12:24:31,969 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-11 12:24:31,969 basehttp 17628 5076 "POST /api/evaluation/crud/ HTTP/1.1" 400 124
+2025-08-11 12:24:31,969 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 124
+INFO 2025-08-11 12:24:36,037 logger 17628 16496 USER_ACTION: {"timestamp": "2025-08-11T06:54:36.037968+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')]}"}}
+2025-08-11 12:24:36,037 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:54:36.037968+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')]}"}}
+WARNING 2025-08-11 12:24:36,037 log 17628 16496 Bad Request: /api/evaluation/crud/
+2025-08-11 12:24:36,037 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-11 12:24:36,037 basehttp 17628 16496 "POST /api/evaluation/crud/ HTTP/1.1" 400 64
+2025-08-11 12:24:36,037 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 64
+INFO 2025-08-11 12:24:39,980 basehttp 17628 12304 "GET /api/evaluation/summary/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 217
+2025-08-11 12:24:39,980 - django.server - INFO - "GET /api/evaluation/summary/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 217
+INFO 2025-08-11 12:24:43,812 basehttp 17628 5408 "GET /api/evaluation/report/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 302
+2025-08-11 12:24:43,812 - django.server - INFO - "GET /api/evaluation/report/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 302
+ERROR 2025-08-11 12:24:49,075 log 17628 23284 Internal Server Error: /api/evaluation/feedback/manual/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+psycopg2.errors.NotNullViolation: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (2, John Doe, Excellent technical skills, strong problem-solving ability, 2025-08-11 06:54:47.732563+00, null, 36d950b6-f7ab-4ac3-a940-afdbe8ddfa97).
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 194, in post
+    return self.create(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 19, in create
+    self.perform_create(serializer)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 24, in perform_create
+    serializer.save()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 210, in save
+    self.instance = self.create(validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 991, in create
+    instance = ModelClass._default_manager.create(**validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 679, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 892, in save
+    self.save_base(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 998, in save_base
+    updated = self._save_table(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1161, in _save_table
+    results = self._do_insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1202, in _do_insert
+    return manager._insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 1847, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\sql\compiler.py", line 1836, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+django.db.utils.IntegrityError: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (2, John Doe, Excellent technical skills, strong problem-solving ability, 2025-08-11 06:54:47.732563+00, null, 36d950b6-f7ab-4ac3-a940-afdbe8ddfa97).
+
+2025-08-11 12:24:49,075 - django.request - ERROR - Internal Server Error: /api/evaluation/feedback/manual/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+psycopg2.errors.NotNullViolation: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (2, John Doe, Excellent technical skills, strong problem-solving ability, 2025-08-11 06:54:47.732563+00, null, 36d950b6-f7ab-4ac3-a940-afdbe8ddfa97).
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 194, in post
+    return self.create(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 19, in create
+    self.perform_create(serializer)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 24, in perform_create
+    serializer.save()
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 210, in save
+    self.instance = self.create(validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 991, in create
+    instance = ModelClass._default_manager.create(**validated_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 679, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 892, in save
+    self.save_base(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 998, in save_base
+    updated = self._save_table(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1161, in _save_table
+    results = self._do_insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\base.py", line 1202, in _do_insert
+    return manager._insert(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 1847, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\sql\compiler.py", line 1836, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+django.db.utils.IntegrityError: null value in column "candidate_id" of relation "evaluation_feedback" violates not-null constraint
+DETAIL:  Failing row contains (2, John Doe, Excellent technical skills, strong problem-solving ability, 2025-08-11 06:54:47.732563+00, null, 36d950b6-f7ab-4ac3-a940-afdbe8ddfa97).
+
+ERROR 2025-08-11 12:24:49,091 basehttp 17628 23284 "POST /api/evaluation/feedback/manual/ HTTP/1.1" 500 208809
+2025-08-11 12:24:49,091 - django.server - ERROR - "POST /api/evaluation/feedback/manual/ HTTP/1.1" 500 208809
+ERROR 2025-08-11 12:24:53,481 logger 17628 1660 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:24:53,481 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:24:53,481 basehttp 17628 1660 "DELETE /api/evaluation/crud/4/ HTTP/1.1" 204 0
+2025-08-11 12:24:53,481 - django.server - INFO - "DELETE /api/evaluation/crud/4/ HTTP/1.1" 204 0
+INFO 2025-08-11 12:25:17,516 autoreload 17628 22360 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\serializers.py changed, reloading.
+2025-08-11 12:25:17,516 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\serializers.py changed, reloading.
+INFO 2025-08-11 12:25:18,246 autoreload 12292 8508 Watching for file changes with StatReloader
+INFO 2025-08-11 12:25:39,244 autoreload 12292 8508 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\serializers.py changed, reloading.
+2025-08-11 12:25:39,244 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\evaluation\serializers.py changed, reloading.
+INFO 2025-08-11 12:25:39,991 autoreload 11796 3268 Watching for file changes with StatReloader
+INFO 2025-08-11 12:27:57,343 logger 11796 26612 SECURITY_EVENT: {"timestamp": "2025-08-11T06:57:57.343942+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-11 12:27:57,343 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-11T06:57:57.343942+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-11 12:27:57,343 logger 11796 26612 USER_ACTION: {"timestamp": "2025-08-11T06:57:57.343942+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-11 12:27:57,343 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:57:57.343942+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-11 12:27:58,096 basehttp 11796 26612 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-11 12:27:58,096 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-11 12:28:02,031 logger 11796 27812 USER_ACTION: {"timestamp": "2025-08-11T06:58:02.031636+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 4}}
+2025-08-11 12:28:02,031 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:58:02.031636+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "interview_list", "status": "SUCCESS", "ip_address": null, "details": {"count": 4}}
+INFO 2025-08-11 12:28:02,303 basehttp 11796 27812 "GET /api/interviews/ HTTP/1.1" 200 1575
+2025-08-11 12:28:02,303 - django.server - INFO - "GET /api/interviews/ HTTP/1.1" 200 1575
+ERROR 2025-08-11 12:28:06,865 logger 11796 26480 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:28:06,865 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:28:06,867 basehttp 11796 26480 "POST /api/evaluation/crud/ HTTP/1.1" 201 302
+2025-08-11 12:28:06,867 - django.server - INFO - "POST /api/evaluation/crud/ HTTP/1.1" 201 302
+INFO 2025-08-11 12:28:10,757 basehttp 11796 24508 "GET /api/evaluation/crud/5/ HTTP/1.1" 200 302
+2025-08-11 12:28:10,757 - django.server - INFO - "GET /api/evaluation/crud/5/ HTTP/1.1" 200 302
+INFO 2025-08-11 12:28:14,658 basehttp 11796 23728 "GET /api/evaluation/crud/ HTTP/1.1" 200 304
+2025-08-11 12:28:14,658 - django.server - INFO - "GET /api/evaluation/crud/ HTTP/1.1" 200 304
+ERROR 2025-08-11 12:28:18,959 logger 11796 7496 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:28:18,959 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:28:18,959 basehttp 11796 7496 "PUT /api/evaluation/crud/5/ HTTP/1.1" 200 270
+2025-08-11 12:28:18,959 - django.server - INFO - "PUT /api/evaluation/crud/5/ HTTP/1.1" 200 270
+ERROR 2025-08-11 12:28:23,101 logger 11796 27000 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:28:23,101 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:28:23,101 basehttp 11796 27000 "PATCH /api/evaluation/crud/5/ HTTP/1.1" 200 270
+2025-08-11 12:28:23,101 - django.server - INFO - "PATCH /api/evaluation/crud/5/ HTTP/1.1" 200 270
+INFO 2025-08-11 12:28:27,505 logger 11796 26680 USER_ACTION: {"timestamp": "2025-08-11T06:58:27.505772+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')], 'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+2025-08-11 12:28:27,505 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:58:27.505772+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')], 'overall_score': [ErrorDetail(string='Overall score must be between 0 and 10.', code='invalid')]}"}}
+WARNING 2025-08-11 12:28:27,505 log 11796 26680 Bad Request: /api/evaluation/crud/
+2025-08-11 12:28:27,505 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-11 12:28:27,505 basehttp 11796 26680 "POST /api/evaluation/crud/ HTTP/1.1" 400 124
+2025-08-11 12:28:27,505 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 124
+INFO 2025-08-11 12:28:31,662 logger 11796 24436 USER_ACTION: {"timestamp": "2025-08-11T06:58:31.662925+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')]}"}}
+2025-08-11 12:28:31,662 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T06:58:31.662925+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "evaluation_create", "status": "FAILED", "ip_address": null, "details": {"error": "{'interview': [ErrorDetail(string='evaluation with this interview already exists.', code='unique')]}"}}
+WARNING 2025-08-11 12:28:31,678 log 11796 24436 Bad Request: /api/evaluation/crud/
+2025-08-11 12:28:31,678 - django.request - WARNING - Bad Request: /api/evaluation/crud/
+WARNING 2025-08-11 12:28:31,678 basehttp 11796 24436 "POST /api/evaluation/crud/ HTTP/1.1" 400 64
+2025-08-11 12:28:31,678 - django.server - WARNING - "POST /api/evaluation/crud/ HTTP/1.1" 400 64
+INFO 2025-08-11 12:28:35,625 basehttp 11796 22872 "GET /api/evaluation/summary/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 213
+2025-08-11 12:28:35,625 - django.server - INFO - "GET /api/evaluation/summary/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 213
+INFO 2025-08-11 12:28:39,467 basehttp 11796 14756 "GET /api/evaluation/report/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 270
+2025-08-11 12:28:39,467 - django.server - INFO - "GET /api/evaluation/report/36d950b6-f7ab-4ac3-a940-afdbe8ddfa97/ HTTP/1.1" 200 270
+INFO 2025-08-11 12:28:43,765 basehttp 11796 1728 "POST /api/evaluation/feedback/manual/ HTTP/1.1" 201 223
+2025-08-11 12:28:43,765 - django.server - INFO - "POST /api/evaluation/feedback/manual/ HTTP/1.1" 201 223
+INFO 2025-08-11 12:28:47,664 basehttp 11796 17764 "GET /api/evaluation/feedback/all/15/ HTTP/1.1" 200 225
+2025-08-11 12:28:47,664 - django.server - INFO - "GET /api/evaluation/feedback/all/15/ HTTP/1.1" 200 225
+ERROR 2025-08-11 12:28:51,990 logger 11796 16884 Error logging user action: Object of type UUID is not JSON serializable
+2025-08-11 12:28:51,990 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
+INFO 2025-08-11 12:28:51,990 basehttp 11796 16884 "DELETE /api/evaluation/crud/5/ HTTP/1.1" 204 0
+2025-08-11 12:28:51,990 - django.server - INFO - "DELETE /api/evaluation/crud/5/ HTTP/1.1" 204 0

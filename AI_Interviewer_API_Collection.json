@@ -1622,14 +1622,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"full_name\": \"Jane Smith Updated\",\n    \"email\": \"jane.updated@company.com\"\n}"
+							"raw": "{\n    \"new_full_name\": \"Jane Smith Updated\",\n    \"new_email\": \"jane.updated@company.com\",\n    \"is_active\": true\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/companies/recruiters/{{recruiter_id}}/",
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", "recruiters", "{{recruiter_id}}", ""]
 						},
-						"description": "Update recruiter information\n\n✅ **Partial Updates Supported**: You can update individual fields without providing all required fields\n\n📋 **Optional Fields for Updates**:\n• company, is_active\n\n🔧 **Recent Fix**: Update operations now support partial updates and don't require all fields"
+						"description": "Update recruiter information\n\n✅ **Partial Updates Supported**: You can update individual fields without providing all required fields\n\n📋 **Available Fields for Updates**:\n• new_full_name: Update the recruiter's full name (updates related CustomUser)\n• new_email: Update the recruiter's email (updates related CustomUser)\n• company: Change the company the recruiter belongs to\n• is_active: Toggle recruiter's active status\n\n🔧 **Recent Fix**: Update operations now support partial updates and can update both recruiter and user information"
 					},
 					"response": []
 				},

@@ -7993,3 +7993,21 @@ ERROR 2025-08-08 15:15:38,603 logger 21180 21768 Error logging user action: Obje
 2025-08-08 15:15:38,603 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
 INFO 2025-08-08 15:15:38,603 basehttp 21180 21768 "DELETE /api/evaluation/crud/3/ HTTP/1.1" 204 0
 2025-08-08 15:15:38,603 - django.server - INFO - "DELETE /api/evaluation/crud/3/ HTTP/1.1" 204 0
+INFO 2025-08-08 16:42:53,964 autoreload 21180 16932 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+2025-08-08 16:42:53,964 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+INFO 2025-08-08 16:42:55,093 autoreload 12456 25184 Watching for file changes with StatReloader
+INFO 2025-08-11 10:31:41,946 autoreload 12516 17032 Watching for file changes with StatReloader
+INFO 2025-08-11 10:32:00,444 logger 12516 9156 SECURITY_EVENT: {"timestamp": "2025-08-11T05:02:00.434183+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-11 10:32:00,444 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-11T05:02:00.434183+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-11 10:32:00,444 logger 12516 9156 USER_ACTION: {"timestamp": "2025-08-11T05:02:00.444116+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-11 10:32:00,444 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T05:02:00.444116+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-11 10:32:01,307 basehttp 12516 9156 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-11 10:32:01,307 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-11 10:32:05,754 basehttp 12516 10888 "GET /api/companies/recruiters/ HTTP/1.1" 200 107
+2025-08-11 10:32:05,754 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 107
+INFO 2025-08-11 10:32:11,295 basehttp 12516 28408 "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 140
+2025-08-11 10:32:11,295 - django.server - INFO - "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 140
+INFO 2025-08-11 10:32:15,851 basehttp 12516 1412 "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 141
+2025-08-11 10:32:15,851 - django.server - INFO - "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 141
+INFO 2025-08-11 10:32:21,064 basehttp 12516 5972 "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 144
+2025-08-11 10:32:21,064 - django.server - INFO - "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 144

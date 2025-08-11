@@ -24,18 +24,34 @@ class RecruiterSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     full_name = serializers.CharField(source='user.full_name', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
+    # Add writable fields for user information
+    new_full_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    new_email = serializers.EmailField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = Recruiter
-        fields = ['id', 'user', 'full_name', 'email', 'company', 'is_active']
+        fields = ['id', 'user', 'full_name', 'email', 'company', 'is_active', 'new_full_name', 'new_email']
         extra_kwargs = {
             'company': {'required': False},
             'is_active': {'required': False}
         }
     
     def update(self, instance, validated_data):
-        """Handle partial updates for recruiter"""
-        # Update the instance with validated data
+        """Handle partial updates for recruiter and related user"""
+        # Extract user-related fields
+        new_full_name = validated_data.pop('new_full_name', None)
+        new_email = validated_data.pop('new_email', None)
+        
+        # Update user information if provided
+        if new_full_name is not None:
+            instance.user.full_name = new_full_name
+            instance.user.save()
+        
+        if new_email is not None:
+            instance.user.email = new_email
+            instance.user.save()
+        
+        # Update recruiter fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         

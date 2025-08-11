@@ -903,9 +903,9 @@ curl -X POST http://localhost:8000/api/resumes/ \
 - **Result**: ✅ Partial updates now supported
 
 #### **Recruiter Updates**
-- **Issue**: Update operations required `company` field even for partial updates
-- **Fix**: Added `extra_kwargs` to make fields optional and added `update` method
-- **Result**: ✅ Partial updates now supported
+- **Issue**: Update operations required `company` field even for partial updates, and user information (full_name, email) couldn't be updated
+- **Fix**: Added `extra_kwargs` to make fields optional, added `update` method, and added `new_full_name` and `new_email` fields to update related CustomUser object
+- **Result**: ✅ Partial updates now supported, user information can be updated via `new_full_name` and `new_email` fields
 
 #### **Recruiter Creation**
 - **Issue**: Strict field requirements made creation difficult

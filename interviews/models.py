@@ -1,9 +1,14 @@
 # interviews/models.py
 import uuid
+import hashlib
+import hmac
+import base64
+from datetime import datetime, timedelta
 from django.db import models
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+from django.conf import settings
 from candidates.models import Candidate
 from jobs.models import Job
 from authapp.models import CustomUser
@@ -75,28 +80,23 @@ class InterviewSlot(models.Model):
         ordering = ['start_time']
         indexes = [
             models.Index(fields=['start_time', 'end_time']),
-            models.Index(fields=['ai_interview_type', 'start_time']),
+            models.Index(fields=['status', 'ai_interview_type']),
             models.Index(fields=['company', 'start_time']),
-            models.Index(fields=['status', 'start_time']),
         ]
 
     def clean(self):
-        """Validate slot times and conflicts"""
         if self.start_time and self.end_time:
             if self.start_time >= self.end_time:
                 raise ValidationError(_("End time must be after start time"))
             
-            # Check for overlapping slots for the same company and AI interview type
-            overlapping = InterviewSlot.objects.filter(
-                company=self.company,
-                ai_interview_type=self.ai_interview_type,
-                start_time__lt=self.end_time,
-                end_time__gt=self.start_time,
-                status__in=['available', 'booked']
-            ).exclude(id=self.id)
-            
-            if overlapping.exists():
-                raise ValidationError(_("This slot overlaps with existing slots for the same AI interview type"))
+            # Only validate business hours if this is a new slot or time is being changed
+            if not self.pk or self._state.adding:
+                # Check if time is within business hours (08:00-22:00 UTC)
+                start_hour = self.start_time.hour
+                end_hour = self.end_time.hour
+                
+                if start_hour < 8 or end_hour > 22:
+                    raise ValidationError(_("Interview time must be between 08:00 and 22:00 UTC"))
 
     def save(self, *args, **kwargs):
         self.clean()
@@ -105,23 +105,23 @@ class InterviewSlot(models.Model):
     def is_available(self):
         """Check if slot is available for booking"""
         return (
-            self.status == self.Status.AVAILABLE and 
+            self.status == self.Status.AVAILABLE and
             self.current_bookings < self.max_candidates and
             self.start_time > timezone.now()
         )
 
     def book_slot(self):
-        """Book this slot for an interview"""
-        if self.is_available():
-            self.current_bookings += 1
-            if self.current_bookings >= self.max_candidates:
-                self.status = self.Status.BOOKED
-            self.save()
-            return True
-        return False
+        """Book the slot for an interview"""
+        if not self.is_available():
+            raise ValidationError(_("Slot is not available for booking"))
+        
+        self.current_bookings += 1
+        if self.current_bookings >= self.max_candidates:
+            self.status = self.Status.BOOKED
+        self.save()
 
     def release_slot(self):
-        """Release this slot from booking"""
+        """Release the slot booking"""
         if self.current_bookings > 0:
             self.current_bookings -= 1
             if self.status == self.Status.BOOKED and self.current_bookings < self.max_candidates:
@@ -131,7 +131,7 @@ class InterviewSlot(models.Model):
         return False
 
     def __str__(self):
-        return f"AI {self.ai_interview_type.title()} Interview Slot - {self.start_time.strftime('%Y-%m-%d %H:%M')} ({self.company.name})"
+        return f"AI Interview Slot - {self.ai_interview_type} ({self.start_time.strftime('%Y-%m-%d %H:%M')})"
 
 
 class InterviewSchedule(models.Model):
@@ -165,7 +165,7 @@ class InterviewSchedule(models.Model):
         CustomUser, 
         on_delete=models.SET_NULL, 
         null=True, 
-        blank=True,
+        blank=True, 
         related_name='cancelled_schedules'
     )
 
@@ -185,18 +185,17 @@ class InterviewSchedule(models.Model):
         super().save(*args, **kwargs)
 
     def confirm_schedule(self):
-        """Confirm this schedule"""
+        """Confirm the interview schedule"""
         self.status = self.ScheduleStatus.CONFIRMED
         self.confirmed_at = timezone.now()
         self.save()
 
     def cancel_schedule(self, reason="", cancelled_by=None):
-        """Cancel this schedule"""
+        """Cancel the interview schedule"""
         self.status = self.ScheduleStatus.CANCELLED
         self.cancelled_at = timezone.now()
         self.cancellation_reason = reason
         self.cancelled_by = cancelled_by
-        # Release the slot
         self.slot.release_slot()
         self.save()
 
@@ -222,6 +221,10 @@ class Interview(models.Model):
     started_at    = models.DateTimeField(null=True, blank=True)
     ended_at      = models.DateTimeField(null=True, blank=True)
     video_url     = models.URLField(max_length=500, blank=True)
+    
+    # Secure interview link for candidate access
+    interview_link = models.CharField(max_length=255, blank=True, help_text="Secure link for candidate to join interview")
+    link_expires_at = models.DateTimeField(null=True, blank=True, help_text="When the interview link expires")
 
     created_at    = models.DateTimeField(default=timezone.now, editable=False)
     updated_at    = models.DateTimeField(auto_now=True)
@@ -242,6 +245,62 @@ class Interview(models.Model):
         if self.is_scheduled and self.schedule.slot:
             return self.schedule.slot.ai_interview_type
         return None
+
+    def generate_interview_link(self):
+        """Generate a secure interview link for the candidate"""
+        if not self.started_at:
+            return None
+        
+        # Create a unique token based on interview ID and candidate email
+        token_data = f"{self.id}:{self.candidate.email}:{self.started_at.isoformat()}"
+        
+        # Use HMAC with a secret key for security
+        secret_key = getattr(settings, 'INTERVIEW_LINK_SECRET', 'default-secret-key')
+        signature = hmac.new(
+            secret_key.encode('utf-8'),
+            token_data.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Create the link token
+        link_token = base64.urlsafe_b64encode(f"{self.id}:{signature}".encode('utf-8')).decode('utf-8')
+        
+        # Set expiration to 2 hours after interview end time
+        self.link_expires_at = self.ended_at + timedelta(hours=2) if self.ended_at else None
+        self.interview_link = link_token
+        self.save()
+        
+        return link_token
+
+    def validate_interview_link(self, link_token):
+        """Validate if the interview link is valid and accessible"""
+        if not self.interview_link or self.interview_link != link_token:
+            return False, "Invalid interview link"
+        
+        if self.link_expires_at and timezone.now() > self.link_expires_at:
+            return False, "Interview link has expired"
+        
+        # Check if it's within the interview window (15 minutes before to 2 hours after)
+        now = timezone.now()
+        if self.started_at and self.ended_at:
+            interview_start = self.started_at - timedelta(minutes=15)
+            interview_end = self.ended_at + timedelta(hours=2)
+            
+            if now < interview_start:
+                return False, f"Interview hasn't started yet. Please join at {self.started_at.strftime('%B %d, %Y at %I:%M %p')}"
+            
+            if now > interview_end:
+                return False, "Interview has ended"
+        
+        return True, "Link is valid"
+
+    def get_interview_url(self):
+        """Get the full interview URL for the candidate"""
+        if not self.interview_link:
+            return None
+        
+        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        return f"{base_url}/interview/{self.interview_link}"
 
     def __str__(self):
         return f"AI Interview - {self.candidate.full_name} ({self.status})"
@@ -298,7 +357,7 @@ class AIInterviewConfiguration(models.Model):
             raise ValidationError(_("End time must be after start time"))
 
     def __str__(self):
-        return f"AI {self.interview_type.title()} Configuration - {self.company.name} ({self.get_day_of_week_display()})"
+        return f"AI Config - {self.interview_type} ({self.get_day_of_week_display()})"
 
 
 class InterviewConflict(models.Model):
@@ -341,4 +400,4 @@ class InterviewConflict(models.Model):
         ordering = ['-detected_at']
 
     def __str__(self):
-        return f"AI Interview Conflict - {self.conflict_type} ({self.primary_interview.candidate.full_name})"
+        return f"Conflict - {self.conflict_type} for {self.primary_interview.candidate.full_name}"

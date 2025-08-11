@@ -169,6 +169,10 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@aiinterviewer.com')
 
+# Interview Link System Configuration
+INTERVIEW_LINK_SECRET = config('INTERVIEW_LINK_SECRET', default='your-secret-key-change-in-production')
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
 AUTHENTICATION_BACKENDS = [
     'authapp.backends.EmailBackend',
     'django.contrib.auth.backends.ModelBackend',  

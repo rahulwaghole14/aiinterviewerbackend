@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "ai-interviewer-api",
-		"name": "AI Interviewer API",
-		"description": "Complete API documentation for the AI Interviewer platform backend with working credentials",
+		"name": "AI Interviewer API - Complete Collection",
+		"description": "Complete API documentation for the AI Interviewer platform backend with working credentials. Includes all endpoints for authentication, domain management, jobs, candidates, resumes, interviews, evaluations, notifications, dashboard, and the new link-based interview access system.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "ai-interviewer"
 	},
@@ -74,6 +74,31 @@
 		},
 		{
 			"key": "evaluation_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "slot_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "schedule_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "config_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "conflict_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "interview_link_token",
 			"value": "",
 			"type": "string"
 		}
@@ -1036,9 +1061,689 @@
 						"description": "Get interview status summary statistics\n\n📊 **Response**:\n• scheduled: Count of scheduled interviews\n• completed: Count of completed interviews\n• error: Count of interviews with errors\n\n⚠️ **Data Isolation**: Users only see statistics for their candidates\n\n📈 **Example Response**:\n{\n  \"scheduled\": 5,\n  \"completed\": 3,\n  \"error\": 1\n}"
 					},
 					"response": []
+				},
+				{
+					"name": "Generate Interview Link",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/generate-link/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", "generate-link", ""]
+						},
+						"description": "Generate a new secure interview link for the candidate\n\n🔗 **Link Generation**:\n• Creates secure HMAC-based link token\n• Sets expiration time (2 hours after interview)\n• Updates interview record with link\n\n📋 **Response**:\n• interview_link: Secure link token\n• interview_url: Full interview URL\n• expires_at: Link expiration timestamp\n• message: Success message\n\n⚠️ **Security**:\n• Link is cryptographically signed\n• Time-based expiration\n• Only valid for scheduled interview time\n• Cannot be accessed before interview window"
+					},
+					"response": []
 				}
 			],
 			"description": "Interview management endpoints"
+		},
+		{
+			"name": "🔗 Public Interview Access (No Login Required)",
+			"item": [
+				{
+					"name": "Get Interview Details (Public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/public/{{interview_link_token}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "public", "{{interview_link_token}}", ""]
+						},
+						"description": "Get interview details for candidate access (no authentication required)\n\n🔗 **Public Access**: No login required - uses secure link validation\n\n📋 **Response**:\n• interview_id: Interview UUID\n• candidate_name: Candidate's full name\n• candidate_email: Candidate's email\n• job_title: Job title\n• company_name: Company name\n• scheduled_date: Formatted date\n• scheduled_time: Formatted time\n• duration_minutes: Interview duration\n• ai_interview_type: Type of AI interview\n• status: Interview status\n• video_url: Meeting URL\n• can_join: Whether candidate can join\n• message: Status message\n\n⚠️ **Security**:\n• Link must be valid and not expired\n• Access only allowed within interview window\n• Time-based validation enforced"
+					},
+					"response": []
+				},
+				{
+					"name": "Join Interview (Public)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/public/{{interview_link_token}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "public", "{{interview_link_token}}", ""]
+						},
+						"description": "Join/start the interview session (no authentication required)\n\n🚀 **Interview Start**:\n• Validates interview link\n• Checks if interview can be started\n• Records interview start time\n• Returns AI configuration\n\n📋 **Response**:\n• interview_id: Interview UUID\n• candidate_name: Candidate's name\n• ai_interview_type: Type of AI interview\n• started_at: Interview start timestamp\n• status: Interview status\n• message: Success message\n• ai_configuration: AI interview settings\n\n⚠️ **Validation**:\n• Link must be valid and not expired\n• Interview must not be completed\n• Must be within scheduled time window\n• Cannot start before scheduled time"
+					},
+					"response": []
+				}
+			],
+			"description": "Public interview access endpoints for candidates - no authentication required, uses secure link validation"
+		},
+		{
+			"name": "🤖 AI Interview Slot Management",
+			"item": [
+				{
+					"name": "Get All Interview Slots",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", ""]
+						},
+						"description": "Retrieve all AI interview slots\n\n🤖 **AI Interview Types**:\n• technical: Technical skills assessment\n• behavioral: Behavioral and soft skills\n• coding: Programming and problem-solving\n• system_design: System architecture and design\n• case_study: Business case analysis\n\n📅 **Filtering**:\n• date: Filter by specific date (YYYY-MM-DD)\n• ai_interview_type: Filter by AI interview type\n• is_available: Filter by availability status\n\n📊 **Response**: List of slots with AI configuration details"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Interview Slot",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2025-01-15\",\n    \"start_time\": \"10:00:00\",\n    \"end_time\": \"11:00:00\",\n    \"ai_interview_type\": \"technical\",\n    \"ai_configuration\": {\n        \"difficulty_level\": \"intermediate\",\n        \"question_count\": 10,\n        \"time_limit\": 60,\n        \"topics\": [\"algorithms\", \"data_structures\", \"system_design\"]\n    },\n    \"max_candidates\": 1,\n    \"is_available\": true,\n    \"company\": \"{{company_id}}\",\n    \"job\": \"{{job_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", ""]
+						},
+						"description": "Create a new AI interview slot\n\n🤖 **AI Interview Types**:\n• technical: Technical skills assessment\n• behavioral: Behavioral and soft skills\n• coding: Programming and problem-solving\n• system_design: System architecture and design\n• case_study: Business case analysis\n\n📋 **Required Fields**:\n• date: Date (YYYY-MM-DD)\n• start_time: Start time (HH:MM:SS)\n• end_time: End time (HH:MM:SS)\n• ai_interview_type: AI interview type\n• ai_configuration: JSON configuration object\n• company: Company ID\n\n📝 **Optional Fields**:\n• job: Job ID\n• max_candidates: Maximum candidates per slot (default: 1)\n• is_available: Availability status (default: true)\n\n⚠️ **Validation**:\n• Time must be between 08:00-22:00 UTC\n• End time must be after start time\n• No conflicts with existing slots"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Interview Slot Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/{{slot_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "{{slot_id}}", ""]
+						},
+						"description": "Get detailed information about a specific interview slot\n\n📋 **Response Fields**:\n• id: Slot UUID\n• date: Slot date\n• start_time: Start time\n• end_time: End time\n• ai_interview_type: AI interview type\n• ai_configuration: AI configuration details\n• max_candidates: Maximum candidates\n• current_candidates: Current booked candidates\n• is_available: Availability status\n• created_at: Creation timestamp"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Interview Slot",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ai_interview_type\": \"behavioral\",\n    \"ai_configuration\": {\n        \"difficulty_level\": \"advanced\",\n        \"question_count\": 15,\n        \"time_limit\": 90,\n        \"topics\": [\"leadership\", \"teamwork\", \"communication\"]\n    },\n    \"max_candidates\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/{{slot_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "{{slot_id}}", ""]
+						},
+						"description": "Update an existing interview slot\n\n📝 **Updatable Fields**:\n• ai_interview_type: AI interview type\n• ai_configuration: AI configuration object\n• max_candidates: Maximum candidates\n• is_available: Availability status\n\n⚠️ **Validation**:\n• Cannot update date/time if slot has bookings\n• AI configuration must be valid JSON"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Interview Slot",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/{{slot_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "{{slot_id}}", ""]
+						},
+						"description": "Delete an interview slot\n\n⚠️ **Validation**:\n• Cannot delete slots with active bookings\n• Admin users can delete any slot\n• Non-admin users can only delete their own slots"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Available Slots",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"start_date\": \"2025-01-15\",\n    \"end_date\": \"2025-01-20\",\n    \"ai_interview_type\": \"technical\",\n    \"company_id\": \"{{company_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/search_available/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "search_available", ""]
+						},
+						"description": "Search for available interview slots with advanced filtering\n\n🔍 **Request Body Parameters**:\n• start_date: Start date (YYYY-MM-DD)\n• end_date: End date (YYYY-MM-DD)\n• ai_interview_type: Filter by AI interview type\n• company_id: Filter by company\n• job_id: Filter by job\n• start_time: Filter by start time (HH:MM:SS)\n• end_time: Filter by end time (HH:MM:SS)\n• duration_minutes: Minimum slot duration\n\n📋 **Response**:\n• List of available slots matching criteria\n• Slot details and availability status\n• AI interview type and configuration\n\n⚠️ **Note**: This endpoint uses POST with request body for complex filtering"
+					},
+					"response": []
+				},
+				{
+					"name": "Book Interview Slot",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"candidate_id\": {{candidate_id}},\n    \"interview_id\": \"{{interview_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/{{slot_id}}/book_slot/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "{{slot_id}}", "book_slot", ""]
+						},
+						"description": "Book a candidate for an interview slot\n\n📋 **Required Fields**:\n• candidate_id: Candidate ID\n• interview_id: Interview UUID\n\n✅ **Response**:\n• id: Created schedule ID\n• interview: Interview UUID\n• slot: Slot UUID\n• status: Schedule status\n• created_at: Creation timestamp\n\n⚠️ **Validation**:\n• Slot must be available\n• Candidate must not have conflicting interviews\n• Slot must not be at capacity"
+					},
+					"response": []
+				},
+				{
+					"name": "Release Interview Slot",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/{{slot_id}}/release_slot/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "{{slot_id}}", "release_slot", ""]
+						},
+						"description": "Release a booked interview slot\n\n✅ **Response**:\n• message: Release confirmation\n• slot_available: Updated availability status\n• current_bookings: Current number of bookings\n• max_candidates: Maximum candidates allowed\n\n⚠️ **Validation**:\n• Only slot owner or admin can release\n• Cancels any active schedules for the slot\n• Forces slot to available status"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Recurring Slots",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"start_date\": \"2025-01-15\",\n    \"end_date\": \"2025-01-22\",\n    \"start_time\": \"10:00:00\",\n    \"end_time\": \"11:00:00\",\n    \"ai_interview_type\": \"technical\",\n    \"ai_configuration\": {\n        \"difficulty_level\": \"intermediate\",\n        \"question_count\": 10,\n        \"time_limit\": 60\n    },\n    \"days_of_week\": [1, 3, 5],\n    \"max_candidates\": 1,\n    \"company_id\": \"{{company_id}}\",\n    \"job_id\": \"{{job_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/slots/create_recurring/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "slots", "create_recurring", ""]
+						},
+						"description": "Create multiple recurring interview slots\n\n📅 **Parameters**:\n• start_date: Start date (YYYY-MM-DD)\n• end_date: End date (YYYY-MM-DD)\n• start_time: Start time (HH:MM:SS)\n• end_time: End time (HH:MM:SS)\n• ai_interview_type: AI interview type\n• ai_configuration: AI configuration\n• days_of_week: Array of days (1=Monday, 7=Sunday)\n• max_candidates: Maximum candidates per slot\n• company_id: Company ID (required)\n• job_id: Job ID (optional)\n\n✅ **Response**:\n• created_slots: Number of slots created\n• skipped_slots: Array of skipped slots due to conflicts\n• message: Creation summary\n\n⚠️ **Note**: Slots are skipped if there are time conflicts"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Available Slots",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/available-slots/?date=2025-01-15&ai_interview_type=technical",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "available-slots", ""],
+							"query": [
+								{
+									"key": "date",
+									"value": "2025-01-15"
+								},
+								{
+									"key": "ai_interview_type",
+									"value": "technical"
+								}
+							]
+						},
+						"description": "Search for available interview slots\n\n🔍 **Query Parameters**:\n• date: Filter by date (YYYY-MM-DD)\n• ai_interview_type: Filter by AI interview type\n• start_time: Filter by start time (HH:MM:SS)\n• end_time: Filter by end time (HH:MM:SS)\n\n📊 **Response**:\n• available_slots: List of available slots\n• total_count: Total available slots\n• filters_applied: Applied filter criteria"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Interview Calendar",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/calendar/?year=2025&month=1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "calendar", ""],
+							"query": [
+								{
+									"key": "year",
+									"value": "2025"
+								},
+								{
+									"key": "month",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get interview calendar view\n\n📅 **Query Parameters**:\n• year: Year (YYYY)\n• month: Month (1-12)\n• ai_interview_type: Filter by AI interview type\n\n📊 **Response**:\n• calendar_data: Monthly calendar with slot information\n• total_slots: Total slots in month\n• available_slots: Available slots count\n• booked_slots: Booked slots count"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Interview Schedules",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/schedules/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "schedules", ""]
+						},
+						"description": "Retrieve all interview schedules\n\n📋 **Response**:\n• List of scheduled interviews with slot details\n• Candidate and interview information\n• Meeting links and status\n\n🔍 **Filtering**:\n• candidate: Filter by candidate ID\n• interview: Filter by interview ID\n• slot: Filter by slot ID\n• status: Filter by schedule status"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Interview Schedule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"interview\": \"{{interview_id}}\",\n    \"slot\": \"{{slot_id}}\",\n    \"meeting_link\": \"https://meet.google.com/abc-defg-hij\",\n    \"notes\": \"Technical interview for senior position\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/schedules/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "schedules", ""]
+						},
+						"description": "Create a new interview schedule\n\n📋 **Required Fields**:\n• interview: Interview UUID\n• slot: Slot UUID\n\n📝 **Optional Fields**:\n• meeting_link: Meeting URL\n• notes: Additional notes\n\n⚠️ **Validation**:\n• Interview and slot must exist\n• Slot must be available\n• No conflicts with existing schedules"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Schedule Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/schedules/{{schedule_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "schedules", "{{schedule_id}}", ""]
+						},
+						"description": "Get detailed information about a specific schedule\n\n📋 **Response Fields**:\n• id: Schedule UUID\n• interview: Interview details\n• slot: Slot details\n• meeting_link: Meeting URL\n• notes: Schedule notes\n• status: Schedule status\n• created_at: Creation timestamp"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Interview Schedule",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"meeting_link\": \"https://meet.google.com/updated-link\",\n    \"notes\": \"Updated: Rescheduled for technical round\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/schedules/{{schedule_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "schedules", "{{schedule_id}}", ""]
+						},
+						"description": "Update an existing interview schedule\n\n📝 **Updatable Fields**:\n• meeting_link: Meeting URL\n• notes: Schedule notes\n• status: Schedule status\n\n⚠️ **Validation**:\n• Cannot update if interview is in progress\n• Meeting link must be valid URL"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Interview Schedule",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/schedules/{{schedule_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "schedules", "{{schedule_id}}", ""]
+						},
+						"description": "Delete an interview schedule\n\n⚠️ **Validation**:\n• Cannot delete if interview is in progress\n• Only schedule owner or admin can delete"
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Interview Schedule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/schedules/{{schedule_id}}/confirm/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "schedules", "{{schedule_id}}", "confirm", ""]
+						},
+						"description": "Confirm an interview schedule\n\n✅ **Response**:\n• success: Confirmation status\n• email_sent: Email notification status\n• meeting_link: Final meeting URL\n\n📧 **Notifications**:\n• Sends confirmation email to candidate\n• Updates interview status to 'scheduled'"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All AI Interview Configurations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/configurations/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "configurations", ""]
+						},
+						"description": "Retrieve all AI interview configurations\n\n🤖 **Response**:\n• List of AI interview patterns and settings\n• Configuration templates for different interview types\n• Difficulty levels and question patterns\n\n🔍 **Filtering**:\n• interview_type: Filter by interview type\n• difficulty_level: Filter by difficulty"
+					},
+					"response": []
+				},
+				{
+					"name": "Create AI Interview Configuration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Senior Technical Interview\",\n    \"interview_type\": \"technical\",\n    \"difficulty_level\": \"advanced\",\n    \"question_pattern\": {\n        \"algorithms\": 30,\n        \"data_structures\": 25,\n        \"system_design\": 25,\n        \"problem_solving\": 20\n    },\n    \"time_allocation\": {\n        \"total_time\": 90,\n        \"per_question\": 6,\n        \"break_time\": 5\n    },\n    \"scoring_criteria\": {\n        \"technical_accuracy\": 40,\n        \"problem_solving\": 30,\n        \"communication\": 20,\n        \"time_management\": 10\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/configurations/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "configurations", ""]
+						},
+						"description": "Create a new AI interview configuration\n\n📋 **Required Fields**:\n• name: Configuration name\n• interview_type: Interview type\n• difficulty_level: Difficulty level\n• question_pattern: Question distribution\n• time_allocation: Time settings\n• scoring_criteria: Scoring weights\n\n🤖 **Configuration Types**:\n• technical: Technical skills assessment\n• behavioral: Behavioral and soft skills\n• coding: Programming and problem-solving\n• system_design: System architecture\n• case_study: Business case analysis"
+					},
+					"response": []
+				},
+				{
+					"name": "Get AI Configuration Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/configurations/{{config_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "configurations", "{{config_id}}", ""]
+						},
+						"description": "Get detailed information about a specific AI configuration\n\n📋 **Response Fields**:\n• id: Configuration ID\n• name: Configuration name\n• interview_type: Interview type\n• difficulty_level: Difficulty level\n• question_pattern: Question distribution\n• time_allocation: Time settings\n• scoring_criteria: Scoring weights\n• created_at: Creation timestamp"
+					},
+					"response": []
+				},
+				{
+					"name": "Update AI Interview Configuration",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Senior Technical Interview\",\n    \"difficulty_level\": \"expert\",\n    \"question_pattern\": {\n        \"algorithms\": 35,\n        \"data_structures\": 20,\n        \"system_design\": 30,\n        \"problem_solving\": 15\n    },\n    \"scoring_criteria\": {\n        \"technical_accuracy\": 45,\n        \"problem_solving\": 25,\n        \"communication\": 20,\n        \"time_management\": 10\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/configurations/{{config_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "configurations", "{{config_id}}", ""]
+						},
+						"description": "Update an existing AI interview configuration\n\n📝 **Updatable Fields**:\n• name: Configuration name\n• difficulty_level: Difficulty level\n• question_pattern: Question distribution\n• time_allocation: Time settings\n• scoring_criteria: Scoring weights\n\n⚠️ **Validation**:\n• Cannot update if configuration is in use\n• Question pattern percentages must sum to 100"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete AI Interview Configuration",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/configurations/{{config_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "configurations", "{{config_id}}", ""]
+						},
+						"description": "Delete an AI interview configuration\n\n⚠️ **Validation**:\n• Cannot delete if configuration is in use\n• Admin users can delete any configuration\n• Non-admin users can only delete their own configurations"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Interview Conflicts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/conflicts/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "conflicts", ""]
+						},
+						"description": "Retrieve all interview conflicts\n\n⚠️ **Response**:\n• List of scheduling conflicts\n• Conflict details and resolution status\n• Affected interviews and slots\n\n🔍 **Filtering**:\n• conflict_type: Filter by conflict type\n• status: Filter by resolution status\n• date: Filter by conflict date"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Interview Conflict",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"conflict_type\": \"double_booking\",\n    \"description\": \"Candidate has overlapping interviews\",\n    \"affected_interviews\": [\"{{interview_id}}\"],\n    \"affected_slots\": [\"{{slot_id}}\"],\n    \"resolution_notes\": \"Reschedule one of the interviews\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/conflicts/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "conflicts", ""]
+						},
+						"description": "Create a new interview conflict record\n\n📋 **Required Fields**:\n• conflict_type: Type of conflict\n• description: Conflict description\n\n📝 **Optional Fields**:\n• affected_interviews: Array of interview IDs\n• affected_slots: Array of slot IDs\n• resolution_notes: Resolution instructions\n\n⚠️ **Conflict Types**:\n• double_booking: Multiple interviews for same candidate\n• slot_unavailable: Slot no longer available\n• ai_system_error: AI system issues\n• time_conflict: Time overlap issues"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Conflict Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/conflicts/{{conflict_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "conflicts", "{{conflict_id}}", ""]
+						},
+						"description": "Get detailed information about a specific conflict\n\n📋 **Response Fields**:\n• id: Conflict UUID\n• conflict_type: Type of conflict\n• description: Conflict description\n• affected_interviews: Affected interview IDs\n• affected_slots: Affected slot IDs\n• resolution_notes: Resolution instructions\n• status: Resolution status\n• created_at: Creation timestamp"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Interview Conflict",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"resolved\",\n    \"resolution_notes\": \"Updated: Interview rescheduled to next available slot\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/conflicts/{{conflict_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "conflicts", "{{conflict_id}}", ""]
+						},
+						"description": "Update an existing interview conflict\n\n📝 **Updatable Fields**:\n• status: Resolution status\n• resolution_notes: Resolution instructions\n• description: Conflict description\n\n⚠️ **Status Values**:\n• pending: Conflict pending resolution\n• resolved: Conflict resolved\n• escalated: Conflict escalated to admin"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Interview Conflict",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/interviews/conflicts/{{conflict_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "conflicts", "{{conflict_id}}", ""]
+						},
+						"description": "Delete an interview conflict record\n\n⚠️ **Validation**:\n• Only resolved conflicts can be deleted\n• Admin users can delete any conflict\n• Non-admin users can only delete their own conflicts"
+					},
+					"response": []
+				}
+			],
+			"description": "AI Interview Slot Management System - Complete slot scheduling, booking, and management for AI-driven interviews"
 		},
 		{
 			"name": "📊 Evaluation Management",
@@ -1298,6 +2003,139 @@
 							"path": ["api", "dashboard", "performance", ""]
 						},
 						"description": "Get system performance metrics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Dashboard Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/summary/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "summary", ""]
+						},
+						"description": "Get dashboard summary statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Resume Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/resume-stats/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "resume-stats", ""]
+						},
+						"description": "Get resume processing statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Interview Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/interview-stats/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "interview-stats", ""]
+						},
+						"description": "Get interview statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Candidate Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/candidate-stats/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "candidate-stats", ""]
+						},
+						"description": "Get candidate statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Job Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/job-stats/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "job-stats", ""]
+						},
+						"description": "Get job posting statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Recent Activities",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/recent-activities/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "recent-activities", ""]
+						},
+						"description": "Get recent user activities"
+					},
+					"response": []
+				},
+				{
+					"name": "Export Dashboard Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/export/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "export", ""]
+						},
+						"description": "Export dashboard data for reporting"
 					},
 					"response": []
 				}
@@ -1868,6 +2706,98 @@
 						"description": "Get count of unread notifications"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Notification Preferences",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/preferences/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "preferences", ""]
+						},
+						"description": "Get user notification preferences"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Notification Preferences",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email_enabled\": true,\n    \"in_app_enabled\": true,\n    \"sms_enabled\": false,\n    \"interview_notifications\": true,\n    \"resume_notifications\": true,\n    \"system_notifications\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications/preferences/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "preferences", ""]
+						},
+						"description": "Update user notification preferences"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Custom Notification (Admin Only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"recipient_id\": 1,\n    \"notification_type\": \"system_alert\",\n    \"title\": \"Custom Notification\",\n    \"message\": \"This is a custom notification message\",\n    \"priority\": \"high\",\n    \"channels\": [\"email\", \"in_app\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications/create/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "create", ""]
+						},
+						"description": "Create a custom notification (admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notification Templates (Admin Only)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/templates/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "templates", ""]
+						},
+						"description": "Get notification templates (admin only)"
+					},
+					"response": []
 				}
 			],
 			"description": "Notification management endpoints"
@@ -1888,6 +2818,20 @@
 					"path": ["api", "auth", "admins", ""]
 				},
 				"description": "List all admin users (admin only)"
+			},
+			"response": []
+		},
+		{
+			"name": "📋 API Collection Summary",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/",
+					"host": ["{{base_url}}"],
+					"path": ["api", ""]
+				},
+				"description": "🎯 **AI Interviewer API - Complete Collection**\n\nThis collection includes all endpoints for the AI Interviewer platform:\n\n🔐 **Authentication & User Management**\n• User login, registration, logout\n• Role-based access control\n• Admin user management\n\n🏢 **Domain & Company Management**\n• Domain CRUD operations\n• Company management with email/password support\n• Data isolation by company\n\n💼 **Jobs Management**\n• Job posting CRUD operations\n• Domain-based job filtering\n• Company-specific job management\n\n👥 **Candidates Management**\n• Single and bulk candidate creation\n• Multi-step candidate creation flow\n• Resume extraction and processing\n• Data isolation by recruiter/company\n\n📄 **Resumes Management**\n• Single and bulk resume upload\n• Resume processing and extraction\n• File management and storage\n\n🎯 **Interviews Management**\n• Interview scheduling and management\n• AI interview slot management\n• Interview scheduling with secure links\n• Complete CRUD operations\n\n🔗 **Public Interview Access**\n• Secure link-based interview access\n• No authentication required for candidates\n• Time-based access control\n• HMAC-based security\n\n🤖 **AI Interview Slot Management**\n• Interview slot creation and booking\n• Recurring slot management\n• AI interview configurations\n• Calendar and availability views\n• Conflict management\n\n📊 **Evaluation Management**\n• Interview evaluation CRUD\n• Manual feedback submission\n• Evaluation reports and summaries\n• Candidate feedback tracking\n\n📊 **Dashboard & Analytics**\n• Comprehensive dashboard data\n• Statistics for all entities\n• User activity tracking\n• Data export capabilities\n\n🏢 **Company Management**\n• Company CRUD operations\n• Email and password support\n• Active/inactive company listing\n\n👥 **Hiring Agency Management**\n• Hiring agency user management\n• Company-specific agency access\n• Role-based permissions\n\n👨‍💼 **Recruiter Management**\n• Recruiter user management\n• Company-specific recruiter access\n• Profile management\n\n🔔 **Notification System**\n• Email and in-app notifications\n• User preference management\n• Template-based notifications\n• Bulk notification operations\n\n✅ **Key Features**\n• Complete CRUD operations for all entities\n• Role-based access control and data isolation\n• Secure link-based interview access\n• AI interview slot management system\n• Comprehensive notification system\n• Dashboard and analytics\n• Bulk operations support\n• File upload and management\n\n🔒 **Security Features**\n• Token-based authentication\n• HMAC-based secure links\n• Time-based access control\n• Data isolation by company/user\n• Role-based permissions\n\n📧 **Email Integration**\n• Automated email notifications\n• Interview scheduling emails with secure links\n• Professional email templates\n• Candidate communication\n\n🚀 **Ready for Production**\nAll endpoints are fully functional and ready for production use with comprehensive error handling, validation, and security measures."
 			},
 			"response": []
 		}

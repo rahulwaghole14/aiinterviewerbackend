@@ -1,4 +1,5 @@
 # interviews/views.py
+import logging
 from datetime import datetime, timedelta, time
 from django.utils import timezone
 from django.db.models import Q, Count
@@ -26,6 +27,8 @@ from .serializers import (
 from utils.hierarchy_permissions import DataIsolationMixin, InterviewHierarchyPermission
 from utils.logger import log_interview_schedule, log_permission_denied, ActionLogger
 from notifications.services import NotificationService
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────── Permissions ────────────────────────────────
@@ -63,6 +66,152 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 
 # ───────────────────────────── ViewSet ────────────────────────────────────
+class PublicInterviewAccessView(APIView):
+    """
+    Public endpoint for candidates to access interviews via secure links
+    No authentication required - uses secure link validation
+    """
+    permission_classes = []  # No authentication required
+    
+    def get(self, request, link_token):
+        """Get interview details for candidate access"""
+        try:
+            # Decode the link token
+            import base64
+            decoded_token = base64.urlsafe_b64decode(link_token.encode('utf-8')).decode('utf-8')
+            interview_id, signature = decoded_token.split(':', 1)
+            
+            # Get the interview
+            interview = Interview.objects.get(id=interview_id)
+            
+            # Validate the link
+            is_valid, message = interview.validate_interview_link(link_token)
+            
+            if not is_valid:
+                return Response({
+                    'error': message,
+                    'status': 'invalid_link'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Return interview details for candidate
+            response_data = {
+                'interview_id': str(interview.id),
+                'candidate_name': interview.candidate.full_name,
+                'candidate_email': interview.candidate.email,
+                'job_title': interview.job.job_title if interview.job else 'N/A',
+                'company_name': interview.job.company_name if interview.job else 'N/A',
+                'interview_round': interview.interview_round,
+                'scheduled_date': interview.started_at.strftime('%B %d, %Y') if interview.started_at else 'TBD',
+                'scheduled_time': interview.started_at.strftime('%I:%M %p') if interview.started_at else 'TBD',
+                'duration_minutes': interview.duration_seconds // 60 if interview.duration_seconds else 60,
+                'ai_interview_type': interview.ai_interview_type,
+                'status': interview.status,
+                'video_url': interview.video_url,
+                'can_join': True,
+                'message': 'You can now join your interview'
+            }
+            
+            # Log the access attempt
+            ActionLogger.log_user_action(
+                user=None,  # No user for public access
+                action='candidate_interview_access',
+                details={
+                    'interview_id': str(interview.id),
+                    'candidate_email': interview.candidate.email,
+                    'link_token': link_token[:20] + '...',  # Log partial token for security
+                    'access_time': timezone.now().isoformat()
+                },
+                status='SUCCESS'
+            )
+            
+            return Response(response_data)
+            
+        except Interview.DoesNotExist:
+            return Response({
+                'error': 'Interview not found',
+                'status': 'not_found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in public interview access: {e}")
+            return Response({
+                'error': 'Invalid interview link',
+                'status': 'error'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request, link_token):
+        """Join the interview (start the interview session)"""
+        try:
+            # Decode the link token
+            import base64
+            decoded_token = base64.urlsafe_b64decode(link_token.encode('utf-8')).decode('utf-8')
+            interview_id, signature = decoded_token.split(':', 1)
+            
+            # Get the interview
+            interview = Interview.objects.get(id=interview_id)
+            
+            # Validate the link
+            is_valid, message = interview.validate_interview_link(link_token)
+            
+            if not is_valid:
+                return Response({
+                    'error': message,
+                    'status': 'invalid_link'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if interview can be started
+            now = timezone.now()
+            if interview.started_at and now < interview.started_at:
+                return Response({
+                    'error': f'Interview starts at {interview.started_at.strftime("%I:%M %p")}. Please wait.',
+                    'status': 'not_started'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if interview.status == 'completed':
+                return Response({
+                    'error': 'This interview has already been completed',
+                    'status': 'completed'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Start the interview
+            if not interview.started_at:
+                interview.started_at = now
+                interview.save()
+            
+            # Log the interview start
+            ActionLogger.log_user_action(
+                user=None,  # No user for public access
+                action='candidate_interview_started',
+                details={
+                    'interview_id': str(interview.id),
+                    'candidate_email': interview.candidate.email,
+                    'start_time': now.isoformat()
+                },
+                status='SUCCESS'
+            )
+            
+            return Response({
+                'interview_id': str(interview.id),
+                'candidate_name': interview.candidate.full_name,
+                'ai_interview_type': interview.ai_interview_type,
+                'started_at': interview.started_at.isoformat(),
+                'status': 'started',
+                'message': 'Interview started successfully',
+                'ai_configuration': interview.schedule.slot.ai_configuration if interview.is_scheduled else {}
+            })
+            
+        except Interview.DoesNotExist:
+            return Response({
+                'error': 'Interview not found',
+                'status': 'not_found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error starting interview: {e}")
+            return Response({
+                'error': 'Failed to start interview',
+                'status': 'error'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     """
     /api/interviews/  → list, create
@@ -109,14 +258,42 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Log interview creation"""
-        response = super().create(request, *args, **kwargs)
-        ActionLogger.log_user_action(
-            user=request.user,
-            action='interview_create',
-            details={'interview_id': response.data.get('id')},
-            status='SUCCESS'
-        )
-        return response
+        try:
+            response = super().create(request, *args, **kwargs)
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='interview_create',
+                details={'interview_id': response.data.get('id')},
+                status='SUCCESS'
+            )
+            
+            # Send notification to candidate when interview is created (only if interview is scheduled)
+            try:
+                interview_id = response.data.get('id')
+                if interview_id:
+                    from .models import Interview
+                    interview = Interview.objects.get(id=interview_id)
+                    # Only send notification if interview has a status that indicates it's scheduled
+                    if interview.status in ['scheduled', 'confirmed']:
+                        NotificationService.send_candidate_interview_scheduled_notification(interview)
+            except Exception as e:
+                # Log notification failure but don't fail the request
+                ActionLogger.log_user_action(
+                    user=request.user,
+                    action='interview_notification_failed',
+                    details={'interview_id': response.data.get('id'), 'error': str(e)},
+                    status='FAILED'
+                )
+            
+            return response
+        except Exception as e:
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='interview_create',
+                details={'error': str(e)},
+                status='FAILED'
+            )
+            raise
 
     def update(self, request, *args, **kwargs):
         """Log interview update"""
@@ -276,11 +453,14 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         user_role = getattr(self.request.user, "role", "").lower()
         
         if user_role == "admin" or self.request.user.is_superuser:
-            # Admin can create slots for any company
-            pass
+            # Admin can create slots for any company - let the serializer handle it
+            serializer.save()
         elif user_role == "company":
             # Company users can only create slots for their company
-            serializer.save(company=self.request.user.company)
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                serializer.save(company=self.request.user.company)
+            else:
+                raise PermissionDenied("Company user must be associated with a company")
         else:
             raise PermissionDenied("You don't have permission to create interview slots")
 
@@ -349,6 +529,7 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         
         # Create slots for each day in the pattern
         created_slots = []
+        skipped_slots = []
         current_date = data['start_date']
         
         while current_date <= data['end_date']:
@@ -357,44 +538,61 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 slot_start = datetime.combine(current_date, data['start_time'])
                 slot_end = datetime.combine(current_date, data['end_time'])
                 
-                # Check for conflicts
+                # Make timezone-aware
+                from django.utils import timezone
+                slot_start = timezone.make_aware(slot_start)
+                slot_end = timezone.make_aware(slot_end)
+                
+                # Check for conflicts - only check for exact time overlaps
                 conflicting_slots = InterviewSlot.objects.filter(
                     company=company,
-                    ai_interview_type=data['ai_interview_type'],
                     start_time__lt=slot_end,
                     end_time__gt=slot_start,
                     status__in=['available', 'booked']
                 )
                 
                 if not conflicting_slots.exists():
-                    slot = InterviewSlot.objects.create(
-                        slot_type='recurring',
-                        start_time=slot_start,
-                        end_time=slot_end,
-                        duration_minutes=data['slot_duration'],
-                        company=company,
-                        job_id=data.get('job_id'),
-                        ai_interview_type=data['ai_interview_type'],
-                        ai_configuration=data.get('ai_configuration', {}),
-                        is_recurring=True,
-                        recurring_pattern={
-                            'days_of_week': data['days_of_week'],
-                            'start_time': data['start_time'].isoformat(),
-                            'end_time': data['end_time'].isoformat(),
-                            'slot_duration': data['slot_duration'],
-                            'break_duration': data['break_duration']
-                        },
-                        notes=data.get('notes', ''),
-                        max_candidates=data['max_candidates_per_slot']
-                    )
-                    created_slots.append(slot)
+                    try:
+                        slot = InterviewSlot.objects.create(
+                            slot_type='recurring',
+                            start_time=slot_start,
+                            end_time=slot_end,
+                            duration_minutes=data['slot_duration'],
+                            company=company,
+                            job_id=data.get('job_id'),
+                            ai_interview_type=data['ai_interview_type'],
+                            ai_configuration=data.get('ai_configuration', {}),
+                            is_recurring=True,
+                            recurring_pattern={
+                                'days_of_week': data['days_of_week'],
+                                'start_time': data['start_time'].isoformat(),
+                                'end_time': data['end_time'].isoformat(),
+                                'slot_duration': data['slot_duration'],
+                                'break_duration': data['break_duration']
+                            },
+                            notes=data.get('notes', ''),
+                            max_candidates=data['max_candidates_per_slot']
+                        )
+                        created_slots.append(slot)
+                    except Exception as e:
+                        skipped_slots.append({
+                            'date': current_date.isoformat(),
+                            'reason': str(e)
+                        })
+                else:
+                    skipped_slots.append({
+                        'date': current_date.isoformat(),
+                        'reason': 'Time conflict with existing slot'
+                    })
             
             current_date += timedelta(days=1)
         
         serializer = self.get_serializer(created_slots, many=True)
         return Response({
             'message': f'Created {len(created_slots)} recurring slots',
-            'slots': serializer.data
+            'created_slots': len(created_slots),
+            'slots': serializer.data,
+            'skipped_slots': skipped_slots
         }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -404,16 +602,44 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         """
         slot = self.get_object()
         
-        if not slot.is_available():
-            return Response({"error": "Slot is not available"}, status=status.HTTP_400_BAD_REQUEST)
+        if slot.status != 'available':
+            return Response({"error": "Slot is not available for booking"}, status=status.HTTP_400_BAD_REQUEST)
         
-        if slot.book_slot():
-            return Response({
-                'message': 'Slot booked successfully',
-                'available_spots': slot.available_spots
-            })
-        else:
-            return Response({"error": "Failed to book slot"}, status=status.HTTP_400_BAD_REQUEST)
+        interview_id = request.data.get('interview_id')
+        if not interview_id:
+            return Response({"error": "interview_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            interview = Interview.objects.get(id=interview_id)
+        except Interview.DoesNotExist:
+            return Response({"error": "Interview not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Create schedule
+        schedule = InterviewSchedule.objects.create(
+            interview=interview,
+            slot=slot,
+            booking_notes=request.data.get('booking_notes', ''),
+            status='pending'
+        )
+        
+        # Book the slot
+        slot.book_slot()
+        
+        # Send notification to candidate when slot is booked
+        try:
+            from notifications.services import NotificationService
+            NotificationService.send_candidate_interview_scheduled_notification(interview)
+        except Exception as e:
+            # Log notification failure but don't fail the request
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='slot_booking_notification_failed',
+                details={'slot_id': slot.id, 'interview_id': interview.id, 'error': str(e)},
+                status='FAILED'
+            )
+        
+        serializer = InterviewScheduleSerializer(schedule)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def release_slot(self, request, pk=None):
@@ -422,13 +648,27 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         """
         slot = self.get_object()
         
-        if slot.release_slot():
-            return Response({
-                'message': 'Slot released successfully',
-                'available_spots': slot.available_spots
-            })
-        else:
-            return Response({"error": "Failed to release slot"}, status=status.HTTP_400_BAD_REQUEST)
+        # First, cancel any active schedules for this slot
+        active_schedules = slot.schedules.filter(status__in=['pending', 'confirmed'])
+        for schedule in active_schedules:
+            schedule.cancel_schedule(reason="Slot released by admin", cancelled_by=request.user)
+        
+        # Ensure the slot is available
+        slot.refresh_from_db()
+        if slot.current_bookings > 0:
+            slot.release_slot()
+        
+        # Force the slot to be available
+        slot.status = slot.Status.AVAILABLE
+        slot.current_bookings = 0
+        slot.save()
+        
+        return Response({
+            'message': 'Slot released successfully',
+            'slot_available': slot.is_available(),
+            'current_bookings': slot.current_bookings,
+            'max_candidates': slot.max_candidates
+        })
 
 
 class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
@@ -476,6 +716,19 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         # Book the slot
         slot.book_slot()
         
+        # Send notification to candidate when interview is scheduled
+        try:
+            from notifications.services import NotificationService
+            NotificationService.send_candidate_interview_scheduled_notification(interview)
+        except Exception as e:
+            # Log notification failure but don't fail the request
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='interview_booking_notification_failed',
+                details={'interview_id': interview.id, 'schedule_id': schedule.id, 'error': str(e)},
+                status='FAILED'
+            )
+        
         serializer = self.get_serializer(schedule)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -490,6 +743,20 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
             return Response({"error": "Cannot confirm a cancelled schedule"}, status=status.HTTP_400_BAD_REQUEST)
         
         schedule.confirm_schedule()
+        
+        # Send notification to candidate when schedule is confirmed
+        try:
+            from notifications.services import NotificationService
+            NotificationService.send_candidate_interview_scheduled_notification(schedule.interview)
+        except Exception as e:
+            # Log notification failure but don't fail the request
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='schedule_confirmation_notification_failed',
+                details={'schedule_id': schedule.id, 'error': str(e)},
+                status='FAILED'
+            )
+        
         serializer = self.get_serializer(schedule)
         return Response(serializer.data)
 
@@ -630,6 +897,17 @@ class SlotAvailabilityView(generics.ListAPIView):
         available_slots = [slot for slot in queryset if slot.is_available()]
         return available_slots
 
+    def list(self, request, *args, **kwargs):
+        """
+        Override list method to return the expected format
+        """
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'available_slots': serializer.data,
+            'total_available': len(serializer.data)
+        })
+
 
 class InterviewCalendarView(generics.ListAPIView):
     """
@@ -665,3 +943,23 @@ class InterviewCalendarView(generics.ListAPIView):
             queryset = InterviewSchedule.objects.none()
         
         return queryset.order_by('slot__start_time')
+
+    def list(self, request, *args, **kwargs):
+        """
+        Override list method to return calendar format
+        """
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Get slot statistics
+        from .models import InterviewSlot
+        total_slots = InterviewSlot.objects.count()
+        available_slots = InterviewSlot.objects.filter(status='available').count()
+        booked_slots = InterviewSlot.objects.filter(status='booked').count()
+        
+        return Response({
+            'calendar_data': serializer.data,
+            'total_slots': total_slots,
+            'available_slots': available_slots,
+            'booked_slots': booked_slots
+        })

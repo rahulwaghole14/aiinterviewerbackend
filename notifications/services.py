@@ -155,6 +155,87 @@ class NotificationService:
         )
     
     @staticmethod
+    def send_candidate_interview_scheduled_notification(interview):
+        """Send notification directly to candidate when interview is scheduled"""
+        try:
+            # Get interview details
+            candidate_name = interview.candidate.full_name
+            candidate_email = interview.candidate.email
+            job_title = interview.job.job_title if interview.job else 'N/A'
+            company_name = interview.job.company_name if interview.job else 'N/A'
+            
+            # Get scheduled time from the interview schedule if available
+            scheduled_time = 'TBD'
+            if hasattr(interview, 'schedule') and interview.schedule:
+                scheduled_time = interview.schedule.slot.start_time.strftime('%B %d, %Y at %I:%M %p')
+            elif interview.started_at:
+                scheduled_time = interview.started_at.strftime('%B %d, %Y at %I:%M %p')
+            
+            # Generate interview link if not already generated
+            if not interview.interview_link:
+                interview_link = interview.generate_interview_link()
+            else:
+                interview_link = interview.interview_link
+            
+            # Get the full interview URL
+            interview_url = interview.get_interview_url()
+            
+            # Create email subject and message
+            subject = f"Interview Scheduled - {job_title} at {company_name}"
+            
+            message = f"""
+Dear {candidate_name},
+
+Your interview has been scheduled successfully!
+
+📋 **Interview Details:**
+• Position: {job_title}
+• Company: {company_name}
+• Date & Time: {scheduled_time}
+• Interview Type: {interview.ai_interview_type.title() if interview.ai_interview_type else 'AI Interview'}
+
+🔗 **Join Your Interview:**
+Click the link below to join your interview at the scheduled time:
+{interview_url}
+
+⚠️ **Important Notes:**
+• Please join the interview 5-10 minutes before the scheduled time
+• You can only access the interview link at the scheduled date and time
+• The link will be active 15 minutes before the interview starts
+• Make sure you have a stable internet connection and a quiet environment
+
+📧 **Contact Information:**
+If you have any questions or need to reschedule, please contact your recruiter.
+
+Best regards,
+{company_name} Recruitment Team
+
+---
+This is an automated message. Please do not reply to this email.
+            """
+            
+            # Send email to candidate
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[candidate_email],
+                fail_silently=False,
+            )
+            
+            # Also create an in-app notification for the recruiter
+            NotificationService.send_interview_scheduled_notification(interview)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to send candidate interview notification: {e}")
+            return False
+    
+    @staticmethod
     def send_resume_processed_notification(resume, recipient=None):
         """Send notification when resume is processed"""
         if recipient is None:

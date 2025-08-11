@@ -11,6 +11,9 @@ router.register(r'configurations', views.AIInterviewConfigurationViewSet, basena
 router.register(r'conflicts', views.InterviewConflictViewSet, basename='interview-conflicts')
 
 urlpatterns = [
+    # Public interview access (no authentication required)
+    path('public/<str:link_token>/', views.PublicInterviewAccessView.as_view(), name='public-interview-access'),
+    
     # Existing interview endpoints
     path('', views.InterviewListCreateView.as_view(), name='interview-list-create'),
     path('<uuid:pk>/', views.InterviewDetailView.as_view(), name='interview-detail'),

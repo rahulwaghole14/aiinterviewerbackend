@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from .models import (
     Interview, InterviewSlot, InterviewSchedule, 
-    InterviewerAvailability, InterviewConflict
+    AIInterviewConfiguration, InterviewConflict
 )
 
 
@@ -25,7 +25,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         source="job.job_title", read_only=True
     )
     is_scheduled = serializers.BooleanField(read_only=True)
-    interviewer_name = serializers.CharField(source='interviewer.full_name', read_only=True)
+    ai_interview_type = serializers.CharField(read_only=True)
 
     class Meta:
         model  = Interview
@@ -40,7 +40,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             "video_url",
             "created_at", "updated_at",
             "is_scheduled",
-            "interviewer_name",
+            "ai_interview_type",
         ]
         read_only_fields = [
             "created_at",
@@ -48,7 +48,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             "candidate_name",
             "job_title",
             "is_scheduled",
-            "interviewer_name",
+            "ai_interview_type",
         ]
         extra_kwargs = {
             'candidate': {'required': False},
@@ -105,23 +105,17 @@ class InterviewSerializer(serializers.ModelSerializer):
 
 class InterviewFeedbackSerializer(serializers.ModelSerializer):
     """
-    Used exclusively by the /api/interviews/<id>/feedback/ PATCH endpoint.
-    Allows admin to update interview_round and feedback text.
+    Serializer for updating interview feedback
     """
     class Meta:
         model  = Interview
         fields = ["interview_round", "feedback"]
 
 
-# ──────────────────────────────────────────────────────────
-# Interview Slot Management Serializers
-# ──────────────────────────────────────────────────────────
-
 class InterviewSlotSerializer(serializers.ModelSerializer):
     """
-    Serializer for interview slots
+    Serializer for AI interview slots
     """
-    interviewer_name = serializers.CharField(source='interviewer.full_name', read_only=True)
     company_name = serializers.CharField(source='company.name', read_only=True)
     job_title = serializers.CharField(source='job.job_title', read_only=True)
     is_available = serializers.BooleanField(read_only=True)
@@ -131,32 +125,29 @@ class InterviewSlotSerializer(serializers.ModelSerializer):
         model = InterviewSlot
         fields = [
             'id', 'slot_type', 'status', 'start_time', 'end_time', 'duration_minutes',
-            'interviewer', 'interviewer_name', 'company', 'company_name', 'job', 'job_title',
+            'ai_interview_type', 'ai_configuration', 'company', 'company_name', 'job', 'job_title',
             'is_recurring', 'recurring_pattern', 'notes', 'max_candidates', 'current_bookings',
             'is_available', 'available_spots', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_available', 'available_spots']
 
     def get_available_spots(self, obj):
-        """Calculate available spots in the slot"""
         return max(0, obj.max_candidates - obj.current_bookings)
 
     def validate(self, data):
-        """Additional validation for slot creation"""
-        # Ensure slot is in the future
-        if 'start_time' in data and data['start_time'] <= timezone.now():
-            raise serializers.ValidationError("Slot start time must be in the future")
-        
+        if data.get('start_time') and data.get('end_time'):
+            if data['start_time'] >= data['end_time']:
+                raise serializers.ValidationError("End time must be after start time")
         return data
 
 
 class InterviewScheduleSerializer(serializers.ModelSerializer):
     """
-    Serializer for interview schedules
+    Serializer for AI interview schedules
     """
     interview_details = serializers.SerializerMethodField()
     slot_details = serializers.SerializerMethodField()
-    interviewer_name = serializers.CharField(source='slot.interviewer.full_name', read_only=True)
+    ai_interview_type = serializers.CharField(source='slot.ai_interview_type', read_only=True)
     candidate_name = serializers.CharField(source='interview.candidate.full_name', read_only=True)
 
     class Meta:
@@ -165,72 +156,66 @@ class InterviewScheduleSerializer(serializers.ModelSerializer):
             'id', 'interview', 'slot', 'status', 'booking_notes',
             'booked_at', 'confirmed_at', 'cancelled_at',
             'cancellation_reason', 'cancelled_by',
-            'interview_details', 'slot_details', 'interviewer_name', 'candidate_name'
+            'interview_details', 'slot_details', 'ai_interview_type', 'candidate_name'
         ]
         read_only_fields = ['id', 'booked_at', 'confirmed_at', 'cancelled_at', 'cancelled_by']
 
     def get_interview_details(self, obj):
-        """Get interview details"""
         return {
             'id': obj.interview.id,
             'candidate_name': obj.interview.candidate.full_name,
             'status': obj.interview.status,
-            'interview_round': obj.interview.interview_round
+            'started_at': obj.interview.started_at,
+            'ended_at': obj.interview.ended_at,
         }
 
     def get_slot_details(self, obj):
-        """Get slot details"""
         return {
             'id': obj.slot.id,
+            'ai_interview_type': obj.slot.ai_interview_type,
             'start_time': obj.slot.start_time,
             'end_time': obj.slot.end_time,
-            'interviewer_name': obj.slot.interviewer.full_name
+            'duration_minutes': obj.slot.duration_minutes,
+            'company_name': obj.slot.company.name,
         }
 
     def validate(self, data):
-        """Validate schedule creation"""
-        interview = data.get('interview')
-        slot = data.get('slot')
-        
-        if interview and slot:
-            # Check if interview already has a schedule
-            if hasattr(interview, 'schedule'):
-                raise serializers.ValidationError("Interview already has a schedule")
-            
-            # Check if slot is available
+        # Check if slot is available
+        if 'slot' in data:
+            slot = data['slot']
             if not slot.is_available():
-                raise serializers.ValidationError("Selected slot is not available")
+                raise serializers.ValidationError("Selected slot is not available for booking")
             
-            # Check if candidate is available (no overlapping interviews)
-            candidate_conflicts = InterviewSchedule.objects.filter(
-                interview__candidate=interview.candidate,
-                slot__start_time__lt=slot.end_time,
-                slot__end_time__gt=slot.start_time,
-                status__in=['pending', 'confirmed']
-            ).exists()
-            
-            if candidate_conflicts:
-                raise serializers.ValidationError("Candidate has a conflicting interview at this time")
+            # Check if interview is already scheduled
+            if 'interview' in data:
+                interview = data['interview']
+                if hasattr(interview, 'schedule') and interview.schedule:
+                    raise serializers.ValidationError("Interview is already scheduled")
         
         return data
 
 
-class InterviewerAvailabilitySerializer(serializers.ModelSerializer):
+class AIInterviewConfigurationSerializer(serializers.ModelSerializer):
     """
-    Serializer for interviewer availability patterns
+    Serializer for AI interview configuration patterns
     """
-    interviewer_name = serializers.CharField(source='interviewer.full_name', read_only=True)
     company_name = serializers.CharField(source='company.name', read_only=True)
 
     class Meta:
-        model = InterviewerAvailability
+        model = AIInterviewConfiguration
         fields = [
-            'id', 'interviewer', 'interviewer_name', 'company', 'company_name',
+            'id', 'company', 'company_name', 'interview_type',
             'day_of_week', 'start_time', 'end_time', 'slot_duration', 'break_duration',
-            'is_available', 'max_slots_per_day', 'valid_from', 'valid_until',
+            'ai_settings', 'valid_from', 'valid_until',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        if data.get('start_time') and data.get('end_time'):
+            if data['start_time'] >= data['end_time']:
+                raise serializers.ValidationError("End time must be after start time")
+        return data
 
 
 class InterviewConflictSerializer(serializers.ModelSerializer):
@@ -251,29 +236,25 @@ class InterviewConflictSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'detected_at', 'resolved_at', 'resolved_by']
 
     def get_primary_interview_details(self, obj):
-        """Get primary interview details"""
         return {
             'id': obj.primary_interview.id,
             'candidate_name': obj.primary_interview.candidate.full_name,
+            'status': obj.primary_interview.status,
             'started_at': obj.primary_interview.started_at,
-            'ended_at': obj.primary_interview.ended_at
+            'ended_at': obj.primary_interview.ended_at,
         }
 
     def get_conflicting_interview_details(self, obj):
-        """Get conflicting interview details"""
         if obj.conflicting_interview:
             return {
                 'id': obj.conflicting_interview.id,
                 'candidate_name': obj.conflicting_interview.candidate.full_name,
+                'status': obj.conflicting_interview.status,
                 'started_at': obj.conflicting_interview.started_at,
-                'ended_at': obj.conflicting_interview.ended_at
+                'ended_at': obj.conflicting_interview.ended_at,
             }
         return None
 
-
-# ──────────────────────────────────────────────────────────
-# Slot Management Utility Serializers
-# ──────────────────────────────────────────────────────────
 
 class SlotBookingSerializer(serializers.Serializer):
     """
@@ -284,25 +265,29 @@ class SlotBookingSerializer(serializers.Serializer):
     booking_notes = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, data):
-        """Validate slot booking"""
         from .models import Interview, InterviewSlot
         
+        # Validate interview exists
         try:
             interview = Interview.objects.get(id=data['interview_id'])
+            data['interview'] = interview
+        except Interview.DoesNotExist:
+            raise serializers.ValidationError("Interview not found")
+        
+        # Validate slot exists and is available
+        try:
             slot = InterviewSlot.objects.get(id=data['slot_id'])
-        except (Interview.DoesNotExist, InterviewSlot.DoesNotExist):
-            raise serializers.ValidationError("Invalid interview or slot ID")
+            data['slot'] = slot
+        except InterviewSlot.DoesNotExist:
+            raise serializers.ValidationError("Slot not found")
         
-        # Check if slot is available
         if not slot.is_available():
-            raise serializers.ValidationError("Selected slot is not available")
+            raise serializers.ValidationError("Slot is not available for booking")
         
-        # Check if interview already has a schedule
-        if hasattr(interview, 'schedule'):
-            raise serializers.ValidationError("Interview already has a schedule")
+        # Check if interview is already scheduled
+        if hasattr(interview, 'schedule') and interview.schedule:
+            raise serializers.ValidationError("Interview is already scheduled")
         
-        data['interview'] = interview
-        data['slot'] = slot
         return data
 
 
@@ -311,7 +296,7 @@ class SlotSearchSerializer(serializers.Serializer):
     Serializer for searching available slots
     """
     company_id = serializers.IntegerField(required=False)
-    interviewer_id = serializers.IntegerField(required=False)
+    ai_interview_type = serializers.CharField(required=False)
     job_id = serializers.IntegerField(required=False)
     start_date = serializers.DateField()
     end_date = serializers.DateField()
@@ -320,14 +305,8 @@ class SlotSearchSerializer(serializers.Serializer):
     duration_minutes = serializers.IntegerField(required=False, default=60)
 
     def validate(self, data):
-        """Validate search parameters"""
         if data['start_date'] > data['end_date']:
-            raise serializers.ValidationError("Start date must be before end date")
-        
-        if 'start_time' in data and 'end_time' in data:
-            if data['start_time'] >= data['end_time']:
-                raise serializers.ValidationError("Start time must be before end time")
-        
+            raise serializers.ValidationError("Start date must be before or equal to end date")
         return data
 
 
@@ -335,8 +314,8 @@ class RecurringSlotSerializer(serializers.Serializer):
     """
     Serializer for creating recurring slots
     """
-    interviewer_id = serializers.IntegerField()
     company_id = serializers.IntegerField()
+    ai_interview_type = serializers.CharField(default='general')
     job_id = serializers.IntegerField(required=False)
     start_date = serializers.DateField()
     end_date = serializers.DateField()
@@ -349,19 +328,12 @@ class RecurringSlotSerializer(serializers.Serializer):
     slot_duration = serializers.IntegerField(default=60, min_value=15, max_value=480)
     break_duration = serializers.IntegerField(default=15, min_value=0, max_value=60)
     max_candidates_per_slot = serializers.IntegerField(default=1, min_value=1, max_value=10)
+    ai_configuration = serializers.JSONField(required=False, default=dict)
     notes = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, data):
-        """Validate recurring slot creation"""
         if data['start_date'] > data['end_date']:
-            raise serializers.ValidationError("Start date must be before end date")
-        
+            raise serializers.ValidationError("Start date must be before or equal to end date")
         if data['start_time'] >= data['end_time']:
-            raise serializers.ValidationError("Start time must be before end time")
-        
-        # Validate days of week
-        for day in data['days_of_week']:
-            if day < 1 or day > 7:
-                raise serializers.ValidationError("Invalid day of week")
-        
+            raise serializers.ValidationError("End time must be after start time")
         return data

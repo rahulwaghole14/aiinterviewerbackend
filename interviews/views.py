@@ -15,12 +15,12 @@ from django.shortcuts import get_object_or_404
 
 from .models import (
     Interview, InterviewSlot, InterviewSchedule, 
-    InterviewerAvailability, InterviewConflict
+    AIInterviewConfiguration, InterviewConflict
 )
 from .serializers import (
     InterviewSerializer, InterviewFeedbackSerializer,
     InterviewSlotSerializer, InterviewScheduleSerializer,
-    InterviewerAvailabilitySerializer, InterviewConflictSerializer,
+    AIInterviewConfigurationSerializer, InterviewConflictSerializer,
     SlotBookingSerializer, SlotSearchSerializer, RecurringSlotSerializer
 )
 from utils.hierarchy_permissions import DataIsolationMixin, InterviewHierarchyPermission
@@ -109,76 +109,36 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Log interview creation"""
-        try:
-            response = super().create(request, *args, **kwargs)
-            
-            # Log successful interview creation
-            if response.status_code == 201:
-                interview_data = response.data
-                log_interview_schedule(
-                    user=request.user,
-                    interview_id=interview_data.get('id'),
-                    candidate_id=interview_data.get('candidate'),
-                    job_id=interview_data.get('job'),
-                    status='SUCCESS',
-                    details={
-                        'scheduled_at': interview_data.get('scheduled_at'),
-                        'status': interview_data.get('status'),
-                        'ip_address': request.META.get('REMOTE_ADDR')
-                    }
-                )
-                
-                # Send notification for interview scheduling
-                try:
-                    from interviews.models import Interview
-                    interview = Interview.objects.get(id=interview_data.get('id'))
-                    NotificationService.send_interview_scheduled_notification(interview)
-                except Exception as e:
-                    # Log notification failure but don't fail the request
-                    ActionLogger.log_user_action(
-                        user=request.user,
-                        action='notification_failed',
-                        details={'error': str(e), 'interview_id': interview_data.get('id')},
-                        status='FAILED'
-                    )
-            
-            return response
-            
-        except Exception as e:
-            # Log interview creation failure
-            ActionLogger.log_user_action(
-                user=request.user,
-                action='interview_create',
-                details={'error': str(e)},
-                status='FAILED'
-            )
-            raise
+        response = super().create(request, *args, **kwargs)
+        ActionLogger.log_user_action(
+            user=request.user,
+            action='interview_create',
+            details={'interview_id': response.data.get('id')},
+            status='SUCCESS'
+        )
+        return response
 
     def update(self, request, *args, **kwargs):
         """Log interview update"""
+        response = super().update(request, *args, **kwargs)
         ActionLogger.log_user_action(
             user=request.user,
             action='interview_update',
-            details={
-                'interview_id': kwargs.get('pk'),
-                'update_data': request.data
-            },
+            details={'interview_id': kwargs.get('pk')},
             status='SUCCESS'
         )
-        return super().update(request, *args, **kwargs)
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         """Log interview partial update"""
+        response = super().partial_update(request, *args, **kwargs)
         ActionLogger.log_user_action(
             user=request.user,
             action='interview_partial_update',
-            details={
-                'interview_id': kwargs.get('pk'),
-                'update_data': request.data
-            },
+            details={'interview_id': kwargs.get('pk')},
             status='SUCCESS'
         )
-        return super().partial_update(request, *args, **kwargs)
+        return response
 
     def destroy(self, request, *args, **kwargs):
         """Log interview deletion"""
@@ -190,7 +150,6 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         )
         return super().destroy(request, *args, **kwargs)
 
-    # admin‑only PATCH /api/interviews/<pk>/feedback/
     @action(
         detail=True,
         methods=["patch"],
@@ -198,28 +157,26 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         permission_classes=[IsAdminOnly],
     )
     def edit_feedback(self, request, pk=None):
-        interview  = self.get_object()
-        serializer = InterviewFeedbackSerializer(
-            interview, data=request.data, partial=True
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        """
+        PATCH /api/interviews/<id>/feedback/
+        Admin‑only endpoint to update interview feedback.
+        """
+        interview = self.get_object()
+        serializer = InterviewFeedbackSerializer(interview, data=request.data, partial=True)
         
-        # Log feedback update
-        ActionLogger.log_user_action(
-            user=request.user,
-            action='interview_feedback_update',
-            details={
-                'interview_id': pk,
-                'feedback_data': request.data
-            },
-            status='SUCCESS'
-        )
+        if serializer.is_valid():
+            serializer.save()
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='interview_feedback_update',
+                details={'interview_id': pk},
+                status='SUCCESS'
+            )
+            return Response(serializer.data)
         
-        return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ─────────────────────── Status Summary endpoint ─────────────────────────
 class InterviewStatusSummaryView(APIView):
     """
     GET /api/interviews/summary/  → { "scheduled": 5, "completed": 2, ... }
@@ -227,30 +184,32 @@ class InterviewStatusSummaryView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        qs = Interview.objects.all()
-        if (
-            getattr(request.user, "role", "").lower() != "admin"
-            and not request.user.is_superuser
-        ):
-            qs = qs.filter(candidate__recruiter=request.user)
-
-        summary = qs.values("status").annotate(count=Count("id"))
-        data = {row["status"]: row["count"] for row in summary}
+        """Get interview status summary"""
+        user_role = getattr(request.user, "role", "").lower()
         
-        # Log summary request
+        if user_role == "admin" or request.user.is_superuser:
+            # Admin sees all interviews
+            queryset = Interview.objects.all()
+        else:
+            # Others see only their candidates' interviews
+            queryset = Interview.objects.filter(candidate__recruiter=request.user)
+        
+        summary = {
+            "scheduled": queryset.filter(status="scheduled").count(),
+            "completed": queryset.filter(status="completed").count(),
+            "error": queryset.filter(status="error").count(),
+            "total": queryset.count(),
+        }
+        
         ActionLogger.log_user_action(
             user=request.user,
             action='interview_summary',
-            details={'summary': data},
+            details=summary,
             status='SUCCESS'
         )
         
-        return Response(data)
+        return Response(summary)
 
-
-# ──────────────────────────────────────────────────────────
-# Interview Slot Management Views
-# ──────────────────────────────────────────────────────────
 
 class InterviewListCreateView(DataIsolationMixin, generics.ListCreateAPIView):
     """
@@ -261,18 +220,12 @@ class InterviewListCreateView(DataIsolationMixin, generics.ListCreateAPIView):
     permission_classes = [InterviewHierarchyPermission]
 
     def get_queryset(self):
-        """Apply data isolation based on user role"""
-        user = self.request.user
-        queryset = super().get_queryset()
+        user_role = getattr(self.request.user, "role", "").lower()
         
-        if user.role == "ADMIN":
-            return queryset
-        elif user.role == "COMPANY":
-            return queryset.filter(candidate__recruiter__company_name=user.company_name)
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            return queryset.filter(candidate__recruiter=user)
-        
-        return Interview.objects.none()
+        if user_role == "admin" or self.request.user.is_superuser:
+            return Interview.objects.all()
+        else:
+            return Interview.objects.filter(candidate__recruiter=self.request.user)
 
 
 class InterviewDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -284,7 +237,6 @@ class InterviewDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
     permission_classes = [InterviewHierarchyPermission]
 
     def get_serializer_class(self):
-        """Use different serializer for different operations"""
         if self.request.method in ['PUT', 'PATCH']:
             return InterviewSerializer
         return InterviewSerializer
@@ -301,46 +253,36 @@ class InterviewFeedbackView(generics.UpdateAPIView):
 
 class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     """
-    ViewSet for managing interview slots
+    ViewSet for managing AI interview slots
     """
     serializer_class = InterviewSlotSerializer
     permission_classes = [InterviewHierarchyPermission]
 
     def get_queryset(self):
-        """Apply data isolation and filtering"""
-        user = self.request.user
-        queryset = InterviewSlot.objects.all()
+        user_role = getattr(self.request.user, "role", "").lower()
         
-        # Apply role-based filtering
-        if user.role == "ADMIN":
-            pass  # Admin sees all slots
-        elif user.role == "COMPANY":
-            queryset = queryset.filter(company__name=user.company_name)
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            queryset = queryset.filter(company__name=user.company_name)
+        if user_role == "admin" or self.request.user.is_superuser:
+            base_queryset = InterviewSlot.objects.all()
+        elif user_role == "company":
+            base_queryset = InterviewSlot.objects.filter(company=self.request.user.company)
+        elif user_role in ["hiring_agency", "recruiter"]:
+            base_queryset = InterviewSlot.objects.filter(company=self.request.user.company)
+        else:
+            base_queryset = InterviewSlot.objects.none()
         
-        # Apply additional filters
-        status_filter = self.request.query_params.get('status')
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        interviewer_filter = self.request.query_params.get('interviewer_id')
-        if interviewer_filter:
-            queryset = queryset.filter(interviewer_id=interviewer_filter)
-        
-        company_filter = self.request.query_params.get('company_id')
-        if company_filter:
-            queryset = queryset.filter(company_id=company_filter)
-        
-        return queryset.order_by('start_time')
+        return base_queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
-        """Set company automatically based on user"""
-        user = self.request.user
-        if user.role == "COMPANY":
-            serializer.save(company=user.company)
+        user_role = getattr(self.request.user, "role", "").lower()
+        
+        if user_role == "admin" or self.request.user.is_superuser:
+            # Admin can create slots for any company
+            pass
+        elif user_role == "company":
+            # Company users can only create slots for their company
+            serializer.save(company=self.request.user.company)
         else:
-            serializer.save()
+            raise PermissionDenied("You don't have permission to create interview slots")
 
     @action(detail=False, methods=['post'])
     def search_available(self, request):
@@ -348,191 +290,167 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         Search for available slots based on criteria
         """
         serializer = SlotSearchSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            
-            # Build query for available slots
-            queryset = InterviewSlot.objects.filter(
-                status='available',
-                start_time__date__gte=data['start_date'],
-                start_time__date__lte=data['end_date'],
-                current_bookings__lt=models.F('max_candidates')
-            )
-            
-            # Apply filters
-            if data.get('company_id'):
-                queryset = queryset.filter(company_id=data['company_id'])
-            
-            if data.get('interviewer_id'):
-                queryset = queryset.filter(interviewer_id=data['interviewer_id'])
-            
-            if data.get('job_id'):
-                queryset = queryset.filter(job_id=data['job_id'])
-            
-            if data.get('start_time') and data.get('end_time'):
-                queryset = queryset.filter(
-                    start_time__time__gte=data['start_time'],
-                    end_time__time__lte=data['end_time']
-                )
-            
-            # Apply data isolation
-            user = request.user
-            if user.role == "COMPANY":
-                queryset = queryset.filter(company__name=user.company_name)
-            elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-                queryset = queryset.filter(company__name=user.company_name)
-            
-            slots = queryset.order_by('start_time')
-            slot_serializer = InterviewSlotSerializer(slots, many=True)
-            
-            return Response({
-                'slots': slot_serializer.data,
-                'total_count': slots.count()
-            })
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        data = serializer.validated_data
+        queryset = self.get_queryset().filter(
+            status='available',
+            start_time__date__gte=data['start_date'],
+            start_time__date__lte=data['end_date']
+        )
+        
+        if data.get('company_id'):
+            queryset = queryset.filter(company_id=data['company_id'])
+        
+        if data.get('ai_interview_type'):
+            queryset = queryset.filter(ai_interview_type=data['ai_interview_type'])
+        
+        if data.get('job_id'):
+            queryset = queryset.filter(job_id=data['job_id'])
+        
+        if data.get('start_time') and data.get('end_time'):
+            queryset = queryset.filter(
+                start_time__time__gte=data['start_time'],
+                end_time__time__lte=data['end_time']
+            )
+        
+        if data.get('duration_minutes'):
+            queryset = queryset.filter(duration_minutes__gte=data['duration_minutes'])
+        
+        # Filter by availability
+        available_slots = [slot for slot in queryset if slot.is_available()]
+        
+        page = self.paginate_queryset(available_slots)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(available_slots, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
     def create_recurring(self, request):
         """
-        Create recurring interview slots
+        Create recurring slots based on pattern
         """
         serializer = RecurringSlotSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            
-            # Get interviewer and company
-            from authapp.models import CustomUser
-            from companies.models import Company
-            
-            try:
-                interviewer = CustomUser.objects.get(id=data['interviewer_id'])
-                company = Company.objects.get(id=data['company_id'])
-            except (CustomUser.DoesNotExist, Company.DoesNotExist):
-                return Response(
-                    {'error': 'Invalid interviewer or company ID'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            created_slots = []
-            current_date = data['start_date']
-            
-            while current_date <= data['end_date']:
-                # Check if this day of week is in the pattern
-                if current_date.isoweekday() in data['days_of_week']:
-                    # Create slots for this day
-                    current_time = datetime.combine(current_date, data['start_time'])
-                    end_time = datetime.combine(current_date, data['end_time'])
-                    
-                    while current_time + timedelta(minutes=data['slot_duration']) <= end_time:
-                        slot_end_time = current_time + timedelta(minutes=data['slot_duration'])
-                        
-                        # Check for conflicts
-                        conflict = InterviewSlot.objects.filter(
-                            interviewer=interviewer,
-                            start_time__lt=slot_end_time,
-                            end_time__gt=current_time,
-                            status__in=['available', 'booked']
-                        ).exists()
-                        
-                        if not conflict:
-                            slot = InterviewSlot.objects.create(
-                                slot_type='recurring',
-                                start_time=current_time,
-                                end_time=slot_end_time,
-                                duration_minutes=data['slot_duration'],
-                                interviewer=interviewer,
-                                company=company,
-                                job_id=data.get('job_id'),
-                                is_recurring=True,
-                                recurring_pattern={
-                                    'days_of_week': data['days_of_week'],
-                                    'slot_duration': data['slot_duration'],
-                                    'break_duration': data['break_duration']
-                                },
-                                notes=data.get('notes', ''),
-                                max_candidates=data['max_candidates_per_slot']
-                            )
-                            created_slots.append(slot)
-                        
-                        # Move to next slot with break
-                        current_time = slot_end_time + timedelta(minutes=data['break_duration'])
-                
-                current_date += timedelta(days=1)
-            
-            slot_serializer = InterviewSlotSerializer(created_slots, many=True)
-            return Response({
-                'message': f'Created {len(created_slots)} recurring slots',
-                'slots': slot_serializer.data
-            })
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        data = serializer.validated_data
+        
+        # Get company
+        try:
+            from companies.models import Company
+            company = Company.objects.get(id=data['company_id'])
+        except Company.DoesNotExist:
+            return Response({"error": "Company not found"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create slots for each day in the pattern
+        created_slots = []
+        current_date = data['start_date']
+        
+        while current_date <= data['end_date']:
+            if current_date.weekday() + 1 in data['days_of_week']:  # weekday() returns 0-6, we need 1-7
+                # Create slot for this day
+                slot_start = datetime.combine(current_date, data['start_time'])
+                slot_end = datetime.combine(current_date, data['end_time'])
+                
+                # Check for conflicts
+                conflicting_slots = InterviewSlot.objects.filter(
+                    company=company,
+                    ai_interview_type=data['ai_interview_type'],
+                    start_time__lt=slot_end,
+                    end_time__gt=slot_start,
+                    status__in=['available', 'booked']
+                )
+                
+                if not conflicting_slots.exists():
+                    slot = InterviewSlot.objects.create(
+                        slot_type='recurring',
+                        start_time=slot_start,
+                        end_time=slot_end,
+                        duration_minutes=data['slot_duration'],
+                        company=company,
+                        job_id=data.get('job_id'),
+                        ai_interview_type=data['ai_interview_type'],
+                        ai_configuration=data.get('ai_configuration', {}),
+                        is_recurring=True,
+                        recurring_pattern={
+                            'days_of_week': data['days_of_week'],
+                            'start_time': data['start_time'].isoformat(),
+                            'end_time': data['end_time'].isoformat(),
+                            'slot_duration': data['slot_duration'],
+                            'break_duration': data['break_duration']
+                        },
+                        notes=data.get('notes', ''),
+                        max_candidates=data['max_candidates_per_slot']
+                    )
+                    created_slots.append(slot)
+            
+            current_date += timedelta(days=1)
+        
+        serializer = self.get_serializer(created_slots, many=True)
+        return Response({
+            'message': f'Created {len(created_slots)} recurring slots',
+            'slots': serializer.data
+        }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def book_slot(self, request, pk=None):
         """
-        Book a specific slot
+        Book a slot for an interview
         """
         slot = self.get_object()
         
         if not slot.is_available():
-            return Response(
-                {'error': 'Slot is not available for booking'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Slot is not available"}, status=status.HTTP_400_BAD_REQUEST)
         
         if slot.book_slot():
-            slot_serializer = InterviewSlotSerializer(slot)
             return Response({
                 'message': 'Slot booked successfully',
-                'slot': slot_serializer.data
+                'available_spots': slot.available_spots
             })
-        
-        return Response(
-            {'error': 'Failed to book slot'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        else:
+            return Response({"error": "Failed to book slot"}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
     def release_slot(self, request, pk=None):
         """
-        Release a booked slot
+        Release a booking from a slot
         """
         slot = self.get_object()
         
         if slot.release_slot():
-            slot_serializer = InterviewSlotSerializer(slot)
             return Response({
                 'message': 'Slot released successfully',
-                'slot': slot_serializer.data
+                'available_spots': slot.available_spots
             })
-        
-        return Response(
-            {'error': 'Failed to release slot'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        else:
+            return Response({"error": "Failed to release slot"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     """
-    ViewSet for managing interview schedules
+    ViewSet for managing AI interview schedules
     """
     serializer_class = InterviewScheduleSerializer
     permission_classes = [InterviewHierarchyPermission]
 
     def get_queryset(self):
-        """Apply data isolation"""
-        user = self.request.user
-        queryset = InterviewSchedule.objects.all()
+        user_role = getattr(self.request.user, "role", "").lower()
         
-        if user.role == "ADMIN":
-            return queryset
-        elif user.role == "COMPANY":
-            return queryset.filter(slot__company__name=user.company_name)
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            return queryset.filter(slot__company__name=user.company_name)
+        if user_role == "admin" or self.request.user.is_superuser:
+            base_queryset = InterviewSchedule.objects.all()
+        elif user_role == "company":
+            base_queryset = InterviewSchedule.objects.filter(slot__company=self.request.user.company)
+        elif user_role in ["hiring_agency", "recruiter"]:
+            base_queryset = InterviewSchedule.objects.filter(slot__company=self.request.user.company)
+        else:
+            base_queryset = InterviewSchedule.objects.none()
         
-        return InterviewSchedule.objects.none()
+        return base_queryset.order_by('-booked_at')
 
     @action(detail=False, methods=['post'])
     def book_interview(self, request):
@@ -540,26 +458,26 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         Book an interview to a slot
         """
         serializer = SlotBookingSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
-            
-            # Create the schedule
-            schedule = InterviewSchedule.objects.create(
-                interview=data['interview'],
-                slot=data['slot'],
-                booking_notes=data.get('booking_notes', '')
-            )
-            
-            # Book the slot
-            data['slot'].book_slot()
-            
-            schedule_serializer = InterviewScheduleSerializer(schedule)
-            return Response({
-                'message': 'Interview scheduled successfully',
-                'schedule': schedule_serializer.data
-            })
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        data = serializer.validated_data
+        interview = data['interview']
+        slot = data['slot']
+        
+        # Create the schedule
+        schedule = InterviewSchedule.objects.create(
+            interview=interview,
+            slot=slot,
+            booking_notes=data.get('booking_notes', ''),
+            status='pending'
+        )
+        
+        # Book the slot
+        slot.book_slot()
+        
+        serializer = self.get_serializer(schedule)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def confirm_schedule(self, request, pk=None):
@@ -567,13 +485,13 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         Confirm an interview schedule
         """
         schedule = self.get_object()
-        schedule.confirm_schedule()
         
-        schedule_serializer = InterviewScheduleSerializer(schedule)
-        return Response({
-            'message': 'Schedule confirmed successfully',
-            'schedule': schedule_serializer.data
-        })
+        if schedule.status == 'cancelled':
+            return Response({"error": "Cannot confirm a cancelled schedule"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        schedule.confirm_schedule()
+        serializer = self.get_serializer(schedule)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def cancel_schedule(self, request, pk=None):
@@ -582,45 +500,44 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         """
         schedule = self.get_object()
         reason = request.data.get('reason', '')
-        cancelled_by = request.user
         
-        schedule.cancel_schedule(reason=reason, cancelled_by=cancelled_by)
-        
-        schedule_serializer = InterviewScheduleSerializer(schedule)
-        return Response({
-            'message': 'Schedule cancelled successfully',
-            'schedule': schedule_serializer.data
-        })
+        schedule.cancel_schedule(reason=reason, cancelled_by=request.user)
+        serializer = self.get_serializer(schedule)
+        return Response(serializer.data)
 
 
-class InterviewerAvailabilityViewSet(DataIsolationMixin, viewsets.ModelViewSet):
+class AIInterviewConfigurationViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     """
-    ViewSet for managing interviewer availability
+    ViewSet for managing AI interview configurations
     """
-    serializer_class = InterviewerAvailabilitySerializer
+    serializer_class = AIInterviewConfigurationSerializer
     permission_classes = [InterviewHierarchyPermission]
 
     def get_queryset(self):
-        """Apply data isolation"""
-        user = self.request.user
-        queryset = InterviewerAvailability.objects.all()
+        user_role = getattr(self.request.user, "role", "").lower()
         
-        if user.role == "ADMIN":
-            return queryset
-        elif user.role == "COMPANY":
-            return queryset.filter(company__name=user.company_name)
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            return queryset.filter(company__name=user.company_name)
+        if user_role == "admin" or self.request.user.is_superuser:
+            base_queryset = AIInterviewConfiguration.objects.all()
+        elif user_role == "company":
+            base_queryset = AIInterviewConfiguration.objects.filter(company=self.request.user.company)
+        elif user_role in ["hiring_agency", "recruiter"]:
+            base_queryset = AIInterviewConfiguration.objects.filter(company=self.request.user.company)
+        else:
+            base_queryset = AIInterviewConfiguration.objects.none()
         
-        return InterviewerAvailability.objects.none()
+        return base_queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
-        """Set company automatically based on user"""
-        user = self.request.user
-        if user.role == "COMPANY":
-            serializer.save(company=user.company)
+        user_role = getattr(self.request.user, "role", "").lower()
+        
+        if user_role == "admin" or self.request.user.is_superuser:
+            # Admin can create configurations for any company
+            pass
+        elif user_role == "company":
+            # Company users can only create configurations for their company
+            serializer.save(company=self.request.user.company)
         else:
-            serializer.save()
+            raise PermissionDenied("You don't have permission to create AI interview configurations")
 
 
 class InterviewConflictViewSet(DataIsolationMixin, viewsets.ReadOnlyModelViewSet):
@@ -631,22 +548,22 @@ class InterviewConflictViewSet(DataIsolationMixin, viewsets.ReadOnlyModelViewSet
     permission_classes = [InterviewHierarchyPermission]
 
     def get_queryset(self):
-        """Apply data isolation"""
-        user = self.request.user
-        queryset = InterviewConflict.objects.all()
+        user_role = getattr(self.request.user, "role", "").lower()
         
-        if user.role == "ADMIN":
-            return queryset
-        elif user.role == "COMPANY":
-            return queryset.filter(
-                primary_interview__candidate__recruiter__company_name=user.company_name
+        if user_role == "admin" or self.request.user.is_superuser:
+            base_queryset = InterviewConflict.objects.all()
+        elif user_role == "company":
+            base_queryset = InterviewConflict.objects.filter(
+                primary_interview__schedule__slot__company=self.request.user.company
             )
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            return queryset.filter(
-                primary_interview__candidate__recruiter=user
+        elif user_role in ["hiring_agency", "recruiter"]:
+            base_queryset = InterviewConflict.objects.filter(
+                primary_interview__schedule__slot__company=self.request.user.company
             )
+        else:
+            base_queryset = InterviewConflict.objects.none()
         
-        return InterviewConflict.objects.none()
+        return base_queryset.order_by('-detected_at')
 
     @action(detail=True, methods=['post'])
     def resolve_conflict(self, request, pk=None):
@@ -655,7 +572,10 @@ class InterviewConflictViewSet(DataIsolationMixin, viewsets.ReadOnlyModelViewSet
         """
         conflict = self.get_object()
         resolution = request.data.get('resolution', 'resolved')
-        notes = request.data.get('notes', '')
+        notes = request.data.get('resolution_notes', '')
+        
+        if resolution not in ['rescheduled', 'cancelled', 'resolved']:
+            return Response({"error": "Invalid resolution"}, status=status.HTTP_400_BAD_REQUEST)
         
         conflict.resolution = resolution
         conflict.resolution_notes = notes
@@ -663,16 +583,9 @@ class InterviewConflictViewSet(DataIsolationMixin, viewsets.ReadOnlyModelViewSet
         conflict.resolved_by = request.user
         conflict.save()
         
-        conflict_serializer = InterviewConflictSerializer(conflict)
-        return Response({
-            'message': 'Conflict resolved successfully',
-            'conflict': conflict_serializer.data
-        })
+        serializer = self.get_serializer(conflict)
+        return Response(serializer.data)
 
-
-# ──────────────────────────────────────────────────────────
-# Utility Views for Slot Management
-# ──────────────────────────────────────────────────────────
 
 class SlotAvailabilityView(generics.ListAPIView):
     """
@@ -682,34 +595,40 @@ class SlotAvailabilityView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """Get available slots based on query parameters"""
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         company_id = self.request.query_params.get('company_id')
-        interviewer_id = self.request.query_params.get('interviewer_id')
+        ai_interview_type = self.request.query_params.get('ai_interview_type')
         
-        queryset = InterviewSlot.objects.filter(
-            status='available',
-            current_bookings__lt=models.F('max_candidates')
-        )
+        queryset = InterviewSlot.objects.filter(status='available')
         
         if start_date:
             queryset = queryset.filter(start_time__date__gte=start_date)
+        
         if end_date:
             queryset = queryset.filter(start_time__date__lte=end_date)
+        
         if company_id:
             queryset = queryset.filter(company_id=company_id)
-        if interviewer_id:
-            queryset = queryset.filter(interviewer_id=interviewer_id)
+        
+        if ai_interview_type:
+            queryset = queryset.filter(ai_interview_type=ai_interview_type)
         
         # Apply data isolation
-        user = self.request.user
-        if user.role == "COMPANY":
-            queryset = queryset.filter(company__name=user.company_name)
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            queryset = queryset.filter(company__name=user.company_name)
+        user_role = getattr(self.request.user, "role", "").lower()
         
-        return queryset.order_by('start_time')
+        if user_role == "admin" or self.request.user.is_superuser:
+            pass  # Admin sees all
+        elif user_role == "company":
+            queryset = queryset.filter(company=self.request.user.company)
+        elif user_role in ["hiring_agency", "recruiter"]:
+            queryset = queryset.filter(company=self.request.user.company)
+        else:
+            queryset = InterviewSlot.objects.none()
+        
+        # Filter by availability
+        available_slots = [slot for slot in queryset if slot.is_available()]
+        return available_slots
 
 
 class InterviewCalendarView(generics.ListAPIView):
@@ -720,24 +639,29 @@ class InterviewCalendarView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """Get schedules for calendar view"""
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         
-        queryset = InterviewSchedule.objects.filter(
-            status__in=['pending', 'confirmed']
+        queryset = InterviewSchedule.objects.select_related(
+            'interview__candidate', 'slot__company'
         )
         
         if start_date:
             queryset = queryset.filter(slot__start_time__date__gte=start_date)
+        
         if end_date:
             queryset = queryset.filter(slot__start_time__date__lte=end_date)
         
         # Apply data isolation
-        user = self.request.user
-        if user.role == "COMPANY":
-            queryset = queryset.filter(slot__company__name=user.company_name)
-        elif user.role in ["HIRING_AGENCY", "RECRUITER"]:
-            queryset = queryset.filter(slot__company__name=user.company_name)
+        user_role = getattr(self.request.user, "role", "").lower()
+        
+        if user_role == "admin" or self.request.user.is_superuser:
+            pass  # Admin sees all
+        elif user_role == "company":
+            queryset = queryset.filter(slot__company=self.request.user.company)
+        elif user_role in ["hiring_agency", "recruiter"]:
+            queryset = queryset.filter(slot__company=self.request.user.company)
+        else:
+            queryset = InterviewSchedule.objects.none()
         
         return queryset.order_by('slot__start_time')

@@ -7,7 +7,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'slots', views.InterviewSlotViewSet, basename='interview-slots')
 router.register(r'schedules', views.InterviewScheduleViewSet, basename='interview-schedules')
-router.register(r'availability', views.InterviewerAvailabilityViewSet, basename='interviewer-availability')
+router.register(r'configurations', views.AIInterviewConfigurationViewSet, basename='ai-interview-configurations')
 router.register(r'conflicts', views.InterviewConflictViewSet, basename='interview-conflicts')
 
 urlpatterns = [

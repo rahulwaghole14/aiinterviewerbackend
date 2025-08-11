@@ -13,7 +13,7 @@ class InterviewSerializer(serializers.ModelSerializer):
       • job_title       – Job.job_title
 
     Includes a custom validate() that restricts the scheduled
-    window to **08:00 – 22:00 UTC** for both start and end times.
+    window to **08:00 – 22:00 UTC** for both start and end times.
     """
     candidate_name = serializers.CharField(
         source="candidate.full_name", read_only=True
@@ -41,44 +41,55 @@ class InterviewSerializer(serializers.ModelSerializer):
             "candidate_name",
             "job_title",
         ]
+        extra_kwargs = {
+            'candidate': {'required': False},
+            'started_at': {'required': False},
+            'ended_at': {'required': False},
+            'status': {'required': False},
+            'interview_round': {'required': False},
+            'feedback': {'required': False},
+            'video_url': {'required': False},
+        }
 
     # ──────────────────────────────────────────────────────────
-    # Custom validation: 08:00 – 22:00 UTC scheduling window
+    # Custom validation: 08:00 – 22:00 UTC scheduling window
     # ──────────────────────────────────────────────────────────
     def validate(self, data):
         """
         Ensure both started_at and ended_at fall between 08:00 and 22:00 UTC.
 
         If this is a partial update (PATCH), keep the existing
-        instance’s values where the client omitted a field.
+        instance's values where the client omitted a field.
         """
-        start_dt = data.get("started_at") or getattr(self.instance, "started_at", None)
-        end_dt   = data.get("ended_at")   or getattr(self.instance, "ended_at", None)
+        # Only validate time constraints if we're updating time fields
+        if 'started_at' in data or 'ended_at' in data:
+            start_dt = data.get("started_at") or getattr(self.instance, "started_at", None)
+            end_dt   = data.get("ended_at")   or getattr(self.instance, "ended_at", None)
 
-        if not start_dt or not end_dt:
-            raise serializers.ValidationError(
-                "Both 'started_at' and 'ended_at' must be provided."
-            )
+            if not start_dt or not end_dt:
+                raise serializers.ValidationError(
+                    "Both 'started_at' and 'ended_at' must be provided when updating time fields."
+                )
 
-        # Time window bounds (24‑hour clock, UTC)
-        min_time = time(8, 0)   # 08:00
-        max_time = time(22, 0)  # 22:00
+            # Time window bounds (24‑hour clock, UTC)
+            min_time = time(8, 0)   # 08:00
+            max_time = time(22, 0)  # 22:00
 
-        start_t = start_dt.time()
-        end_t   = end_dt.time()
+            start_t = start_dt.time()
+            end_t   = end_dt.time()
 
-        if not (min_time <= start_t <= max_time):
-            raise serializers.ValidationError(
-                "started_at must be between 08:00 and 22:00 UTC."
-            )
-        if not (min_time <= end_t <= max_time):
-            raise serializers.ValidationError(
-                "ended_at must be between 08:00 and 22:00 UTC."
-            )
-        if end_dt <= start_dt:
-            raise serializers.ValidationError(
-                "ended_at must be after started_at."
-            )
+            if not (min_time <= start_t <= max_time):
+                raise serializers.ValidationError(
+                    "started_at must be between 08:00 and 22:00 UTC."
+                )
+            if not (min_time <= end_t <= max_time):
+                raise serializers.ValidationError(
+                    "ended_at must be between 08:00 and 22:00 UTC."
+                )
+            if end_dt <= start_dt:
+                raise serializers.ValidationError(
+                    "ended_at must be after started_at."
+                )
 
         return data
 

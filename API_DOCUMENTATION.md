@@ -265,27 +265,120 @@ Delete a resume.
 ### 1. List/Create Interviews
 **GET/POST** `/api/interviews/`
 
-**Response:**
+**Description**: Manage interview scheduling with comprehensive CRUD operations, data isolation, and time validation.
+
+**Features**:
+- ✅ **Data Isolation**: Users only see interviews for their candidates
+- ✅ **Admin Access**: Admin users see all interviews
+- ✅ **Time Validation**: Interviews must be scheduled between 08:00-22:00 UTC
+- ✅ **Flexible Updates**: All fields optional for updates
+- ✅ **Search & Filter**: Filter by status, job, candidate; search by name/title
+- ✅ **Ordering**: Newest interviews first by default
+
+**GET Response:**
 ```json
 [
   {
     "id": "uuid-here",
-    "candidate": "candidate-id",
-    "job": "job-id",
+    "candidate": 15,
+    "candidate_name": "John Doe",
+    "job_title": "Software Engineer",
     "status": "scheduled",
     "interview_round": "Technical Round 1",
     "feedback": "",
-    "started_at": null,
-    "ended_at": null,
-    "video_url": "",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T10:30:00Z"
+    "started_at": "2025-08-12T10:00:00+05:30",
+    "ended_at": "2025-08-12T11:00:00+05:30",
+    "video_url": "https://meet.google.com/test-interview",
+    "created_at": "2025-08-11T10:30:00Z",
+    "updated_at": "2025-08-11T10:30:00Z"
   }
 ]
 ```
 
-### 2. Interview Details
-**GET/PUT/DELETE** `/api/interviews/{id}/`
+**POST Request (All fields optional):**
+```json
+{
+  "candidate": 15,
+  "job": 12,
+  "status": "scheduled",
+  "interview_round": "Technical Round 1",
+  "feedback": "",
+  "started_at": "2025-08-12T10:00:00+05:30",
+  "ended_at": "2025-08-12T11:00:00+05:30",
+  "video_url": "https://meet.google.com/test-interview"
+}
+```
+
+**Available Parameters**:
+- `candidate` (integer): Candidate ID
+- `job` (integer): Job ID (nullable)
+- `status` (string): "scheduled", "completed", "error"
+- `interview_round` (string): Round description (max 100 chars)
+- `feedback` (text): Interview feedback
+- `started_at` (datetime): Start time (08:00-22:00 UTC)
+- `ended_at` (datetime): End time (08:00-22:00 UTC)
+- `video_url` (url): Meeting URL (max 500 chars)
+
+**Validation Rules**:
+- If `started_at` or `ended_at` provided, both must be between 08:00-22:00 UTC
+- `ended_at` must be after `started_at`
+- Data isolation: Users can only create interviews for their candidates
+
+### 2. Interview Details & Updates
+**GET/PUT/PATCH/DELETE** `/api/interviews/{id}/`
+
+**GET Response**: Same as list response for single interview
+
+**PUT Request (Full Update - All fields optional):**
+```json
+{
+  "interview_round": "Technical Round 2",
+  "feedback": "Candidate performed well in the first round",
+  "status": "scheduled"
+}
+```
+
+**PATCH Request (Partial Update - Only specified fields):**
+```json
+{
+  "status": "completed"
+}
+```
+
+**Features**:
+- ✅ **Flexible Updates**: All fields optional for updates
+- ✅ **Partial Updates**: PATCH only updates specified fields
+- ✅ **Time Validation**: Only applies when updating time fields
+- ✅ **Data Isolation**: Users can only update their candidates' interviews
+
+### 3. Interview Summary
+**GET** `/api/interviews/summary/`
+
+**Description**: Get interview status summary statistics with data isolation.
+
+**Response:**
+```json
+{
+  "scheduled": 5,
+  "completed": 3,
+  "error": 1
+}
+```
+
+### 4. Interview Feedback Update (Admin Only)
+**PATCH** `/api/interviews/{id}/feedback/`
+
+**Description**: Admin-only endpoint to update interview feedback and round information.
+
+**Request:**
+```json
+{
+  "interview_round": "Final Round",
+  "feedback": "Excellent candidate, highly recommended for the position"
+}
+```
+
+**Access Control**: Admin users only
 
 ---
 

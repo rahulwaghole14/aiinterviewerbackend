@@ -895,7 +895,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "interviews", ""]
 						},
-						"description": "Retrieve all interviews"
+						"description": "Retrieve all interviews\n\n📋 **Features**:\n• Data isolation: Users only see interviews for their candidates\n• Admin users see all interviews\n• Ordered by newest first (-created_at)\n• Includes candidate_name and job_title\n\n🔍 **Filtering**:\n• status: Filter by interview status\n• job: Filter by job ID\n• candidate: Filter by candidate ID\n\n🔍 **Search**:\n• candidate__full_name: Search by candidate name\n• job__job_title: Search by job title\n\n🔍 **Ordering**:\n• created_at: Order by creation date\n• started_at: Order by start time"
 					},
 					"response": []
 				},
@@ -915,14 +915,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"candidate\": {{candidate_id}},\n    \"job\": {{job_id}},\n    \"interview_round\": 1,\n    \"started_at\": \"2024-01-15T10:00:00Z\",\n    \"status\": \"SCHEDULED\"\n}"
+							"raw": "{\n    \"candidate\": {{candidate_id}},\n    \"job\": {{job_id}},\n    \"status\": \"scheduled\",\n    \"interview_round\": \"Technical Round 1\",\n    \"feedback\": \"\",\n    \"started_at\": \"2025-08-12T10:00:00+05:30\",\n    \"ended_at\": \"2025-08-12T11:00:00+05:30\",\n    \"video_url\": \"https://meet.google.com/test-interview\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/interviews/",
 							"host": ["{{base_url}}"],
 							"path": ["api", "interviews", ""]
 						},
-						"description": "Schedule a new interview"
+						"description": "Schedule a new interview\n\n📋 **Available Parameters** (all optional):\n• candidate: Integer (candidate ID)\n• job: Integer (job ID, nullable)\n• status: String (\"scheduled\", \"completed\", \"error\")\n• interview_round: String (max 100 chars)\n• feedback: Text\n• started_at: DateTime (08:00-22:00 UTC)\n• ended_at: DateTime (08:00-22:00 UTC)\n• video_url: URL (max 500 chars)\n\n⚠️ **Validation Rules**:\n• If started_at/ended_at provided, both must be between 08:00-22:00 UTC\n• ended_at must be after started_at\n• Data isolation: Users can only create interviews for their candidates"
 					},
 					"response": []
 				},
@@ -941,12 +941,12 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "interviews", "{{interview_id}}", ""]
 						},
-						"description": "Get detailed information about a specific interview"
+						"description": "Get detailed information about a specific interview\n\n📋 **Response Fields**:\n• id: UUID of the interview\n• candidate: Candidate ID\n• candidate_name: Full name of candidate\n• job_title: Title of the job (if job exists)\n• status: Interview status (scheduled/completed/error)\n• interview_round: Round description\n• feedback: Interview feedback\n• started_at: Start time\n• ended_at: End time\n• video_url: Meeting URL\n• created_at: Creation timestamp\n• updated_at: Last update timestamp\n\n⚠️ **Data Isolation**: Users can only access interviews for their candidates"
 					},
 					"response": []
 				},
 				{
-					"name": "Update Interview",
+					"name": "Update Interview (PUT)",
 					"request": {
 						"method": "PUT",
 						"header": [
@@ -961,14 +961,41 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"status\": \"COMPLETED\",\n    \"ended_at\": \"2024-01-15T11:00:00Z\",\n    \"feedback\": \"Excellent candidate, strong technical skills\"\n}"
+							"raw": "{\n    \"interview_round\": \"Technical Round 2\",\n    \"feedback\": \"Candidate performed well in the first round\",\n    \"status\": \"scheduled\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
 							"host": ["{{base_url}}"],
 							"path": ["api", "interviews", "{{interview_id}}", ""]
 						},
-						"description": "Update interview information"
+						"description": "Full update interview information\n\n📋 **Available Parameters** (all optional):\n• candidate: Integer (candidate ID)\n• job: Integer (job ID)\n• status: String (\"scheduled\", \"completed\", \"error\")\n• interview_round: String (max 100 chars)\n• feedback: Text\n• started_at: DateTime (08:00-22:00 UTC)\n• ended_at: DateTime (08:00-22:00 UTC)\n• video_url: URL (max 500 chars)\n\n⚠️ **Notes**:\n• All fields are optional for updates\n• Time validation only applies when updating time fields\n• Data isolation enforced"
+					},
+					"response": []
+				},
+				{
+					"name": "Partial Update Interview (PATCH)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/interviews/{{interview_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "interviews", "{{interview_id}}", ""]
+						},
+						"description": "Partial update interview information\n\n📋 **Available Parameters** (all optional):\n• candidate: Integer (candidate ID)\n• job: Integer (job ID)\n• status: String (\"scheduled\", \"completed\", \"error\")\n• interview_round: String (max 100 chars)\n• feedback: Text\n• started_at: DateTime (08:00-22:00 UTC)\n• ended_at: DateTime (08:00-22:00 UTC)\n• video_url: URL (max 500 chars)\n\n⚠️ **Notes**:\n• Only update specified fields\n• Time validation only applies when updating time fields\n• Data isolation enforced"
 					},
 					"response": []
 				},
@@ -987,7 +1014,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "interviews", "{{interview_id}}", ""]
 						},
-						"description": "Delete an interview"
+						"description": "Delete an interview\n\n⚠️ **Data Isolation**: Users can only delete interviews for their candidates\n\n🗑️ **Response**: 204 No Content on successful deletion"
 					},
 					"response": []
 				},
@@ -1006,7 +1033,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "interviews", "summary", ""]
 						},
-						"description": "Get interview status summary statistics"
+						"description": "Get interview status summary statistics\n\n📊 **Response**:\n• scheduled: Count of scheduled interviews\n• completed: Count of completed interviews\n• error: Count of interviews with errors\n\n⚠️ **Data Isolation**: Users only see statistics for their candidates\n\n📈 **Example Response**:\n{\n  \"scheduled\": 5,\n  \"completed\": 3,\n  \"error\": 1\n}"
 					},
 					"response": []
 				}

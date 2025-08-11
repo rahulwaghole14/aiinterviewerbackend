@@ -8571,3 +8571,18 @@ ERROR 2025-08-11 12:28:51,990 logger 11796 16884 Error logging user action: Obje
 2025-08-11 12:28:51,990 - ai_interviewer - ERROR - Error logging user action: Object of type UUID is not JSON serializable
 INFO 2025-08-11 12:28:51,990 basehttp 11796 16884 "DELETE /api/evaluation/crud/5/ HTTP/1.1" 204 0
 2025-08-11 12:28:51,990 - django.server - INFO - "DELETE /api/evaluation/crud/5/ HTTP/1.1" 204 0
+INFO 2025-08-11 13:25:25,498 autoreload 11796 3268 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\models.py changed, reloading.
+2025-08-11 13:25:25,498 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\models.py changed, reloading.
+INFO 2025-08-11 13:25:26,504 autoreload 20812 28528 Watching for file changes with StatReloader
+INFO 2025-08-11 13:27:21,536 autoreload 20812 28528 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\serializers.py changed, reloading.
+2025-08-11 13:27:21,536 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\serializers.py changed, reloading.
+INFO 2025-08-11 13:27:22,937 autoreload 424 1408 Watching for file changes with StatReloader
+INFO 2025-08-11 13:31:08,960 autoreload 424 1408 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\views.py changed, reloading.
+2025-08-11 13:31:08,960 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\views.py changed, reloading.
+INFO 2025-08-11 13:31:09,815 autoreload 6148 9612 Watching for file changes with StatReloader
+INFO 2025-08-11 13:31:36,477 autoreload 6148 9612 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\urls.py changed, reloading.
+2025-08-11 13:31:36,477 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\urls.py changed, reloading.
+INFO 2025-08-11 13:31:37,383 autoreload 3404 22656 Watching for file changes with StatReloader
+INFO 2025-08-11 13:33:15,586 autoreload 3404 22656 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\urls.py changed, reloading.
+2025-08-11 13:33:15,586 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\interviews\urls.py changed, reloading.
+INFO 2025-08-11 13:33:16,640 autoreload 12188 17292 Watching for file changes with StatReloader

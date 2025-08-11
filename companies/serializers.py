@@ -56,6 +56,9 @@ class RecruiterSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         
         instance.save()
+        
+        # Refresh the instance to ensure updated data is reflected
+        instance.refresh_from_db()
         return instance
 
 class RecruiterCreateSerializer(serializers.Serializer):

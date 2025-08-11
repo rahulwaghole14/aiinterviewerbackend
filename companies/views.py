@@ -25,7 +25,7 @@ class CompanyDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIVie
         instance.save()
 
 class RecruiterListView(DataIsolationMixin, generics.ListAPIView):
-    queryset = Recruiter.objects.filter(is_active=True)
+    queryset = Recruiter.objects.all().order_by('-id')  # Show all recruiters, newest first
     serializer_class = RecruiterSerializer
     permission_classes = [RecruiterHierarchyPermission]
 

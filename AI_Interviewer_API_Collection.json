@@ -1556,7 +1556,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", "recruiters", ""]
 						},
-						"description": "Retrieve all recruiters (filtered by company for Company users)"
+						"description": "Retrieve all recruiters (including inactive ones) in DESC order\n\n✅ **Features**:\n• Shows both active and inactive recruiters\n• Ordered by newest first (ID descending)\n• Company users see only their company's recruiters\n• Admin users see all recruiters"
 					},
 					"response": []
 				},

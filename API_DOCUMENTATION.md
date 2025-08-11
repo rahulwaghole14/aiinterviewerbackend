@@ -449,12 +449,17 @@ Delete a resume.
 ### 1. List All Recruiters
 **GET** `/api/companies/recruiters/`
 
-**Description**: Retrieve all recruiters with data isolation.
+**Description**: Retrieve all recruiters (including inactive ones) with data isolation, ordered by newest first.
 
 **Access Control**:
 - **Admin**: Sees all recruiters
 - **Company User**: Sees only recruiters from their company
 - **Other Users**: Limited access
+
+**Features**:
+- ✅ **Shows all recruiters**: Both active and inactive recruiters are included
+- ✅ **DESC ordering**: Newest recruiters appear first (ordered by ID descending)
+- ✅ **Data isolation**: Company users see only their company's recruiters
 
 **Response Example**:
 ```json

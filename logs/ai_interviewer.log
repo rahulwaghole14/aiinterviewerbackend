@@ -8011,3 +8011,127 @@ INFO 2025-08-11 10:32:15,851 basehttp 12516 1412 "PUT /api/companies/recruiters/
 2025-08-11 10:32:15,851 - django.server - INFO - "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 141
 INFO 2025-08-11 10:32:21,064 basehttp 12516 5972 "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 144
 2025-08-11 10:32:21,064 - django.server - INFO - "PUT /api/companies/recruiters/3/ HTTP/1.1" 200 144
+INFO 2025-08-11 10:40:53,738 autoreload 12516 17032 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\views.py changed, reloading.
+2025-08-11 10:40:53,738 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\views.py changed, reloading.
+INFO 2025-08-11 10:40:54,699 autoreload 10860 23136 Watching for file changes with StatReloader
+INFO 2025-08-11 10:41:52,295 logger 10860 28308 SECURITY_EVENT: {"timestamp": "2025-08-11T05:11:52.295255+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-11 10:41:52,295 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-11T05:11:52.295255+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-11 10:41:52,295 logger 10860 28308 USER_ACTION: {"timestamp": "2025-08-11T05:11:52.295255+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-11 10:41:52,295 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T05:11:52.295255+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-11 10:41:53,059 basehttp 10860 28308 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-11 10:41:53,059 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-11 10:41:58,965 basehttp 10860 4428 "GET /api/companies/recruiters/ HTTP/1.1" 200 801
+2025-08-11 10:41:58,965 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 801
+ERROR 2025-08-11 10:42:03,469 log 10860 7284 Internal Server Error: /api/companies/recruiters/create/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 194, in post
+    return self.create(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 18, in create
+    serializer.is_valid(raise_exception=True)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 225, in is_valid
+    self._validated_data = self.run_validation(self.initial_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 447, in run_validation
+    value = self.validate(value)
+  File "D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py", line 79, in validate
+    company = Company.objects.get(name=data['company_name'])
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 652, in get
+    raise self.model.MultipleObjectsReturned(
+companies.models.Company.MultipleObjectsReturned: get() returned more than one Company -- it returned 2!
+2025-08-11 10:42:03,469 - django.request - ERROR - Internal Server Error: /api/companies/recruiters/create/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\views\generic\base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\generics.py", line 194, in post
+    return self.create(request, *args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\mixins.py", line 18, in create
+    serializer.is_valid(raise_exception=True)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 225, in is_valid
+    self._validated_data = self.run_validation(self.initial_data)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\rest_framework\serializers.py", line 447, in run_validation
+    value = self.validate(value)
+  File "D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py", line 79, in validate
+    company = Company.objects.get(name=data['company_name'])
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "C:\Users\Admin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\django\db\models\query.py", line 652, in get
+    raise self.model.MultipleObjectsReturned(
+companies.models.Company.MultipleObjectsReturned: get() returned more than one Company -- it returned 2!
+ERROR 2025-08-11 10:42:03,478 basehttp 10860 7284 "POST /api/companies/recruiters/create/ HTTP/1.1" 500 129826
+2025-08-11 10:42:03,478 - django.server - ERROR - "POST /api/companies/recruiters/create/ HTTP/1.1" 500 129826
+INFO 2025-08-11 10:44:58,132 autoreload 10860 23136 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\views.py changed, reloading.
+2025-08-11 10:44:58,132 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\views.py changed, reloading.
+INFO 2025-08-11 10:44:59,016 autoreload 17292 10840 Watching for file changes with StatReloader
+INFO 2025-08-11 10:47:51,226 autoreload 17292 10840 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+2025-08-11 10:47:51,226 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+INFO 2025-08-11 10:47:52,242 autoreload 15552 15320 Watching for file changes with StatReloader
+INFO 2025-08-11 10:50:40,138 logger 15552 25804 SECURITY_EVENT: {"timestamp": "2025-08-11T05:20:40.138690+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-11 10:50:40,138 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-11T05:20:40.138690+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-11 10:50:40,138 logger 15552 25804 USER_ACTION: {"timestamp": "2025-08-11T05:20:40.138690+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-11 10:50:40,138 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T05:20:40.138690+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-11 10:50:40,899 basehttp 15552 25804 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-11 10:50:40,899 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-11 10:50:46,458 basehttp 15552 25388 "GET /api/companies/recruiters/ HTTP/1.1" 200 801
+2025-08-11 10:50:46,458 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 801
+INFO 2025-08-11 10:50:50,519 basehttp 15552 27088 "GET /api/companies/recruiters/8/ HTTP/1.1" 200 136
+2025-08-11 10:50:50,519 - django.server - INFO - "GET /api/companies/recruiters/8/ HTTP/1.1" 200 136
+INFO 2025-08-11 10:50:56,416 basehttp 15552 8480 "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 142
+2025-08-11 10:50:56,416 - django.server - INFO - "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 142
+INFO 2025-08-11 10:51:02,113 basehttp 15552 24396 "GET /api/companies/recruiters/ HTTP/1.1" 200 807
+2025-08-11 10:51:02,113 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 807
+INFO 2025-08-11 10:51:07,820 basehttp 15552 12616 "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 146
+2025-08-11 10:51:07,820 - django.server - INFO - "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 146
+INFO 2025-08-11 10:51:13,415 basehttp 15552 4412 "GET /api/companies/recruiters/ HTTP/1.1" 200 811
+2025-08-11 10:51:13,415 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 811
+INFO 2025-08-11 10:54:27,743 logger 15552 10944 SECURITY_EVENT: {"timestamp": "2025-08-11T05:24:27.743014+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+2025-08-11 10:54:27,743 - ai_interviewer - INFO - SECURITY_EVENT: {"timestamp": "2025-08-11T05:24:27.743014+00:00", "event_type": "USER_LOGIN", "severity": "INFO", "user": {"user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN"}, "details": {"ip_address": "[REDACTED]"}}
+INFO 2025-08-11 10:54:27,743 logger 15552 10944 USER_ACTION: {"timestamp": "2025-08-11T05:24:27.743014+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+2025-08-11 10:54:27,743 - ai_interviewer - INFO - USER_ACTION: {"timestamp": "2025-08-11T05:24:27.743014+00:00", "user_id": 16, "user_email": "admin@rslsolution.com", "user_role": "ADMIN", "action": "user_login", "status": "SUCCESS", "ip_address": null, "details": {"login_method": "email_password", "ip_address": "[REDACTED]", "user_agent": "python-requests/2.32.4", "token_created": "[REDACTED]"}}
+INFO 2025-08-11 10:54:28,542 basehttp 15552 10944 "POST /api/auth/login/ HTTP/1.1" 200 168
+2025-08-11 10:54:28,542 - django.server - INFO - "POST /api/auth/login/ HTTP/1.1" 200 168
+INFO 2025-08-11 10:54:34,574 basehttp 15552 20384 "GET /api/companies/recruiters/ HTTP/1.1" 200 811
+2025-08-11 10:54:34,574 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 811
+INFO 2025-08-11 10:54:39,702 basehttp 15552 27328 "GET /api/companies/recruiters/8/ HTTP/1.1" 200 146
+2025-08-11 10:54:39,702 - django.server - INFO - "GET /api/companies/recruiters/8/ HTTP/1.1" 200 146
+INFO 2025-08-11 10:54:45,603 basehttp 15552 16500 "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 142
+2025-08-11 10:54:45,603 - django.server - INFO - "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 142
+INFO 2025-08-11 10:54:51,781 basehttp 15552 12652 "GET /api/companies/recruiters/ HTTP/1.1" 200 807
+2025-08-11 10:54:51,781 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 807
+INFO 2025-08-11 10:54:58,201 basehttp 15552 24692 "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 146
+2025-08-11 10:54:58,201 - django.server - INFO - "PUT /api/companies/recruiters/8/ HTTP/1.1" 200 146
+INFO 2025-08-11 10:55:05,353 basehttp 15552 11352 "GET /api/companies/recruiters/ HTTP/1.1" 200 811
+2025-08-11 10:55:05,353 - django.server - INFO - "GET /api/companies/recruiters/ HTTP/1.1" 200 811
+INFO 2025-08-11 10:56:03,861 autoreload 15552 15320 D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+2025-08-11 10:56:03,861 - django.utils.autoreload - INFO - D:\RSL\AI-Interview\aiinterviewbackend-new\aiinterviewerbackend\companies\serializers.py changed, reloading.
+INFO 2025-08-11 10:56:04,757 autoreload 3424 6780 Watching for file changes with StatReloader

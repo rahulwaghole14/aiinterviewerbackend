@@ -17,7 +17,7 @@ class UserDataViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         # Always filter by role='Hiring Agency' to ensure only hiring agencies are returned
-        base_queryset = UserData.objects.filter(role='Hiring Agency')
+        base_queryset = UserData.objects.filter(role='Hiring Agency').order_by('-id')  # Show newest first
         
         if user.role == "ADMIN":
             return base_queryset

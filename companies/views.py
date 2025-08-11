@@ -11,7 +11,7 @@ from .serializers import (
 from utils.hierarchy_permissions import CompanyHierarchyPermission, RecruiterHierarchyPermission, DataIsolationMixin
 
 class CompanyListCreateView(DataIsolationMixin, generics.ListCreateAPIView):
-    queryset = Company.objects.filter(is_active=True)
+    queryset = Company.objects.all().order_by('-id')  # Show all companies, newest first
     serializer_class = CompanySerializer
     permission_classes = [CompanyHierarchyPermission]
 

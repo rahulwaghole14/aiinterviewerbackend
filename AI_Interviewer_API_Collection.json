@@ -1295,7 +1295,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "companies", ""]
 						},
-						"description": "Retrieve all companies with email information\n\n📧 **Email Support**: Company email field is now included in responses\n\n📋 **Access Control**:\n• Admin: Sees all companies\n• Company User: Sees only their own company\n• Other Users: Limited access\n\n✅ **Response**: Includes email field for all companies"
+						"description": "Retrieve all companies (including inactive ones) in DESC order\n\n✅ **Features**:\n• Shows both active and inactive companies\n• Ordered by newest first (ID descending)\n• Company users see only their own company\n• Admin users see all companies\n\n📧 **Email Support**: Company email field is now included in responses\n\n📋 **Access Control**:\n• Admin: Sees all companies\n• Company User: Sees only their own company\n• Other Users: Limited access"
 					},
 					"response": []
 				},
@@ -1412,7 +1412,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "hiring_agency", ""]
 						},
-						"description": "Retrieve all hiring agencies (filtered by company for Company users; returns all for Admin)\n\n🔒 **Role Filtering**: This API now returns ONLY hiring agencies (role='Hiring Agency'), not other user roles.\n\n📋 **Access Control**:\n• Admin: Sees all hiring agencies from all companies\n• Company User: Sees only hiring agencies from their own company\n• Other Users: Empty list (no access)\n\n✅ **Security**: Prevents data leakage of other user roles (Recruiter, Company, etc.)"
+						"description": "Retrieve all hiring agencies (including inactive ones) in DESC order\n\n✅ **Features**:\n• Shows both active and inactive hiring agencies\n• Ordered by newest first (ID descending)\n• Company users see only their hiring agencies\n• Admin users see all hiring agencies\n\n🔒 **Role Filtering**: This API now returns ONLY hiring agencies (role='Hiring Agency'), not other user roles.\n\n📋 **Access Control**:\n• Admin: Sees all hiring agencies from all companies\n• Company User: Sees only hiring agencies from their own company\n• Other Users: Empty list (no access)\n\n✅ **Security**: Prevents data leakage of other user roles (Recruiter, Company, etc.)"
 					},
 					"response": []
 				},

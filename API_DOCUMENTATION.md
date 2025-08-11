@@ -294,14 +294,16 @@ Delete a resume.
 ### 1. List Hiring Agency Users
 **GET** `/api/hiring_agency/`
 
-**Description**: Retrieve all hiring agencies with role-based filtering and company-specific access control.
+**Description**: Retrieve all hiring agencies (including inactive ones) with role-based filtering and company-specific access control, ordered by newest first.
 
 **Access Control**:
 - **Admin**: Sees all hiring agencies from all companies
 - **Company User**: Sees only hiring agencies from their own company
 - **Other Users**: Empty list (no access)
 
-**Security Features**:
+**Features**:
+- ✅ **Shows all hiring agencies**: Both active and inactive hiring agencies are included
+- ✅ **DESC ordering**: Newest hiring agencies appear first (ordered by ID descending)
 - ✅ **Role Filtering**: Returns ONLY hiring agencies (role='Hiring Agency')
 - ✅ **Data Isolation**: Prevents exposure of other user roles (Recruiter, Company, etc.)
 - ✅ **Company Filtering**: Company users only see their own hiring agencies
@@ -571,12 +573,17 @@ Delete a resume.
 ### 1. List All Companies
 **GET** `/api/companies/`
 
-**Description**: Retrieve all companies with email information.
+**Description**: Retrieve all companies (including inactive ones) with email information, ordered by newest first.
 
 **Access Control**:
 - **Admin**: Sees all companies
 - **Company User**: Sees only their own company
 - **Other Users**: Limited access
+
+**Features**:
+- ✅ **Shows all companies**: Both active and inactive companies are included
+- ✅ **DESC ordering**: Newest companies appear first (ordered by ID descending)
+- ✅ **Data isolation**: Company users see only their own company
 
 **Response Example**:
 ```json

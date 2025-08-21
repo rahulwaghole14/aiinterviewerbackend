@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'evaluation',
     'notifications',
     'dashboard',
+    'ai_interview',
+    'ai_platform.interview_app.apps.InterviewAppConfig',
 ]
 
 # Django REST Framework settings
@@ -172,6 +174,26 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@aiinterviewer
 # Interview Link System Configuration
 INTERVIEW_LINK_SECRET = config('INTERVIEW_LINK_SECRET', default='your-secret-key-change-in-production')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
+# AI Interview Model Configuration
+AI_MODEL_NAME = config('AI_MODEL_NAME', default='gemini-1.5-flash-latest')
+AI_MODEL_VERSION = config('AI_MODEL_VERSION', default='1.0')
+AI_MODEL_API_ENDPOINT = config('AI_MODEL_API_ENDPOINT', default=None)
+AI_MODEL_API_KEY = config('AI_MODEL_API_KEY', default=None)
+
+# Gemini API Configuration
+GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
+
+# Whisper Model Configuration
+WHISPER_MODEL_NAME = config('WHISPER_MODEL_NAME', default='medium')
+
+# Proctoring Configuration
+PROCTORING_ENABLED = config('PROCTORING_ENABLED', default=True, cast=bool)
+PROCTORING_NOISE_THRESHOLD = config('PROCTORING_NOISE_THRESHOLD', default=40, cast=int)
+PROCTORING_GRACE_PERIOD = config('PROCTORING_GRACE_PERIOD', default=3, cast=int)
+
+# Hugging Face Token for Speaker Detection
+HF_TOKEN = config('HF_TOKEN', default=None)
 
 AUTHENTICATION_BACKENDS = [
     'authapp.backends.EmailBackend',

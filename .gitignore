@@ -1,5 +1,98 @@
-*.pyc
-__pycache__/
+# Virtual Environment
+venv/
+env/
+ENV/
+ai_platform/venv/
 
-*.pyc
+# Media files
+media/
+staticfiles/
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite3
+
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp_response.html
+static_audio_test.html
+ai_interview_test.html
+
+# Model files
+*.pt
+yolov8n.pt
+yolov8n-face.pt
+
+# Test files
+test_*.py
+*_test.py
+test_*.webm
+test_*.html
+
+# Generated files
+generate_*.py
+create_*.py
+fix_*.py
+update_*.py
+debug_*.py
+check_*.py
+correct_*.py
+direct_*.py
+final_*.py
+quick_*.py
+simple_*.py
+working_*.py

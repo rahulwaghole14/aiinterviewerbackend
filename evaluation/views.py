@@ -12,21 +12,36 @@ from utils.logger import ActionLogger
 class EvaluationViewSet(DataIsolationMixin, ModelViewSet):
     """
     Full CRUD operations for evaluations
+    
+    Query Parameters:
+    - candidate_id: Filter evaluations by candidate ID
     """
     queryset = Evaluation.objects.select_related('interview', 'interview__candidate')
     serializer_class = EvaluationCreateUpdateSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Apply data isolation based on user role"""
+        """Apply data isolation based on user role and candidate_id filtering"""
         queryset = super().get_queryset()
         
         # Admin users can see all evaluations
         if getattr(self.request.user, "role", "").lower() == "admin" or self.request.user.is_superuser:
-            return queryset
+            pass  # Admin sees all evaluations
+        else:
+            # Non-admin users see only evaluations for their candidates
+            queryset = queryset.filter(interview__candidate__recruiter=self.request.user)
         
-        # Non-admin users see only evaluations for their candidates
-        return queryset.filter(interview__candidate__recruiter=self.request.user)
+        # Apply candidate_id filtering if provided
+        candidate_id = self.request.query_params.get('candidate_id')
+        if candidate_id:
+            try:
+                candidate_id = int(candidate_id)
+                queryset = queryset.filter(interview__candidate_id=candidate_id)
+            except (ValueError, TypeError):
+                # If candidate_id is not a valid integer, return empty queryset
+                queryset = Evaluation.objects.none()
+        
+        return queryset
     
     def create(self, request, *args, **kwargs):
         """Create a new evaluation"""
@@ -144,8 +159,25 @@ class SubmitFeedbackView(generics.CreateAPIView):
     serializer_class = FeedbackSerializer
 
 class AllFeedbacksView(generics.ListAPIView):
+    """
+    Get all feedbacks for a candidate
+    
+    Query Parameters:
+    - candidate_id: Filter feedbacks by candidate ID
+    """
     serializer_class = FeedbackSerializer
 
     def get_queryset(self):
-        candidate_id = self.kwargs.get("candidate_id")
-        return Feedback.objects.filter(candidate_id=candidate_id).order_by("-submitted_at")
+        # Support both URL parameter and query parameter for candidate_id
+        candidate_id = self.kwargs.get("candidate_id") or self.request.query_params.get("candidate_id")
+        
+        if candidate_id:
+            try:
+                candidate_id = int(candidate_id)
+                return Feedback.objects.filter(candidate_id=candidate_id).order_by("-submitted_at")
+            except (ValueError, TypeError):
+                # If candidate_id is not a valid integer, return empty queryset
+                return Feedback.objects.none()
+        
+        # If no candidate_id provided, return empty queryset
+        return Feedback.objects.none()

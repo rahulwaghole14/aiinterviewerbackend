@@ -40,6 +40,12 @@ urlpatterns = [
 
     path("api/evaluation/", include("evaluation.urls")),
 
+    # AI Interview API
+    path("api/ai-interview/", include("ai_interview.urls")),
+
+    # AI Interview Portal (Video/Audio Interface)
+    path("interview_app/", include("ai_platform.interview_app.urls")),
+
     # Notifications API
     path("api/notifications/", include("notifications.urls")),
     # Dashboard API

@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.db.models import Q, Count
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db import models
+from django.http import HttpResponse # Added for HttpResponse
 
 from rest_framework import generics, status, viewsets, permissions, filters
 from rest_framework.decorators import action
@@ -74,42 +75,104 @@ class PublicInterviewAccessView(APIView):
     permission_classes = []  # No authentication required
     
     def get(self, request, link_token):
-        """Get interview details for candidate access"""
+        """Get interview details and serve interactive interview interface"""
         try:
-            # Decode the link token
+            # Debug logging
+            print(f"DEBUG: PublicInterviewAccessView.get() called with link_token: {link_token}")
+            
+            # Try to decode the link token - handle both long and short formats
             import base64
-            decoded_token = base64.urlsafe_b64decode(link_token.encode('utf-8')).decode('utf-8')
-            interview_id, signature = decoded_token.split(':', 1)
+            try:
+                # First try the long format (interview_id:signature)
+                decoded_token = base64.urlsafe_b64decode(link_token.encode('utf-8')).decode('utf-8')
+                interview_id, signature = decoded_token.split(':', 1)
+                print(f"DEBUG: Using long format - interview_id: {interview_id}")
+            except:
+                # If that fails, try the short format (just interview_id)
+                try:
+                    # Add padding if needed
+                    padded_token = link_token + '=' * (4 - len(link_token) % 4) if len(link_token) % 4 else link_token
+                    interview_id = base64.urlsafe_b64decode(padded_token.encode('utf-8')).decode('utf-8')
+                    print(f"DEBUG: Using short format - interview_id: {interview_id}")
+                except Exception as e:
+                    print(f"DEBUG: Failed to decode token: {e}")
+                    return Response({
+                        'error': 'Invalid interview link format',
+                        'status': 'invalid_format'
+                    }, status=status.HTTP_400_BAD_REQUEST)
             
             # Get the interview
             interview = Interview.objects.get(id=interview_id)
+            print(f"DEBUG: Found interview: {interview.id}")
+            print(f"DEBUG: Interview link: {interview.interview_link[:50]}...")
             
-            # Validate the link
-            is_valid, message = interview.validate_interview_link(link_token)
+            # For short format, just check if the token matches
+            if len(link_token) <= 40:  # Short format
+                is_valid = interview.interview_link == link_token
+                message = "Link is valid" if is_valid else "Invalid interview link"
+            else:  # Long format - use full validation
+                is_valid, message = interview.validate_interview_link(link_token)
+            
+            print(f"DEBUG: Validation result: {is_valid} - {message}")
             
             if not is_valid:
+                print(f"DEBUG: Returning invalid link error: {message}")
                 return Response({
                     'error': message,
                     'status': 'invalid_link'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Return interview details for candidate
-            response_data = {
-                'interview_id': str(interview.id),
-                'candidate_name': interview.candidate.full_name,
-                'candidate_email': interview.candidate.email,
-                'job_title': interview.job.job_title if interview.job else 'N/A',
-                'company_name': interview.job.company_name if interview.job else 'N/A',
-                'interview_round': interview.interview_round,
-                'scheduled_date': interview.started_at.strftime('%B %d, %Y') if interview.started_at else 'TBD',
-                'scheduled_time': interview.started_at.strftime('%I:%M %p') if interview.started_at else 'TBD',
-                'duration_minutes': interview.duration_seconds // 60 if interview.duration_seconds else 60,
-                'ai_interview_type': interview.ai_interview_type,
-                'status': interview.status,
-                'video_url': interview.video_url,
-                'can_join': True,
-                'message': 'You can now join your interview'
-            }
+            # Check if interview can be started
+            now = timezone.now()
+            if interview.started_at and now < interview.started_at:
+                return Response({
+                    'error': f'Interview starts at {interview.started_at.strftime("%I:%M %p")}. Please wait.',
+                    'status': 'not_started'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if user wants JSON response (for API calls)
+            if request.headers.get('Accept') == 'application/json':
+                # Return JSON response for API calls
+                response_data = {
+                    'interview_id': str(interview.id),
+                    'candidate_name': interview.candidate.full_name,
+                    'candidate_email': interview.candidate.email,
+                    'job_title': interview.job.job_title if interview.job else 'N/A',
+                    'company_name': interview.job.company_name if interview.job else 'N/A',
+                    'interview_round': interview.interview_round,
+                    'scheduled_date': interview.started_at.strftime('%B %d, %Y') if interview.started_at else 'TBD',
+                    'scheduled_time': interview.started_at.strftime('%I:%M %p') if interview.started_at else 'TBD',
+                    'duration_minutes': interview.duration_seconds // 60 if interview.duration_seconds else 60,
+                    'ai_interview_type': interview.ai_interview_type,
+                    'status': interview.status,
+                    'video_url': interview.video_url,
+                    'can_join': True,
+                    'message': 'You can now join your interview'
+                }
+                return Response(response_data)
+            
+                        # Redirect to the actual AI interview portal with video/audio capabilities
+            from django.shortcuts import redirect
+            from ai_platform.interview_app.models import InterviewSession
+            
+            # Create or get the AI interview session
+            ai_session, created = InterviewSession.objects.get_or_create(
+                session_key=link_token,
+                defaults={
+                    'candidate_name': interview.candidate.full_name,
+                    'candidate_email': interview.candidate.email,
+                    'job_description': interview.job.tech_stack_details if interview.job else 'Technical Role',
+                    'resume_text': getattr(interview.candidate, 'resume_text', '') or 'Experienced professional seeking new opportunities.',
+                    'language_code': 'en',
+                    'accent_tld': 'com',
+                    'scheduled_at': interview.started_at,
+                    'status': 'SCHEDULED'
+                }
+            )
+            
+            # Redirect to the actual AI interview portal
+            ai_interview_url = f"{request.build_absolute_uri('/')}interview_app/?session_key={link_token}"
+            return redirect(ai_interview_url)
             
             # Log the access attempt
             ActionLogger.log_user_action(
@@ -124,7 +187,7 @@ class PublicInterviewAccessView(APIView):
                 status='SUCCESS'
             )
             
-            return Response(response_data)
+            return HttpResponse(html_content, content_type='text/html')
             
         except Interview.DoesNotExist:
             return Response({
@@ -133,8 +196,10 @@ class PublicInterviewAccessView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Error in public interview access: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Response({
-                'error': 'Invalid interview link',
+                'error': f'Invalid interview link: {str(e)}',
                 'status': 'error'
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -189,6 +254,28 @@ class PublicInterviewAccessView(APIView):
                 status='SUCCESS'
             )
             
+            # Create AI interview session if not exists
+            from ai_interview.services import ai_interview_service
+            from ai_interview.models import AIInterviewSession
+            
+            ai_session, created = AIInterviewSession.objects.get_or_create(
+                interview=interview,
+                defaults={
+                    'status': 'ACTIVE',
+                    'model_name': 'gemini-1.5-flash-latest',
+                    'model_version': '1.0',
+                    'ai_configuration': {
+                        'language_code': 'en',
+                        'accent_tld': 'com',
+                        'candidate_name': interview.candidate.full_name,
+                        'candidate_email': interview.candidate.email,
+                        'job_description': interview.job.description if interview.job else '',
+                        'resume_text': getattr(interview.candidate, 'resume_text', '') or '',
+                    },
+                    'session_started_at': timezone.now()
+                }
+            )
+            
             return Response({
                 'interview_id': str(interview.id),
                 'candidate_name': interview.candidate.full_name,
@@ -196,7 +283,9 @@ class PublicInterviewAccessView(APIView):
                 'started_at': interview.started_at.isoformat(),
                 'status': 'started',
                 'message': 'Interview started successfully',
-                'ai_configuration': interview.schedule.slot.ai_configuration if interview.is_scheduled else {}
+                'ai_configuration': interview.schedule.slot.ai_configuration if interview.is_scheduled else {},
+                'ai_session_id': str(ai_session.id),
+                'ai_interview_ready': True
             })
             
         except Interview.DoesNotExist:
@@ -216,6 +305,12 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     """
     /api/interviews/  → list, create
     /api/interviews/<pk>/  → retrieve, update, delete
+    
+    Query Parameters:
+    - candidate_id: Filter interviews by candidate ID
+    - status: Filter by interview status
+    - job: Filter by job ID
+    - candidate: Filter by candidate ID (alternative)
     """
     queryset           = Interview.objects.select_related("candidate", "job")
     serializer_class   = InterviewSerializer
@@ -229,12 +324,28 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
 
     # non‑admin users only see their own candidates' interviews
     def get_queryset(self):
+        queryset = self.queryset
+        
+        # Apply data isolation based on user role
         if (
             getattr(self.request.user, "role", "").lower() == "admin"
             or self.request.user.is_superuser
         ):
-            return self.queryset
-        return self.queryset.filter(candidate__recruiter=self.request.user)
+            pass  # Admin sees all interviews
+        else:
+            queryset = queryset.filter(candidate__recruiter=self.request.user)
+        
+        # Apply candidate_id filtering if provided
+        candidate_id = self.request.query_params.get('candidate_id')
+        if candidate_id:
+            try:
+                candidate_id = int(candidate_id)
+                queryset = queryset.filter(candidate_id=candidate_id)
+            except (ValueError, TypeError):
+                # If candidate_id is not a valid integer, return empty queryset
+                queryset = Interview.objects.none()
+        
+        return queryset
 
     def list(self, request, *args, **kwargs):
         """Log interview listing"""
@@ -261,7 +372,7 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         try:
             response = super().create(request, *args, **kwargs)
             ActionLogger.log_user_action(
-                user=request.user,
+                    user=request.user,
                 action='interview_create',
                 details={'interview_id': response.data.get('id')},
                 status='SUCCESS'
@@ -277,13 +388,13 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                     if interview.status in ['scheduled', 'confirmed']:
                         NotificationService.send_candidate_interview_scheduled_notification(interview)
             except Exception as e:
-                # Log notification failure but don't fail the request
-                ActionLogger.log_user_action(
-                    user=request.user,
+                    # Log notification failure but don't fail the request
+                    ActionLogger.log_user_action(
+                        user=request.user,
                     action='interview_notification_failed',
                     details={'interview_id': response.data.get('id'), 'error': str(e)},
-                    status='FAILED'
-                )
+                        status='FAILED'
+                    )
             
             return response
         except Exception as e:
@@ -417,6 +528,60 @@ class InterviewDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
         if self.request.method in ['PUT', 'PATCH']:
             return InterviewSerializer
         return InterviewSerializer
+
+
+class InterviewGenerateLinkView(DataIsolationMixin, generics.GenericAPIView):
+    """
+    Generate a secure interview link for the candidate
+    """
+    queryset = Interview.objects.all()
+    permission_classes = [InterviewHierarchyPermission]
+
+    def post(self, request, pk=None):
+        """
+        Generate a secure interview link for the candidate
+        """
+        interview = self.get_object()
+        
+        try:
+            link_token = interview.generate_interview_link()
+            if link_token:
+                ActionLogger.log_user_action(
+                    user=request.user,
+                    action='interview_link_generated',
+                    details={
+                        'interview_id': str(interview.id),
+                        'candidate_email': interview.candidate.email,
+                        'link_expires_at': interview.link_expires_at.isoformat() if interview.link_expires_at else None
+                    },
+            status='SUCCESS'
+        )
+        
+                return Response({
+                    'link_token': link_token,
+                    'interview_url': f"{request.build_absolute_uri('/')}api/interviews/public/{link_token}/",
+                    'expires_at': interview.link_expires_at.isoformat() if interview.link_expires_at else None,
+                    'message': 'Interview link generated successfully'
+                })
+            else:
+                return Response({
+                    'error': 'Could not generate interview link. Interview must have a start time.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            ActionLogger.log_user_action(
+                user=request.user,
+                action='interview_link_generation_failed',
+                details={
+                    'interview_id': str(interview.id),
+                    'error': str(e)
+                },
+                status='FAILED'
+            )
+            
+            return Response({
+                'error': f'Failed to generate interview link: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class InterviewFeedbackView(generics.UpdateAPIView):
@@ -856,36 +1021,58 @@ class InterviewConflictViewSet(DataIsolationMixin, viewsets.ReadOnlyModelViewSet
 
 class SlotAvailabilityView(generics.ListAPIView):
     """
-    Get available slots for a specific date range
+    Get available slots with comprehensive filtering options
+    
+    Query Parameters:
+    - date: Single date filter (YYYY-MM-DD)
+    - company: Company filter by ID
+    - company_id: Alternative company filter by ID
+    - start_date: Date range start (YYYY-MM-DD)
+    - end_date: Date range end (YYYY-MM-DD)
+    - ai_interview_type: Filter by interview type (technical, behavioral, etc.)
     """
     serializer_class = InterviewSlotSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Get all query parameters
+        date = self.request.query_params.get('date')
+        company = self.request.query_params.get('company')
+        company_id = self.request.query_params.get('company_id')
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
-        company_id = self.request.query_params.get('company_id')
         ai_interview_type = self.request.query_params.get('ai_interview_type')
         
+        # Start with available slots
         queryset = InterviewSlot.objects.filter(status='available')
         
-        if start_date:
-            queryset = queryset.filter(start_time__date__gte=start_date)
+        # Date filtering - support both single date and date range
+        if date:
+            # Single date filter
+            queryset = queryset.filter(start_time__date=date)
+        else:
+            # Date range filtering
+            if start_date:
+                queryset = queryset.filter(start_time__date__gte=start_date)
+            
+            if end_date:
+                queryset = queryset.filter(start_time__date__lte=end_date)
         
-        if end_date:
-            queryset = queryset.filter(start_time__date__lte=end_date)
-        
+        # Company filtering - support both 'company' and 'company_id' parameters
         if company_id:
             queryset = queryset.filter(company_id=company_id)
+        elif company:
+            queryset = queryset.filter(company_id=company)
         
+        # AI interview type filtering
         if ai_interview_type:
             queryset = queryset.filter(ai_interview_type=ai_interview_type)
         
-        # Apply data isolation
+        # Apply data isolation based on user role
         user_role = getattr(self.request.user, "role", "").lower()
         
         if user_role == "admin" or self.request.user.is_superuser:
-            pass  # Admin sees all
+            pass  # Admin sees all slots
         elif user_role == "company":
             queryset = queryset.filter(company=self.request.user.company)
         elif user_role in ["hiring_agency", "recruiter"]:
@@ -893,7 +1080,7 @@ class SlotAvailabilityView(generics.ListAPIView):
         else:
             queryset = InterviewSlot.objects.none()
         
-        # Filter by availability
+        # Filter by actual availability (check if slot is truly available)
         available_slots = [slot for slot in queryset if slot.is_available()]
         return available_slots
 
@@ -903,9 +1090,25 @@ class SlotAvailabilityView(generics.ListAPIView):
         """
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
+        
+        # Transform data to match the requested response format
+        available_slots = []
+        for slot_data in serializer.data:
+            slot_info = {
+                "id": slot_data['id'],
+                "start_time": slot_data['start_time'],
+                "end_time": slot_data['end_time'],
+                "ai_interview_type": slot_data['ai_interview_type'],
+                "company": slot_data['company'],
+                "status": slot_data['status'],
+                "current_bookings": slot_data['current_bookings'],
+                "max_candidates": slot_data['max_candidates']
+            }
+            available_slots.append(slot_info)
+        
         return Response({
-            'available_slots': serializer.data,
-            'total_available': len(serializer.data)
+            'available_slots': available_slots,
+            'total_available': len(available_slots)
         })
 
 

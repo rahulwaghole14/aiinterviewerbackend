@@ -98,6 +98,26 @@
 			"type": "string"
 		},
 		{
+			"key": "ai_session_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "ai_question_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "ai_response_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "ai_result_id",
+			"value": "",
+			"type": "string"
+		},
+		{
 			"key": "interview_link_token",
 			"value": "",
 			"type": "string"

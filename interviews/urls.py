@@ -18,6 +18,7 @@ urlpatterns = [
     path('', views.InterviewListCreateView.as_view(), name='interview-list-create'),
     path('<uuid:pk>/', views.InterviewDetailView.as_view(), name='interview-detail'),
     path('<uuid:pk>/feedback/', views.InterviewFeedbackView.as_view(), name='interview-feedback'),
+    path('<uuid:pk>/generate-link/', views.InterviewGenerateLinkView.as_view(), name='interview-generate-link'),
     
     # Slot management endpoints
     path('', include(router.urls)),

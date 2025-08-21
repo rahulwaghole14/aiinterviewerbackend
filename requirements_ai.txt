@@ -1,0 +1,45 @@
+# AI Interview Dependencies
+
+# Google Generative AI (Gemini)
+google-generativeai>=0.3.0
+
+# OpenAI Whisper for Speech-to-Text
+openai-whisper>=20231117
+
+# Text-to-Speech
+gTTS>=2.3.2
+
+# Computer Vision and Image Processing
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+mediapipe>=0.10.0
+
+# Audio Processing
+sounddevice>=0.4.6
+pyannote.audio>=3.1.0
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Text Analysis
+textblob>=0.17.1
+readtime>=1.1.0
+
+# PDF and Document Processing
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+
+# Scientific Computing
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Web Framework Extensions
+weasyprint>=60.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Additional AI/ML Libraries
+transformers>=4.30.0
+datasets>=2.12.0
+accelerate>=0.20.0
+

@@ -1,6 +1,7 @@
 
 import os
 import google.generativeai as genai
+from numpy._core.numeric import False_
 import whisper
 import PyPDF2
 import docx
@@ -67,13 +68,13 @@ except ImportError:
 
 load_dotenv()
 # Use hardcoded API key for now (same as other files)
-gemini_api_key = "AIzaSyBXhqoQx3maTEJNdGH6xo3ULX1wL1LFPOc"
+gemini_api_key = "AIzaSyCUzd-vFkZdx5JGPHi951Z7nGB97plffX0"
 genai.configure(api_key=gemini_api_key)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.
 # This does NOT affect AI evaluation in the report or email sending.
-DEV_MODE = True
+DEV_MODE = False
 
 try:
     whisper_model = whisper.load_model("base")
@@ -262,7 +263,7 @@ def interview_portal(request):
         
         print(f"DEBUG: About to generate questions. Force regeneration is: {False}")
         # Force regeneration of questions to ensure coding questions are included
-        if True:  # Enable existing questions but fix the structure
+        if False:  # Disable existing questions to force new AI generation
             all_questions = []
             tts_dir = os.path.join(settings.MEDIA_ROOT, 'tts')
             os.makedirs(tts_dir, exist_ok=True)
@@ -293,6 +294,8 @@ def interview_portal(request):
                         'text': q.question_text, 
                         'audio_url': audio_url
                     })
+                generate_new_questions = False
+
             else:
                 # No existing questions, generate new ones
                 print("DEBUG: No existing questions found, generating new ones...")
@@ -319,10 +322,11 @@ def interview_portal(request):
                 print(f"DEBUG: Added coding question with ID: {coding_q['id']}, title: {coding_q['title']}")
             
             # Check if we need to generate new questions
+            print(f"DEBUG: generate_new_questions flag: {generate_new_questions if 'generate_new_questions' in locals() else 'NOT SET'}")
             if 'generate_new_questions' in locals() and generate_new_questions:
                 print("DEBUG: Generating new questions due to no existing questions...")
                 # Generate new questions using the existing logic
-                DEV_MODE = True
+                DEV_MODE = False
                 if DEV_MODE:
                     print("--- RUNNING IN DEV MODE: Using hardcoded questions and summary. ---")
                     session.resume_summary = "This is a sample resume summary for developer mode. The candidate seems proficient in Python and Django."
@@ -376,7 +380,8 @@ def interview_portal(request):
                     # Update the coding_questions_data with the real database ID
                     coding_q['id'] = str(coding_question_obj.id)
         else:
-            DEV_MODE = True
+            DEV_MODE = False
+
             all_questions = []
             if DEV_MODE:
                 print("--- RUNNING IN DEV MODE: Using hardcoded questions and summary. ---")
@@ -489,7 +494,9 @@ def interview_portal(request):
         context = { 'session_key': session_key, 'interview_session_id': str(session.id), 'spoken_questions_data': all_questions, 'coding_questions_data': coding_questions, 'interview_started': True }
         return render(request, 'interview_app/portal.html', context)
     except Exception as e:
-        print(f"ERROR during interview setup: {e}"); traceback.print_exc()
+        print(f"ERROR during interview setup: {e}")
+        import traceback
+        traceback.print_exc()
         return HttpResponse(f"An API or processing error occurred: {str(e)}", status=500)
         
 @login_required

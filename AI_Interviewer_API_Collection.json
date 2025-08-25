@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "ai-interviewer-api",
 		"name": "AI Interviewer API - Complete Collection",
-		"description": "Complete API documentation for the AI Interviewer platform backend with working credentials. Includes all endpoints for authentication, domain management, jobs, candidates, resumes, interviews, evaluations, notifications, dashboard, and the new link-based interview access system.",
+		"description": "Complete API documentation for the AI Interviewer platform backend with working credentials. Includes all endpoints for authentication, domain management, jobs, candidates, resumes, interviews, evaluations, notifications, dashboard, interview_app endpoints, and the new link-based interview access system.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "ai-interviewer"
 	},
@@ -119,6 +119,21 @@
 		},
 		{
 			"key": "interview_link_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "session_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "session_key",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "question_id",
 			"value": "",
 			"type": "string"
 		}
@@ -2842,6 +2857,225 @@
 			"response": []
 		},
 		{
+			"name": "🎯 Interview App Endpoints",
+			"item": [
+				{
+					"name": "Get Interview Report",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/interview_app/report/{{session_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "report", "{{session_id}}", ""]
+						},
+						"description": "Get detailed interview report with scores, evaluation, and analysis for a specific session"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Interview Dashboard",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/interview_app/dashboard/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "dashboard", ""]
+						},
+						"description": "Get interview dashboard with all sessions, statistics, and overview data"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Session Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/interview_app/session/{{session_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "session", "{{session_id}}", ""]
+						},
+						"description": "Get detailed session information including questions, answers, and metadata"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Interview Portal",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/interview_app/?session_key={{session_key}}",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", ""],
+							"query": [
+								{
+									"key": "session_key",
+									"value": "{{session_key}}"
+								}
+							]
+						},
+						"description": "Access the interview portal with session key (no authentication required for candidates)"
+					},
+					"response": []
+				},
+				{
+					"name": "Transcribe Audio",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "multipart/form-data"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "audio_data",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "session_id",
+									"value": "{{session_id}}",
+									"type": "text"
+								},
+								{
+									"key": "question_id",
+									"value": "{{question_id}}",
+									"type": "text"
+								},
+								{
+									"key": "response_time",
+									"value": "30.5",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/interview_app/transcribe_audio/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "transcribe_audio", ""]
+						},
+						"description": "Submit audio for transcription and AI evaluation"
+					},
+					"response": []
+				},
+				{
+					"name": "Execute Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"def reverse_string(s):\\n    return s[::-1]\\n\\nprint(reverse_string('hello'))\",\n    \"language\": \"PYTHON\",\n    \"question_id\": \"{{question_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/interview_app/execute_code/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "execute_code", ""]
+						},
+						"description": "Execute code for testing (does not save results)"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Coding Challenge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"session_key\": \"{{session_key}}\",\n    \"question_id\": \"{{question_id}}\",\n    \"code\": \"def reverse_string(s):\\n    return s[::-1]\",\n    \"language\": \"PYTHON\",\n    \"is_final\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/interview_app/submit_coding_challenge/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "submit_coding_challenge", ""]
+						},
+						"description": "Submit final coding challenge solution and end interview"
+					},
+					"response": []
+				},
+				{
+					"name": "End Interview Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"session_key\": \"{{session_key}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/interview_app/end_interview_session/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "end_interview_session", ""]
+						},
+						"description": "End interview session and mark as completed"
+					},
+					"response": []
+				},
+				{
+					"name": "Release Camera Resources",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"session_key\": \"{{session_key}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/interview_app/release_camera/",
+							"host": ["{{base_url}}"],
+							"path": ["interview_app", "release_camera", ""]
+						},
+						"description": "Release camera and microphone resources for a session"
+					},
+					"response": []
+				}
+			],
+			"description": "Interview application endpoints for real-time interview management, transcription, coding challenges, and session control"
+		},
+		{
 			"name": "📋 API Collection Summary",
 			"request": {
 				"method": "GET",
@@ -2851,7 +3085,7 @@
 					"host": ["{{base_url}}"],
 					"path": ["api", ""]
 				},
-				"description": "🎯 **AI Interviewer API - Complete Collection**\n\nThis collection includes all endpoints for the AI Interviewer platform:\n\n🔐 **Authentication & User Management**\n• User login, registration, logout\n• Role-based access control\n• Admin user management\n\n🏢 **Domain & Company Management**\n• Domain CRUD operations\n• Company management with email/password support\n• Data isolation by company\n\n💼 **Jobs Management**\n• Job posting CRUD operations\n• Domain-based job filtering\n• Company-specific job management\n\n👥 **Candidates Management**\n• Single and bulk candidate creation\n• Multi-step candidate creation flow\n• Resume extraction and processing\n• Data isolation by recruiter/company\n\n📄 **Resumes Management**\n• Single and bulk resume upload\n• Resume processing and extraction\n• File management and storage\n\n🎯 **Interviews Management**\n• Interview scheduling and management\n• AI interview slot management\n• Interview scheduling with secure links\n• Complete CRUD operations\n\n🔗 **Public Interview Access**\n• Secure link-based interview access\n• No authentication required for candidates\n• Time-based access control\n• HMAC-based security\n\n🤖 **AI Interview Slot Management**\n• Interview slot creation and booking\n• Recurring slot management\n• AI interview configurations\n• Calendar and availability views\n• Conflict management\n\n📊 **Evaluation Management**\n• Interview evaluation CRUD\n• Manual feedback submission\n• Evaluation reports and summaries\n• Candidate feedback tracking\n\n📊 **Dashboard & Analytics**\n• Comprehensive dashboard data\n• Statistics for all entities\n• User activity tracking\n• Data export capabilities\n\n🏢 **Company Management**\n• Company CRUD operations\n• Email and password support\n• Active/inactive company listing\n\n👥 **Hiring Agency Management**\n• Hiring agency user management\n• Company-specific agency access\n• Role-based permissions\n\n👨‍💼 **Recruiter Management**\n• Recruiter user management\n• Company-specific recruiter access\n• Profile management\n\n🔔 **Notification System**\n• Email and in-app notifications\n• User preference management\n• Template-based notifications\n• Bulk notification operations\n\n✅ **Key Features**\n• Complete CRUD operations for all entities\n• Role-based access control and data isolation\n• Secure link-based interview access\n• AI interview slot management system\n• Comprehensive notification system\n• Dashboard and analytics\n• Bulk operations support\n• File upload and management\n\n🔒 **Security Features**\n• Token-based authentication\n• HMAC-based secure links\n• Time-based access control\n• Data isolation by company/user\n• Role-based permissions\n\n📧 **Email Integration**\n• Automated email notifications\n• Interview scheduling emails with secure links\n• Professional email templates\n• Candidate communication\n\n🚀 **Ready for Production**\nAll endpoints are fully functional and ready for production use with comprehensive error handling, validation, and security measures."
+				"description": "🎯 **AI Interviewer API - Complete Collection**\n\nThis collection includes all endpoints for the AI Interviewer platform:\n\n🔐 **Authentication & User Management**\n• User login, registration, logout\n• Role-based access control\n• Admin user management\n\n🏢 **Domain & Company Management**\n• Domain CRUD operations\n• Company management with email/password support\n• Data isolation by company\n\n💼 **Jobs Management**\n• Job posting CRUD operations\n• Domain-based job filtering\n• Company-specific job management\n\n👥 **Candidates Management**\n• Single and bulk candidate creation\n• Multi-step candidate creation flow\n• Resume extraction and processing\n• Data isolation by recruiter/company\n\n📄 **Resumes Management**\n• Single and bulk resume upload\n• Resume processing and extraction\n• File management and storage\n\n🎯 **Interviews Management**\n• Interview scheduling and management\n• AI interview slot management\n• Interview scheduling with secure links\n• Complete CRUD operations\n\n🎯 **Interview App Endpoints**\n• Real-time interview portal access\n• Audio transcription and evaluation\n• Coding challenge execution and submission\n• Session management and control\n• Interview reports and analytics\n• Camera and resource management\n\n🔗 **Public Interview Access**\n• Secure link-based interview access\n• No authentication required for candidates\n• Time-based access control\n• HMAC-based security\n\n🤖 **AI Interview Slot Management**\n• Interview slot creation and booking\n• Recurring slot management\n• AI interview configurations\n• Calendar and availability views\n• Conflict management\n\n📊 **Evaluation Management**\n• Interview evaluation CRUD\n• Manual feedback submission\n• Evaluation reports and summaries\n• Candidate feedback tracking\n\n📊 **Dashboard & Analytics**\n• Comprehensive dashboard data\n• Statistics for all entities\n• User activity tracking\n• Data export capabilities\n\n🏢 **Company Management**\n• Company CRUD operations\n• Email and password support\n• Active/inactive company listing\n\n👥 **Hiring Agency Management**\n• Hiring agency user management\n• Company-specific agency access\n• Role-based permissions\n\n👨‍💼 **Recruiter Management**\n• Recruiter user management\n• Company-specific recruiter access\n• Profile management\n\n🔔 **Notification System**\n• Email and in-app notifications\n• User preference management\n• Template-based notifications\n• Bulk notification operations\n\n✅ **Key Features**\n• Complete CRUD operations for all entities\n• Role-based access control and data isolation\n• Secure link-based interview access\n• AI interview slot management system\n• Comprehensive notification system\n• Dashboard and analytics\n• Bulk operations support\n• File upload and management\n\n🔒 **Security Features**\n• Token-based authentication\n• HMAC-based secure links\n• Time-based access control\n• Data isolation by company/user\n• Role-based permissions\n\n📧 **Email Integration**\n• Automated email notifications\n• Interview scheduling emails with secure links\n• Professional email templates\n• Candidate communication\n\n🚀 **Ready for Production**\nAll endpoints are fully functional and ready for production use with comprehensive error handling, validation, and security measures."
 			},
 			"response": []
 		}

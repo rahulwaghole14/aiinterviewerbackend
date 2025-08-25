@@ -3,7 +3,7 @@ import os
 import json
 import logging
 import google.generativeai as genai
-import whisper
+from ai_platform.interview_app.whisper_loader import get_whisper_model, is_whisper_available
 import gtts
 from gtts import gTTS
 from pathlib import Path
@@ -28,13 +28,7 @@ load_dotenv()
 gemini_api_key = "AIzaSyBXhqoQx3maTEJNdGH6xo3ULX1wL1LFPOc"
 genai.configure(api_key=gemini_api_key)
 
-# Load Whisper model
-try:
-    whisper_model = whisper.load_model("small")
-    print("Whisper model 'small' loaded for AI interview service.")
-except Exception as e:
-    print(f"Error loading Whisper model: {e}")
-    whisper_model = None
+# Whisper model will be loaded on-demand using the centralized loader
 
 # Constants
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
@@ -174,6 +168,7 @@ class AIInterviewService:
         Transcribe audio response using Whisper
         """
         try:
+            whisper_model = get_whisper_model()
             if not whisper_model:
                 raise Exception("Whisper model not available")
             

@@ -2,7 +2,7 @@
 import os
 import google.generativeai as genai
 from numpy._core.numeric import False_
-import whisper
+from .whisper_loader import get_whisper_model, is_whisper_available
 import PyPDF2
 import docx
 import re
@@ -76,11 +76,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CRE
 # This does NOT affect AI evaluation in the report or email sending.
 DEV_MODE = False
 
-try:
-    whisper_model = whisper.load_model("small")
-    print("Whisper model 'small' loaded.")
-except Exception as e:
-    print(f"Error loading Whisper model: {e}"); whisper_model = None
+# Whisper model will be loaded on-demand using the centralized loader
 
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 CAMERAS, camera_lock = {}, threading.Lock()
@@ -867,6 +863,7 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
 
 @csrf_exempt
 def transcribe_audio(request):
+    whisper_model = get_whisper_model()
     if not whisper_model: return JsonResponse({'error': 'Whisper model not available.'}, status=500)
     if request.method == 'POST' and request.FILES.get('audio_data'):
         audio_file = request.FILES['audio_data']

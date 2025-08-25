@@ -186,7 +186,7 @@ AI_MODEL_API_KEY = config('AI_MODEL_API_KEY', default=None)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
 
 # Whisper Model Configuration
-WHISPER_MODEL_NAME = config('WHISPER_MODEL_NAME', default='medium')
+WHISPER_MODEL_NAME = config('WHISPER_MODEL_NAME', default='small')
 
 # Proctoring Configuration
 PROCTORING_ENABLED = config('PROCTORING_ENABLED', default=True, cast=bool)

@@ -77,8 +77,8 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CRE
 DEV_MODE = False
 
 try:
-    whisper_model = whisper.load_model("base")
-    print("Whisper model 'base' loaded.")
+    whisper_model = whisper.load_model("small")
+    print("Whisper model 'small' loaded.")
 except Exception as e:
     print(f"Error loading Whisper model: {e}"); whisper_model = None
 

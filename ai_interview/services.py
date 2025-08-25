@@ -30,8 +30,8 @@ genai.configure(api_key=gemini_api_key)
 
 # Load Whisper model
 try:
-    whisper_model = whisper.load_model("medium")
-    print("Whisper model 'medium' loaded for AI interview service.")
+    whisper_model = whisper.load_model("small")
+    print("Whisper model 'small' loaded for AI interview service.")
 except Exception as e:
     print(f"Error loading Whisper model: {e}")
     whisper_model = None

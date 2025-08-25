@@ -8,26 +8,321 @@
     <!-- Add Monaco Editor CDN -->
     <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs/editor/editor.main.css">
     <style>
-        :root { --primary-color: #007bff; --success-color: #28a745; --danger-color: #dc3545; }
-        body { font-family: system-ui, sans-serif; line-height: 1.6; padding: 1em; background-color: #f0f2f5; }
-        .container { max-width: 1200px; margin: auto; }
-        .card { background-color: #fff; padding: 2.5em; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h1, h2, h3 { color: #343a40; }
-        .btn { display: inline-block; padding: 0.8em 1.5em; border-radius: 5px; text-align: center; cursor: pointer; border: none; font-size: 1em; font-weight: 500; transition: background-color 0.2s; }
-        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
-        .submit-btn { background-color: var(--primary-color); color: white; }
-        .done-btn { background-color: var(--success-color); color: white; margin-top: 1em; }
-        .cancel-btn { background-color: #6c757d; color: white; }
-        .spoken-phase-layout { display: flex; gap: 2em; }
-        .interview-main { flex: 3; }
-        .proctoring-sidebar { flex: 1; }
-        #camera-check-feed, #proctoring-feed { width: 100%; height: auto; border-radius: 6px; background-color: #000; aspect-ratio: 4 / 3; }
-        #verification-feed { width: 100%; max-width: 640px; height: auto; border-radius: 6px; background-color: #000; aspect-ratio: 4 / 3; }
-        .timer-display { font-size: 2.5em; font-weight: bold; text-align: center; margin: 1em 0; }
-        .warnings-list { list-style: none; padding: 0; }
-        .warnings-list li { background-color: var(--danger-color); color: white; padding: 0.5em 1em; border-radius: 20px; margin-bottom: 0.5em; text-align: center; font-weight: bold; font-size: 0.9em; }
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: none; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: white; padding: 2em; border-radius: 8px; text-align: center; max-width: 500px; }
+        :root { 
+            --primary-color: #667eea; 
+            --primary-dark: #5a6fd8;
+            --success-color: #28a745; 
+            --danger-color: #dc3545; 
+            --warning-color: #ffc107;
+            --text-primary: #2c3e50;
+            --text-secondary: #6c757d;
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #ffffff;
+            --border-color: #e9ecef;
+            --shadow: 0 4px 20px rgba(0,0,0,0.1);
+            --shadow-hover: 0 8px 30px rgba(0,0,0,0.15);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            line-height: 1.6; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }
+        
+        .card { 
+            background: var(--bg-secondary); 
+            padding: 2.5rem; 
+            border-radius: 20px; 
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-2px);
+        }
+        
+        h1, h2, h3 { 
+            color: var(--text-primary); 
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .btn { 
+            display: inline-block; 
+            padding: 12px 24px; 
+            border-radius: 12px; 
+            text-align: center; 
+            cursor: pointer; 
+            border: none; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            transition: all 0.3s ease;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:disabled { 
+            background-color: #ccc; 
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        
+        .submit-btn { 
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); 
+            color: white; 
+        }
+        
+        .done-btn { 
+            background: linear-gradient(135deg, var(--success-color), #20c997); 
+            color: white; 
+            margin-top: 1rem; 
+        }
+        
+        .cancel-btn { 
+            background: linear-gradient(135deg, #6c757d, #495057); 
+            color: white; 
+        }
+        
+        .spoken-phase-layout { 
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+        
+        .interview-main { 
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+        
+        .proctoring-sidebar { 
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 20px;
+        }
+        
+        #camera-check-feed, #proctoring-feed { 
+            width: 100%; 
+            height: auto; 
+            border-radius: 15px; 
+            background-color: #000; 
+            aspect-ratio: 4 / 3;
+            box-shadow: var(--shadow);
+        }
+        
+        #verification-feed { 
+            width: 100%; 
+            max-width: 640px; 
+            height: auto; 
+            border-radius: 15px; 
+            background-color: #000; 
+            aspect-ratio: 4 / 3;
+            box-shadow: var(--shadow);
+        }
+        
+        .timer-display { 
+            font-size: 3rem; 
+            font-weight: bold; 
+            text-align: center; 
+            margin: 2rem 0;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .warnings-list { 
+            list-style: none; 
+            padding: 0; 
+        }
+        
+        .warnings-list li { 
+            background: linear-gradient(135deg, var(--danger-color), #c82333); 
+            color: white; 
+            padding: 0.75rem 1.5rem; 
+            border-radius: 25px; 
+            margin-bottom: 0.75rem; 
+            text-align: center; 
+            font-weight: 600; 
+            font-size: 0.9rem;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .modal-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.8); 
+            display: none; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content { 
+            background: var(--bg-secondary); 
+            padding: 3rem; 
+            border-radius: 20px; 
+            text-align: center; 
+            max-width: 500px;
+            box-shadow: var(--shadow-hover);
+            border: 1px solid var(--border-color);
+        }
+        
+        .question-container {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-left: 5px solid var(--primary-color);
+        }
+        
+        .question-category {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        
+        .question-text {
+            font-size: 1.2rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .transcription-box {
+            background: var(--bg-primary);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border: 2px solid var(--border-color);
+            min-height: 100px;
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        .coding-container {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+        
+        .coding-problem {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-left: 5px solid var(--warning-color);
+        }
+        
+        .coding-actions {
+            display: flex;
+            gap: 1rem;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+        
+        .code-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            border: 2px solid #333;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: blink 1.5s infinite;
+        }
+        
+        .status-loading { background-color: var(--warning-color); }
+        .status-success { background-color: var(--success-color); }
+        .status-error { background-color: var(--danger-color); }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        @media (max-width: 768px) {
+            .spoken-phase-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .card {
+                padding: 1.5rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .timer-display {
+                font-size: 2rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -39,55 +334,60 @@
         <!-- Phase 0: Setup Screens -->
         <div id="setup-phase">
             <div id="camera-check-screen" class="card">
-                <h1>Camera & System Check</h1>
-                <p>Please allow camera access. We are making sure everything is ready.</p>
-                <img id="camera-check-feed" src="" alt="Camera feed">
-                <p id="camera-check-status" style="font-weight: bold;"></p>
+                <h1>🎥 Camera & System Check</h1>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please allow camera access. We are making sure everything is ready for your interview.</p>
+                <div style="text-align: center;">
+                    <img id="camera-check-feed" src="" alt="Camera feed">
+                    <p id="camera-check-status" style="font-weight: 600; margin-top: 1rem; padding: 1rem; border-radius: 10px; background: var(--bg-primary);"></p>
+                </div>
             </div>
             <div id="id-verification-screen" class="card" style="display: none; text-align: center;">
-                <h1>ID Verification</h1>
-                <p>Please hold your ID card next to your face so both are clearly visible in the frame.</p>
-                <video id="verification-feed" autoplay playsinline></video>
-                <button id="capture-id-btn" class="btn submit-btn" style="margin-top: 1em; max-width: 640px;">Capture & Verify ID</button>
-                <p id="id-verification-status" style="font-weight: bold; margin-top: 1em;"></p>
+                <h1>🆔 ID Verification</h1>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please hold your ID card next to your face so both are clearly visible in the frame.</p>
+                <div style="max-width: 640px; margin: 0 auto;">
+                    <video id="verification-feed" autoplay playsinline style="margin-bottom: 1.5rem;"></video>
+                    <button id="capture-id-btn" class="btn submit-btn" style="width: 100%; max-width: 300px;">📸 Capture & Verify ID</button>
+                    <p id="id-verification-status" style="font-weight: 600; margin-top: 1rem; padding: 1rem; border-radius: 10px; background: var(--bg-primary);"></p>
+                </div>
             </div>
         </div>
 
         <!-- Phase 1: Spoken Interview -->
         <div id="spoken-interview-phase" class="spoken-phase-layout" data-session-id="{{ interview_session_id }}" style="display: none;">
             <div class="interview-main">
-                <div id="question-container"></div>
+                <h2>🎤 Interview Session</h2>
+                <div id="question-container" class="question-container"></div>
                 <div id="thinking-timer" class="timer-display" style="display:none;"></div>
                 <div id="answering-timer" class="timer-display" style="display:none;"></div>
                 <div id="review-timer-display" class="timer-display" style="display:none;"></div>
-                <button id="done-btn" class="btn done-btn" style="display:none;">I'm Done Answering</button>
-                <div id="transcription-box"></div>
+                <button id="done-btn" class="btn done-btn" style="display:none;">✅ I'm Done Answering</button>
+                <div id="transcription-box" class="transcription-box"></div>
             </div>
             <div class="proctoring-sidebar">
-                <h2>Proctoring</h2>
+                <h3>🔍 Proctoring Monitor</h3>
                 <img id="proctoring-feed" src="" alt="Loading...">
-                <h3>Warnings</h3>
+                <h4 style="margin-top: 1.5rem; color: var(--text-secondary);">⚠️ Active Warnings</h4>
                 <ul id="warnings-list" class="warnings-list"></ul>
             </div>
         </div>
 
         <!-- Phase 2: Coding Challenge -->
         <div id="coding-interview-phase" style="display: none;">
-            <div class="card">
-                <h1>Coding Challenge</h1>
-                <div id="coding-problem-container" style="border: 1px solid #ccc; padding: 1em; margin-bottom: 1em; border-radius: 8px; background-color: #f8f9fa;">
-                    <h2 id="coding-question-title" style="margin-top:0; color: #007bff;"></h2>
-                    <h3 id="coding-language-display" style="margin-top:0;"></h3>
-                    <p id="coding-problem-text"></p>
+            <div class="coding-container">
+                <h1>💻 Coding Challenge</h1>
+                <div id="coding-problem-container" class="coding-problem">
+                    <h2 id="coding-question-title" style="margin-top:0; color: var(--primary-color);"></h2>
+                    <h3 id="coding-language-display" style="margin-top:0; color: var(--text-secondary);"></h3>
+                    <p id="coding-problem-text" style="font-size: 1.1rem; line-height: 1.7;"></p>
                 </div>
-                <div id="monaco-editor-container" style="width: 100%; height: 400px; border: 1px solid #ccc;"></div>
-                <div style="margin-top: 1em; display: flex; justify-content: space-between; align-items: center;">
-                    <button id="run-code-btn" class="btn">Run Code</button>
-                    <button id="submit-code-btn" class="btn submit-btn">Submit & End Interview</button>
+                <div id="monaco-editor-container" style="width: 100%; height: 400px; border: 2px solid var(--border-color); border-radius: 15px; overflow: hidden;"></div>
+                <div class="coding-actions">
+                    <button id="run-code-btn" class="btn">▶️ Run Code</button>
+                    <button id="submit-code-btn" class="btn submit-btn">🚀 Submit & End Interview</button>
                 </div>
-                <div id="code-output-container" style="margin-top: 1em; background-color: #222; color: #eee; padding: 1em; border-radius: 6px; min-height: 100px; font-family: monospace;">
-                    <h4>Output:</h4>
-                    <pre id="code-output-pre" style="white-space: pre-wrap; word-wrap: break-word;"></pre>
+                <div id="code-output-container" class="code-output">
+                    <h4 style="color: #fff; margin-bottom: 1rem;">📤 Output:</h4>
+                    <pre id="code-output-pre" style="white-space: pre-wrap; word-wrap: break-word; margin: 0;"></pre>
                 </div>
             </div>
         </div>
@@ -96,10 +396,10 @@
 
 <div id="termination-modal" class="modal-overlay">
     <div class="modal-content">
-        <h2>Absence Detected</h2>
-        <p>The interview will be terminated if you do not return.</p>
+        <h2>⚠️ Absence Detected</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">The interview will be terminated if you do not return within the time limit.</p>
         <div id="termination-timer" class="timer-display"></div>
-        <button id="cancel-termination-btn" class="btn cancel-btn">I'm Back</button>
+        <button id="cancel-termination-btn" class="btn cancel-btn">✅ I'm Back - Continue Interview</button>
     </div>
 </div>
 
@@ -131,6 +431,11 @@
         }
         document.getElementById('capture-id-btn')?.addEventListener('click', runIdVerification);
         document.getElementById('cancel-termination-btn')?.addEventListener('click', hideTerminationWarning);
+    });
+    
+    // Release media resources when page is about to unload
+    window.addEventListener('beforeunload', function() {
+        releaseMediaResources();
     });
 
     async function runCameraCheck() {
@@ -222,14 +527,21 @@
     }
 
     function startFirstSpokenQuestion() {
+        console.log("Starting first spoken question...");
+        console.log("Spoken questions count:", spokenQuestions.length);
+        console.log("Coding questions count:", codingQuestions.length);
+        
         if (spokenQuestions.length > 0) {
+            console.log("Starting spoken questions phase");
             nextSpokenQuestion();
         } else {
+            console.log("No spoken questions, starting coding phase");
             startCodingPhase();
         }
     }
 
     function nextSpokenQuestion() {
+        console.log("nextSpokenQuestion called, currentSpokenQuestionIndex:", currentSpokenQuestionIndex);
         if (interviewEnded) return;
         stopRecordingAndProcessing();
         clearTimeout(noAnswerTimeout);
@@ -244,18 +556,24 @@
         document.getElementById('review-timer-display').style.display = 'none';
 
         currentSpokenQuestionIndex++;
+        console.log("New currentSpokenQuestionIndex:", currentSpokenQuestionIndex);
+        console.log("Total spoken questions:", spokenQuestions.length);
         
         if (currentSpokenQuestionIndex >= spokenQuestions.length) {
+            console.log("All spoken questions completed, starting coding phase");
             startCodingPhase();
             return;
         }
 
         const q = spokenQuestions[currentSpokenQuestionIndex];
-        document.getElementById('question-container').innerHTML = `<div id="question-category">${q.type}</div><p id="question-text">${q.text}</p>`;
-        document.getElementById('transcription-box').innerHTML = "<i>The question will be read now...</i>";
+        console.log("Loading question:", q);
+        document.getElementById('question-container').innerHTML = `<div id="question-category" class="question-category">${q.type}</div><p id="question-text" class="question-text">${q.text}</p>`;
+        document.getElementById('transcription-box').innerHTML = "<span class='status-indicator status-loading'></span><i>The question will be read now...</i>";
         currentAudio.src = q.audio_url;
+        console.log("Playing audio from:", q.audio_url);
         currentAudio.play().catch(e => console.error("Error playing question audio:", e));
         currentAudio.onended = () => {
+            console.log("Audio ended, starting thinking phase");
             questionStartTime = new Date(); 
             startThinkingPhase();
         };
@@ -283,7 +601,7 @@
     function startAnswerGracePeriod() {
         if (interviewEnded || hasStartedSpeaking) return;
         document.getElementById('thinking-timer').style.display = 'none';
-        document.getElementById('transcription-box').innerHTML = "<i>Please begin speaking now... You have 15 seconds.</i>";
+        document.getElementById('transcription-box').innerHTML = "<span class='status-indicator status-loading'></span><i>Please begin speaking now... You have 15 seconds.</i>";
         noAnswerTimeout = setTimeout(forceNextQuestion, 15000);
     }
 
@@ -301,7 +619,7 @@
         hasStartedSpeaking = true;
         clearInterval(thinkingTimer);
         document.getElementById('thinking-timer').style.display = 'none';
-        document.getElementById('transcription-box').innerHTML = "<i>Recording...</i>";
+        document.getElementById('transcription-box').innerHTML = "<span class='status-indicator status-loading'></span><i>Recording...</i>";
         let timeLeft = ANSWERING_TIME;
         const timer = document.getElementById('answering-timer');
         timer.style.display = 'block';
@@ -400,13 +718,13 @@
             const res = await fetch("{% url 'transcribe_audio' %}", { method: 'POST', body: fd });
             if (!res.ok) { const err = await res.json(); throw new Error(err.error || `Server Error ${res.status}`); }
             const result = await res.json();
-            box.innerHTML = `<strong>Your Answer:</strong> ${result.text || "No speech was detected."}`;
+            box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> ${result.text || "No speech was detected."}`;
             
             if (result.follow_up_question) {
                 spokenQuestions.splice(currentSpokenQuestionIndex + 1, 0, result.follow_up_question);
             }
         } catch (err) {
-            box.innerHTML = `<span class="error"><strong>Transcription Error:</strong> ${err.message}</span>`;
+            box.innerHTML = `<span class='status-indicator status-error'></span><span style="color: var(--danger-color);"><strong>Transcription Error:</strong> ${err.message}</span>`;
         } finally {
             startReviewTimer();
         }
@@ -527,7 +845,9 @@
             if (!response.ok) throw new Error("Server error during submission.");
 
             if (isFinalSubmission) {
-                window.location.href = "{% url 'interview_complete' %}";
+                // Release media resources before redirecting
+                releaseMediaResources();
+                window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
             } else {
                 nextCodingQuestion();
             }
@@ -542,6 +862,10 @@
         if (interviewEnded) return;
         interviewEnded = true;
         console.log("Ending spoken-only interview.");
+        
+        // Release media resources before ending session
+        releaseMediaResources();
+        
         fetch("{% url 'end_interview_session' %}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -550,12 +874,59 @@
         })
         .catch(err => console.error("Error ending session:", err))
         .finally(() => {
-            window.location.href = "{% url 'interview_complete' %}";
+            window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
         });
+    }
+    
+    async function releaseMediaResources() {
+        try {
+            // Stop all media streams
+            if (verificationStream) {
+                verificationStream.getTracks().forEach(track => track.stop());
+                console.log('Released verification stream');
+            }
+            
+            // Stop media recorder
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                console.log('Stopped media recorder');
+            }
+            
+            // Close audio context
+            if (audioContext) {
+                audioContext.close().catch(e => console.log('Audio context already closed'));
+                console.log('Closed audio context');
+            }
+            
+            // Clear all intervals and timeouts
+            clearInterval(thinkingTimer);
+            clearInterval(answeringTimer);
+            clearInterval(reviewInterval);
+            clearInterval(proctoringInterval);
+            clearTimeout(noAnswerTimeout);
+            clearInterval(terminationWarningInterval);
+            
+            // Release backend camera resources
+            try {
+                await fetch("{% url 'release_camera' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_key: SESSION_KEY })
+                });
+                console.log('Backend camera resources released');
+            } catch (error) {
+                console.log('Error releasing backend camera:', error);
+            }
+            
+            console.log('All media resources released successfully');
+        } catch (error) {
+            console.log('Error releasing media resources:', error);
+        }
     }
 
     function startProctoringMonitors() {
         const proctoringFeed = document.getElementById('proctoring-feed');
+        console.log("Starting proctoring monitors...");
         
         proctoringFeed.onload = () => {
             console.log("Proctoring feed loaded successfully. Starting interview.");
@@ -563,11 +934,24 @@
         };
         proctoringFeed.onerror = () => {
             console.error("Failed to load proctoring feed.");
-            const container = document.getElementById('question-container');
-            container.innerHTML = `<p style="text-align:center; color:red; font-weight:bold;">Error: Could not start the proctoring camera. Please refresh the page and ensure camera access is allowed.</p>`;
+            console.log("Attempting to start interview without proctoring feed...");
+            // Start interview even if proctoring feed fails
+            setTimeout(() => {
+                startFirstSpokenQuestion();
+            }, 2000);
         };
 
-                    proctoringFeed.src = `/interview_app/video_feed/?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
+        const feedUrl = `/interview_app/video_feed/?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
+        console.log("Loading proctoring feed from:", feedUrl);
+        proctoringFeed.src = feedUrl;
+
+        // Set a timeout to start interview even if proctoring feed doesn't load
+        setTimeout(() => {
+            if (document.getElementById('spoken-interview-phase').style.display === 'flex') {
+                console.log("Proctoring feed timeout - starting interview anyway");
+                startFirstSpokenQuestion();
+            }
+        }, 10000);
 
         proctoringInterval = setInterval(async () => {
             if(interviewEnded) return;

@@ -173,9 +173,20 @@
             const startTime = new Date('{{ start_time_iso }}');
             const diff = startTime - now;
             
+            console.log('Countdown debug - Now:', now, 'Start:', startTime, 'Diff:', diff);
+            
             if (diff <= 0) {
                 document.getElementById('countdown').innerHTML = 'Interview should be available now!';
-                location.reload();
+                console.log('Countdown finished, reloading page...');
+                
+                // Prevent infinite loop by checking if we've already tried to reload
+                if (!window.countdownReloaded) {
+                    window.countdownReloaded = true;
+                    // Add a small delay to ensure the message is visible
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                }
                 return;
             }
             

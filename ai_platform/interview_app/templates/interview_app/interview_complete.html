@@ -181,21 +181,85 @@
     </div>
     
     <script>
-        function closeInterview() {
-            // Try multiple methods to close the window
+        // Function to release camera and microphone resources
+        async function releaseMediaResources() {
             try {
-                // Method 1: Try window.close()
-                if (window.opener) {
-                    window.close();
-                } else {
-                    // Method 2: Try to close if it's a popup
-                    window.close();
+                // Release all media streams
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    // Stop all tracks from all streams
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                        .then(stream => {
+                            stream.getTracks().forEach(track => {
+                                track.stop();
+                                console.log('Released media track:', track.kind);
+                            });
+                        })
+                        .catch(err => {
+                            console.log('No active media streams to release');
+                        });
                 }
-            } catch (e) {
-                // Method 3: If window.close() fails, show a message
-                alert("Interview completed successfully! You can now close this browser tab/window manually.");
+                
+                // Release any existing streams that might be stored in variables
+                if (window.verificationStream) {
+                    window.verificationStream.getTracks().forEach(track => track.stop());
+                    console.log('Released verification stream');
+                }
+                
+                // Close any audio contexts
+                if (window.audioContext) {
+                    window.audioContext.close().catch(e => console.log('Audio context already closed'));
+                    console.log('Closed audio context');
+                }
+                
+                // Stop any media recorders
+                if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
+                    window.mediaRecorder.stop();
+                    console.log('Stopped media recorder');
+                }
+                
+                // Try to release backend camera resources if we have session info
+                try {
+                    // Get session key from URL if available
+                    const urlParams = new URLSearchParams(window.location.search);
+                    let sessionKey = urlParams.get('session_key');
+                    
+                    // If not in URL, try to get from Django context
+                    if (!sessionKey && typeof '{{ session_key }}' !== 'undefined' && '{{ session_key }}') {
+                        sessionKey = '{{ session_key }}';
+                    }
+                    
+                    if (sessionKey) {
+                        await fetch('/interview_app/release_camera/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_key: sessionKey })
+                        });
+                        console.log('Backend camera resources released for session:', sessionKey);
+                    }
+                } catch (error) {
+                    console.log('Error releasing backend camera:', error);
+                }
+                
+                console.log('All media resources released successfully');
+            } catch (error) {
+                console.log('Error releasing media resources:', error);
             }
         }
+        
+        function closeInterview() {
+            // Show user-friendly message with instructions to close the tab
+            alert("Interview completed successfully! Please close this browser tab manually using:\n\n• Ctrl+W (Windows/Linux)\n• Cmd+W (Mac)\n• Or click the X button on the tab");
+        }
+        
+        // Release media resources when page is about to unload
+        window.addEventListener('beforeunload', function() {
+            releaseMediaResources();
+        });
+        
+        // Release media resources immediately when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            releaseMediaResources();
+        });
         
         // Auto-close after 10 seconds
         setTimeout(function() {

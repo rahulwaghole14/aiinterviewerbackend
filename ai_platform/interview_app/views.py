@@ -234,9 +234,17 @@ def interview_portal(request):
         start_time = session.scheduled_at
         grace_period = timedelta(minutes=10)
         expiry_time = start_time + grace_period
+        
+        # Debug time comparison
+        print(f"DEBUG: Time comparison - Now: {now}, Start: {start_time}, Expiry: {expiry_time}")
+        print(f"DEBUG: Now < Start: {now < start_time}, Now > Expiry: {now > expiry_time}")
+        
         # Case 1: The user is too early.
-        if now < start_time:
+        # Add a small buffer (30 seconds) to account for timezone differences and network delays
+        buffer_time = timedelta(seconds=30)
+        if now < (start_time - buffer_time):
             start_time_local = start_time.astimezone(pytz.timezone('Asia/Kolkata'))
+            print(f"DEBUG: User too early, showing countdown. Start time local: {start_time_local}")
             # We pass all necessary context for the countdown timer here.
             return render(request, 'interview_app/invalid_link.html', {
                 'page_title': 'Interview Not Started',
@@ -491,6 +499,7 @@ def interview_portal(request):
         print(f"DEBUG: all_questions length: {len(all_questions)}")
         print(f"DEBUG: Context keys: {list({'session_key': session_key, 'interview_session_id': str(session.id), 'spoken_questions_data': all_questions, 'coding_questions_data': coding_questions, 'interview_started': True}.keys())}")
         
+        print(f"DEBUG: Rendering interview portal for session {session_key}")
         context = { 'session_key': session_key, 'interview_session_id': str(session.id), 'spoken_questions_data': all_questions, 'coding_questions_data': coding_questions, 'interview_started': True }
         return render(request, 'interview_app/portal.html', context)
     except Exception as e:
@@ -788,8 +797,18 @@ def submit_coding_challenge(request):
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 def interview_complete(request):
+    session_key = request.GET.get('session_key')
+    context = {}
+    if session_key:
+        context['session_key'] = session_key
+        # Also release camera resources when complete page is accessed
+        try:
+            release_camera_for_session(session_key)
+        except Exception as e:
+            print(f"Error releasing camera for session {session_key}: {e}")
+    
     template = loader.get_template('interview_app/interview_complete.html')
-    return HttpResponse(template.render({}, request))
+    return HttpResponse(template.render(context, request))
 
 def generate_and_save_follow_up(session, parent_question, transcribed_answer):
     if DEV_MODE:

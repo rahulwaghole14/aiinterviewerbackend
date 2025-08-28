@@ -31,3 +31,4 @@ def is_whisper_available():
     return get_whisper_model() is not None
 
 
+

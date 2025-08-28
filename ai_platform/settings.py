@@ -170,11 +170,12 @@ EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@aiinterviewer.com')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@talaro.com')
 
 # Interview Link System Configuration
 INTERVIEW_LINK_SECRET = config('INTERVIEW_LINK_SECRET', default='your-secret-key-change-in-production')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+BACKEND_URL = config('BACKEND_URL', default='http://localhost:8000')
 
 # AI Interview Model Configuration
 AI_MODEL_NAME = config('AI_MODEL_NAME', default='gemini-1.5-flash-latest')

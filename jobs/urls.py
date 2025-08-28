@@ -19,7 +19,7 @@ urlpatterns = [
     
     # Job management endpoints
     path('', JobListCreateView.as_view(), name='job-list-create'),
-    path('<int:pk>/', JobDetailView.as_view(), name='job-detail'),
+    path('<int:id>/', JobDetailView.as_view(), name='job-detail'),
     path('titles/', JobTitleListView.as_view(), name='job-title-list'),
     path('by-domain/<int:domain_id>/', JobsByDomainView.as_view(), name='jobs-by-domain'),
 ]

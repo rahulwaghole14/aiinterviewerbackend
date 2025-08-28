@@ -155,9 +155,13 @@ class PublicInterviewAccessView(APIView):
             from django.shortcuts import redirect
             from ai_platform.interview_app.models import InterviewSession
             
-            # Create or get the AI interview session
+            # Create or get the AI interview session with a proper session key
+            # Generate a short session key for the interview portal
+            import uuid
+            short_session_key = uuid.uuid4().hex
+            
             ai_session, created = InterviewSession.objects.get_or_create(
-                session_key=link_token,
+                session_key=short_session_key,
                 defaults={
                     'candidate_name': interview.candidate.full_name,
                     'candidate_email': interview.candidate.email,
@@ -171,7 +175,7 @@ class PublicInterviewAccessView(APIView):
             )
             
             # Redirect to the actual AI interview portal
-            ai_interview_url = f"{request.build_absolute_uri('/')}interview_app/?session_key={link_token}"
+            ai_interview_url = f"{request.build_absolute_uri('/')}interview_app/?session_key={short_session_key}"
             return redirect(ai_interview_url)
             
             # Log the access attempt
@@ -612,6 +616,20 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         else:
             base_queryset = InterviewSlot.objects.none()
         
+        # Filter by status if provided in query parameters
+        status = self.request.query_params.get('status')
+        if status:
+            base_queryset = base_queryset.filter(status=status)
+            # For available status, also filter by actual availability (future slots only)
+            if status == 'available':
+                from django.utils import timezone
+                base_queryset = base_queryset.filter(start_time__gt=timezone.now())
+        
+        # Filter by date if provided in query parameters
+        date = self.request.query_params.get('date')
+        if date:
+            base_queryset = base_queryset.filter(start_time__date=date)
+        
         return base_queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
@@ -779,29 +797,44 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         except Interview.DoesNotExist:
             return Response({"error": "Interview not found"}, status=status.HTTP_404_NOT_FOUND)
         
-        # Create schedule
-        schedule = InterviewSchedule.objects.create(
-            interview=interview,
-            slot=slot,
-            booking_notes=request.data.get('booking_notes', ''),
-            status='pending'
-        )
+        # Check if interview already has a schedule
+        existing_schedule = getattr(interview, 'schedule', None)
+        if existing_schedule:
+            # Update existing schedule
+            existing_schedule.slot = slot
+            existing_schedule.booking_notes = request.data.get('booking_notes', '')
+            existing_schedule.status = 'pending'
+            existing_schedule.save()
+            schedule = existing_schedule
+        else:
+            # Create new schedule
+            schedule = InterviewSchedule.objects.create(
+                interview=interview,
+                slot=slot,
+                booking_notes=request.data.get('booking_notes', ''),
+                status='pending'
+            )
         
         # Book the slot
         slot.book_slot()
         
-        # Send notification to candidate when slot is booked
+        # Send notification to candidate when slot is booked (optional)
         try:
             from notifications.services import NotificationService
             NotificationService.send_candidate_interview_scheduled_notification(interview)
         except Exception as e:
             # Log notification failure but don't fail the request
-            ActionLogger.log_user_action(
-                user=request.user,
-                action='slot_booking_notification_failed',
-                details={'slot_id': slot.id, 'interview_id': interview.id, 'error': str(e)},
-                status='FAILED'
-            )
+            try:
+                ActionLogger.log_user_action(
+                    user=request.user,
+                    action='slot_booking_notification_failed',
+                    details={'slot_id': slot.id, 'interview_id': interview.id, 'error': str(e)},
+                    status='FAILED'
+                )
+            except Exception as log_error:
+                # Even logging can fail, but we don't want to break the booking
+                print(f"Failed to log notification error: {log_error}")
+                print(f"Original notification error: {e}")
         
         serializer = InterviewScheduleSerializer(schedule)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -870,13 +903,23 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         interview = data['interview']
         slot = data['slot']
         
-        # Create the schedule
-        schedule = InterviewSchedule.objects.create(
-            interview=interview,
-            slot=slot,
-            booking_notes=data.get('booking_notes', ''),
-            status='pending'
-        )
+        # Check if interview already has a schedule
+        existing_schedule = getattr(interview, 'schedule', None)
+        if existing_schedule:
+            # Update existing schedule
+            existing_schedule.slot = slot
+            existing_schedule.booking_notes = data.get('booking_notes', '')
+            existing_schedule.status = 'pending'
+            existing_schedule.save()
+            schedule = existing_schedule
+        else:
+            # Create new schedule
+            schedule = InterviewSchedule.objects.create(
+                interview=interview,
+                slot=slot,
+                booking_notes=data.get('booking_notes', ''),
+                status='pending'
+            )
         
         # Book the slot
         slot.book_slot()

@@ -1,4 +1,4 @@
-# AI Interview Link Generation Guide
+# Talaro Interview Link Generation Guide
 
 ## Overview
 
@@ -21,7 +21,7 @@ The AI Interview Link Generation system provides a secure, token-based approach 
 ### 📱 Public Access
 - **No authentication required** for candidates
 - **Mobile-friendly** interface
-- **Real-time interaction** with AI interviewer
+- **Real-time interaction** with Talaro interviewer
 - **Progress tracking** and completion status
 
 ## API Endpoints

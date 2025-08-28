@@ -26,14 +26,21 @@ class InterviewSerializer(serializers.ModelSerializer):
     )
     is_scheduled = serializers.BooleanField(read_only=True)
     ai_interview_type = serializers.CharField(read_only=True)
+    
+    # Slot information
+    slot_details = serializers.SerializerMethodField()
+    schedule_status = serializers.SerializerMethodField()
+    booking_notes = serializers.SerializerMethodField()
+    
+    # AI Interview Result
+    ai_result = serializers.SerializerMethodField()
 
     class Meta:
         model  = Interview
         fields = [
             "id",
             "candidate", "candidate_name",
-            # "job",
-            "job_title",
+            "job", "job_title",
             "status",
             "interview_round", "feedback",
             "started_at", "ended_at",
@@ -41,6 +48,10 @@ class InterviewSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
             "is_scheduled",
             "ai_interview_type",
+            "slot_details",
+            "schedule_status",
+            "booking_notes",
+            "ai_result",
         ]
         read_only_fields = [
             "created_at",
@@ -52,6 +63,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {
             'candidate': {'required': False},
+            'job': {'required': False},
             'started_at': {'required': False},
             'ended_at': {'required': False},
             'status': {'required': False},
@@ -70,6 +82,10 @@ class InterviewSerializer(serializers.ModelSerializer):
         If this is a partial update (PATCH), keep the existing
         instance's values where the client omitted a field.
         """
+        # Set default interview round if not provided
+        if 'interview_round' not in data or not data.get('interview_round'):
+            data['interview_round'] = "AI Interview"
+        
         # Only validate time constraints if we're updating time fields
         if 'started_at' in data or 'ended_at' in data:
             start_dt = data.get("started_at") or getattr(self.instance, "started_at", None)
@@ -102,6 +118,44 @@ class InterviewSerializer(serializers.ModelSerializer):
                 )
 
         return data
+    
+    def get_slot_details(self, obj):
+        """Get slot details if interview is scheduled"""
+        if hasattr(obj, 'schedule') and obj.schedule:
+            slot = obj.schedule.slot
+            return {
+                'slot_id': slot.id,
+                'start_time': slot.start_time,
+                'end_time': slot.end_time,
+                'duration_minutes': slot.duration_minutes,
+                'ai_interview_type': slot.ai_interview_type,
+                'max_candidates': slot.max_candidates,
+                'current_bookings': slot.current_bookings,
+                'slot_status': slot.status,
+            }
+        return None
+    
+    def get_schedule_status(self, obj):
+        """Get schedule status"""
+        if hasattr(obj, 'schedule') and obj.schedule:
+            return obj.schedule.status
+        return None
+    
+    def get_booking_notes(self, obj):
+        """Get booking notes"""
+        if hasattr(obj, 'schedule') and obj.schedule:
+            return obj.schedule.booking_notes
+        return None
+    
+    def get_ai_result(self, obj):
+        """Get AI interview result if available"""
+        try:
+            if hasattr(obj, 'ai_result') and obj.ai_result:
+                from ai_interview.serializers import AIInterviewResultSerializer
+                return AIInterviewResultSerializer(obj.ai_result).data
+        except Exception:
+            pass
+        return None
 
 
 class InterviewFeedbackSerializer(serializers.ModelSerializer):

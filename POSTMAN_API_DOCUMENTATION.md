@@ -1,8 +1,8 @@
-# 🔐 AI Interviewer API Documentation
+# 🔐 Talaro API Documentation
 
 ## 📋 Overview
 
-This document provides comprehensive documentation for the AI Interviewer platform backend API. The API is built with Django REST Framework and provides endpoints for user authentication, job management, candidate management, resume processing, interview scheduling, and more.
+This document provides comprehensive documentation for the Talaro platform backend API. The API is built with Django REST Framework and provides endpoints for user authentication, job management, candidate management, resume processing, interview scheduling, and more.
 
 ## 🌐 Base URL
 

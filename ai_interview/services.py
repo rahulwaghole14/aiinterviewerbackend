@@ -85,7 +85,7 @@ class AIInterviewService:
             # Generate questions using the existing logic
             language_name = SUPPORTED_LANGUAGES.get(language_code, 'English')
             master_prompt = (
-                f"You are an expert AI interviewer. Your task is to generate 5 insightful interview questions in {language_name}. "
+                f"You are an expert Talaro interviewer. Your task is to generate 5 insightful interview questions in {language_name}. "
                 f"The interview is for a '{job_description.splitlines()[0] if job_description else 'Technical Role'}' role. "
                 "Please base the questions on the provided job description and candidate's resume. "
                 "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "

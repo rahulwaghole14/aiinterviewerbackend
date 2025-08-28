@@ -42,6 +42,7 @@ class JobSerializer(serializers.ModelSerializer):
             'position_level',
             'current_process',
             'tech_stack_details',
+            'job_description',
             'jd_file',
             'jd_link',
             'created_at'

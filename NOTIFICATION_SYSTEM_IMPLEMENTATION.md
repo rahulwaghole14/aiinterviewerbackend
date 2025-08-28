@@ -2,7 +2,7 @@
 
 ## 🎯 **Overview**
 
-Successfully implemented a comprehensive notification system for the AI Interviewer Platform. The system provides real-time notifications through multiple channels (email, in-app, SMS) with user-configurable preferences and template-based messaging.
+Successfully implemented a comprehensive notification system for the Talaro Platform. The system provides real-time notifications through multiple channels (email, in-app, SMS) with user-configurable preferences and template-based messaging.
 
 ---
 
@@ -338,7 +338,7 @@ EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@aiinterviewer.com')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@talaro.com')
 ```
 
 ### **2. Environment Variables**
@@ -349,7 +349,7 @@ EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER=your-email@gmail.com
 EMAIL_HOST_PASSWORD=your-app-password
-DEFAULT_FROM_EMAIL=noreply@aiinterviewer.com
+DEFAULT_FROM_EMAIL=noreply@talaro.com
 ```
 
 ---

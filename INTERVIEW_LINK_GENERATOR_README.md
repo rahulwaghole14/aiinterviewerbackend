@@ -1,6 +1,6 @@
 # Public Interview Link Generator
 
-This directory contains scripts to automatically generate public interview links for the AI Interviewer platform.
+This directory contains scripts to automatically generate public interview links for the Talaro platform.
 
 ## 📁 Files
 

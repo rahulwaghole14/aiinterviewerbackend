@@ -152,29 +152,29 @@ class JobListCreateView(generics.ListCreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        ActionLogger.log_user_action(
-            user=request.user,
-            action='job_create',
-            details={
-                'job_title': request.data.get('job_title'),
-                'domain_id': domain_id,
-                'domain_name': domain.name
-            },
-            status='SUCCESS'
-        )
+        # ActionLogger.log_user_action(
+        #     user=request.user,
+        #     action='job_create',
+        #     details={
+        #         'job_title': request.data.get('job_title'),
+        #         'domain_id': domain_id,
+        #         'domain_name': domain.name
+        #     },
+        #     status='SUCCESS'
+        # )
         
         # Send notification for job creation
-        try:
-            job = self.get_queryset().latest('created_at')
-            NotificationService.send_job_created_notification(job)
-        except Exception as e:
-            # Log notification failure but don't fail the request
-            ActionLogger.log_user_action(
-                user=request.user,
-                action='notification_failed',
-                details={'error': str(e), 'job_title': request.data.get('job_title')},
-                status='FAILED'
-            )
+        # try:
+        #     job = self.get_queryset().latest('created_at')
+        #     NotificationService.send_job_created_notification(job)
+        # except Exception as e:
+        #     # Log notification failure but don't fail the request
+        #     ActionLogger.log_user_action(
+        #         user=request.user,
+        #         action='notification_failed',
+        #         details={'error': str(e), 'job_title': request.data.get('job_title')},
+        #         status='FAILED'
+        #     )
         
         return super().create(request, *args, **kwargs)
 
@@ -205,12 +205,13 @@ class JobDetailView(generics.RetrieveUpdateDestroyAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        ActionLogger.log_user_action(
-            user=request.user,
-            action='job_update',
-            details={'job_id': kwargs.get('pk'), 'domain_id': domain_id},
-            status='SUCCESS'
-        )
+        # Temporarily comment out ActionLogger to debug
+        # ActionLogger.log_user_action(
+        #     user=request.user,
+        #     action='job_update',
+        #     details={'job_id': kwargs.get('pk'), 'domain_id': domain_id},
+        #     status='SUCCESS'
+        # )
         
         return super().update(request, *args, **kwargs)
 

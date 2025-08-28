@@ -1,4 +1,4 @@
-# AI Interviewer Platform - Hierarchy Analysis
+# Talaro Platform - Hierarchy Analysis
 
 ## 🎯 **Current vs Required Hierarchy**
 

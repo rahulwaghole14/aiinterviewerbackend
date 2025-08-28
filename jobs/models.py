@@ -43,6 +43,7 @@ class Job(models.Model):
     current_process = models.TextField(blank=True)
     tech_stack_details = models.TextField()
     
+    job_description = models.TextField(blank=True, help_text="Detailed job description, responsibilities, requirements, etc.")
     jd_file = models.FileField(upload_to='job_descriptions/', null=True, blank=True)
     jd_link = models.URLField(null=True, blank=True)
     

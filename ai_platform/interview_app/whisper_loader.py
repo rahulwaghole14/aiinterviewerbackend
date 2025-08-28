@@ -29,3 +29,5 @@ def is_whisper_available():
     Check if Whisper model is available.
     """
     return get_whisper_model() is not None
+
+

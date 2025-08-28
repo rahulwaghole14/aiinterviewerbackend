@@ -19,5 +19,5 @@ services:
         value: ai_platform.settings
 
 databases:
-  - name: aiinterviewer-db
+  - name: talaro-db
     plan: free

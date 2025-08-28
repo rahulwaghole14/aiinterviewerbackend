@@ -82,7 +82,7 @@ class BulkCandidateCreationView(APIView):
         # Process each resume file
         for resume_file in resume_files:
             try:
-                extracted_data = self._extract_candidate_data(resume_file, request.user)
+                extracted_data = self._extract_candidate_data(resume_file, request.user, domain, role)
                 if extracted_data:
                     # Try to get the resume_url if the file has a url attribute
                     resume_url = None
@@ -328,7 +328,7 @@ class BulkCandidateCreationView(APIView):
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
-    def _extract_candidate_data(self, resume_file: UploadedFile, user):
+    def _extract_candidate_data(self, resume_file: UploadedFile, user, domain=None, role=None):
         """Extract candidate data from a single resume file, saving with a unique name"""
         try:
             # Generate a unique filename
@@ -354,8 +354,65 @@ class BulkCandidateCreationView(APIView):
                 if extracted_data.get('name'):
                     extracted_data['name'] = parse_candidate_name(extracted_data['name'])
 
+            # Calculate job matching percentage if domain and role are provided
+            job_matching_data = {}
+            if domain and role and temp_resume.parsed_text:
+                try:
+                    from utils.resume_job_matcher import resume_matcher
+                    from jobs.models import Job
+                    
+                    # Try to find the job
+                    job = Job.objects.filter(
+                        domain__name__iexact=domain,
+                        job_title__iexact=role
+                    ).first()
+                    
+                    if job and job.job_description:
+                        # Prepare resume data for matching
+                        resume_data = {
+                            'parsed_text': temp_resume.parsed_text,
+                            'work_experience': extracted_data.get('work_experience', 0),
+                            'name': extracted_data.get('name', ''),
+                            'email': extracted_data.get('email', ''),
+                            'phone': extracted_data.get('phone', '')
+                        }
+                        
+                        # Calculate matching percentage
+                        job_matching_data = resume_matcher.calculate_overall_match(
+                            resume_data, 
+                            job.job_description
+                        )
+                        
+                        # Add job info to matching data
+                        job_matching_data['job_title'] = job.job_title
+                        job_matching_data['company_name'] = job.company_name
+                    else:
+                        job_matching_data = {
+                            'overall_match': 0.0,
+                            'skill_match': 0.0,
+                            'text_similarity': 0.0,
+                            'experience_match': 0.0,
+                            'error': 'No job found or no job description'
+                        }
+                        
+                except Exception as e:
+                    # Log error but don't fail the extraction
+                    print(f"Error calculating job match: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    job_matching_data = {
+                        'overall_match': 0.0,
+                        'skill_match': 0.0,
+                        'text_similarity': 0.0,
+                        'experience_match': 0.0,
+                        'error': 'Failed to calculate job match'
+                    }
+
             # Save the unique filename for use in resume_url
             extracted_data['unique_resume_filename'] = unique_filename
+            
+            # Add job matching data to extracted data
+            extracted_data['job_matching'] = job_matching_data
 
             # Clean up temporary resume
             temp_resume.delete()

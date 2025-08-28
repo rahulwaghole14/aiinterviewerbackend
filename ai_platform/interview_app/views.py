@@ -2,7 +2,7 @@
 import os
 import google.generativeai as genai
 from numpy._core.numeric import False_
-from .whisper_loader import get_whisper_model, is_whisper_available
+import whisper
 import PyPDF2
 import docx
 import re
@@ -76,7 +76,11 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CRE
 # This does NOT affect AI evaluation in the report or email sending.
 DEV_MODE = False
 
-# Whisper model will be loaded on-demand using the centralized loader
+try:
+    whisper_model = whisper.load_model("base")
+    print("Whisper model 'base' loaded.")
+except Exception as e:
+    print(f"Error loading Whisper model: {e}"); whisper_model = None
 
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 CAMERAS, camera_lock = {}, threading.Lock()
@@ -156,7 +160,7 @@ def create_interview_invite(request):
         try:
             scheduled_time_str = aware_datetime.strftime('%A, %B %d, %Y at %I:%M %p %Z')
             
-            email_subject = "Your AI Interview Invitation"
+            email_subject = "Your Talaro Interview Invitation"
             email_body = (
                 f"Dear {candidate_name},\n\n"
                 f"Your AI screening interview has been scheduled for: {scheduled_time_str}.\n\n"
@@ -420,7 +424,7 @@ def interview_portal(request):
                 session.resume_summary = summary_response.text
                 language_name = SUPPORTED_LANGUAGES.get(session.language_code, 'English')
                 master_prompt = (
-                    f"You are an expert AI interviewer. Your task is to generate 5 insightful interview questions in {language_name}. "
+                    f"You are an expert Talaro interviewer. Your task is to generate 5 insightful interview questions in {language_name}. "
                     f"The interview is for a '{session.job_description.splitlines()[0]}' role. "
                     "Please base the questions on the provided job description and candidate's resume. "
                     "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
@@ -863,7 +867,6 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
 
 @csrf_exempt
 def transcribe_audio(request):
-    whisper_model = get_whisper_model()
     if not whisper_model: return JsonResponse({'error': 'Whisper model not available.'}, status=500)
     if request.method == 'POST' and request.FILES.get('audio_data'):
         audio_file = request.FILES['audio_data']
@@ -1348,3 +1351,343 @@ def submit_coding_challenge(request):
     except Exception as e:
         traceback.print_exc()
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from django.http import JsonResponse
+import json
+
+class InterviewResultsAPIView(APIView):
+    """
+    API endpoint to get interview results and evaluation data
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, session_id):
+        """Get interview results and evaluation data"""
+        try:
+            session = InterviewSession.objects.get(id=session_id)
+            
+            # Check if user has permission to view this session
+            if not request.user.is_superuser and not request.user.is_staff:
+                # For now, allow all authenticated users to view results
+                # You can add more specific permission logic here
+                pass
+            
+            # Get all questions and answers
+            all_questions = list(session.questions.all().order_by('order'))
+            all_logs_list = list(session.logs.all())
+            warning_counts = Counter([log.warning_type.replace('_', ' ').title() for log in all_logs_list if log.warning_type != 'excessive_movement'])
+            
+            # Calculate analytics
+            total_filler_words = 0
+            avg_wpm = 0
+            wpm_count = 0
+            sentiment_scores = []
+            avg_response_time = 0
+            response_time_count = 0
+
+            if session.language_code == 'en':
+                for item in all_questions:
+                    if item.transcribed_answer:
+                        word_count = len(item.transcribed_answer.split())
+                        read_time_result = readtime.of_text(item.transcribed_answer)
+                        read_time_minutes = read_time_result.minutes + (read_time_result.seconds / 60)
+                        if read_time_minutes > 0:
+                            item.words_per_minute = round(word_count / read_time_minutes)
+                            avg_wpm += item.words_per_minute
+                            wpm_count += 1
+                        else:
+                            item.words_per_minute = 0
+                        if item.response_time_seconds:
+                            avg_response_time += item.response_time_seconds
+                            response_time_count += 1
+                        lower_answer = item.transcribed_answer.lower()
+                        item.filler_word_count = sum(lower_answer.count(word) for word in FILLER_WORDS)
+                        total_filler_words += item.filler_word_count
+                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': TextBlob(item.transcribed_answer).sentiment.polarity})
+                    else:
+                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
+            
+            final_avg_wpm = round(avg_wpm / wpm_count) if wpm_count > 0 else 0
+            final_avg_response_time = round(avg_response_time / response_time_count, 2) if response_time_count > 0 else 0
+
+            # Prepare questions data
+            questions_data = []
+            for question in all_questions:
+                question_data = {
+                    'id': str(question.id),
+                    'order': question.order,
+                    'question_text': question.question_text,
+                    'question_type': question.question_type,
+                    'question_level': question.question_level,
+                    'transcribed_answer': question.transcribed_answer,
+                    'response_time_seconds': question.response_time_seconds,
+                    'words_per_minute': getattr(question, 'words_per_minute', 0),
+                    'filler_word_count': getattr(question, 'filler_word_count', 0),
+                    'audio_url': question.audio_url if hasattr(question, 'audio_url') else None,
+                }
+                questions_data.append(question_data)
+
+            # Prepare code submissions data
+            code_submissions_data = []
+            for submission in session.code_submissions.all():
+                submission_data = {
+                    'id': str(submission.id),
+                    'question_id': str(submission.question_id),
+                    'language': submission.language,
+                    'submitted_code': submission.submitted_code,
+                    'output_log': submission.output_log,
+                    'submitted_at': submission.submitted_at.isoformat() if submission.submitted_at else None,
+                }
+                code_submissions_data.append(submission_data)
+
+            # Prepare analytics data
+            analytics_data = {
+                'warning_counts': dict(warning_counts),
+                'sentiment_scores': sentiment_scores,
+                'evaluation_scores': {
+                    'resume_score': session.resume_score or 0,
+                    'answers_score': session.answers_score or 0,
+                    'overall_performance_score': session.overall_performance_score or 0
+                },
+                'communication_metrics': {
+                    'avg_words_per_minute': final_avg_wpm,
+                    'total_filler_words': total_filler_words,
+                    'avg_response_time': final_avg_response_time,
+                    'total_questions': len(all_questions),
+                    'answered_questions': len([q for q in all_questions if q.transcribed_answer]),
+                    'code_submissions': len(code_submissions_data)
+                }
+            }
+
+            # Prepare response data
+            response_data = {
+                'session_id': str(session.id),
+                'candidate_name': session.candidate_name,
+                'candidate_email': session.candidate_email,
+                'job_description': session.job_description,
+                'scheduled_at': session.scheduled_at.isoformat() if session.scheduled_at else None,
+                'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+                'status': session.status,
+                'language_code': session.language_code,
+                'is_evaluated': session.is_evaluated,
+                
+                # Evaluation results
+                'resume_score': session.resume_score,
+                'resume_feedback': session.resume_feedback,
+                'answers_score': session.answers_score,
+                'answers_feedback': session.answers_feedback,
+                'overall_performance_score': session.overall_performance_score,
+                'overall_performance_feedback': session.overall_performance_feedback,
+                'behavioral_analysis': session.behavioral_analysis,
+                'keyword_analysis': session.keyword_analysis,
+                
+                # Questions and answers
+                'questions': questions_data,
+                'code_submissions': code_submissions_data,
+                
+                # Analytics
+                'analytics': analytics_data,
+                
+                # Proctoring data
+                'proctoring_warnings': dict(warning_counts),
+                'total_warnings': sum(warning_counts.values()),
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except InterviewSession.DoesNotExist:
+            return Response({
+                'error': 'Interview session not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': f'Error retrieving interview results: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InterviewResultsListAPIView(APIView):
+    """
+    API endpoint to list all interview results for the authenticated user
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get list of all interview sessions with basic results"""
+        try:
+            # Get all sessions (you can add filtering based on user role)
+            sessions = InterviewSession.objects.all().order_by('-created_at')
+            
+            sessions_data = []
+            for session in sessions:
+                # Get basic analytics
+                all_questions = session.questions.all()
+                answered_questions = all_questions.filter(transcribed_answer__isnull=False).exclude(transcribed_answer='').count()
+                code_submissions = session.code_submissions.count()
+                
+                # Get warning count
+                warning_count = session.logs.count()
+                
+                session_data = {
+                    'session_id': str(session.id),
+                    'candidate_name': session.candidate_name,
+                    'candidate_email': session.candidate_email,
+                    'scheduled_at': session.scheduled_at.isoformat() if session.scheduled_at else None,
+                    'completed_at': session.completed_at.isoformat() if session.completed_at else None,
+                    'status': session.status,
+                    'is_evaluated': session.is_evaluated,
+                    
+                    # Basic metrics
+                    'total_questions': all_questions.count(),
+                    'answered_questions': answered_questions,
+                    'code_submissions': code_submissions,
+                    'warning_count': warning_count,
+                    
+                    # Scores (if evaluated)
+                    'resume_score': session.resume_score,
+                    'answers_score': session.answers_score,
+                    'overall_performance_score': session.overall_performance_score,
+                }
+                sessions_data.append(session_data)
+            
+            return Response({
+                'sessions': sessions_data,
+                'total_count': len(sessions_data)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error retrieving interview sessions: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InterviewAnalyticsAPIView(APIView):
+    """
+    API endpoint to get detailed analytics for interview sessions
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, session_id):
+        """Get detailed analytics for a specific interview session"""
+        try:
+            session = InterviewSession.objects.get(id=session_id)
+            
+            # Get all questions and calculate detailed analytics
+            all_questions = list(session.questions.all().order_by('order'))
+            all_logs_list = list(session.logs.all())
+            
+            # Calculate detailed metrics
+            total_filler_words = 0
+            avg_wpm = 0
+            wpm_count = 0
+            sentiment_scores = []
+            avg_response_time = 0
+            response_time_count = 0
+            question_analytics = []
+
+            if session.language_code == 'en':
+                for item in all_questions:
+                    question_analytics_item = {
+                        'question_id': str(item.id),
+                        'question_order': item.order,
+                        'question_text': item.question_text,
+                        'question_type': item.question_type,
+                        'has_answer': bool(item.transcribed_answer),
+                        'answer_length': len(item.transcribed_answer) if item.transcribed_answer else 0,
+                        'response_time': item.response_time_seconds,
+                        'words_per_minute': 0,
+                        'filler_word_count': 0,
+                        'sentiment_score': 0.0,
+                    }
+                    
+                    if item.transcribed_answer:
+                        word_count = len(item.transcribed_answer.split())
+                        read_time_result = readtime.of_text(item.transcribed_answer)
+                        read_time_minutes = read_time_result.minutes + (read_time_result.seconds / 60)
+                        
+                        if read_time_minutes > 0:
+                            wpm = round(word_count / read_time_minutes)
+                            question_analytics_item['words_per_minute'] = wpm
+                            avg_wpm += wpm
+                            wpm_count += 1
+                        
+                        if item.response_time_seconds:
+                            avg_response_time += item.response_time_seconds
+                            response_time_count += 1
+                        
+                        lower_answer = item.transcribed_answer.lower()
+                        filler_count = sum(lower_answer.count(word) for word in FILLER_WORDS)
+                        question_analytics_item['filler_word_count'] = filler_count
+                        total_filler_words += filler_count
+                        
+                        sentiment = TextBlob(item.transcribed_answer).sentiment.polarity
+                        question_analytics_item['sentiment_score'] = sentiment
+                        sentiment_scores.append(sentiment)
+                    
+                    question_analytics.append(question_analytics_item)
+            
+            final_avg_wpm = round(avg_wpm / wpm_count) if wpm_count > 0 else 0
+            final_avg_response_time = round(avg_response_time / response_time_count, 2) if response_time_count > 0 else 0
+            avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0
+            
+            # Proctoring analytics
+            warning_counts = Counter([log.warning_type.replace('_', ' ').title() for log in all_logs_list if log.warning_type != 'excessive_movement'])
+            total_warnings = sum(warning_counts.values())
+            
+            # Code submission analytics
+            code_submissions = session.code_submissions.all()
+            code_analytics = []
+            for submission in code_submissions:
+                code_analytics.append({
+                    'submission_id': str(submission.id),
+                    'language': submission.language,
+                    'code_length': len(submission.submitted_code),
+                    'has_output': bool(submission.output_log),
+                    'submitted_at': submission.submitted_at.isoformat() if submission.submitted_at else None,
+                })
+            
+            analytics_data = {
+                'session_overview': {
+                    'total_questions': len(all_questions),
+                    'answered_questions': len([q for q in all_questions if q.transcribed_answer]),
+                    'code_submissions': len(code_analytics),
+                    'total_warnings': total_warnings,
+                    'session_duration': None,  # You can calculate this if you have start/end times
+                },
+                
+                'communication_metrics': {
+                    'avg_words_per_minute': final_avg_wpm,
+                    'total_filler_words': total_filler_words,
+                    'avg_response_time': final_avg_response_time,
+                    'avg_sentiment_score': round(avg_sentiment, 3),
+                },
+                
+                'evaluation_scores': {
+                    'resume_score': session.resume_score or 0,
+                    'answers_score': session.answers_score or 0,
+                    'overall_performance_score': session.overall_performance_score or 0,
+                },
+                
+                'proctoring_analytics': {
+                    'warning_counts': dict(warning_counts),
+                    'total_warnings': total_warnings,
+                    'warning_types': list(warning_counts.keys()),
+                },
+                
+                'question_analytics': question_analytics,
+                'code_analytics': code_analytics,
+            }
+            
+            return Response(analytics_data, status=status.HTTP_200_OK)
+            
+        except InterviewSession.DoesNotExist:
+            return Response({
+                'error': 'Interview session not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': f'Error retrieving analytics: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

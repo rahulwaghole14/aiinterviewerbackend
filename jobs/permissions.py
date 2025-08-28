@@ -87,8 +87,8 @@ class JobDomainPermission(permissions.BasePermission):
         if request.user.role == "ADMIN":
             return True
         
-        # Company users can only create jobs
-        if request.user.role == "COMPANY" and request.method == "POST":
+        # Company users can create jobs and update/delete their own jobs
+        if request.user.role == "COMPANY":
             return True
         
         return False

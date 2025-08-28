@@ -161,24 +161,92 @@ class NotificationService:
             # Get interview details
             candidate_name = interview.candidate.full_name
             candidate_email = interview.candidate.email
-            job_title = interview.job.job_title if interview.job else 'N/A'
-            company_name = interview.job.company_name if interview.job else 'N/A'
             
-            # Get scheduled time from the interview schedule if available
+            # Try to get job information from multiple sources
+            job_title = 'N/A'
+            company_name = 'N/A'
+            
+            # First try: direct interview job link
+            if interview.job:
+                job_title = interview.job.job_title
+                company_name = interview.job.company_name
+            # Second try: job from slot
+            elif hasattr(interview, 'schedule') and interview.schedule and interview.schedule.slot.job:
+                job_title = interview.schedule.slot.job.job_title
+                company_name = interview.schedule.slot.job.company_name
+            # Third try: job from candidate
+            elif interview.candidate.job:
+                job_title = interview.candidate.job.job_title
+                company_name = interview.candidate.job.company_name
+            
+            # Get comprehensive slot details
+            slot_details = ""
             scheduled_time = 'TBD'
+            duration = 'TBD'
+            interview_type = 'AI Interview'
+            
             if hasattr(interview, 'schedule') and interview.schedule:
-                scheduled_time = interview.schedule.slot.start_time.strftime('%B %d, %Y at %I:%M %p')
-            elif interview.started_at:
+                slot = interview.schedule.slot
+                scheduled_time = slot.start_time.strftime('%B %d, %Y at %I:%M %p')
+                end_time = slot.end_time.strftime('%I:%M %p')
+                duration = f"{slot.duration_minutes} minutes"
+                interview_type = slot.ai_interview_type.title() if slot.ai_interview_type else 'AI Interview'
+                
+                slot_details = f"""
+📅 **Detailed Schedule:**
+• Start Time: {slot.start_time.strftime('%B %d, %Y at %I:%M %p')}
+• End Time: {slot.end_time.strftime('%B %d, %Y at %I:%M %p')}
+• Duration: {slot.duration_minutes} minutes
+• Interview Type: {slot.ai_interview_type.title() if slot.ai_interview_type else 'AI Interview'}
+• Time Zone: {slot.start_time.tzinfo}
+"""
+            elif interview.started_at and interview.ended_at:
                 scheduled_time = interview.started_at.strftime('%B %d, %Y at %I:%M %p')
+                end_time = interview.ended_at.strftime('%I:%M %p')
+                duration = f"{(interview.ended_at - interview.started_at).total_seconds() / 60:.0f} minutes"
+                interview_type = interview.ai_interview_type.title() if interview.ai_interview_type else 'AI Interview'
+            
+            # Set interview times from slot if not already set
+            if hasattr(interview, 'schedule') and interview.schedule and not interview.started_at:
+                interview.started_at = interview.schedule.slot.start_time
+                interview.ended_at = interview.schedule.slot.end_time
+                interview.save(update_fields=['started_at', 'ended_at'])
             
             # Generate interview link if not already generated
             if not interview.interview_link:
-                interview_link = interview.generate_interview_link()
+                try:
+                    interview_link = interview.generate_interview_link()
+                    # Save the generated link
+                    interview.interview_link = interview_link
+                    interview.save(update_fields=['interview_link'])
+                except Exception as e:
+                    logger.error(f"Failed to generate interview link: {e}")
+                    interview_link = None
             else:
                 interview_link = interview.interview_link
             
             # Get the full interview URL
-            interview_url = interview.get_interview_url()
+            try:
+                interview_url = interview.get_interview_url()
+                if not interview_url:
+                    # Fallback: generate a simple public URL
+                    base_url = getattr(settings, 'BACKEND_URL', 'http://localhost:8000')
+                    session_key = interview.session_key if interview.session_key else interview.interview_link
+                    interview_url = f"{base_url}/interview_app/?session_key={session_key}"
+            except Exception as e:
+                logger.error(f"Failed to get interview URL: {e}")
+                # Fallback: generate a simple public URL
+                base_url = getattr(settings, 'BACKEND_URL', 'http://localhost:8000')
+                session_key = interview.session_key if interview.session_key else interview.interview_link
+                interview_url = f"{base_url}/interview_app/?session_key={session_key}"
+            
+            # Get booking notes if available
+            booking_notes = ""
+            if hasattr(interview, 'schedule') and interview.schedule and interview.schedule.booking_notes:
+                booking_notes = f"""
+📝 **Additional Notes:**
+{interview.schedule.booking_notes}
+"""
             
             # Create email subject and message
             subject = f"Interview Scheduled - {job_title} at {company_name}"
@@ -192,18 +260,23 @@ Your interview has been scheduled successfully!
 • Position: {job_title}
 • Company: {company_name}
 • Date & Time: {scheduled_time}
-• Interview Type: {interview.ai_interview_type.title() if interview.ai_interview_type else 'AI Interview'}
+• Duration: {duration}
+• Interview Type: {interview_type}
 
+{slot_details}
 🔗 **Join Your Interview:**
 Click the link below to join your interview at the scheduled time:
-{interview_url}
+{interview_url if interview_url != "Interview link will be provided separately" else "Your interview link will be sent separately."}
 
-⚠️ **Important Notes:**
+⚠️ **Important Instructions:**
 • Please join the interview 5-10 minutes before the scheduled time
 • You can only access the interview link at the scheduled date and time
 • The link will be active 15 minutes before the interview starts
 • Make sure you have a stable internet connection and a quiet environment
+• Ensure your camera and microphone are working properly
+• Have a valid government-issued ID ready for verification
 
+{booking_notes}
 📧 **Contact Information:**
 If you have any questions or need to reschedule, please contact your recruiter.
 
@@ -218,13 +291,38 @@ This is an automated message. Please do not reply to this email.
             from django.core.mail import send_mail
             from django.conf import settings
             
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[candidate_email],
-                fail_silently=False,
-            )
+            # Try to send email via SMTP first
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[candidate_email],
+                    fail_silently=False,
+                )
+                logger.info(f"Interview notification sent via email: {candidate_email}")
+            except Exception as email_error:
+                logger.warning(f"SMTP email failed, falling back to console: {email_error}")
+                
+                # Fallback to console backend if SMTP fails
+                try:
+                    from django.core.mail import get_connection
+                    from django.core.mail.backends.console import EmailBackend
+                    
+                    # Use console backend to print email to console
+                    connection = get_connection(backend='django.core.mail.backends.console.EmailBackend')
+                    send_mail(
+                        subject=subject,
+                        message=message,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[candidate_email],
+                        fail_silently=False,
+                        connection=connection,
+                    )
+                    logger.info(f"Interview notification sent to console (fallback mode): {candidate_email}")
+                except Exception as console_error:
+                    logger.error(f"Both SMTP and console email failed: {console_error}")
+                    # Still return True to not break the interview scheduling process
             
             # Also create an in-app notification for the recruiter
             NotificationService.send_interview_scheduled_notification(interview)

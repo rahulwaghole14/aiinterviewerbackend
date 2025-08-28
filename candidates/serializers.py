@@ -289,6 +289,7 @@ class CandidateUpdateSerializer(serializers.ModelSerializer):
 class CandidateListSerializer(serializers.ModelSerializer):
     job_title   = serializers.CharField(source='job.job_title', read_only=True)
     resume_url = serializers.SerializerMethodField()
+    job_matching = serializers.SerializerMethodField()
 
     class Meta:
         model  = Candidate
@@ -303,10 +304,41 @@ class CandidateListSerializer(serializers.ModelSerializer):
             "job_title",
             "last_updated",
             "resume_url",
+            "job_matching",
         ]
 
     def get_resume_url(self, obj):
-            request = self.context.get("request")
-            if obj.resume and obj.resume.file:
-                return request.build_absolute_uri(obj.resume.file.url)
+        request = self.context.get("request")
+        if obj.resume and obj.resume.file:
+            return request.build_absolute_uri(obj.resume.file.url)
+        return None
+            
+    def get_job_matching(self, obj):
+        """Calculate job matching percentage for the candidate"""
+        if not obj.job or not obj.job.job_description or not obj.resume or not obj.resume.parsed_text:
+            return None
+            
+        try:
+            from utils.resume_job_matcher import resume_matcher
+            
+            # Prepare resume data for matching
+            resume_data = {
+                'parsed_text': obj.resume.parsed_text,
+                'work_experience': obj.work_experience or 0,
+                'name': obj.full_name or '',
+                'email': obj.email or '',
+                'phone': obj.phone or ''
+            }
+            
+            # Calculate matching percentage
+            job_matching_data = resume_matcher.calculate_overall_match(
+                resume_data, 
+                obj.job.job_description
+            )
+            
+            return job_matching_data
+            
+        except Exception as e:
+            # Log error but don't fail the serialization
+            print(f"Error calculating job match for candidate {obj.id}: {e}")
             return None

@@ -1,8 +1,8 @@
-# AI Interview Integration Guide
+# Talaro Interview Integration Guide
 
 ## Overview
 
-This guide explains how to integrate your AI interview model into the Django backend. The system provides a complete AI interview management solution with session tracking, question generation, response evaluation, and result analysis.
+This guide explains how to integrate your Talaro interview model into the Django backend. The system provides a complete Talaro interview management solution with session tracking, question generation, response evaluation, and result analysis.
 
 ## Architecture
 

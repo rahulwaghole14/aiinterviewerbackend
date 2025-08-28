@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import api_views
 
 urlpatterns = [
     # Existing URLs for the app
@@ -23,4 +24,17 @@ urlpatterns = [
     
     # --- NEW URL FOR FINAL SUBMISSION OF THE CODING CHALLENGE ---
     path('submit_coding_challenge/', views.submit_coding_challenge, name='submit_coding_challenge'),
+    
+    # --- NEW API ENDPOINTS FOR INTERVIEW RESULTS ---
+    path('api/results/<uuid:session_id>/', views.InterviewResultsAPIView.as_view(), name='interview_results_api'),
+    path('api/results/', views.InterviewResultsListAPIView.as_view(), name='interview_results_list_api'),
+    path('api/analytics/<uuid:session_id>/', views.InterviewAnalyticsAPIView.as_view(), name='interview_analytics_api'),
+    
+    # --- NEW API ENDPOINTS FOR DATA LISTING ---
+    path('api/interview-sessions/', api_views.interview_sessions_api, name='interview_sessions_api'),
+    path('api/interview-questions/', api_views.interview_questions_api, name='interview_questions_api'),
+    path('api/code-submissions/', api_views.code_submissions_api, name='code_submissions_api'),
+    path('api/warning-logs/', api_views.warning_logs_api, name='warning_logs_api'),
+    path('api/dashboard-stats/', api_views.dashboard_stats_api, name='dashboard_stats_api'),
+    path('api/test/', api_views.test_api, name='test_api'),
 ]

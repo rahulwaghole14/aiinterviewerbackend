@@ -384,7 +384,7 @@ class PublicStartInterviewView(APIView):
                 'candidate_name': interview.candidate.full_name,
                 'job_title': interview.job.job_title if interview.job else 'Technical Role',
                 'ai_interview_type': interview.ai_interview_type or 'technical',
-                'current_question': current_question['text'] if current_question else "Welcome to your AI interview! Let's begin.",
+                'current_question': current_question['text'] if current_question else "Welcome to your Talaro interview! Let's begin.",
                 'questions': questions_data,
                 'total_questions': len(questions_data),
                 'status': 'started',
@@ -455,7 +455,7 @@ class PublicSubmitResponseView(APIView):
                 
                 # Create a context-aware prompt for feedback
                 feedback_prompt = f"""
-                You are an expert AI interviewer. The candidate just answered the following question:
+                You are an expert Talaro interviewer. The candidate just answered the following question:
                 
                 Question: {current_question.question_text}
                 Answer: {response_text}
@@ -552,7 +552,7 @@ class PublicCompleteInterviewView(APIView):
                     qa_text += f"Question: {response.question.question_text}\nAnswer: {response.response_text}\n\n"
                 
                 evaluation_prompt = f"""
-                You are an expert AI interviewer evaluating a candidate's performance. 
+                You are an expert Talaro interviewer evaluating a candidate's performance. 
                 
                 Job: {session.interview.job.job_title if session.interview.job else 'Technical Role'}
                 Candidate: {session.interview.candidate.full_name}

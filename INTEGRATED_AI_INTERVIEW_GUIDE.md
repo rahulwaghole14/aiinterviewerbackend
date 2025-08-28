@@ -1,4 +1,4 @@
-# Integrated AI Interview System Guide
+# Integrated Talaro Interview System Guide
 
 ## Overview
 

@@ -225,9 +225,14 @@ class Interview(models.Model):
     # Secure interview link for candidate access
     interview_link = models.CharField(max_length=255, blank=True, help_text="Secure link for candidate to join interview")
     link_expires_at = models.DateTimeField(null=True, blank=True, help_text="When the interview link expires")
+    
+    # Session key for AI interview portal
+    session_key = models.CharField(max_length=40, blank=True, help_text="Short session key for AI interview portal access")
 
     created_at    = models.DateTimeField(default=timezone.now, editable=False)
     updated_at    = models.DateTimeField(auto_now=True)
+
+
 
     @property
     def duration_seconds(self):
@@ -265,10 +270,31 @@ class Interview(models.Model):
         # Create the link token
         link_token = base64.urlsafe_b64encode(f"{self.id}:{signature}".encode('utf-8')).decode('utf-8')
         
+        # Generate a short session key for AI interview portal
+        import uuid
+        session_key = uuid.uuid4().hex
+        
         # Set expiration to 2 hours after interview end time
         self.link_expires_at = self.ended_at + timedelta(hours=2) if self.ended_at else None
         self.interview_link = link_token
+        self.session_key = session_key
         self.save()
+        
+        # Create or update the InterviewSession
+        from ai_platform.interview_app.models import InterviewSession
+        InterviewSession.objects.get_or_create(
+            session_key=session_key,
+            defaults={
+                'candidate_name': self.candidate.full_name,
+                'candidate_email': self.candidate.email,
+                'job_description': self.job.tech_stack_details if self.job else 'Technical Role',
+                'resume_text': getattr(self.candidate, 'resume_text', '') or 'Experienced professional seeking new opportunities.',
+                'language_code': 'en',
+                'accent_tld': 'com',
+                'scheduled_at': self.started_at,
+                'status': 'SCHEDULED'
+            }
+        )
         
         return link_token
 
@@ -299,8 +325,12 @@ class Interview(models.Model):
         if not self.interview_link:
             return None
         
-        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        return f"{base_url}/interview/{self.interview_link}"
+        # Use backend URL since the AI interview interface is served by Django
+        base_url = getattr(settings, 'BACKEND_URL', 'http://localhost:8000')
+        
+        # Use session_key if available, otherwise fall back to interview_link
+        session_key = self.session_key if self.session_key else self.interview_link
+        return f"{base_url}/interview_app/?session_key={session_key}"
 
     def __str__(self):
         return f"AI Interview - {self.candidate.full_name} ({self.status})"

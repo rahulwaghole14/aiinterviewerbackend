@@ -1,4 +1,4 @@
-# AI Interviewer Platform - API Documentation
+# Talaro Platform - API Documentation
 
 ## 🚀 Overview
 This platform provides comprehensive AI-powered interviewing capabilities including resume processing, job management, interview scheduling, and hiring agency management.

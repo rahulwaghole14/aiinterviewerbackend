@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Dashboard & Analytics system provides comprehensive insights and metrics for the AI Interviewer platform. It tracks user activities, system performance, and provides role-based analytics for different user types (Admin, Company, Hiring Agency, Recruiter).
+The Dashboard & Analytics system provides comprehensive insights and metrics for the Talaro platform. It tracks user activities, system performance, and provides role-based analytics for different user types (Admin, Company, Hiring Agency, Recruiter).
 
 ## Features Implemented
 

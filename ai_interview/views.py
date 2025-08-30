@@ -10,7 +10,13 @@ except ImportError:
     CV2_AVAILABLE = False
     cv2 = None
 
-import numpy as np
+# Make numpy optional
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.http import JsonResponse, StreamingHttpResponse

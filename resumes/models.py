@@ -3,7 +3,14 @@ import re
 from pathlib import Path
 
 import fitz            # PyMuPDF  ➜  pip install pymupdf
-import docx            # python-docx ➜ pip install python-docx
+
+# Make docx optional
+try:
+    import docx            # python-docx ➜ pip install python-docx
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    docx = None
 from django.db import models
 from django.conf import settings
 
@@ -21,8 +28,11 @@ def extract_text(file_path: str) -> str:
         return "\n".join(page.get_text() for page in doc)
 
     if ext in (".docx", ".doc"):
-        d = docx.Document(file_path)
-        return "\n".join(p.text for p in d.paragraphs)
+        if DOCX_AVAILABLE:
+            d = docx.Document(file_path)
+            return "\n".join(p.text for p in d.paragraphs)
+        else:
+            return "DOCX processing not available"
 
     return ""
 

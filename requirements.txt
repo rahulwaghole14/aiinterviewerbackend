@@ -1,35 +1,52 @@
-asgiref==3.8.1
-dj-database-url==3.0.1
+# Core Django
 Django==5.1.6
+djangorestframework==3.16.0
 django-cors-headers==4.7.0
 django-filter==25.1
-django-heroku==0.3.1
-djangorestframework==3.16.0
 djangorestframework_simplejwt==5.5.0
-gunicorn==23.0.0
-numpy==1.24.3
-packaging==24.2
-pandas==2.2.3
+
+# Database
 psycopg2-binary==2.9.10
-PyJWT==2.9.0
-python-dateutil==2.9.0.post0
+dj-database-url==3.0.1
+
+# Server
+gunicorn==23.0.0
+whitenoise==6.6.0
+
+# Essential utilities
 python-decouple==3.8
 python-dotenv==1.1.1
-pytz==2025.1
-setuptools>=68.0.0
-wheel>=0.40.0
-sqlparse==0.5.3
-tzdata==2025.1
-whitenoise==6.6.0
-nltk>=3.9
-opencv-python-headless==4.9.0.80
-Pillow==10.4.0
+PyJWT==2.9.0
+
+# Basic libraries
 requests==2.32.3
 urllib3==2.2.1
+numpy==1.24.3
+pandas==2.2.3
+
+# Text processing
 textblob==0.17.1
+nltk>=3.9
+
+# Image processing (optional)
+Pillow==10.4.0
+# opencv-python-headless==4.9.0.80  # Removed due to build issues
+
+# Document processing
 PyPDF2==3.0.1
-python-docx==1.2.0
-gTTS==2.5.1
-weasyprint==60.1
+
+# System monitoring
 psutil==6.1.0
+
+# Reading time
 readtime==3.0.0
+
+# Time utilities
+python-dateutil==2.9.0.post0
+pytz==2025.1
+tzdata==2025.1
+
+# Django utilities
+sqlparse==0.5.3
+asgiref==3.8.1
+packaging==24.2

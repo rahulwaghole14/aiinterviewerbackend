@@ -9,7 +9,13 @@ except ImportError:
     GEMINI_AVAILABLE = False
     genai = None
 
-from numpy._core.numeric import False_
+# Make numpy imports optional
+try:
+    from numpy._core.numeric import False_
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    False_ = None
 try:
     import whisper
     WHISPER_AVAILABLE = True
@@ -44,7 +50,14 @@ from collections import Counter
 import traceback
 import readtime
 import time
-import numpy as np
+
+# Make numpy import optional
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
 
 # Make cv2 optional
 try:

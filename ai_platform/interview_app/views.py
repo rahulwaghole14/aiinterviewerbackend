@@ -1,8 +1,21 @@
 
 import os
-import google.generativeai as genai
+
+# Make AI dependencies optional
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
+
 from numpy._core.numeric import False_
-import whisper
+try:
+    import whisper
+    WHISPER_AVAILABLE = True
+except ImportError:
+    WHISPER_AVAILABLE = False
+    whisper = None
 import PyPDF2
 import docx
 import re
@@ -68,19 +81,27 @@ except ImportError:
 
 load_dotenv()
 # Use hardcoded API key for now (same as other files)
-gemini_api_key = "AIzaSyCUzd-vFkZdx5JGPHi951Z7nGB97plffX0"
-genai.configure(api_key=gemini_api_key)
+if GEMINI_AVAILABLE:
+    gemini_api_key = "AIzaSyCUzd-vFkZdx5JGPHi951Z7nGB97plffX0"
+    genai.configure(api_key=gemini_api_key)
+else:
+    print("Warning: Google Generative AI not available - AI features will be disabled")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.
 # This does NOT affect AI evaluation in the report or email sending.
 DEV_MODE = False
 
-try:
-    whisper_model = whisper.load_model("base")
-    print("Whisper model 'base' loaded.")
-except Exception as e:
-    print(f"Error loading Whisper model: {e}"); whisper_model = None
+if WHISPER_AVAILABLE:
+    try:
+        whisper_model = whisper.load_model("base")
+        print("Whisper model 'base' loaded.")
+    except Exception as e:
+        print(f"Error loading Whisper model: {e}")
+        whisper_model = None
+else:
+    print("Whisper not available - transcription features disabled")
+    whisper_model = None
 
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 CAMERAS, camera_lock = {}, threading.Lock()

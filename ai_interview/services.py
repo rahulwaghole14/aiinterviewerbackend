@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db import models
 from textblob import TextBlob
 import re
 import traceback

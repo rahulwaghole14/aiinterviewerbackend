@@ -45,7 +45,14 @@ import traceback
 import readtime
 import time
 import numpy as np
-import cv2
+
+# Make cv2 optional
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    cv2 = None
 import base64
 from django.utils import timezone
 from django.core.files.base import ContentFile

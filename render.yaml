@@ -1,7 +1,7 @@
 services:
   - type: web
     name: ai-interviewer-backend
-    runtime: python3.11
+    runtime: python3.11.9
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn ai_platform.wsgi:application --bind 0.0.0.0:$PORT

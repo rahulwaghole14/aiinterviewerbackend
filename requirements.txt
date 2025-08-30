@@ -45,3 +45,4 @@ tzdata==2025.1
 
 # Additional utilities that might be needed
 python-dateutil==2.9.0.post0
+six==1.17.0

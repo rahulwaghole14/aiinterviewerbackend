@@ -302,3 +302,5 @@ Your current system is a good starting point, but implementing these enhancement
 - **Data-driven insights** for better hiring decisions
 
 The key is to start with the LLM integration and real-time communication, then gradually add the more advanced features.
+
+

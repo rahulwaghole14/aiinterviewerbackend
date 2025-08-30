@@ -6,6 +6,7 @@ from .models import (
     Interview, InterviewSlot, InterviewSchedule, 
     AIInterviewConfiguration, InterviewConflict
 )
+from ai_platform.interview_app.models import InterviewSession, InterviewQuestion
 
 
 class InterviewSerializer(serializers.ModelSerializer):
@@ -148,14 +149,331 @@ class InterviewSerializer(serializers.ModelSerializer):
         return None
     
     def get_ai_result(self, obj):
-        """Get AI interview result if available"""
+        """Get AI interview result if available - only for COMPLETED interviews"""
         try:
-            if hasattr(obj, 'ai_result') and obj.ai_result:
-                from ai_interview.serializers import AIInterviewResultSerializer
-                return AIInterviewResultSerializer(obj.ai_result).data
-        except Exception:
-            pass
+            # First check if the interview is actually completed
+            if obj.status != 'completed':
+                return None
+            
+            # Try to get the AIInterviewResult for this specific interview
+            from ai_interview.models import AIInterviewResult
+            
+            try:
+                ai_result = AIInterviewResult.objects.get(interview=obj)
+                # Return the actual AI result data
+                return {
+                    'is_evaluated': True,
+                    'resume_score': ai_result.technical_score or 0,
+                    'answers_score': ai_result.behavioral_score or 0,
+                    'overall_score': ai_result.total_score or 0,
+                    'resume_feedback': ai_result.ai_summary or "",
+                    'answers_feedback': ai_result.ai_recommendations or "",
+                    'overall_feedback': ai_result.ai_summary or "",
+                    'strengths': ai_result.strengths if isinstance(ai_result.strengths, list) else [],
+                    'weaknesses': ai_result.weaknesses if isinstance(ai_result.weaknesses, list) else [],
+                    'hire_recommendation': ai_result.hire_recommendation or False,
+                    'confidence_level': ai_result.confidence_level or 0,
+                    'coding_details': self._get_coding_details_from_ai_result(ai_result),
+                    'session_id': str(ai_result.session.id) if ai_result.session else None,
+                    'evaluated_at': ai_result.created_at.isoformat() if ai_result.created_at else None,
+                    # Additional fields for compatibility
+                    'overall_rating': ai_result.overall_rating or 'pending',
+                    'total_score': ai_result.total_score or 0,
+                    'technical_score': ai_result.technical_score or 0,
+                    'behavioral_score': ai_result.behavioral_score or 0,
+                    'coding_score': ai_result.coding_score or 0,
+                    'ai_summary': ai_result.ai_summary or "",
+                    'ai_recommendations': ai_result.ai_recommendations or "",
+                    'questions_attempted': ai_result.questions_attempted or 0,
+                    'questions_correct': ai_result.questions_correct or 0,
+                    'accuracy_percentage': ai_result.accuracy_percentage or 0,
+                    'average_response_time': ai_result.average_response_time or 0,
+                    'completion_time': ai_result.completion_time or 0,
+                    'human_feedback': ai_result.human_feedback or None,
+                    'human_rating': ai_result.human_rating or None,
+                    # Recording information from session
+                    'recording_video': ai_result.session.interview.ai_session.recording_video.url if (
+                        ai_result.session and 
+                        hasattr(ai_result.session.interview, 'ai_session') and 
+                        ai_result.session.interview.ai_session.recording_video
+                    ) else None,
+                    'recording_created_at': ai_result.session.interview.ai_session.recording_created_at.isoformat() if (
+                        ai_result.session and 
+                        hasattr(ai_result.session.interview, 'ai_session') and 
+                        ai_result.session.interview.ai_session.recording_created_at
+                    ) else None,
+                }
+            except AIInterviewResult.DoesNotExist:
+                # No AI result exists for this interview - try legacy InterviewSession approach
+                # But ONLY if the interview is actually completed
+                return self._get_legacy_ai_result(obj)
+                
+        except Exception as e:
+            print(f"Error getting AI result for interview {obj.id}: {e}")
+            import traceback
+            traceback.print_exc()
         return None
+
+    def _get_legacy_ai_result(self, obj):
+        """Get AI result from legacy InterviewSession - only for completed interviews"""
+        try:
+            # Only return data for completed interviews
+            if obj.status != 'completed':
+                return None
+                
+            # Get candidate name from interview
+            candidate_name = obj.candidate.full_name if obj.candidate else ""
+            
+            # Look for a session that matches this interview's candidate and job
+            # Try exact match first with more strict criteria
+            session = InterviewSession.objects.filter(
+                candidate_name=candidate_name,
+                job_description__icontains=obj.job.job_title if obj.job else "",
+                is_evaluated=True,
+                status='COMPLETED'  # Only completed sessions
+            ).order_by('-created_at').first()
+            
+            # If no exact match, try fuzzy matching for common name variations
+            # But be more restrictive to avoid cross-candidate contamination
+            if not session:
+                # Extract first and last name parts
+                name_parts = candidate_name.lower().split()
+                if len(name_parts) >= 2:
+                    first_name = name_parts[0]
+                    last_name = name_parts[-1]
+                    
+                    # Look for sessions with exact name match (not just contains)
+                    session = InterviewSession.objects.filter(
+                        candidate_name__iexact=candidate_name,
+                        is_evaluated=True,
+                        status='COMPLETED'
+                    ).order_by('-created_at').first()
+            
+            if session and session.is_evaluated:
+                # Convert the session evaluation data to the format expected by frontend
+                return {
+                    'is_evaluated': True,
+                    'resume_score': session.resume_score * 10 if session.resume_score else 0,
+                    'answers_score': session.answers_score * 10 if session.answers_score else 0,
+                    'overall_score': session.overall_performance_score * 10 if session.overall_performance_score else 0,
+                    'resume_feedback': session.resume_feedback or "",
+                    'answers_feedback': session.answers_feedback or "",
+                    'overall_feedback': session.overall_performance_feedback or "",
+                    'strengths': self._extract_strengths(session.answers_feedback),
+                    'weaknesses': self._extract_weaknesses(session.resume_feedback),
+                    'hire_recommendation': self._extract_hire_recommendation(session.overall_performance_feedback),
+                    'confidence_level': 85.0 if session.overall_performance_score and session.overall_performance_score > 7 else 65.0,
+                    'coding_details': self._get_coding_details(session),
+                    'session_id': str(session.id),
+                    'evaluated_at': session.created_at.isoformat() if session.created_at else None,
+                    # Additional fields for compatibility
+                    'overall_rating': self._get_rating_from_score(session.overall_performance_score),
+                    'total_score': session.overall_performance_score * 10 if session.overall_performance_score else 0,
+                    'technical_score': session.answers_score * 10 if session.answers_score else 0,
+                    'behavioral_score': session.resume_score * 10 if session.resume_score else 0,
+                    'coding_score': session.answers_score * 10 if session.answers_score else 0,
+                    'ai_summary': session.overall_performance_feedback or "",
+                    'ai_recommendations': session.answers_feedback or "",
+                    'questions_attempted': self._calculate_questions_attempted(session),
+                    'questions_correct': self._calculate_questions_correct(session),
+                    'accuracy_percentage': self._calculate_accuracy(session),
+                    'average_response_time': self._calculate_average_response_time(session),
+                    'completion_time': self._calculate_completion_time(session),
+                    'human_feedback': None,  # Not available in current model
+                    'human_rating': None,  # Not available in current model
+                    # Recording information
+                    'recording_video': session.recording_video.url if session.recording_video else None,
+                    'recording_created_at': session.recording_created_at.isoformat() if session.recording_created_at else None,
+                }
+        except Exception as e:
+            print(f"Error getting legacy AI result for interview {obj.id}: {e}")
+        return None
+    
+    def _get_rating_from_score(self, score):
+        """Convert numerical score to rating"""
+        if not score:
+            return 'pending'
+        elif score >= 8:
+            return 'excellent'
+        elif score >= 6:
+            return 'good'
+        elif score >= 4:
+            return 'fair'
+        else:
+            return 'poor'
+    
+    def _extract_hire_recommendation(self, feedback):
+        """Extract hire recommendation from feedback"""
+        if not feedback:
+            return False
+        
+        feedback_lower = feedback.lower()
+        if 'hire' in feedback_lower and 'recommend' in feedback_lower:
+            if 'not' in feedback_lower or 'do not' in feedback_lower:
+                return False
+            else:
+                return True
+        elif 'strong' in feedback_lower and 'candidate' in feedback_lower:
+            return True
+        elif 'weak' in feedback_lower or 'poor' in feedback_lower:
+            return False
+        else:
+            return True  # Default to recommend if unclear
+    
+    def _extract_strengths(self, feedback):
+        """Extract strengths as an array from feedback"""
+        if not feedback:
+            return []
+        
+        # Look for specific positive indicators in the feedback
+        strengths = []
+        
+        # Check for coding success
+        if any(word in feedback.lower() for word in ['coding challenge was successfully completed', 'successfully completed', 'correct', 'functional']):
+            strengths.append("Successfully completed coding challenge")
+        
+        # Check for technical knowledge
+        if any(word in feedback.lower() for word in ['technical knowledge', 'demonstrated', 'understanding']):
+            strengths.append("Demonstrated technical knowledge")
+        
+        # Check for problem-solving
+        if any(word in feedback.lower() for word in ['problem-solving', 'algorithm', 'solution']):
+            strengths.append("Showed problem-solving abilities")
+        
+        # If no specific strengths found, create generic ones based on context
+        if not strengths:
+            strengths = ["Completed interview process", "Demonstrated basic technical skills"]
+        
+        return strengths
+    
+    def _extract_weaknesses(self, feedback):
+        """Extract weaknesses as an array from feedback"""
+        if not feedback:
+            return []
+        
+        # Look for specific improvement areas in the feedback
+        weaknesses = []
+        
+        # Check for communication issues
+        if any(word in feedback.lower() for word in ['lack of answers', 'inability to articulate', 'communication skills', 'no answers']):
+            weaknesses.append("Needs to improve communication skills")
+        
+        # Check for preparation issues
+        if any(word in feedback.lower() for word in ['lack of preparation', 'not prepared', 'absence of answers']):
+            weaknesses.append("Needs better interview preparation")
+        
+        # Check for technical depth
+        if any(word in feedback.lower() for word in ['basic problem', 'lack of understanding', 'technical depth', 'advanced']):
+            weaknesses.append("Needs more technical depth")
+        
+        # Check for experience gaps
+        if any(word in feedback.lower() for word in ['lack of experience', 'practical experience', 'gap in']):
+            weaknesses.append("Needs more practical experience")
+        
+        # If no specific weaknesses found, create generic ones based on context
+        if not weaknesses:
+            weaknesses = ["Could improve communication skills", "Needs more technical depth"]
+        
+        return weaknesses
+    
+    def _calculate_questions_attempted(self, session):
+        """Calculate total questions attempted (spoken + coding)"""
+        spoken_questions = session.questions.count()
+        coding_submissions = session.code_submissions.count()
+        return spoken_questions + coding_submissions
+    
+    def _calculate_questions_correct(self, session):
+        """Calculate questions answered correctly"""
+        # Count spoken questions with answers
+        spoken_answered = session.questions.filter(transcribed_answer__isnull=False).exclude(transcribed_answer='').count()
+        
+        # Count coding submissions that passed tests
+        coding_correct = session.code_submissions.filter(passed_all_tests=True).count()
+        
+        return spoken_answered + coding_correct
+    
+    def _calculate_accuracy(self, session):
+        """Calculate accuracy percentage based on questions answered correctly"""
+        questions_attempted = self._calculate_questions_attempted(session)
+        questions_correct = self._calculate_questions_correct(session)
+        
+        if questions_attempted == 0:
+            return 0.0
+        
+        return (questions_correct / questions_attempted) * 100
+    
+    def _calculate_average_response_time(self, session):
+        """Calculate average response time in seconds"""
+        response_times = []
+        
+        # Get response times from spoken questions
+        for question in session.questions.filter(transcribed_answer__isnull=False).exclude(transcribed_answer=''):
+            if question.response_time_seconds:
+                response_times.append(question.response_time_seconds)
+        
+        # For coding submissions, estimate response time (coding challenges typically take longer)
+        coding_submissions = session.code_submissions.count()
+        if coding_submissions > 0:
+            # Estimate 5 minutes per coding challenge
+            estimated_coding_time = coding_submissions * 300  # 5 minutes = 300 seconds
+            response_times.append(estimated_coding_time)
+        
+        if not response_times:
+            return 0.0
+        
+        return sum(response_times) / len(response_times)
+    
+    def _calculate_completion_time(self, session):
+        """Calculate total completion time in seconds"""
+        total_time = 0
+        
+        # Add response times from spoken questions
+        for question in session.questions.filter(transcribed_answer__isnull=False).exclude(transcribed_answer=''):
+            if question.response_time_seconds:
+                total_time += question.response_time_seconds
+        
+        # Add estimated time for coding submissions
+        coding_submissions = session.code_submissions.count()
+        if coding_submissions > 0:
+            # Estimate 5 minutes per coding challenge
+            estimated_coding_time = coding_submissions * 300  # 5 minutes = 300 seconds
+            total_time += estimated_coding_time
+        
+        return total_time
+    
+    def _get_coding_details_from_ai_result(self, ai_result):
+        """Get coding question details from AI result"""
+        # For now, return empty list since AIInterviewResult doesn't store coding details yet
+        # This can be enhanced when we add coding question support to the new AI model
+        return []
+    
+    def _get_coding_details(self, session):
+        """Get coding question details for the session"""
+        coding_details = []
+        
+        # Get all code submissions
+        code_submissions = session.code_submissions.all()
+        
+        for submission in code_submissions:
+            try:
+                # Try to get the question details
+                question = InterviewQuestion.objects.get(id=submission.question_id)
+                question_text = question.question_text
+            except InterviewQuestion.DoesNotExist:
+                question_text = f"Question ID: {submission.question_id}"
+            
+            coding_detail = {
+                'question_text': question_text,
+                'language': submission.language,
+                'submitted_code': submission.submitted_code,
+                'passed_all_tests': submission.passed_all_tests,
+                'output_log': submission.output_log or "",
+                'created_at': submission.created_at.isoformat() if submission.created_at else None
+            }
+            
+            coding_details.append(coding_detail)
+        
+        return coding_details
 
 
 class InterviewFeedbackSerializer(serializers.ModelSerializer):

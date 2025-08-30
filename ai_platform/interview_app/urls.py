@@ -16,6 +16,7 @@ urlpatterns = [
     path('status/', views.get_proctoring_status, name='get_proctoring_status'),
     path('report_tab_switch/', views.report_tab_switch, name='report_tab_switch'),
     path('transcribe/', views.transcribe_audio, name='transcribe_audio'),
+    path('save_answer/', views.save_answer, name='save_answer'),
     path('check_camera/', views.check_camera, name='check_camera'),
     path('end_session/', views.end_interview_session, name='end_interview_session'),
     path('release_camera/', views.release_camera, name='release_camera'),
@@ -37,4 +38,6 @@ urlpatterns = [
     path('api/warning-logs/', api_views.warning_logs_api, name='warning_logs_api'),
     path('api/dashboard-stats/', api_views.dashboard_stats_api, name='dashboard_stats_api'),
     path('api/test/', api_views.test_api, name='test_api'),
+    path('api/interview-evaluations/', api_views.get_interview_evaluations, name='get_interview_evaluations'),
+    path('api/recording/<uuid:session_id>/', api_views.get_interview_recording, name='get_interview_recording'),
 ]

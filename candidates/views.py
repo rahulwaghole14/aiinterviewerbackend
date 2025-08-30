@@ -433,6 +433,24 @@ class BulkCandidateCreationView(APIView):
     def _create_candidate_from_data(self, candidate_data: dict, domain: str, role: str, user, resume=None, poc_email=None):
         """Create candidate from edited data, associating with a Resume object if provided"""
         try:
+            # Check for duplicate candidate before creating
+            email = candidate_data.get('email', '')
+            if email:
+                from .utils import check_candidate_duplicate
+                duplicate_info = check_candidate_duplicate(
+                    email=email,
+                    job_role=role,
+                    domain=domain,
+                    recruiter=user
+                )
+                
+                if duplicate_info and duplicate_info['is_duplicate']:
+                    # Clean up the resume if it was created for this candidate
+                    if resume and not resume.candidates.exists():
+                        resume.delete()
+                    
+                    return f"DUPLICATE: {duplicate_info['duplicate_reason']}. Existing candidate: {duplicate_info['existing_candidate'].full_name}"
+            
             candidate_info = {
                 'full_name': candidate_data.get('name', 'Unknown'),
                 'email': candidate_data.get('email', ''),
@@ -476,6 +494,22 @@ class BulkCandidateCreationView(APIView):
                 # Clean name if extracted
                 if extracted_data.get('name'):
                     extracted_data['name'] = parse_candidate_name(extracted_data['name'])
+
+            # Check for duplicate candidate before creating
+            email = extracted_data.get('email', '')
+            if email:
+                from .utils import check_candidate_duplicate
+                duplicate_info = check_candidate_duplicate(
+                    email=email,
+                    job_role=role,
+                    domain=domain,
+                    recruiter=user
+                )
+                
+                if duplicate_info and duplicate_info['is_duplicate']:
+                    # Clean up the resume since we won't create the candidate
+                    resume.delete()
+                    return None  # Return None to indicate duplicate
 
             # Create candidate with extracted data
             candidate_data = {
@@ -747,6 +781,32 @@ class CandidateSubmissionView(APIView):
             
             # Create candidate from verified data
             verified_data = draft.verified_data
+            
+            # Check for duplicate candidate before creating
+            email = verified_data.get('email', '')
+            if email:
+                from .utils import check_candidate_duplicate
+                duplicate_info = check_candidate_duplicate(
+                    email=email,
+                    job_role=draft.role,
+                    domain=draft.domain,
+                    recruiter=request.user
+                )
+                
+                if duplicate_info and duplicate_info['is_duplicate']:
+                    # Clean up the resume since we won't create the candidate
+                    resume.delete()
+                    return Response({
+                        'error': 'Duplicate candidate detected',
+                        'duplicate': {
+                            'message': duplicate_info['duplicate_reason'],
+                            'existing_candidate_id': duplicate_info['existing_candidate'].id,
+                            'existing_candidate_name': duplicate_info['existing_candidate'].full_name,
+                            'job_title': duplicate_info['job_title'],
+                            'company_name': duplicate_info['company_name']
+                        }
+                    }, status=status.HTTP_409_CONFLICT)
+            
             candidate = Candidate.objects.create(
                 recruiter=request.user,
                 resume=resume,
@@ -804,6 +864,56 @@ class CandidateSubmissionView(APIView):
             return Response({
                 'error': f'Failed to submit candidate: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+# ────────────────────────────────────────────────────────────────
+# Duplicate Detection API
+# ────────────────────────────────────────────────────────────────
+
+class DuplicateCheckView(APIView):
+    """
+    Check for duplicate candidates before creation
+    POST /api/candidates/check-duplicate/
+    """
+    permission_classes = [ResumeHierarchyPermission]
+    
+    def post(self, request):
+        """Check if a candidate with the same email already exists"""
+        email = request.data.get('email')
+        job_role = request.data.get('job_role')
+        domain = request.data.get('domain')
+        
+        if not email:
+            return Response({
+                'error': 'Email is required for duplicate check'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from .utils import get_duplicate_candidates_info
+            
+            duplicate_info = get_duplicate_candidates_info(
+                email=email,
+                job_role=job_role,
+                domain=domain,
+                recruiter=request.user
+            )
+            
+            if duplicate_info and duplicate_info['is_duplicate']:
+                return Response({
+                    'is_duplicate': True,
+                    'duplicate_info': duplicate_info,
+                    'message': duplicate_info['duplicate_reason']
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'is_duplicate': False,
+                    'message': 'No duplicate found'
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                'error': f'Error checking for duplicates: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # ────────────────────────────────────────────────────────────────
 # Existing Views (Updated with DataIsolationMixin)

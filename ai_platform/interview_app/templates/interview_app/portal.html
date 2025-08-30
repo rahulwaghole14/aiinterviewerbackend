@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Talaro Interview Portal</title>
+    <title>AI Interview Portal</title>
     {% load static %}
     <!-- Add Monaco Editor CDN -->
     <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs/editor/editor.main.css">
@@ -431,6 +431,8 @@
         }
         document.getElementById('capture-id-btn')?.addEventListener('click', runIdVerification);
         document.getElementById('cancel-termination-btn')?.addEventListener('click', hideTerminationWarning);
+        
+
     });
     
     // Release media resources when page is about to unload
@@ -955,21 +957,69 @@
 
         proctoringInterval = setInterval(async () => {
             if(interviewEnded) return;
+            
+            // Check if spoken interview phase is visible
+            const spokenPhase = document.getElementById('spoken-interview-phase');
+            if (spokenPhase && spokenPhase.style.display !== 'flex') {
+                console.log('Spoken interview phase not visible, skipping warning display');
+                return;
+            }
             try {
                 const res = await fetch(`/interview_app/status/?session_key=${SESSION_KEY}`);
                 const warnings = await res.json();
+                console.log('Proctoring warnings received:', warnings);
+                
                 if (warnings.no_person_warning_active) showTerminationWarning();
                 else hideTerminationWarning();
+                
                 const list = document.getElementById('warnings-list');
+                if (!list) {
+                    console.error('warnings-list element not found!');
+                    return;
+                }
+                
+                // Check if proctoring sidebar is visible
+                const sidebar = document.querySelector('.proctoring-sidebar');
+                if (sidebar) {
+                    console.log('Proctoring sidebar display style:', sidebar.style.display);
+                    console.log('Proctoring sidebar computed display:', window.getComputedStyle(sidebar).display);
+                } else {
+                    console.error('Proctoring sidebar not found!');
+                }
+                
                 list.innerHTML = '';
+                let warningCount = 0;
                 for (const [key, value] of Object.entries(warnings)) {
-                    if (value === true && key.endsWith('_warning')) {
+                    // Check for all warning types, not just those ending with '_warning'
+                    if (value === true && (
+                        key.endsWith('_warning') || 
+                        key === 'multiple_people' ||
+                        key === 'phone_detected' ||
+                        key === 'no_person' ||
+                        key === 'low_concentration' ||
+                        key === 'tab_switched' ||
+                        key === 'excessive_noise' ||
+                        key === 'multiple_speakers'
+                    )) {
                         const li = document.createElement('li');
-                        li.textContent = key.replace(/_/g, ' ').replace(' warning', '').toUpperCase();
+                        li.textContent = key.replace(/_/g, ' ').toUpperCase();
+                        li.style.backgroundColor = '#dc3545'; // Ensure visibility
+                        li.style.color = 'white';
+                        li.style.padding = '0.75rem 1.5rem';
+                        li.style.borderRadius = '25px';
+                        li.style.marginBottom = '0.75rem';
+                        li.style.textAlign = 'center';
+                        li.style.fontWeight = '600';
+                        li.style.fontSize = '0.9rem';
                         list.appendChild(li);
+                        warningCount++;
+                        console.log('Added warning to list:', key);
                     }
                 }
-            } catch (e) {}
+                console.log(`Total warnings displayed: ${warningCount}`);
+            } catch (e) {
+                console.error('Error in proctoring interval:', e);
+            }
         }, 2500);
         document.getElementById('done-btn')?.addEventListener('click', moveToReviewPhase);
     }

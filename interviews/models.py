@@ -313,7 +313,11 @@ class Interview(models.Model):
             interview_end = self.ended_at + timedelta(hours=2)
             
             if now < interview_start:
-                return False, f"Interview hasn't started yet. Please join at {self.started_at.strftime('%B %d, %Y at %I:%M %p')}"
+                # Convert to IST for user-friendly display
+                import pytz
+                ist = pytz.timezone('Asia/Kolkata')
+                start_time_ist = self.started_at.astimezone(ist)
+                return False, f"Interview hasn't started yet. Please join at {start_time_ist.strftime('%B %d, %Y at %I:%M %p')} IST"
             
             if now > interview_end:
                 return False, "Interview has ended"

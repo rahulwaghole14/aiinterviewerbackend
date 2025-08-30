@@ -10,7 +10,8 @@ from .views import (
     CandidateSubmissionView,
     # New bulk candidate creation view
     BulkCandidateCreationView,
-
+    # Duplicate detection
+    DuplicateCheckView,
 )
 
 urlpatterns = [
@@ -25,6 +26,9 @@ urlpatterns = [
     path('extract-data/', DataExtractionView.as_view(), name='data-extraction'),
     path('verify/<int:draft_id>/', CandidateVerificationView.as_view(), name='candidate-verification'),
     path('submit/<int:draft_id>/', CandidateSubmissionView.as_view(), name='candidate-submission'),
+    
+    # Duplicate detection endpoint
+    path('check-duplicate/', DuplicateCheckView.as_view(), name='check-duplicate'),
     
     # Existing endpoints
     path('', CandidateListCreateView.as_view(), name='candidate-list-create'),

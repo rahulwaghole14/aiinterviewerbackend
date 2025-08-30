@@ -266,6 +266,30 @@ class CandidateCreateSerializer(serializers.ModelSerializer):
             if not validated_data.get(f) and parsed.get(f):
                 validated_data[f] = parsed[f]
 
+        # Check for duplicate candidate before creating
+        email = validated_data.get('email')
+        if email:
+            from .utils import check_candidate_duplicate
+            duplicate_info = check_candidate_duplicate(
+                email=email,
+                job_role=job_title,
+                domain=validated_data.get('domain'),
+                recruiter=user
+            )
+            
+            if duplicate_info and duplicate_info['is_duplicate']:
+                # Clean up the created resume since we won't create the candidate
+                resume.delete()
+                raise serializers.ValidationError({
+                    "duplicate": {
+                        "message": duplicate_info['duplicate_reason'],
+                        "existing_candidate_id": duplicate_info['existing_candidate'].id,
+                        "existing_candidate_name": duplicate_info['existing_candidate'].full_name,
+                        "job_title": duplicate_info['job_title'],
+                        "company_name": duplicate_info['company_name']
+                    }
+                })
+
         validated_data['resume'] = resume
         validated_data['recruiter'] = user
         validated_data['job'] = job

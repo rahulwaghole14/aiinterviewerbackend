@@ -60,7 +60,13 @@
                     </div>
                 </div>
             {% else %}
-                <p id="evaluation-pending-message" class="evaluation-pending-message">The AI evaluation is being generated. This page will automatically refresh in 5 seconds...</p>
+                <p id="evaluation-pending-message" class="evaluation-pending-message">
+                    The AI evaluation is being generated. This page will automatically refresh in 5 seconds...
+                    <br><br>
+                    <button onclick="location.reload()" style="background-color: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        Refresh Now
+                    </button>
+                </p>
             {% endif %}
         </div>
 
@@ -179,7 +185,10 @@
         
         const evalPendingMsg = document.getElementById('evaluation-pending-message');
         if (evalPendingMsg) {
-            setTimeout(() => { window.location.reload(); }, 5000);
+            // Add cache-busting parameter to force fresh data
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('t', new Date().getTime());
+            setTimeout(() => { window.location.href = currentUrl.toString(); }, 5000);
         }
 
         try {

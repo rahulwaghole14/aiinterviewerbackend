@@ -7,6 +7,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 import json
 from .models import InterviewSession, InterviewQuestion, CodeSubmission, WarningLog, TestCase
 from django.db import models
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from django.shortcuts import get_object_or_404
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -60,6 +65,8 @@ def interview_sessions_api(request):
                 'resume_feedback': session.resume_feedback,
                 'overall_performance_feedback': session.overall_performance_feedback,
                 'id_verification_status': session.id_verification_status,
+                'recording_video': session.recording_video.url if session.recording_video else None,
+                'recording_created_at': session.recording_created_at.isoformat() if session.recording_created_at else None,
             })
         
         response = JsonResponse({
@@ -72,6 +79,47 @@ def interview_sessions_api(request):
                 'has_next': page_obj.has_next(),
                 'has_previous': page_obj.has_previous(),
             }
+        })
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type"
+        return response
+        
+    except Exception as e:
+        response = JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type"
+        return response
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_interview_recording(request, session_id):
+    """API endpoint to get interview recording for a specific session"""
+    try:
+        session = get_object_or_404(InterviewSession, id=session_id)
+        
+        if not session.recording_video:
+            return JsonResponse({
+                'success': False,
+                'error': 'No recording available for this session'
+            }, status=404)
+        
+        recording_data = {
+            'session_id': str(session.id),
+            'candidate_name': session.candidate_name,
+            'recording_url': session.recording_video.url,
+            'recording_created_at': session.recording_created_at.isoformat() if session.recording_created_at else None,
+            'file_size': session.recording_video.size if session.recording_video else None,
+            'file_name': session.recording_video.name if session.recording_video else None,
+        }
+        
+        response = JsonResponse({
+            'success': True,
+            'data': recording_data
         })
         response["Access-Control-Allow-Origin"] = "*"
         response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
@@ -395,3 +443,108 @@ def test_api(request):
     response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     response["Access-Control-Allow-Headers"] = "Content-Type"
     return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_interview_evaluations(request):
+    """Get evaluation data for interviews in the format expected by frontend"""
+    try:
+        # Get all completed and evaluated sessions
+        evaluated_sessions = InterviewSession.objects.filter(
+            status='COMPLETED',
+            is_evaluated=True
+        ).order_by('-created_at')
+        
+        evaluations = []
+        for session in evaluated_sessions:
+            # Convert session evaluation data to frontend format
+            evaluation_data = {
+                'id': str(session.id),
+                'interview': str(session.id),  # Using session ID as interview ID
+                'candidate': session.candidate_name,
+                'candidate_email': session.candidate_email,
+                'created_at': session.created_at,
+                'completed_at': session.created_at,  # Using created_at as completed_at
+                'ai_result': {
+                    'total_score': session.overall_performance_score or 0.0,
+                    'technical_score': session.answers_score or 0.0,
+                    'behavioral_score': session.answers_score or 0.0,
+                    'coding_score': 0.0,  # Not available in current model
+                    'overall_rating': _get_overall_rating(session.overall_performance_score),
+                    'hire_recommendation': _get_hire_recommendation(session.overall_performance_feedback),
+                    'confidence_level': 85.0,  # Default confidence
+                    'ai_summary': session.overall_performance_feedback or '',
+                    'ai_recommendations': session.overall_performance_feedback or '',
+                    'strengths': _extract_strengths(session.answers_feedback),
+                    'weaknesses': _extract_weaknesses(session.answers_feedback),
+                    'questions_attempted': session.questions.count(),
+                    'questions_correct': session.questions.filter(transcribed_answer__isnull=False).count(),
+                    'average_response_time': 0.0,  # Not tracked in current model
+                    'completion_time': 0,  # Not tracked in current model
+                },
+                'resume_score': session.resume_score or 0.0,
+                'answers_score': session.answers_score or 0.0,
+                'overall_score': session.overall_performance_score or 0.0,
+                'resume_feedback': session.resume_feedback or '',
+                'answers_feedback': session.answers_feedback or '',
+                'overall_feedback': session.overall_performance_feedback or '',
+            }
+            evaluations.append(evaluation_data)
+        
+        return Response({
+            'count': len(evaluations),
+            'results': evaluations
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': f'Failed to fetch evaluations: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+def _get_overall_rating(score):
+    """Convert score to overall rating"""
+    if not score:
+        return 'pending'
+    elif score >= 8.0:
+        return 'excellent'
+    elif score >= 6.0:
+        return 'good'
+    elif score >= 4.0:
+        return 'average'
+    else:
+        return 'poor'
+
+def _get_hire_recommendation(feedback):
+    """Extract hire recommendation from feedback"""
+    if not feedback:
+        return None
+    
+    feedback_lower = feedback.lower()
+    if 'strong yes' in feedback_lower or 'hire' in feedback_lower:
+        return True
+    elif 'no' in feedback_lower or 'reject' in feedback_lower:
+        return False
+    else:
+        return None
+
+def _extract_strengths(feedback):
+    """Extract strengths from feedback"""
+    if not feedback:
+        return []
+    
+    # Simple extraction - look for strengths section
+    if 'strengths:' in feedback.lower():
+        strengths_section = feedback.lower().split('strengths:')[1].split('\n')[0]
+        return [strengths_section.strip()]
+    return []
+
+def _extract_weaknesses(feedback):
+    """Extract weaknesses from feedback"""
+    if not feedback:
+        return []
+    
+    # Simple extraction - look for areas for improvement section
+    if 'areas for improvement:' in feedback.lower():
+        weaknesses_section = feedback.lower().split('areas for improvement:')[1].split('\n')[0]
+        return [weaknesses_section.strip()]
+    return []

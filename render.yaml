@@ -1,23 +1,42 @@
 services:
   - type: web
-    name: ai_interviewer_backend
+    name: ai-interviewer-backend
     runtime: python
     plan: free
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       python manage.py migrate --noinput
-    startCommand: gunicorn ai_platform.wsgi:application
+    startCommand: gunicorn ai_platform.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: aiinterviewer-db
           property: connectionString
       - key: SECRET_KEY
-        value: django-insecure-%knt0&8&-)qlgkgu#c&o-_4_t(g3j_soqwk)z4o1f_l)^%rpwt
+        generateValue: true
       - key: DJANGO_SETTINGS_MODULE
         value: ai_platform.settings
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://ai-interviewer-frontend.onrender.com"
+
+  - type: web
+    name: ai-interviewer-frontend
+    runtime: static
+    plan: free
+    buildCommand: |
+      cd frontend
+      npm install
+      npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://ai-interviewer-backend.onrender.com
 
 databases:
-  - name: talaro-db
+  - name: aiinterviewer-db
     plan: free

@@ -269,6 +269,17 @@ def interview_portal(request):
         all_questions = []
         coding_questions = []
         
+        # Start video recording by creating camera instance
+        print(f"--- Starting video recording for session {session.session_key} ---")
+        try:
+            camera = get_camera_for_session(session.session_key)
+            if camera:
+                print(f"--- Video recording started successfully ---")
+            else:
+                print(f"--- Warning: Could not start video recording ---")
+        except Exception as e:
+            print(f"--- Error starting video recording: {e} ---")
+        
         print(f"DEBUG: About to generate questions. Force regeneration is: {False}")
         # Force regeneration of questions to ensure coding questions are included
         if False:  # Disable existing questions to force new AI generation
@@ -665,7 +676,7 @@ def interview_report(request, session_id):
             },
         }
         
-        main_questions_with_followups = session.questions.filter(question_level='MAIN', question_type__in=['TECHNICAL', 'BEHAVIORAL']).prefetch_related('follow_ups').order_by('order')
+        main_questions_with_followups = session.questions.filter(question_level='MAIN', question_type__in=['Technical Questions', 'Behavioral Questions']).prefetch_related('follow_ups').order_by('order')
         code_submissions = session.code_submissions.all()
 
         context = {
@@ -676,7 +687,8 @@ def interview_report(request, session_id):
             'total_filler_words': total_filler_words,
             'avg_wpm': final_avg_wpm,
             'behavioral_analysis_html': mark_safe((session.behavioral_analysis or "").replace('\n', '<br>')),
-            'keyword_analysis_html': mark_safe((session.keyword_analysis or "").replace('\n', '<br>').replace('**', '<strong>').replace('**', '</strong>'))
+            'keyword_analysis_html': mark_safe((session.keyword_analysis or "").replace('\n', '<br>').replace('**', '<strong>').replace('**', '</strong>')),
+            'cache_buster': int(time.time())  # Add cache buster
         }
         template = loader.get_template('interview_app/report.html')
         return HttpResponse(template.render(context, request))
@@ -708,7 +720,7 @@ def download_report_pdf(request, session_id):
         # This query correctly filters out the coding questions.
         main_questions_with_followups = session.questions.filter(
             question_level='MAIN', 
-            question_type__in=['TECHNICAL', 'BEHAVIORAL']
+            question_type__in=['Technical Questions', 'Behavioral Questions']
         ).prefetch_related('follow_ups').order_by('order')
         
         # 4. Fetch all CODING challenge submissions. This was the missing piece.
@@ -752,10 +764,23 @@ def end_interview_session(request):
             return JsonResponse({"status": "error", "message": "Session key required."}, status=400)
         
         session = InterviewSession.objects.get(session_key=session_key)
+        
+        # Update status to COMPLETED if it's still SCHEDULED
         if session.status == 'SCHEDULED':
             session.status = 'COMPLETED'
             session.save()
             print(f"--- Spoken-only session {session_key} marked as COMPLETED. ---")
+        
+        # Trigger AI evaluation automatically for both SCHEDULED and COMPLETED sessions
+        # that haven't been evaluated yet
+        if not session.is_evaluated:
+            try:
+                print(f"--- Triggering automatic AI evaluation for session {session.id} ---")
+                trigger_ai_evaluation(session)
+            except Exception as eval_error:
+                print(f"ERROR during automatic evaluation: {eval_error}")
+        else:
+            print(f"--- Session {session.id} already evaluated, skipping evaluation ---")
             
         release_camera_for_session(session_key)
         return JsonResponse({"status": "ok"})
@@ -790,10 +815,58 @@ def submit_coding_challenge(request):
         session.save()
         print(f"--- Session {session_key} with coding challenge marked as COMPLETED. ---")
         
+        # Trigger AI evaluation automatically if not already evaluated
+        if not session.is_evaluated:
+            try:
+                print(f"--- Triggering automatic AI evaluation for session {session.id} ---")
+                trigger_ai_evaluation(session)
+            except Exception as eval_error:
+                print(f"ERROR during automatic evaluation: {eval_error}")
+        else:
+            print(f"--- Session {session.id} already evaluated, skipping evaluation ---")
+        
         release_camera_for_session(session_key)
         return JsonResponse({"status": "ok", "message": "Submission successful."})
     except Exception as e:
         traceback.print_exc()
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+@csrf_exempt
+@require_POST
+def save_answer(request):
+    """Save transcribed answer for a question"""
+    try:
+        data = json.loads(request.body)
+        session_id = data.get('session_id')
+        question_id = data.get('question_id')
+        transcribed_answer = data.get('transcribed_answer')
+        response_time_seconds = data.get('response_time_seconds')
+        
+        if not all([session_id, question_id, transcribed_answer]):
+            return JsonResponse({"status": "error", "message": "Missing required data."}, status=400)
+        
+        # Find the session and question
+        session = InterviewSession.objects.get(session_key=session_id)
+        question = InterviewQuestion.objects.get(id=question_id, session=session)
+        
+        # Save the transcribed answer
+        question.transcribed_answer = transcribed_answer
+        if response_time_seconds:
+            question.response_time_seconds = float(response_time_seconds)
+        question.save()
+        
+        print(f"--- Saved transcribed answer for question {question_id} in session {session_id} ---")
+        print(f"   Answer: {transcribed_answer[:100]}...")
+        print(f"   Response Time: {response_time_seconds}s")
+        
+        return JsonResponse({"status": "ok", "message": "Answer saved successfully."})
+        
+    except InterviewSession.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Session not found."}, status=404)
+    except InterviewQuestion.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Question not found."}, status=404)
+    except Exception as e:
+        print(f"Error saving answer: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 def interview_complete(request):
@@ -809,6 +882,127 @@ def interview_complete(request):
     
     template = loader.get_template('interview_app/interview_complete.html')
     return HttpResponse(template.render(context, request))
+
+def trigger_ai_evaluation(session):
+    """Trigger AI evaluation for a completed interview session"""
+    try:
+        # Check if evaluation is needed
+        has_spoken_answers = session.questions.filter(transcribed_answer__isnull=False, transcribed_answer__gt='').exists()
+        has_code_submissions = session.code_submissions.exists()
+        
+        if session.language_code == 'en' and not session.is_evaluated and (has_spoken_answers or has_code_submissions):
+            print(f"--- Performing automatic AI evaluation for session {session.id} ---")
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            
+            # Evaluate Resume vs Job Description
+            try:
+                print("--- Evaluating Resume vs. Job Description ---")
+                resume_eval_prompt = (
+                    "You are an expert technical recruiter. Analyze the following resume against the provided job description. "
+                    "Provide a score from 0.0 to 10.0 indicating how well the candidate's experience aligns with the job requirements. "
+                    "Also provide a brief analysis. Format your response EXACTLY as follows:\n\n"
+                    "SCORE: [Your score, e.g., 8.2]\n"
+                    "ANALYSIS: [Your one-paragraph analysis here.]"
+                    f"\n\nJOB DESCRIPTION:\n{session.job_description}\n\nRESUME:\n{session.resume_text}"
+                )
+                resume_response = model.generate_content(resume_eval_prompt)
+                resume_response_text = resume_response.text
+                score_match = re.search(r"SCORE:\s*([\d\.]+)", resume_response_text)
+                if score_match: 
+                    session.resume_score = float(score_match.group(1))
+                session.resume_feedback = resume_response_text
+            except Exception as e:
+                print(f"ERROR during Resume evaluation: {e}")
+                session.resume_feedback = "An error occurred during resume evaluation."
+
+            # Evaluate Interview Performance
+            try:
+                print("--- Evaluating Interview Performance ---")
+                all_questions = list(session.questions.all().order_by('order'))
+                
+                qa_text = "".join([
+                    f"Question: {item.question_text}\nAnswer: {item.transcribed_answer or 'No answer provided.'}\n\n"
+                    for item in all_questions if item.question_type != 'CODING'
+                ])
+
+                code_submissions_for_prompt = session.code_submissions.all()
+                code_text = ""
+                for submission in code_submissions_for_prompt:
+                    try:
+                        question = InterviewQuestion.objects.get(id=submission.question_id)
+                        question_text = question.question_text
+                    except InterviewQuestion.DoesNotExist:
+                        question_text = f"Question ID: {submission.question_id}"
+                    
+                    code_text += f"Coding Challenge: {question_text}\n"
+                    code_text += f"Language: {submission.language}\n"
+                    code_text += f"Test Case Results:\n{submission.output_log}\n"
+                    code_text += f"Submitted Code:\n```\n{submission.submitted_code}\n```\n\n"
+
+                answers_eval_prompt = (
+                    "You are an expert technical hiring manager. Evaluate the candidate's complete interview performance, "
+                    "which includes both spoken answers and a code submission. Provide an overall score from 0.0 to 10.0 "
+                    "and a brief summary of their strengths and areas for improvement based on ALL provided materials.\n\n"
+                    "Consider the following:\n"
+                    "- For spoken answers, evaluate clarity, relevance, and communication skills.\n"
+                    "- For the coding submission, evaluate correctness (did it pass the tests?), problem-solving, and code quality.\n"
+                    "- A strong coding performance can significantly boost a score, even if spoken answers are weak. Conversely, failing coding tests is a major negative signal.\n\n"
+                    "Format your response EXACTLY as follows:\n\n"
+                    "SCORE: [Your score, e.g., 7.5]\n"
+                    "FEEDBACK: [Your detailed, holistic feedback here.]"
+                    f"\n\n--- SPOKEN QUESTIONS & ANSWERS ---\n{qa_text or 'No spoken answers provided.'}"
+                    f"\n\n--- CODING CHALLENGE SUBMISSION ---\n{code_text or 'No code submitted.'}"
+                )
+                
+                answers_response = model.generate_content(answers_eval_prompt)
+                answers_response_text = answers_response.text
+                score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
+                if score_match: 
+                    session.answers_score = float(score_match.group(1))
+                session.answers_feedback = answers_response_text
+            except Exception as e:
+                print(f"ERROR during Answers evaluation: {e}")
+                session.answers_feedback = "An error occurred during answers evaluation."
+
+            # Generate Overall Candidate Profile
+            try:
+                print("--- Generating Overall Candidate Profile ---")
+                all_logs_list = list(session.logs.all())
+                warning_counts = Counter([log.warning_type.replace('_', ' ').title() for log in all_logs_list if log.warning_type != 'excessive_movement'])
+                warning_summary = ", ".join([f"{count}x {name}" for name, count in warning_counts.items()]) or "None"
+                
+                overall_prompt = (
+                    "You are a senior hiring manager. You have been provided with a holistic view of a candidate's interview, "
+                    "including their resume fit, interview answer performance, and proctoring warnings. "
+                    "Synthesize all this information into a final recommendation. "
+                    "Provide a final 'Overall Score' from 0.0 to 10.0 and a concluding 'Hiring Recommendation' paragraph.\n\n"
+                    "DATA PROVIDED:\n"
+                    f"- Resume vs. Job Description Score: {session.resume_score or 'N/A'}/10\n"
+                    f"- Interview Answers Score: {session.answers_score or 'N/A'}/10\n"
+                    f"- Proctoring Warnings: {warning_summary}\n\n"
+                    "Format your response EXACTLY as follows:\n\n"
+                    "OVERALL SCORE: [Your final blended score, e.g., 7.8]\n"
+                    "HIRING RECOMMENDATION: [Your final concluding paragraph on whether to proceed with the candidate and why.]"
+                )
+                overall_response = model.generate_content(overall_prompt)
+                overall_response_text = overall_response.text
+                score_match = re.search(r"OVERALL SCORE:\s*([\d\.]+)", overall_response_text)
+                if score_match: 
+                    session.overall_performance_score = float(score_match.group(1))
+                session.overall_performance_feedback = overall_response_text
+            except Exception as e:
+                print(f"ERROR during Overall evaluation: {e}")
+                session.overall_performance_feedback = "An error occurred during overall evaluation."
+
+            # Mark as evaluated and save
+            session.is_evaluated = True
+            session.save()
+            print(f"--- AI evaluation completed for session {session.id} ---")
+            
+    except Exception as e:
+        print(f"ERROR in trigger_ai_evaluation: {e}")
+        import traceback
+        traceback.print_exc()
 
 def generate_and_save_follow_up(session, parent_question, transcribed_answer):
     if DEV_MODE:

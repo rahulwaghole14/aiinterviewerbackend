@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
+import pytz
 from .models import (
     Notification, NotificationTemplate, UserNotificationPreference,
     NotificationType, NotificationChannel, NotificationPriority
@@ -140,10 +141,16 @@ class NotificationService:
         if recipient is None:
             recipient = interview.candidate.recruiter
         
+        # Convert interview date to IST for context
+        interview_date_ist = 'TBD'
+        if interview.started_at:
+            ist = pytz.timezone('Asia/Kolkata')
+            interview_date_ist = interview.started_at.astimezone(ist).strftime('%B %d, %Y at %I:%M %p')
+        
         context = {
             'candidate_name': interview.candidate.full_name,
             'job_title': interview.job.job_title if interview.job else 'N/A',
-            'interview_date': interview.started_at.strftime('%B %d, %Y at %I:%M %p') if interview.started_at else 'TBD',
+            'interview_date': interview_date_ist,
             'company_name': interview.job.company_name if interview.job else 'N/A'
         }
         
@@ -187,22 +194,32 @@ class NotificationService:
             
             if hasattr(interview, 'schedule') and interview.schedule:
                 slot = interview.schedule.slot
-                scheduled_time = slot.start_time.strftime('%B %d, %Y at %I:%M %p')
-                end_time = slot.end_time.strftime('%I:%M %p')
+                # Convert UTC times to IST for email display
+                ist = pytz.timezone('Asia/Kolkata')
+                start_time_ist = slot.start_time.astimezone(ist)
+                end_time_ist = slot.end_time.astimezone(ist)
+                
+                scheduled_time = start_time_ist.strftime('%B %d, %Y at %I:%M %p')
+                end_time = end_time_ist.strftime('%I:%M %p')
                 duration = f"{slot.duration_minutes} minutes"
                 interview_type = slot.ai_interview_type.title() if slot.ai_interview_type else 'AI Interview'
                 
                 slot_details = f"""
 📅 **Detailed Schedule:**
-• Start Time: {slot.start_time.strftime('%B %d, %Y at %I:%M %p')}
-• End Time: {slot.end_time.strftime('%B %d, %Y at %I:%M %p')}
+• Start Time: {start_time_ist.strftime('%B %d, %Y at %I:%M %p')}
+• End Time: {end_time_ist.strftime('%B %d, %Y at %I:%M %p')}
 • Duration: {slot.duration_minutes} minutes
 • Interview Type: {slot.ai_interview_type.title() if slot.ai_interview_type else 'AI Interview'}
-• Time Zone: {slot.start_time.tzinfo}
+• Time Zone: IST (India Standard Time)
 """
             elif interview.started_at and interview.ended_at:
-                scheduled_time = interview.started_at.strftime('%B %d, %Y at %I:%M %p')
-                end_time = interview.ended_at.strftime('%I:%M %p')
+                # Convert UTC times to IST for email display
+                ist = pytz.timezone('Asia/Kolkata')
+                start_time_ist = interview.started_at.astimezone(ist)
+                end_time_ist = interview.ended_at.astimezone(ist)
+                
+                scheduled_time = start_time_ist.strftime('%B %d, %Y at %I:%M %p')
+                end_time = end_time_ist.strftime('%I:%M %p')
                 duration = f"{(interview.ended_at - interview.started_at).total_seconds() / 60:.0f} minutes"
                 interview_type = interview.ai_interview_type.title() if interview.ai_interview_type else 'AI Interview'
             
@@ -451,9 +468,15 @@ This is an automated message. Please do not reply to this email.
     @staticmethod
     def send_interview_reminder_notification(interview):
         """Send reminder notification for upcoming interview"""
+        # Convert interview date to IST for context
+        interview_date_ist = 'TBD'
+        if interview.started_at:
+            ist = pytz.timezone('Asia/Kolkata')
+            interview_date_ist = interview.started_at.astimezone(ist).strftime('%B %d, %Y at %I:%M %p')
+        
         context = {
             'candidate_name': interview.candidate.full_name,
-            'interview_date': interview.started_at.strftime('%B %d, %Y at %I:%M %p') if interview.started_at else 'TBD',
+            'interview_date': interview_date_ist,
             'job_title': interview.job.job_title if interview.job else 'N/A'
         }
         

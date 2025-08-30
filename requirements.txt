@@ -24,6 +24,7 @@ urllib3==2.2.1
 # Essential libraries for core functionality
 PyMuPDF==1.26.1
 PyPDF2==3.0.1
+python-docx==1.2.0
 textblob==0.17.1
 psutil==6.1.0
 readtime==3.0.0

@@ -21,9 +21,9 @@ PyJWT==2.9.0
 # Basic libraries - only stable ones
 requests==2.32.3
 urllib3==2.2.1
-numpy==1.24.3
-Pillow==10.4.0
-opencv-python-headless==4.9.0.80
+# numpy==1.24.3  # Removed due to build issues
+# Pillow==10.4.0  # Removed due to build issues
+# opencv-python-headless==4.9.0.80  # Removed due to build issues
 
 # Essential libraries for core functionality
 PyMuPDF==1.26.1

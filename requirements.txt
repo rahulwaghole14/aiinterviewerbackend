@@ -49,3 +49,4 @@ opencv-python-headless==4.9.0.80
 Pillow==10.4.0
 requests==2.32.3
 urllib3==2.2.1
+textblob==0.17.1

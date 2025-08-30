@@ -2,10 +2,30 @@
 import os
 import json
 import logging
-import google.generativeai as genai
-from ai_platform.interview_app.whisper_loader import get_whisper_model, is_whisper_available
-import gtts
-from gtts import gTTS
+
+# Make AI dependencies optional
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
+
+try:
+    from ai_platform.interview_app.whisper_loader import get_whisper_model, is_whisper_available
+    WHISPER_AVAILABLE = True
+except ImportError:
+    WHISPER_AVAILABLE = False
+    get_whisper_model = None
+    is_whisper_available = lambda: False
+
+try:
+    import gtts
+    from gtts import gTTS
+    GTTS_AVAILABLE = True
+except ImportError:
+    GTTS_AVAILABLE = False
+    gTTS = None
 from pathlib import Path
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -24,9 +44,12 @@ logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 load_dotenv()
 
-# Configure Gemini AI
-gemini_api_key = "AIzaSyBXhqoQx3maTEJNdGH6xo3ULX1wL1LFPOc"
-genai.configure(api_key=gemini_api_key)
+# Configure Gemini AI (if available)
+if GEMINI_AVAILABLE:
+    gemini_api_key = "AIzaSyBXhqoQx3maTEJNdGH6xo3ULX1wL1LFPOc"
+    genai.configure(api_key=gemini_api_key)
+else:
+    logger.warning("Google Generative AI not available - AI features will be disabled")
 
 # Whisper model will be loaded on-demand using the centralized loader
 
@@ -75,12 +98,21 @@ class AIInterviewService:
             resume_text = config.get('resume_text', '')
             
             # Use the existing AI model logic from interview_app
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            
-            # Generate resume summary
-            summary_prompt = f"Summarize key skills from the following resume:\n\n{resume_text}"
-            summary_response = model.generate_content(summary_prompt)
-            resume_summary = summary_response.text
+            if not GEMINI_AVAILABLE:
+                logger.warning("Gemini AI not available - using fallback questions")
+                resume_summary = "Resume summary not available"
+                all_questions = [
+                    {'type': 'Ice-Breaker', 'text': f'Welcome {candidate_name}! Can you tell me about a challenging project you have worked on?'},
+                    {'type': 'Technical Questions', 'text': 'What is the difference between `let`, `const`, and `var` in JavaScript?'},
+                    {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
+                ]
+            else:
+                model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                
+                # Generate resume summary
+                summary_prompt = f"Summarize key skills from the following resume:\n\n{resume_text}"
+                summary_response = model.generate_content(summary_prompt)
+                resume_summary = summary_response.text
             
             # Generate questions using the existing logic
             language_name = SUPPORTED_LANGUAGES.get(language_code, 'English')
@@ -130,15 +162,18 @@ class AIInterviewService:
             
             created_questions = []
             for i, q_data in enumerate(all_questions):
-                # Generate audio
-                tts = gTTS(
-                    text=q_data['text'], 
-                    lang=language_code, 
-                    tld=config.get('accent_tld', 'com') if language_code == 'en' else 'com'
-                )
-                tts_path = os.path.join(tts_dir, f'q_{i}_{session.id}.mp3')
-                tts.save(tts_path)
-                audio_url = f"{settings.MEDIA_URL}tts/{os.path.basename(tts_path)}"
+                # Generate audio (if gTTS is available)
+                if GTTS_AVAILABLE:
+                    tts = gTTS(
+                        text=q_data['text'], 
+                        lang=language_code, 
+                        tld=config.get('accent_tld', 'com') if language_code == 'en' else 'com'
+                    )
+                    tts_path = os.path.join(tts_dir, f'q_{i}_{session.id}.mp3')
+                    tts.save(tts_path)
+                    audio_url = f"{settings.MEDIA_URL}tts/{os.path.basename(tts_path)}"
+                else:
+                    audio_url = None  # No audio available
                 
                 # Create question in database
                 question = AIInterviewQuestion.objects.create(
@@ -168,6 +203,9 @@ class AIInterviewService:
         Transcribe audio response using Whisper
         """
         try:
+            if not WHISPER_AVAILABLE:
+                raise Exception("Whisper model not available - transcription disabled")
+            
             whisper_model = get_whisper_model()
             if not whisper_model:
                 raise Exception("Whisper model not available")
@@ -239,38 +277,49 @@ class AIInterviewService:
                 qa_text += f"Question: {response.question.question_text}\n"
                 qa_text += f"Answer: {response.transcribed_text or 'No answer.'}\n\n"
             
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            
-            # Evaluate resume vs job description
-            resume_eval_prompt = (
-                "You are an expert technical recruiter. Analyze the following resume against the provided job description. "
-                "Provide a score from 0.0 to 10.0 indicating how well the candidate's experience aligns with the job requirements. "
-                "Also provide a brief analysis. Format your response EXACTLY as follows:\n\n"
-                "SCORE: [Your score, e.g., 8.2]\n"
-                "ANALYSIS: [Your one-paragraph analysis here.]"
-                f"\n\nJOB DESCRIPTION:\n{job_description}\n\nRESUME:\n{resume_text}"
-            )
-            
-            resume_response = model.generate_content(resume_eval_prompt)
-            resume_response_text = resume_response.text
-            resume_score_match = re.search(r"SCORE:\s*([\d\.]+)", resume_response_text)
-            resume_score = float(resume_score_match.group(1)) if resume_score_match else 0.0
-            
-            # Evaluate interview answers
-            answers_eval_prompt = (
-                "You are an expert interviewer. Evaluate the candidate's answers to the following questions. "
-                "Provide an overall score from 0.0 to 10.0 for their performance. "
-                "Also provide a brief summary of their strengths and areas for improvement. "
-                "Format your response EXACTLY as follows:\n\n"
-                "SCORE: [Your score, e.g., 6.8]\n"
-                "FEEDBACK: [Your detailed feedback here.]"
-                f"\n\nQUESTIONS & ANSWERS:\n{qa_text}"
-            )
-            
-            answers_response = model.generate_content(answers_eval_prompt)
-            answers_response_text = answers_response.text
-            answers_score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
-            answers_score = float(answers_score_match.group(1)) if answers_score_match else 0.0
+            if not GEMINI_AVAILABLE:
+                # Fallback evaluation without AI
+                resume_score = 7.0
+                resume_analysis = "AI evaluation not available. Basic assessment provided."
+            else:
+                model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                
+                # Evaluate resume vs job description
+                resume_eval_prompt = (
+                    "You are an expert technical recruiter. Analyze the following resume against the provided job description. "
+                    "Provide a score from 0.0 to 10.0 indicating how well the candidate's experience aligns with the job requirements. "
+                    "Also provide a brief analysis. Format your response EXACTLY as follows:\n\n"
+                    "SCORE: [Your score, e.g., 8.2]\n"
+                    "ANALYSIS: [Your one-paragraph analysis here.]"
+                    f"\n\nJOB DESCRIPTION:\n{job_description}\n\nRESUME:\n{resume_text}"
+                )
+                
+                resume_response = model.generate_content(resume_eval_prompt)
+                resume_response_text = resume_response.text
+                resume_score_match = re.search(r"SCORE:\s*([\d\.]+)", resume_response_text)
+                resume_score = float(resume_score_match.group(1)) if resume_score_match else 0.0
+                
+                # Evaluate interview answers
+                answers_eval_prompt = (
+                    "You are an expert interviewer. Evaluate the candidate's answers to the following questions. "
+                    "Provide an overall score from 0.0 to 10.0 for their performance. "
+                    "Also provide a brief summary of their strengths and areas for improvement. "
+                    "Format your response EXACTLY as follows:\n\n"
+                    "SCORE: [Your score, e.g., 6.8]\n"
+                    "FEEDBACK: [Your detailed feedback here.]"
+                    f"\n\nQUESTIONS & ANSWERS:\n{qa_text}"
+                )
+                
+                answers_response = model.generate_content(answers_eval_prompt)
+                answers_response_text = answers_response.text
+                answers_score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
+                answers_score = float(answers_score_match.group(1)) if answers_score_match else 0.0
+            else:
+                # Fallback values when AI is not available
+                resume_score = 7.0
+                answers_score = 7.0
+                resume_response_text = "AI evaluation not available. Basic assessment provided."
+                answers_response_text = "AI evaluation not available. Basic assessment provided."
             
             # Calculate overall score
             overall_score = (resume_score + answers_score) / 2

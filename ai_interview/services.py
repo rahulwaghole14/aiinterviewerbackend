@@ -281,7 +281,9 @@ class AIInterviewService:
             if not GEMINI_AVAILABLE:
                 # Fallback evaluation without AI
                 resume_score = 7.0
-                resume_analysis = "AI evaluation not available. Basic assessment provided."
+                answers_score = 7.0
+                resume_response_text = "AI evaluation not available. Basic assessment provided."
+                answers_response_text = "AI evaluation not available. Basic assessment provided."
             else:
                 model = genai.GenerativeModel('gemini-1.5-flash-latest')
                 
@@ -315,12 +317,6 @@ class AIInterviewService:
                 answers_response_text = answers_response.text
                 answers_score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
                 answers_score = float(answers_score_match.group(1)) if answers_score_match else 0.0
-            else:
-                # Fallback values when AI is not available
-                resume_score = 7.0
-                answers_score = 7.0
-                resume_response_text = "AI evaluation not available. Basic assessment provided."
-                answers_response_text = "AI evaluation not available. Basic assessment provided."
             
             # Calculate overall score
             overall_score = (resume_score + answers_score) / 2

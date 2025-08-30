@@ -16,7 +16,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DJANGO_SETTINGS_MODULE
-        value: ai_platform.settings
+        value: ai_platform.settings_production
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS

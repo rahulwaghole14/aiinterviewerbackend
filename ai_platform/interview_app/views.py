@@ -84,7 +84,14 @@ from django.contrib.auth.decorators import login_required
 from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
 from django.core.mail import send_mail
-from weasyprint import HTML
+
+# Make weasyprint optional
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
+    HTML = None
 
 try:
     from .camera import VideoCamera

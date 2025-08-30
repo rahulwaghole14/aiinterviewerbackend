@@ -3,7 +3,7 @@ services:
     name: ai-interviewer-backend
     runtime: python
     plan: free
-    buildCommand: pip3 install -r requirements.txt
+    buildCommand: python3 -m pip install -r requirements.txt
     startCommand: python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn ai_platform.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DATABASE_URL

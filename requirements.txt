@@ -51,3 +51,4 @@ markupsafe==3.0.2
 click==8.1.8
 blinker==1.9.0
 colorama==0.4.6
+distlib==0.3.9

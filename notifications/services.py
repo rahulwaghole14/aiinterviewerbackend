@@ -147,11 +147,32 @@ class NotificationService:
             ist = pytz.timezone('Asia/Kolkata')
             interview_date_ist = interview.started_at.astimezone(ist).strftime('%B %d, %Y at %I:%M %p')
         
+        # Try to get job information from multiple sources
+        job_title = 'N/A'
+        company_name = 'N/A'
+        
+        # First try: direct interview job link
+        if interview.job:
+            job_title = interview.job.job_title
+            company_name = interview.job.company_name
+        # Second try: job from slot
+        elif hasattr(interview, 'schedule') and interview.schedule and interview.schedule.slot.job:
+            job_title = interview.schedule.slot.job.job_title
+            company_name = interview.schedule.slot.job.company_name
+        # Third try: job from candidate
+        elif interview.candidate.job:
+            job_title = interview.candidate.job.job_title
+            company_name = interview.candidate.job.company_name
+        # Fourth try: get from candidate's domain or other info
+        elif interview.candidate.domain:
+            job_title = f"{interview.candidate.domain} Position"
+            company_name = "Your Company"  # Generic fallback
+        
         context = {
             'candidate_name': interview.candidate.full_name,
-            'job_title': interview.job.job_title if interview.job else 'N/A',
+            'job_title': job_title,
             'interview_date': interview_date_ist,
-            'company_name': interview.job.company_name if interview.job else 'N/A'
+            'company_name': company_name
         }
         
         return NotificationService.create_notification_from_template(
@@ -185,6 +206,14 @@ class NotificationService:
             elif interview.candidate.job:
                 job_title = interview.candidate.job.job_title
                 company_name = interview.candidate.job.company_name
+            # Fourth try: get from candidate's domain or other info
+            elif interview.candidate.domain:
+                job_title = f"{interview.candidate.domain} Position"
+                company_name = "Your Company"  # Generic fallback
+            # Fifth try: get from recruiter's company
+            elif interview.candidate.recruiter and interview.candidate.recruiter.company_name:
+                job_title = "Interview Position"
+                company_name = interview.candidate.recruiter.company_name
             
             # Get comprehensive slot details
             slot_details = ""

@@ -138,3 +138,4 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Add whitenoise middleware for static files
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+

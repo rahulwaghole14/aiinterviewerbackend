@@ -144,6 +144,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "https://aiinterviewerfrontend.onrender.com",
     "https://aiinterviewerfrontend-2.onrender.com",
+    "https://aiinterviewerbackend-3.onrender.com",
 ]
 CORS_ALLOWED_HEADERS = [
     'accept',

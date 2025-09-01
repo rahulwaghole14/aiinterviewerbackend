@@ -177,8 +177,9 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@talaro.com')
 
 # Interview Link System Configuration
 INTERVIEW_LINK_SECRET = config('INTERVIEW_LINK_SECRET', default='your-secret-key-change-in-production')
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
-BACKEND_URL = config('BACKEND_URL', default='http://localhost:8000')
+# Use deployed defaults to avoid localhost links in production if env var is missing
+FRONTEND_URL = config('FRONTEND_URL', default='https://aiinterviewerbackend-3.onrender.com')
+BACKEND_URL = config('BACKEND_URL', default='https://aiinterviewerbackend-2.onrender.com')
 
 # AI Interview Model Configuration
 AI_MODEL_NAME = config('AI_MODEL_NAME', default='gemini-1.5-flash-latest')

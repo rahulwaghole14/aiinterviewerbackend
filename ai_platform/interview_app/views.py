@@ -311,8 +311,8 @@ def interview_portal(request):
         print(f"DEBUG: Now < Start: {now < start_time}, Now > Expiry: {now > expiry_time}")
         
         # Case 1: The user is too early.
-        # Add a small buffer (30 seconds) to account for timezone differences and network delays
-        buffer_time = timedelta(seconds=30)
+        # Add a small buffer (1 minute) to account for timezone differences and network delays
+        buffer_time = timedelta(minutes=1)
         if now < (start_time - buffer_time):
             start_time_local = start_time.astimezone(pytz.timezone('Asia/Kolkata'))
             print(f"DEBUG: User too early, showing countdown. Start time local: {start_time_local}")
@@ -335,21 +335,23 @@ def interview_portal(request):
         # Case 3: The session has no scheduled time (should not happen in normal flow).
          return render(request, 'interview_app/invalid_link.html', {'error': 'This interview session is invalid as it does not have a scheduled time.'})
     # If the user is within the valid time window, proceed with the interview setup.
+    print(f"DEBUG: User is within valid time window, proceeding with interview setup")
     try:
         # Initialize variables
         all_questions = []
         coding_questions = []
         
         # Start video recording by creating camera instance
-        print(f"--- Starting video recording for session {session.session_key} ---")
+        print(f"DEBUG: Starting video recording for session {session.session_key}")
         try:
             camera = get_camera_for_session(session.session_key)
             if camera:
-                print(f"--- Video recording started successfully ---")
+                print(f"DEBUG: Video recording started successfully")
             else:
-                print(f"--- Warning: Could not start video recording ---")
+                print(f"DEBUG: Warning - Could not start video recording")
         except Exception as e:
-            print(f"--- Error starting video recording: {e} ---")
+            print(f"DEBUG: Error starting video recording: {e}")
+            print(f"DEBUG: Continuing without video recording")
         
         print(f"DEBUG: About to generate questions. Force regeneration is: {False}")
         # Force regeneration of questions to ensure coding questions are included
@@ -583,7 +585,14 @@ def interview_portal(request):
         
         print(f"DEBUG: Rendering interview portal for session {session_key}")
         context = { 'session_key': session_key, 'interview_session_id': str(session.id), 'spoken_questions_data': all_questions, 'coding_questions_data': coding_questions, 'interview_started': True }
-        return render(request, 'interview_app/portal.html', context)
+        print(f"DEBUG: Context prepared successfully, about to render template")
+        try:
+            return render(request, 'interview_app/portal.html', context)
+        except Exception as render_error:
+            print(f"ERROR during template rendering: {render_error}")
+            import traceback
+            traceback.print_exc()
+            return HttpResponse(f"Template rendering error: {str(render_error)}", status=500)
     except Exception as e:
         print(f"ERROR during interview setup: {e}")
         import traceback

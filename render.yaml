@@ -27,8 +27,9 @@ services:
     name: ai-interviewer-frontend
     runtime: static
     plan: free
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    repo: https://github.com/rahulwagh14/aiinterviewfrontend.git
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
         value: https://aiinterviewerbackend-2.onrender.com

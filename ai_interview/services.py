@@ -47,6 +47,9 @@ logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 load_dotenv()
 
+# Global flag to track quota exhaustion
+QUOTA_EXHAUSTED = False
+
 # Configure Gemini AI (if available)
 if GEMINI_AVAILABLE:
     gemini_api_key = getattr(settings, 'GEMINI_API_KEY', None)
@@ -97,8 +100,8 @@ class RateLimiter:
                 time.sleep(wait_time)
         self.record_request()
 
-# Global rate limiter instance
-gemini_rate_limiter = RateLimiter(max_requests_per_minute=50)  # Conservative limit
+# Global rate limiter instance - very conservative to avoid quota issues
+gemini_rate_limiter = RateLimiter(max_requests_per_minute=10)  # Very conservative limit
 
 class AIInterviewService:
     """
@@ -141,8 +144,11 @@ class AIInterviewService:
             resume_text = config.get('resume_text', '')
             
             # Use the existing AI model logic from interview_app
-            if not GEMINI_AVAILABLE:
-                logger.warning("Gemini AI not available - using fallback questions")
+            if not GEMINI_AVAILABLE or QUOTA_EXHAUSTED:
+                if QUOTA_EXHAUSTED:
+                    logger.warning("Gemini AI quota exhausted - using fallback questions")
+                else:
+                    logger.warning("Gemini AI not available - using fallback questions")
                 resume_summary = "Resume summary not available"
                 all_questions = [
                     {'type': 'Ice-Breaker', 'text': f'Welcome {candidate_name}! Can you tell me about a challenging project you have worked on?'},
@@ -208,9 +214,13 @@ class AIInterviewService:
                         
                 except Exception as ai_error:
                     error_msg = str(ai_error)
-                    if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg:
-                        logger.error(f"Rate limit exceeded: {ai_error} - using fallback questions")
-                        resume_summary = "Resume summary not available due to API rate limit"
+                    if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg or "quota" in error_msg.lower():
+                        logger.error(f"Quota/Rate limit exceeded: {ai_error} - using fallback questions")
+                        resume_summary = "Resume summary not available due to API quota limit"
+                        # Set global flag to prevent further API calls
+                        global QUOTA_EXHAUSTED
+                        QUOTA_EXHAUSTED = True
+                        GEMINI_AVAILABLE = False
                     else:
                         logger.error(f"AI model error: {ai_error} - falling back to default questions")
                         resume_summary = "Resume summary not available due to AI model error"
@@ -342,8 +352,12 @@ class AIInterviewService:
                 qa_text += f"Question: {response.question.question_text}\n"
                 qa_text += f"Answer: {response.transcribed_text or 'No answer.'}\n\n"
             
-            if not GEMINI_AVAILABLE:
+            if not GEMINI_AVAILABLE or QUOTA_EXHAUSTED:
                 # Fallback evaluation without AI
+                if QUOTA_EXHAUSTED:
+                    logger.warning("Gemini AI quota exhausted - using fallback evaluation")
+                else:
+                    logger.warning("Gemini AI not available - using fallback evaluation")
                 resume_score = 7.0
                 answers_score = 7.0
                 resume_response_text = "AI evaluation not available. Basic assessment provided."
@@ -391,10 +405,14 @@ class AIInterviewService:
                     
                 except Exception as ai_error:
                     error_msg = str(ai_error)
-                    if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg:
-                        logger.error(f"Rate limit exceeded during evaluation: {ai_error} - using fallback scores")
-                        resume_response_text = "AI evaluation failed due to API rate limit. Basic assessment provided."
-                        answers_response_text = "AI evaluation failed due to API rate limit. Basic assessment provided."
+                    if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg or "quota" in error_msg.lower():
+                        logger.error(f"Quota/Rate limit exceeded during evaluation: {ai_error} - using fallback scores")
+                        resume_response_text = "AI evaluation failed due to API quota limit. Basic assessment provided."
+                        answers_response_text = "AI evaluation failed due to API quota limit. Basic assessment provided."
+                        # Set global flag to prevent further API calls
+                        global QUOTA_EXHAUSTED
+                        QUOTA_EXHAUSTED = True
+                        GEMINI_AVAILABLE = False
                     else:
                         logger.error(f"AI evaluation error: {ai_error} - using fallback scores")
                         resume_response_text = "AI evaluation failed. Basic assessment provided."

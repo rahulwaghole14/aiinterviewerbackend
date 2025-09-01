@@ -203,7 +203,10 @@ def create_interview_invite(request):
             scheduled_at=aware_datetime
         )
 
-        interview_url = request.build_absolute_uri(f"/?session_key={session.session_key}")
+        # Use the configured backend URL instead of request host
+        from django.conf import settings
+        base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+        interview_url = f"{base_url}/interview_app/?session_key={session.session_key}"
 
         try:
             scheduled_time_str = aware_datetime.strftime('%A, %B %d, %Y at %I:%M %p %Z')

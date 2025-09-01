@@ -37,8 +37,8 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
 # Update URLs for production
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://ai-interviewer-frontend.onrender.com')
-BACKEND_URL = os.environ.get('BACKEND_URL', 'https://ai-interviewer-backend.onrender.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://aiinterviewerbackend-3.onrender.com')
+BACKEND_URL = os.environ.get('BACKEND_URL', 'https://aiinterviewerbackend-2.onrender.com')
 
 # Email configuration for production
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -132,11 +132,9 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # CSRF configuration
 CSRF_TRUSTED_ORIGINS = [
-    'https://ai-interviewer-frontend.onrender.com',
-    'https://ai-interviewer-backend.onrender.com',
+    'https://aiinterviewerbackend-3.onrender.com',
+    'https://aiinterviewerbackend-2.onrender.com',
 ]
 
 # Add whitenoise middleware for static files
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
-
-

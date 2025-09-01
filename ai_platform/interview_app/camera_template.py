@@ -10,7 +10,7 @@ from .models import InterviewSession, WarningLog
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     CV2_AVAILABLE = False
     cv2 = None
 
@@ -31,7 +31,7 @@ except ImportError:
 try:
     import torch
     TORCH_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     TORCH_AVAILABLE = False
     torch = None
 
@@ -45,7 +45,7 @@ except ImportError:
 try:
     import sounddevice as sd
     SOUNDDEVICE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     SOUNDDEVICE_AVAILABLE = False
     sd = None
 
@@ -59,14 +59,14 @@ except ImportError:
 try:
     import mediapipe as mp
     MEDIAPIPE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     MEDIAPIPE_AVAILABLE = False
     mp = None
 
 try:
     import ffmpeg
     FFMPEG_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     FFMPEG_AVAILABLE = False
     ffmpeg = None
 
@@ -98,3 +98,4 @@ class UnifiedAudioMonitor:
 
         self.thread = threading.Thread(target=self.start_monitoring, daemon=True)
         self.thread.start()
+

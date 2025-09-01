@@ -314,6 +314,8 @@ class CandidateListSerializer(serializers.ModelSerializer):
     job_title   = serializers.CharField(source='job.job_title', read_only=True)
     resume_url = serializers.SerializerMethodField()
     job_matching = serializers.SerializerMethodField()
+    ai_interview_link = serializers.SerializerMethodField()
+    ai_interview_status = serializers.SerializerMethodField()
 
     class Meta:
         model  = Candidate
@@ -330,6 +332,8 @@ class CandidateListSerializer(serializers.ModelSerializer):
             "last_updated",
             "resume_url",
             "job_matching",
+            "ai_interview_link",
+            "ai_interview_status",
         ]
 
     def get_resume_url(self, obj):
@@ -367,3 +371,75 @@ class CandidateListSerializer(serializers.ModelSerializer):
             # Log error but don't fail the serialization
             print(f"Error calculating job match for candidate {obj.id}: {e}")
             return None
+
+    def get_ai_interview_link(self, obj):
+        """Get AI interview link if available"""
+        try:
+            from interviews.models import Interview
+            from ai_interview.models import AIInterviewSession
+            
+            # Check if there's an interview for this candidate
+            interview = Interview.objects.filter(candidate=obj).first()
+            if not interview:
+                return None
+            
+            # Check if there's an AI interview session
+            ai_session = AIInterviewSession.objects.filter(interview=interview).first()
+            if not ai_session:
+                return None
+            
+            # Build the AI interview URL using the correct format
+            request = self.context.get("request")
+            if request:
+                from django.conf import settings
+                base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+                return f"{base_url}/interview_app/?session_key={ai_session.id}"
+            
+            return None
+        except Exception as e:
+            print(f"Error getting AI interview link for candidate {obj.id}: {e}")
+            return None
+
+    def get_ai_interview_status(self, obj):
+        """Get AI interview status"""
+        try:
+            from interviews.models import Interview
+            from ai_interview.models import AIInterviewSession
+            
+            # Check if there's an interview for this candidate
+            interview = Interview.objects.filter(candidate=obj).first()
+            if not interview:
+                return {
+                    'has_interview': False,
+                    'status': 'no_interview',
+                    'message': 'No interview scheduled'
+                }
+            
+            # Check if there's an AI interview session
+            ai_session = AIInterviewSession.objects.filter(interview=interview).first()
+            if not ai_session:
+                return {
+                    'has_interview': True,
+                    'status': 'no_ai_session',
+                    'message': 'Interview scheduled but no AI session created'
+                }
+            
+            return {
+                'has_interview': True,
+                'has_ai_session': True,
+                'status': ai_session.status,
+                'session_id': str(ai_session.id),
+                'interview_id': str(interview.id),
+                'created_at': ai_session.created_at,
+                'session_started_at': ai_session.session_started_at,
+                'session_ended_at': ai_session.session_ended_at,
+                'questions_count': ai_session.questions.count() if hasattr(ai_session, 'questions') else 0,
+                'progress_percentage': ai_session.progress_percentage
+            }
+        except Exception as e:
+            print(f"Error getting AI interview status for candidate {obj.id}: {e}")
+            return {
+                'has_interview': False,
+                'status': 'error',
+                'message': f'Error retrieving status: {str(e)}'
+            }

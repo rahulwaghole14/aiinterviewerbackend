@@ -326,6 +326,7 @@ class CandidateListSerializer(serializers.ModelSerializer):
             "domain",
             "poc_email",
             "job_title",
+            "created_at",
             "last_updated",
             "resume_url",
             "job_matching",

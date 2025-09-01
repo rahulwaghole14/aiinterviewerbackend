@@ -4,7 +4,7 @@ services:
     runtime: python3.11.9
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn ai_platform.wsgi:application --bind 0.0.0.0:$PORT
+    startCommand: python manage.py collectstatic --noinput && python manage.py migrate --noinput && python setup_persistent_database.py && gunicorn ai_platform.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:

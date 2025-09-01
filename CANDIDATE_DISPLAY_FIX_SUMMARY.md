@@ -86,3 +86,4 @@ Updated the candidates slice to use the correct field names that match the backe
 **Status**: ✅ **COMPLETED** - Candidate display issue resolved
 
 
+

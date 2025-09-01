@@ -2,6 +2,8 @@
 import os
 import json
 import logging
+import time
+from datetime import datetime, timedelta
 
 # Make AI dependencies optional
 try:
@@ -67,6 +69,37 @@ else:
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 SUPPORTED_LANGUAGES = {'en': 'English'}
 
+# Rate limiting for Gemini API
+class RateLimiter:
+    def __init__(self, max_requests_per_minute=60):
+        self.max_requests_per_minute = max_requests_per_minute
+        self.requests = []
+    
+    def can_make_request(self):
+        """Check if we can make a request without exceeding rate limit"""
+        now = datetime.now()
+        # Remove requests older than 1 minute
+        self.requests = [req_time for req_time in self.requests 
+                        if now - req_time < timedelta(minutes=1)]
+        
+        return len(self.requests) < self.max_requests_per_minute
+    
+    def record_request(self):
+        """Record that a request was made"""
+        self.requests.append(datetime.now())
+    
+    def wait_if_needed(self):
+        """Wait if we need to respect rate limits"""
+        if not self.can_make_request():
+            wait_time = 60 - (datetime.now() - self.requests[0]).seconds
+            if wait_time > 0:
+                logger.warning(f"Rate limit reached. Waiting {wait_time} seconds...")
+                time.sleep(wait_time)
+        self.record_request()
+
+# Global rate limiter instance
+gemini_rate_limiter = RateLimiter(max_requests_per_minute=50)  # Conservative limit
+
 class AIInterviewService:
     """
     Service class for handling AI interview operations using the existing AI model
@@ -120,6 +153,9 @@ class AIInterviewService:
                 try:
                     model = genai.GenerativeModel('gemini-1.5-flash-latest')
                     
+                    # Apply rate limiting before API calls
+                    gemini_rate_limiter.wait_if_needed()
+                    
                     # Generate resume summary
                     summary_prompt = f"Summarize key skills from the following resume:\n\n{resume_text}"
                     summary_response = model.generate_content(summary_prompt)
@@ -139,6 +175,9 @@ class AIInterviewService:
                         "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
                         f"\n\n--- JOB DESCRIPTION ---\n{job_description}\n\n--- RESUME ---\n{resume_text}"
                     )
+                    
+                    # Apply rate limiting before second API call
+                    gemini_rate_limiter.wait_if_needed()
                     
                     full_response = model.generate_content(master_prompt)
                     response_text = full_response.text
@@ -168,8 +207,14 @@ class AIInterviewService:
                         raise ValueError("No questions were generated or parsed.")
                         
                 except Exception as ai_error:
-                    logger.error(f"AI model error: {ai_error} - falling back to default questions")
-                    resume_summary = "Resume summary not available due to AI model error"
+                    error_msg = str(ai_error)
+                    if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg:
+                        logger.error(f"Rate limit exceeded: {ai_error} - using fallback questions")
+                        resume_summary = "Resume summary not available due to API rate limit"
+                    else:
+                        logger.error(f"AI model error: {ai_error} - falling back to default questions")
+                        resume_summary = "Resume summary not available due to AI model error"
+                    
                     all_questions = [
                         {'type': 'Ice-Breaker', 'text': f'Welcome {candidate_name}! Can you tell me about a challenging project you have worked on?'},
                         {'type': 'Technical Questions', 'text': 'What is the difference between `let`, `const`, and `var` in JavaScript?'},
@@ -307,6 +352,9 @@ class AIInterviewService:
                 try:
                     model = genai.GenerativeModel('gemini-1.5-flash-latest')
                     
+                    # Apply rate limiting before first API call
+                    gemini_rate_limiter.wait_if_needed()
+                    
                     # Evaluate resume vs job description
                     resume_eval_prompt = (
                         "You are an expert technical recruiter. Analyze the following resume against the provided job description. "
@@ -333,17 +381,27 @@ class AIInterviewService:
                         f"\n\nQUESTIONS & ANSWERS:\n{qa_text}"
                     )
                     
+                    # Apply rate limiting before second API call
+                    gemini_rate_limiter.wait_if_needed()
+                    
                     answers_response = model.generate_content(answers_eval_prompt)
                     answers_response_text = answers_response.text
                     answers_score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
                     answers_score = float(answers_score_match.group(1)) if answers_score_match else 0.0
                     
                 except Exception as ai_error:
-                    logger.error(f"AI evaluation error: {ai_error} - using fallback scores")
+                    error_msg = str(ai_error)
+                    if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg:
+                        logger.error(f"Rate limit exceeded during evaluation: {ai_error} - using fallback scores")
+                        resume_response_text = "AI evaluation failed due to API rate limit. Basic assessment provided."
+                        answers_response_text = "AI evaluation failed due to API rate limit. Basic assessment provided."
+                    else:
+                        logger.error(f"AI evaluation error: {ai_error} - using fallback scores")
+                        resume_response_text = "AI evaluation failed. Basic assessment provided."
+                        answers_response_text = "AI evaluation failed. Basic assessment provided."
+                    
                     resume_score = 7.0
                     answers_score = 7.0
-                    resume_response_text = "AI evaluation failed. Basic assessment provided."
-                    answers_response_text = "AI evaluation failed. Basic assessment provided."
             
             # Calculate overall score
             overall_score = (resume_score + answers_score) / 2

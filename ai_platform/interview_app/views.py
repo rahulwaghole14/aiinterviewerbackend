@@ -275,7 +275,27 @@ def interview_portal(request):
     print(f"DEBUG: interview_portal called with session_key: {session_key}")
     if not session_key:
         return render(request, 'interview_app/invalid_link.html')
-    session = get_object_or_404(InterviewSession, session_key=session_key)
+    
+    # Try to find InterviewSession first
+    try:
+        session = InterviewSession.objects.get(session_key=session_key)
+        print(f"DEBUG: Found InterviewSession with ID: {session.id}")
+        session_type = 'regular'
+    except InterviewSession.DoesNotExist:
+        # Try to find AIInterviewSession
+        try:
+            from ai_interview.models import AIInterviewSession
+            ai_session = AIInterviewSession.objects.get(id=session_key)
+            print(f"DEBUG: Found AIInterviewSession with ID: {ai_session.id}")
+            # For AI sessions, we'll redirect to the AI interview portal
+            from django.conf import settings
+            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+            ai_interview_url = f"{base_url}/api/ai-interview/public/start/?interview_id={ai_session.interview.id}&link_token={session_key}"
+            return redirect(ai_interview_url)
+        except (AIInterviewSession.DoesNotExist, ValueError):
+            # If session_key is not a valid UUID, it's not an AI session
+            return render(request, 'interview_app/invalid_link.html', {'error': 'Interview session not found.'})
+    
     print(f"DEBUG: Found session with ID: {session.id}")
     # This is the main validation logic block
     if session.status != 'SCHEDULED':

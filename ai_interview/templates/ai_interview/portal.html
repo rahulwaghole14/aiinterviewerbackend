@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview - {{ candidate_name }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .content {
+            padding: 40px;
+        }
+        .candidate-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .candidate-info h3 {
+            margin: 0 0 10px 0;
+            color: #667eea;
+        }
+        .candidate-info p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        .interview-status {
+            text-align: center;
+            padding: 20px;
+            background: #e8f5e8;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .interview-status h2 {
+            color: #28a745;
+            margin: 0 0 10px 0;
+        }
+        .start-button {
+            display: block;
+            width: 200px;
+            margin: 30px auto;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: 600;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .start-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .questions-preview {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .questions-preview h3 {
+            color: #667eea;
+            margin: 0 0 15px 0;
+        }
+        .question-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .question-type {
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .question-text {
+            margin: 5px 0 0 0;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI Interview Portal</h1>
+            <p>Welcome to your Talaro AI-powered interview experience</p>
+        </div>
+        
+        <div class="content">
+            <div class="candidate-info">
+                <h3>Candidate Information</h3>
+                <p><strong>Name:</strong> {{ candidate_name }}</p>
+                <p><strong>Position:</strong> {{ job_title }}</p>
+                <p><strong>Interview Type:</strong> {{ ai_interview_type|title }}</p>
+                <p><strong>Total Questions:</strong> {{ total_questions }}</p>
+            </div>
+            
+            <div class="interview-status">
+                <h2>✅ Interview Ready</h2>
+                <p>Your AI interview session has been prepared with {{ total_questions }} questions.</p>
+                <p>Click the button below to begin your interview.</p>
+            </div>
+            
+            <a href="#" class="start-button" onclick="startInterview()">Start Interview</a>
+            
+            {% if questions %}
+            <div class="questions-preview">
+                <h3>Questions Preview</h3>
+                {% for question in questions %}
+                <div class="question-item">
+                    <div class="question-type">{{ question.question_type|title }}</div>
+                    <div class="question-text">{{ question.question_text }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function startInterview() {
+            // This would typically redirect to the actual interview interface
+            // For now, we'll show an alert
+            alert('Interview interface would open here. This is a placeholder for the actual interview experience.');
+            
+            // In a real implementation, this would:
+            // 1. Make an API call to start the interview
+            // 2. Redirect to the interview interface
+            // 3. Handle the interview flow
+        }
+    </script>
+</body>
+</html>

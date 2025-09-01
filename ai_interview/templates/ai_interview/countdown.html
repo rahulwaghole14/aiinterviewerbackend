@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Countdown</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            text-align: center;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        .content {
+            padding: 40px;
+        }
+        .countdown {
+            font-size: 3em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .message {
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            color: #155724;
+        }
+        .scheduled-time {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .scheduled-time h3 {
+            color: #667eea;
+            margin: 0 0 10px 0;
+        }
+        .refresh-button {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .refresh-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">⏰</div>
+            <h1>Interview Countdown</h1>
+        </div>
+        
+        <div class="content">
+            <div class="message">
+                <h3>Interview Not Started Yet</h3>
+                <p>{{ message|default:"Your interview has not started yet. Please wait for the scheduled time." }}</p>
+            </div>
+            
+            <div class="scheduled-time">
+                <h3>Scheduled Time</h3>
+                <p>{{ scheduled_time|date:"F j, Y" }}</p>
+                <p>{{ scheduled_time|time:"g:i A" }}</p>
+            </div>
+            
+            <div class="countdown" id="countdown">
+                Loading...
+            </div>
+            
+            <p>This page will automatically refresh when your interview is ready to begin.</p>
+            
+            <a href="#" class="refresh-button" onclick="location.reload()">Refresh Now</a>
+        </div>
+    </div>
+
+    <script>
+        function updateCountdown() {
+            const scheduledTime = new Date('{{ scheduled_time|date:"c" }}');
+            const now = new Date();
+            const diff = scheduledTime - now;
+            
+            if (diff <= 0) {
+                // Interview time has arrived, refresh the page
+                location.reload();
+                return;
+            }
+            
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            document.getElementById('countdown').innerHTML = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Update countdown every second
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+        
+        // Auto-refresh every 30 seconds to check if interview is ready
+        setInterval(() => {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

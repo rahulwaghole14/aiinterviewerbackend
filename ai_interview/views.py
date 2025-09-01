@@ -31,6 +31,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import re
+from django.shortcuts import render
 
 from .models import AIInterviewSession, AIInterviewQuestion, AIInterviewResponse, AIInterviewResult
 from .serializers import (
@@ -145,9 +146,8 @@ class GenerateAIInterviewLinkView(APIView):
                         question_index=1
                     )
             
-            # Build the AI interview URL using configured backend URL
-            from django.conf import settings
-            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+            # Build the AI interview URL
+            base_url = request.build_absolute_uri('/').rstrip('/')
             ai_interview_url = f"{base_url}/api/ai-interview/public/start/"
             
             return Response({
@@ -194,9 +194,8 @@ class GetAIInterviewLinkView(APIView):
                 ai_session_id = None
                 questions_count = 0
             
-            # Build URLs using configured backend URL
-            from django.conf import settings
-            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+            # Build URLs
+            base_url = request.build_absolute_uri('/').rstrip('/')
             ai_interview_url = f"{base_url}/api/ai-interview/public/start/"
             
             return Response({
@@ -286,9 +285,8 @@ class RegenerateAIInterviewLinkView(APIView):
                         question_index=1
                     )
             
-            # Build URLs using configured backend URL
-            from django.conf import settings
-            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+            # Build URLs
+            base_url = request.build_absolute_uri('/').rstrip('/')
             ai_interview_url = f"{base_url}/api/ai-interview/public/start/"
             
             return Response({
@@ -314,6 +312,93 @@ class RegenerateAIInterviewLinkView(APIView):
 class PublicStartInterviewView(APIView):
     """Public endpoint to start an AI interview session using link token"""
     permission_classes = []  # No authentication required
+    
+    def get(self, request):
+        """Handle GET request to render AI interview portal"""
+        try:
+            # Get parameters from URL
+            interview_id = request.GET.get('interview_id')
+            link_token = request.GET.get('link_token')
+            
+            if not interview_id or not link_token:
+                return render(request, 'ai_interview/invalid_link.html', {
+                    'error': 'Invalid interview link. Missing required parameters.'
+                })
+            
+            # Validate the interview token
+            is_valid, message = validate_interview_token(interview_id, link_token)
+            if not is_valid:
+                return render(request, 'ai_interview/invalid_link.html', {
+                    'error': message
+                })
+            
+            # Get the interview
+            interview = get_object_or_404(Interview, id=interview_id)
+            
+            # Check if interview can be started
+            now = timezone.now()
+            if interview.started_at and now < interview.started_at:
+                return render(request, 'ai_interview/countdown.html', {
+                    'interview': interview,
+                    'scheduled_time': interview.started_at,
+                    'message': f'Your interview starts at {interview.started_at.strftime("%I:%M %p")}. Please wait.'
+                })
+            
+            # Get or create AI interview session
+            session, created = AIInterviewSession.objects.get_or_create(
+                interview=interview,
+                defaults={
+                    'status': 'ACTIVE',
+                    'ai_configuration': {
+                        'language_code': 'en',
+                        'accent_tld': 'com',
+                        'candidate_name': interview.candidate.full_name,
+                        'candidate_email': interview.candidate.email,
+                        'job_title': interview.job.job_title if interview.job else '',
+                        'job_description': interview.job.description if interview.job else '',
+                        'resume_text': getattr(interview.candidate, 'resume_text', '') or '',
+                    }
+                }
+            )
+            
+            if created:
+                # Generate questions for new session using the actual AI model
+                try:
+                    questions = ai_interview_service.generate_questions(session)
+                    logger.info(f"Generated {len(questions)} questions for session {session.id}")
+                except Exception as e:
+                    logger.error(f"Error generating questions: {e}")
+                    # Create a default question if AI service fails
+                    AIInterviewQuestion.objects.create(
+                        session=session,
+                        question_text="Tell me about yourself and your experience.",
+                        question_type="behavioral",
+                        question_index=1
+                    )
+            
+            # Get questions for the session
+            questions = AIInterviewQuestion.objects.filter(session=session).order_by('question_index')
+            
+            # Prepare context for template
+            context = {
+                'session': session,
+                'interview': interview,
+                'candidate_name': interview.candidate.full_name,
+                'job_title': interview.job.job_title if interview.job else 'Technical Role',
+                'ai_interview_type': interview.ai_interview_type or 'technical',
+                'questions': questions,
+                'total_questions': questions.count(),
+                'interview_id': str(interview.id),
+                'link_token': link_token,
+            }
+            
+            return render(request, 'ai_interview/portal.html', context)
+            
+        except Exception as e:
+            logger.error(f"Error in AI interview portal GET: {e}")
+            return render(request, 'ai_interview/invalid_link.html', {
+                'error': f'Failed to load interview: {str(e)}'
+            })
     
     def post(self, request):
         """Start the interview session using interview link token"""

@@ -177,7 +177,7 @@ class PublicInterviewAccessView(APIView):
             # Redirect to the actual AI interview portal using configured backend URL
             from django.conf import settings
             base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
-            ai_interview_url = f"{base_url}/interview_app/?session_key={short_session_key}"
+            ai_interview_url = f"{base_url}/api/ai-interview/public/start/?interview_id={interview.id}&link_token={link_token}"
             return redirect(ai_interview_url)
             
             # Log the access attempt

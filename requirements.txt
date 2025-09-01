@@ -55,3 +55,24 @@ distlib==0.3.9
 
 # AI and Machine Learning
 google-generativeai==0.8.3
+openai-whisper==20231117
+opencv-python-headless==4.9.0.80
+numpy==1.24.3
+google-cloud-texttospeech==2.16.3
+
+# Computer Vision and Audio Processing
+ultralytics==8.1.28
+torch==2.2.0
+torchvision==0.17.0
+scipy==1.12.0
+sounddevice==0.4.6
+pyannote.audio==3.1.1
+mediapipe==0.10.9
+ffmpeg-python==0.2.0
+
+# Additional AI/ML Dependencies
+weasyprint==60.1
+
+# Note: Some packages may require system-level dependencies
+# For Render deployment, you may need to add buildpacks or use specific versions
+# that are compatible with the deployment environment

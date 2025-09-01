@@ -11,11 +11,11 @@ except ImportError:
 
 # Make numpy imports optional
 try:
-    from numpy._core.numeric import False_
+    import numpy as np
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
-    False_ = None
+    np = None
 try:
     import whisper
     WHISPER_AVAILABLE = True

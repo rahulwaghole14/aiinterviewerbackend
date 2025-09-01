@@ -100,4 +100,3 @@ working_*.py
 # Sensitive files - API keys and credentials
 *.json
 ai_platform/seraphic-camp-468209-i5-7970320e3ce6.json
-ai_platform/interview_app/camera.py

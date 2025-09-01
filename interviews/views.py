@@ -174,8 +174,10 @@ class PublicInterviewAccessView(APIView):
                 }
             )
             
-            # Redirect to the actual AI interview portal
-            ai_interview_url = f"{request.build_absolute_uri('/')}interview_app/?session_key={short_session_key}"
+            # Redirect to the actual AI interview portal using configured backend URL
+            from django.conf import settings
+            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
+            ai_interview_url = f"{base_url}/interview_app/?session_key={short_session_key}"
             return redirect(ai_interview_url)
             
             # Log the access attempt
@@ -561,9 +563,11 @@ class InterviewGenerateLinkView(DataIsolationMixin, generics.GenericAPIView):
             status='SUCCESS'
         )
         
+                from django.conf import settings
+                base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
                 return Response({
                     'link_token': link_token,
-                    'interview_url': f"{request.build_absolute_uri('/')}api/interviews/public/{link_token}/",
+                    'interview_url': f"{base_url}/api/interviews/public/{link_token}/",
                     'expires_at': interview.link_expires_at.isoformat() if interview.link_expires_at else None,
                     'message': 'Interview link generated successfully'
                 })

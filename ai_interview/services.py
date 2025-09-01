@@ -218,7 +218,7 @@ class AIInterviewService:
                         logger.error(f"Quota/Rate limit exceeded: {ai_error} - using fallback questions")
                         resume_summary = "Resume summary not available due to API quota limit"
                         # Set global flag to prevent further API calls
-                        global QUOTA_EXHAUSTED
+                        global QUOTA_EXHAUSTED, GEMINI_AVAILABLE
                         QUOTA_EXHAUSTED = True
                         GEMINI_AVAILABLE = False
                     else:
@@ -410,7 +410,7 @@ class AIInterviewService:
                         resume_response_text = "AI evaluation failed due to API quota limit. Basic assessment provided."
                         answers_response_text = "AI evaluation failed due to API quota limit. Basic assessment provided."
                         # Set global flag to prevent further API calls
-                        global QUOTA_EXHAUSTED
+                        global QUOTA_EXHAUSTED, GEMINI_AVAILABLE
                         QUOTA_EXHAUSTED = True
                         GEMINI_AVAILABLE = False
                     else:

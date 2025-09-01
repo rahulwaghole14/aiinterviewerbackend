@@ -52,3 +52,6 @@ click==8.1.8
 blinker==1.9.0
 colorama==0.4.6
 distlib==0.3.9
+
+# AI and Machine Learning
+google-generativeai==0.8.3

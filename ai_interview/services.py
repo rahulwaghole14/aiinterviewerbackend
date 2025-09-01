@@ -47,8 +47,17 @@ load_dotenv()
 
 # Configure Gemini AI (if available)
 if GEMINI_AVAILABLE:
-    gemini_api_key = "AIzaSyBXhqoQx3maTEJNdGH6xo3ULX1wL1LFPOc"
-    genai.configure(api_key=gemini_api_key)
+    gemini_api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    if gemini_api_key:
+        try:
+            genai.configure(api_key=gemini_api_key)
+            logger.info("Gemini AI configured successfully")
+        except Exception as e:
+            logger.error(f"Failed to configure Gemini AI: {e}")
+            GEMINI_AVAILABLE = False
+    else:
+        logger.warning("GEMINI_API_KEY not set - AI features will be disabled")
+        GEMINI_AVAILABLE = False
 else:
     logger.warning("Google Generative AI not available - AI features will be disabled")
 
@@ -108,54 +117,64 @@ class AIInterviewService:
                     {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
                 ]
             else:
-                model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                
-                # Generate resume summary
-                summary_prompt = f"Summarize key skills from the following resume:\n\n{resume_text}"
-                summary_response = model.generate_content(summary_prompt)
-                resume_summary = summary_response.text
-            
-            # Generate questions using the existing logic
-            language_name = SUPPORTED_LANGUAGES.get(language_code, 'English')
-            master_prompt = (
-                f"You are an expert Talaro interviewer. Your task is to generate 5 insightful interview questions in {language_name}. "
-                f"The interview is for a '{job_description.splitlines()[0] if job_description else 'Technical Role'}' role. "
-                "Please base the questions on the provided job description and candidate's resume. "
-                "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
-                "Then, generate a mix of technical and behavioral questions. "
-                "You MUST format the output as Markdown. "
-                "You MUST include '## Technical Questions' and '## Behavioral Questions' headers. "
-                "Each question MUST start with a hyphen '-'. "
-                "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
-                f"\n\n--- JOB DESCRIPTION ---\n{job_description}\n\n--- RESUME ---\n{resume_text}"
-            )
-            
-            full_response = model.generate_content(master_prompt)
-            response_text = full_response.text
-            
-            # Parse questions from response
-            sections = re.findall(r"##\s*(.*?)\s*\n(.*?)(?=\n##|\Z)", response_text, re.DOTALL)
-            all_questions = []
-            
-            if not sections:
-                # Fallback to simple questions if parsing fails
-                all_questions = [
-                    {'type': 'Ice-Breaker', 'text': f'Welcome {candidate_name}! Can you tell me about a challenging project you have worked on?'},
-                    {'type': 'Technical Questions', 'text': 'What is the difference between `let`, `const`, and `var` in JavaScript?'},
-                    {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
-                ]
-            else:
-                for category_name, question_block in sections:
-                    lines = question_block.strip().split('\n')
-                    for line in lines:
-                        if line.strip().startswith('-'):
-                            all_questions.append({
-                                'type': category_name.strip(), 
-                                'text': line.strip().lstrip('- ').strip()
-                            })
-            
-            if not all_questions:
-                raise ValueError("No questions were generated or parsed.")
+                try:
+                    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                    
+                    # Generate resume summary
+                    summary_prompt = f"Summarize key skills from the following resume:\n\n{resume_text}"
+                    summary_response = model.generate_content(summary_prompt)
+                    resume_summary = summary_response.text
+                    
+                    # Generate questions using the existing logic
+                    language_name = SUPPORTED_LANGUAGES.get(language_code, 'English')
+                    master_prompt = (
+                        f"You are an expert Talaro interviewer. Your task is to generate 5 insightful interview questions in {language_name}. "
+                        f"The interview is for a '{job_description.splitlines()[0] if job_description else 'Technical Role'}' role. "
+                        "Please base the questions on the provided job description and candidate's resume. "
+                        "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
+                        "Then, generate a mix of technical and behavioral questions. "
+                        "You MUST format the output as Markdown. "
+                        "You MUST include '## Technical Questions' and '## Behavioral Questions' headers. "
+                        "Each question MUST start with a hyphen '-'. "
+                        "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
+                        f"\n\n--- JOB DESCRIPTION ---\n{job_description}\n\n--- RESUME ---\n{resume_text}"
+                    )
+                    
+                    full_response = model.generate_content(master_prompt)
+                    response_text = full_response.text
+                    
+                    # Parse questions from response
+                    sections = re.findall(r"##\s*(.*?)\s*\n(.*?)(?=\n##|\Z)", response_text, re.DOTALL)
+                    
+                    if not sections:
+                        # Fallback to simple questions if parsing fails
+                        all_questions = [
+                            {'type': 'Ice-Breaker', 'text': f'Welcome {candidate_name}! Can you tell me about a challenging project you have worked on?'},
+                            {'type': 'Technical Questions', 'text': 'What is the difference between `let`, `const`, and `var` in JavaScript?'},
+                            {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
+                        ]
+                    else:
+                        all_questions = []
+                        for category_name, question_block in sections:
+                            lines = question_block.strip().split('\n')
+                            for line in lines:
+                                if line.strip().startswith('-'):
+                                    all_questions.append({
+                                        'type': category_name.strip(), 
+                                        'text': line.strip().lstrip('- ').strip()
+                                    })
+                    
+                    if not all_questions:
+                        raise ValueError("No questions were generated or parsed.")
+                        
+                except Exception as ai_error:
+                    logger.error(f"AI model error: {ai_error} - falling back to default questions")
+                    resume_summary = "Resume summary not available due to AI model error"
+                    all_questions = [
+                        {'type': 'Ice-Breaker', 'text': f'Welcome {candidate_name}! Can you tell me about a challenging project you have worked on?'},
+                        {'type': 'Technical Questions', 'text': 'What is the difference between `let`, `const`, and `var` in JavaScript?'},
+                        {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
+                    ]
             
             # Create audio files and save questions
             tts_dir = os.path.join(settings.MEDIA_ROOT, 'tts')
@@ -285,38 +304,46 @@ class AIInterviewService:
                 resume_response_text = "AI evaluation not available. Basic assessment provided."
                 answers_response_text = "AI evaluation not available. Basic assessment provided."
             else:
-                model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                
-                # Evaluate resume vs job description
-                resume_eval_prompt = (
-                    "You are an expert technical recruiter. Analyze the following resume against the provided job description. "
-                    "Provide a score from 0.0 to 10.0 indicating how well the candidate's experience aligns with the job requirements. "
-                    "Also provide a brief analysis. Format your response EXACTLY as follows:\n\n"
-                    "SCORE: [Your score, e.g., 8.2]\n"
-                    "ANALYSIS: [Your one-paragraph analysis here.]"
-                    f"\n\nJOB DESCRIPTION:\n{job_description}\n\nRESUME:\n{resume_text}"
-                )
-                
-                resume_response = model.generate_content(resume_eval_prompt)
-                resume_response_text = resume_response.text
-                resume_score_match = re.search(r"SCORE:\s*([\d\.]+)", resume_response_text)
-                resume_score = float(resume_score_match.group(1)) if resume_score_match else 0.0
-                
-                # Evaluate interview answers
-                answers_eval_prompt = (
-                    "You are an expert interviewer. Evaluate the candidate's answers to the following questions. "
-                    "Provide an overall score from 0.0 to 10.0 for their performance. "
-                    "Also provide a brief summary of their strengths and areas for improvement. "
-                    "Format your response EXACTLY as follows:\n\n"
-                    "SCORE: [Your score, e.g., 6.8]\n"
-                    "FEEDBACK: [Your detailed feedback here.]"
-                    f"\n\nQUESTIONS & ANSWERS:\n{qa_text}"
-                )
-                
-                answers_response = model.generate_content(answers_eval_prompt)
-                answers_response_text = answers_response.text
-                answers_score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
-                answers_score = float(answers_score_match.group(1)) if answers_score_match else 0.0
+                try:
+                    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                    
+                    # Evaluate resume vs job description
+                    resume_eval_prompt = (
+                        "You are an expert technical recruiter. Analyze the following resume against the provided job description. "
+                        "Provide a score from 0.0 to 10.0 indicating how well the candidate's experience aligns with the job requirements. "
+                        "Also provide a brief analysis. Format your response EXACTLY as follows:\n\n"
+                        "SCORE: [Your score, e.g., 8.2]\n"
+                        "ANALYSIS: [Your one-paragraph analysis here.]"
+                        f"\n\nJOB DESCRIPTION:\n{job_description}\n\nRESUME:\n{resume_text}"
+                    )
+                    
+                    resume_response = model.generate_content(resume_eval_prompt)
+                    resume_response_text = resume_response.text
+                    resume_score_match = re.search(r"SCORE:\s*([\d\.]+)", resume_response_text)
+                    resume_score = float(resume_score_match.group(1)) if resume_score_match else 0.0
+                    
+                    # Evaluate interview answers
+                    answers_eval_prompt = (
+                        "You are an expert interviewer. Evaluate the candidate's answers to the following questions. "
+                        "Provide an overall score from 0.0 to 10.0 for their performance. "
+                        "Also provide a brief summary of their strengths and areas for improvement. "
+                        "Format your response EXACTLY as follows:\n\n"
+                        "SCORE: [Your score, e.g., 6.8]\n"
+                        "FEEDBACK: [Your detailed feedback here.]"
+                        f"\n\nQUESTIONS & ANSWERS:\n{qa_text}"
+                    )
+                    
+                    answers_response = model.generate_content(answers_eval_prompt)
+                    answers_response_text = answers_response.text
+                    answers_score_match = re.search(r"SCORE:\s*([\d\.]+)", answers_response_text)
+                    answers_score = float(answers_score_match.group(1)) if answers_score_match else 0.0
+                    
+                except Exception as ai_error:
+                    logger.error(f"AI evaluation error: {ai_error} - using fallback scores")
+                    resume_score = 7.0
+                    answers_score = 7.0
+                    resume_response_text = "AI evaluation failed. Basic assessment provided."
+                    answers_response_text = "AI evaluation failed. Basic assessment provided."
             
             # Calculate overall score
             overall_score = (resume_score + answers_score) / 2

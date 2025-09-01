@@ -5,14 +5,14 @@
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     YOLO_AVAILABLE = False
     YOLO = None
 
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     CV2_AVAILABLE = False
     cv2 = None
 
@@ -23,7 +23,7 @@ except ImportError:
 if YOLO_AVAILABLE:
     try:
         model = YOLO('yolov8n.pt')
-    except Exception as e:
+    except (Exception, OSError) as e:
         print(f"Warning: Could not load YOLO model: {e}")
         model = None
 else:

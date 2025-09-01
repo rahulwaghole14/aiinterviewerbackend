@@ -50,26 +50,31 @@ blinker==1.9.0
 colorama==0.4.6
 distlib==0.3.9
 
-# AI and Machine Learning
+# AI and Machine Learning (Core - Required)
 google-generativeai==0.8.3
-openai-whisper==20231117
-opencv-python-headless==4.9.0.80
 numpy==1.26.4
-google-cloud-texttospeech==2.16.3
 
-# Computer Vision and Audio Processing
-ultralytics==8.1.28
-torch==2.2.0
-torchvision==0.17.0
-scipy==1.13.0
-sounddevice==0.4.6
-pyannote.audio==3.1.1
-mediapipe==0.10.9
-ffmpeg-python==0.2.0
+# AI and Machine Learning (Optional - Comment out if causing issues)
+# openai-whisper==20231117
+# opencv-python-headless==4.9.0.80
+# google-cloud-texttospeech==2.16.3
 
-# Additional AI/ML Dependencies
-weasyprint==60.1
+# Computer Vision and Audio Processing (Optional - Comment out if causing issues)
+# ultralytics==8.1.28
+# torch==2.2.0
+# torchvision==0.17.0
+# scipy==1.13.0
+# sounddevice==0.4.6
+# pyannote.audio==3.1.1
+# mediapipe==0.10.9
+# ffmpeg-python==0.2.0
+
+# Additional AI/ML Dependencies (Optional - Comment out if causing issues)
+# weasyprint==60.1
 
 # Note: Some packages may require system-level dependencies
 # For Render deployment, you may need to add buildpacks or use specific versions
 # that are compatible with the deployment environment
+
+# Pip configuration to reduce backtracking
+# Add this to your build command: --no-deps --no-cache-dir

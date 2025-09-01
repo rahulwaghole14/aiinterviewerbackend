@@ -17,14 +17,14 @@ except (ImportError, OSError):
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     NUMPY_AVAILABLE = False
     np = None
 
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     YOLO_AVAILABLE = False
     YOLO = None
 
@@ -38,7 +38,7 @@ except (ImportError, OSError):
 try:
     from scipy.spatial import distance as dist
     SCIPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     SCIPY_AVAILABLE = False
     dist = None
 
@@ -52,7 +52,7 @@ except (ImportError, OSError):
 try:
     from pyannote.audio import Pipeline
     PYANNOTE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     PYANNOTE_AVAILABLE = False
     Pipeline = None
 
@@ -241,9 +241,13 @@ class VideoCamera:
         self.audio_monitor = UnifiedAudioMonitor(self.temp_audio_path)
         self.object_model = None
         try:
-            self.object_model, self.PERSON_CLASS, self.PHONE_CLASS = YOLO('yolov8n.pt'), 0, 67
-        except Exception as e:
-            print(f"FATAL: Error loading AI model: {e}")
+            if YOLO_AVAILABLE:
+                self.object_model, self.PERSON_CLASS, self.PHONE_CLASS = YOLO('yolov8n.pt'), 0, 67
+            else:
+                print("Warning: YOLO not available, object detection disabled")
+        except (Exception, OSError) as e:
+            print(f"Warning: Error loading AI model: {e}")
+            self.object_model = None
         
         self.video = cv2.VideoCapture(0)
         if not self.video.isOpened():
@@ -274,8 +278,12 @@ class VideoCamera:
         try:
             if not os.path.exists(self.temp_video_path) or not os.path.exists(self.temp_audio_path):
                 return
-            input_video, input_audio = ffmpeg.input(self.temp_video_path), ffmpeg.input(self.temp_audio_path)
-            ffmpeg.output(input_video, input_audio, self.final_video_path, vcodec='copy', acodec='aac').run(quiet=True, overwrite_output=True)
+            if FFMPEG_AVAILABLE:
+                input_video, input_audio = ffmpeg.input(self.temp_video_path), ffmpeg.input(self.temp_audio_path)
+                ffmpeg.output(input_video, input_audio, self.final_video_path, vcodec='copy', acodec='aac').run(quiet=True, overwrite_output=True)
+            else:
+                print("Warning: FFmpeg not available, video merging disabled")
+                return
             
             # Save video reference to database
             if os.path.exists(self.final_video_path):

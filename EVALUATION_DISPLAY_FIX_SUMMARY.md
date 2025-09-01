@@ -122,3 +122,4 @@ The serializer now returns the correct structure that the frontend expects:
 
 
 
+

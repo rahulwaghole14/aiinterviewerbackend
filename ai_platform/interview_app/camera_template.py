@@ -17,14 +17,14 @@ except (ImportError, OSError):
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     NUMPY_AVAILABLE = False
     np = None
 
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     YOLO_AVAILABLE = False
     YOLO = None
 
@@ -38,7 +38,7 @@ except (ImportError, OSError):
 try:
     from scipy.spatial import distance as dist
     SCIPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     SCIPY_AVAILABLE = False
     dist = None
 
@@ -52,7 +52,7 @@ except (ImportError, OSError):
 try:
     from pyannote.audio import Pipeline
     PYANNOTE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     PYANNOTE_AVAILABLE = False
     Pipeline = None
 

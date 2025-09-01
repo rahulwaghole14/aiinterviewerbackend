@@ -13,13 +13,13 @@ except ImportError:
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     NUMPY_AVAILABLE = False
     np = None
 try:
     import whisper
     WHISPER_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     WHISPER_AVAILABLE = False
     whisper = None
 import PyPDF2
@@ -55,7 +55,7 @@ import time
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     NUMPY_AVAILABLE = False
     np = None
 
@@ -63,7 +63,7 @@ except ImportError:
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     CV2_AVAILABLE = False
     cv2 = None
 import base64
@@ -89,19 +89,19 @@ from django.core.mail import send_mail
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     WEASYPRINT_AVAILABLE = False
     HTML = None
 
 try:
     from .camera import VideoCamera
-except ImportError:
+except (ImportError, OSError):
     from .simple_camera import SimpleVideoCamera as VideoCamera
 from .models import InterviewSession, WarningLog, InterviewQuestion, CodeSubmission
 
 try:
     from .yolo_face_detector import detect_face_with_yolo
-except ImportError:
+except (ImportError, OSError):
     print("Warning: yolo_face_detector could not be imported. Using a placeholder.")
     def detect_face_with_yolo(img): return [type('obj', (object,), {'boxes': []})()]
 

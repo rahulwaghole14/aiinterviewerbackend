@@ -8,14 +8,14 @@ import atexit
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     CV2_AVAILABLE = False
     cv2 = None
 
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     NUMPY_AVAILABLE = False
     np = None
 
@@ -53,8 +53,12 @@ class SimpleVideoCamera:
                 if ret:
                     # Simple face detection
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                    try:
+                        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                    except (Exception, OSError):
+                        print("Warning: Could not load face cascade classifier")
+                        faces = []
                     
                     # Update warnings
                     with self.lock:

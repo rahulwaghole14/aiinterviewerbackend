@@ -145,8 +145,9 @@ class GenerateAIInterviewLinkView(APIView):
                         question_index=1
                     )
             
-            # Build the AI interview URL
-            base_url = request.build_absolute_uri('/').rstrip('/')
+            # Build the AI interview URL using configured backend URL
+            from django.conf import settings
+            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
             ai_interview_url = f"{base_url}/api/ai-interview/public/start/"
             
             return Response({
@@ -193,8 +194,9 @@ class GetAIInterviewLinkView(APIView):
                 ai_session_id = None
                 questions_count = 0
             
-            # Build URLs
-            base_url = request.build_absolute_uri('/').rstrip('/')
+            # Build URLs using configured backend URL
+            from django.conf import settings
+            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
             ai_interview_url = f"{base_url}/api/ai-interview/public/start/"
             
             return Response({
@@ -284,8 +286,9 @@ class RegenerateAIInterviewLinkView(APIView):
                         question_index=1
                     )
             
-            # Build URLs
-            base_url = request.build_absolute_uri('/').rstrip('/')
+            # Build URLs using configured backend URL
+            from django.conf import settings
+            base_url = getattr(settings, 'BACKEND_URL', request.build_absolute_uri('/').rstrip('/'))
             ai_interview_url = f"{base_url}/api/ai-interview/public/start/"
             
             return Response({

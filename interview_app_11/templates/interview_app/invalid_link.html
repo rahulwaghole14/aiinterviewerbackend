@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if page_title %}{{ page_title }}{% else %}Invalid Interview Link{% endif %}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .error-icon {
+            color: #e74c3c;
+        }
+        
+        .warning-icon {
+            color: #f39c12;
+        }
+        
+        .info-icon {
+            color: #3498db;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            background: #fdf2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-weight: 500;
+        }
+        
+        .info-message {
+            color: #2c3e50;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            line-height: 1.6;
+        }
+        
+        .scheduled-time {
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            color: #2d5a2d;
+            font-weight: 500;
+        }
+        
+        .countdown {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #e74c3c;
+            margin: 1rem 0;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            margin: 0.5rem;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #ecf0f1;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% if page_title == 'Interview Not Started' %}
+            <div class="icon info-icon">⏰</div>
+            <h1>Interview Not Started</h1>
+            <div class="info-message">
+                {{ error }}
+            </div>
+            {% if scheduled_time_str %}
+                <div class="scheduled-time">
+                    <strong>Scheduled Time:</strong><br>
+                    {{ scheduled_time_str }}
+                </div>
+                <div class="countdown" id="countdown"></div>
+            {% endif %}
+        {% elif page_title == 'Interview Link Expired' %}
+            <div class="icon error-icon">❌</div>
+            <h1>Interview Link Expired</h1>
+            <div class="error-message">
+                {{ error }}
+            </div>
+        {% else %}
+            <div class="icon warning-icon">⚠️</div>
+            <h1>Invalid Interview Link</h1>
+            {% if error %}
+                <div class="error-message">
+                    {{ error }}
+                </div>
+            {% else %}
+                <div class="info-message">
+                    This interview link is invalid or has expired. Please contact your interviewer for a new link.
+                </div>
+            {% endif %}
+        {% endif %}
+        
+        <div style="margin-top: 2rem;">
+            <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+            <a href="/" class="btn">Go Home</a>
+        </div>
+        
+        <div class="footer">
+            <p>AI Interview Platform</p>
+            <p>If you continue to have issues, please contact support.</p>
+        </div>
+    </div>
+
+    {% if start_time_iso %}
+    <script>
+        // Countdown timer for scheduled interviews
+        function updateCountdown() {
+            const now = new Date();
+            const startTime = new Date('{{ start_time_iso }}');
+            const diff = startTime - now;
+            
+            console.log('Countdown debug - Now:', now, 'Start:', startTime, 'Diff:', diff);
+            
+            if (diff <= 0) {
+                document.getElementById('countdown').innerHTML = 'Interview should be available now!';
+                console.log('Countdown finished, reloading page...');
+                
+                // Prevent infinite loop by checking if we've already tried to reload
+                if (!window.countdownReloaded) {
+                    window.countdownReloaded = true;
+                    // Add a small delay to ensure the message is visible
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                }
+                return;
+            }
+            
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            document.getElementById('countdown').innerHTML = 
+                `Time until interview: ${hours}h ${minutes}m ${seconds}s`;
+        }
+        
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+    {% endif %}
+</body>
+</html>

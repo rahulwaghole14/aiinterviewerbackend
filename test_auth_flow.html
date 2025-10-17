@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Flow Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-step {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .test-step h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .credentials {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .credentials strong {
+            color: #2c5aa0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+            font-weight: bold;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .clear-btn {
+            background-color: #dc3545;
+        }
+        .clear-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔐 Authentication Flow Test</h1>
+        <p>This page helps you test the authentication flow for the AI Interview Platform.</p>
+
+        <div class="credentials">
+            <h3>📋 Test Credentials</h3>
+            <p><strong>Admin:</strong> admin@example.com / admin123</p>
+            <p><strong>Recruiter:</strong> recruiter@example.com / recruiter123</p>
+            <p><strong>HR:</strong> hr@example.com / hr123</p>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 1: Check Current Authentication State</h3>
+            <p>Current localStorage status:</p>
+            <div id="auth-status"></div>
+            <button onclick="checkAuthStatus()">Check Auth Status</button>
+            <button onclick="clearAuth()" class="clear-btn">Clear Auth Data</button>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 2: Test Backend Login</h3>
+            <p>Test if the backend login API is working:</p>
+            <div id="backend-test-result"></div>
+            <button onclick="testBackendLogin()">Test Backend Login</button>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 3: Frontend Authentication Flow</h3>
+            <p>Instructions:</p>
+            <ol>
+                <li>Clear authentication data (Step 1)</li>
+                <li>Open the frontend: <a href="http://localhost:5173" target="_blank">http://localhost:5173</a></li>
+                <li>You should see the <strong>login screen</strong> (not dashboard)</li>
+                <li>Login with the test credentials above</li>
+                <li>You should be redirected to the dashboard</li>
+                <li>Dashboard should load without 401 errors</li>
+            </ol>
+        </div>
+
+        <div class="test-step">
+            <h3>Step 4: Test Results</h3>
+            <div id="test-results">
+                <p class="info">Follow the steps above to test the authentication flow.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function checkAuthStatus() {
+            const authToken = localStorage.getItem('authToken');
+            const userData = localStorage.getItem('userData');
+            
+            let status = '<div>';
+            
+            if (authToken) {
+                status += '<p class="success">✅ Auth Token: Present</p>';
+                status += '<p>Token: ' + authToken.substring(0, 20) + '...</p>';
+            } else {
+                status += '<p class="error">❌ Auth Token: Not found</p>';
+            }
+            
+            if (userData) {
+                status += '<p class="success">✅ User Data: Present</p>';
+                try {
+                    const user = JSON.parse(userData);
+                    status += '<p>User: ' + (user.email || 'Unknown') + ' (' + (user.role || 'Unknown') + ')</p>';
+                } catch (e) {
+                    status += '<p class="error">❌ User Data: Invalid JSON</p>';
+                }
+            } else {
+                status += '<p class="error">❌ User Data: Not found</p>';
+            }
+            
+            status += '</div>';
+            document.getElementById('auth-status').innerHTML = status;
+        }
+
+        function clearAuth() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userData');
+            document.getElementById('auth-status').innerHTML = '<p class="info">Authentication data cleared!</p>';
+            setTimeout(checkAuthStatus, 1000);
+        }
+
+        async function testBackendLogin() {
+            const resultDiv = document.getElementById('backend-test-result');
+            resultDiv.innerHTML = '<p class="info">Testing backend login...</p>';
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@example.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Backend login successful!</p>
+                        <p>Token: ${data.token ? data.token.substring(0, 20) + '...' : 'No token'}</p>
+                        <p>User: ${data.user ? data.user.email + ' (' + data.user.role + ')' : 'No user data'}</p>
+                    `;
+                } else {
+                    const error = await response.text();
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Backend login failed!</p>
+                        <p>Status: ${response.status}</p>
+                        <p>Error: ${error.substring(0, 200)}...</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Connection error!</p>
+                    <p>Make sure the backend server is running on http://127.0.0.1:8000</p>
+                    <p>Error: ${error.message}</p>
+                `;
+            }
+        }
+
+        // Initialize
+        checkAuthStatus();
+    </script>
+</body>
+</html>

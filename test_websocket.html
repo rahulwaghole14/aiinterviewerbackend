@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script>
+        const wsUrl = 'ws://127.0.0.1:8000/dg_ws';
+        console.log('Attempting to connect to:', wsUrl);
+        
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = function(event) {
+            console.log('✅ WebSocket connected!', event);
+            document.getElementById('status').textContent = '✅ Connected!';
+            document.getElementById('status').style.color = 'green';
+            
+            // Send test config
+            ws.send(JSON.stringify({
+                sample_rate: 16000,
+                model: 'nova-2-meeting'
+            }));
+        };
+        
+        ws.onerror = function(error) {
+            console.error('❌ WebSocket error:', error);
+            document.getElementById('status').textContent = '❌ Connection Error!';
+            document.getElementById('status').style.color = 'red';
+        };
+        
+        ws.onclose = function(event) {
+            console.log('🔌 WebSocket closed:', event);
+            document.getElementById('status').textContent = '🔌 Connection Closed';
+            document.getElementById('status').style.color = 'orange';
+        };
+        
+        ws.onmessage = function(event) {
+            console.log('📨 Message received:', event.data);
+            const msgDiv = document.createElement('div');
+            msgDiv.textContent = '📨 ' + event.data;
+            document.getElementById('messages').appendChild(msgDiv);
+        };
+    </script>
+</body>
+</html>
+

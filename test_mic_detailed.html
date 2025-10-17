@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detailed Microphone Diagnostic</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        button { padding: 15px 30px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 5px; }
+        .start { background: #28a745; color: white; }
+        .stop { background: #dc3545; color: white; }
+        #logs { background: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; }
+        .log-item { padding: 5px; margin: 2px 0; border-left: 3px solid #007bff; padding-left: 10px; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Detailed Microphone Diagnostic</h1>
+        
+        <button class="start" onclick="runFullDiagnostic()">🔬 Run Full Diagnostic</button>
+        <button class="stop" onclick="stopAll()">⏹ Stop</button>
+        
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        let stream = null;
+        let audioContext = null;
+        let processor = null;
+        let source = null;
+
+        function log(msg, type = 'info') {
+            const logs = document.getElementById('logs');
+            const div = document.createElement('div');
+            div.className = 'log-item ' + (type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(msg);
+        }
+
+        async function runFullDiagnostic() {
+            document.getElementById('logs').innerHTML = '';
+            log('🔬 Starting full diagnostic...', 'info');
+            
+            // Step 1: Check if getUserMedia exists
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                log('❌ getUserMedia not supported in this browser!', 'error');
+                return;
+            }
+            log('✅ getUserMedia is supported', 'success');
+            
+            // Step 2: List all devices
+            try {
+                log('📋 Enumerating devices...', 'info');
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputs = devices.filter(d => d.kind === 'audioinput');
+                log(`✅ Found ${audioInputs.length} audio input devices:`, 'success');
+                audioInputs.forEach((device, i) => {
+                    log(`   ${i + 1}. ${device.label || 'Unnamed Device'} (ID: ${device.deviceId.substring(0, 20)}...)`, 'info');
+                });
+            } catch (err) {
+                log(`❌ Failed to enumerate devices: ${err.message}`, 'error');
+            }
+            
+            // Step 3: Request microphone access
+            try {
+                log('🎤 Requesting microphone access...', 'info');
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                log('✅ Microphone access GRANTED!', 'success');
+                
+                const track = stream.getAudioTracks()[0];
+                log(`📊 Active track: ${track.label}`, 'info');
+                log(`📊 Track state: ${track.readyState}`, 'info');
+                log(`📊 Track enabled: ${track.enabled}`, 'info');
+                log(`📊 Track muted: ${track.muted}`, 'info');
+                
+                const settings = track.getSettings();
+                log(`📊 Settings: ${JSON.stringify(settings, null, 2)}`, 'info');
+                
+                const capabilities = track.getCapabilities();
+                log(`📊 Capabilities: ${JSON.stringify(capabilities, null, 2)}`, 'info');
+                
+            } catch (err) {
+                log(`❌ Microphone access DENIED: ${err.message}`, 'error');
+                log(`❌ Error name: ${err.name}`, 'error');
+                return;
+            }
+            
+            // Step 4: Create audio context
+            try {
+                log('🎙️ Creating audio context...', 'info');
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log(`✅ Audio context created - Sample rate: ${audioContext.sampleRate}Hz`, 'success');
+                log(`📊 Audio context state: ${audioContext.state}`, 'info');
+            } catch (err) {
+                log(`❌ Failed to create audio context: ${err.message}`, 'error');
+                return;
+            }
+            
+            // Step 5: Create media stream source
+            try {
+                log('🔗 Creating media stream source...', 'info');
+                source = audioContext.createMediaStreamSource(stream);
+                log('✅ Media stream source created', 'success');
+            } catch (err) {
+                log(`❌ Failed to create media stream source: ${err.message}`, 'error');
+                return;
+            }
+            
+            // Step 6: Create processor and analyze audio
+            try {
+                log('🔧 Creating ScriptProcessor...', 'info');
+                processor = audioContext.createScriptProcessor(4096, 2, 1);
+                
+                let packetCount = 0;
+                let nonZeroCount = 0;
+                let maxValue = 0;
+                let maxRMS = 0;
+                
+                processor.onaudioprocess = (e) => {
+                    packetCount++;
+                    
+                    // Analyze audio data
+                    const left = e.inputBuffer.getChannelData(0);
+                    const right = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : left;
+                    
+                    // Check for non-zero values
+                    let hasNonZero = false;
+                    let max = 0;
+                    for (let i = 0; i < left.length; i++) {
+                        const val = Math.abs(left[i]);
+                        if (val > 0.0000001) {
+                            hasNonZero = true;
+                            nonZeroCount++;
+                        }
+                        if (val > max) max = val;
+                    }
+                    if (max > maxValue) maxValue = max;
+                    
+                    // Calculate RMS
+                    let sum = 0;
+                    for (let i = 0; i < left.length; i++) {
+                        const mono = (left[i] + right[i]) / 2;
+                        sum += mono * mono;
+                    }
+                    const rms = Math.sqrt(sum / left.length);
+                    if (rms > maxRMS) maxRMS = rms;
+                    
+                    // Log every 50 packets
+                    if (packetCount % 50 === 1) {
+                        if (hasNonZero) {
+                            log(`✅ Packet #${packetCount}: RMS=${rms.toFixed(6)}, Max=${max.toFixed(6)}, NonZero=${nonZeroCount}`, 'success');
+                        } else {
+                            log(`❌ Packet #${packetCount}: ALL ZEROS! RMS=${rms.toFixed(6)}`, 'error');
+                        }
+                        log(`📊 Overall: MaxRMS=${maxRMS.toFixed(6)}, MaxValue=${maxValue.toFixed(6)}`, 'info');
+                    }
+                    
+                    // Alert if sound detected
+                    if (rms > 0.01) {
+                        log(`🔊 LOUD SOUND DETECTED! RMS=${rms.toFixed(4)}`, 'success');
+                    }
+                };
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                log('✅ Audio graph connected - SPEAK NOW!', 'success');
+                log('📊 Monitoring audio... (logging every 50 packets)', 'info');
+                
+            } catch (err) {
+                log(`❌ Failed to create processor: ${err.message}`, 'error');
+                return;
+            }
+        }
+
+        function stopAll() {
+            if (processor) {
+                processor.disconnect();
+                processor = null;
+            }
+            if (source) {
+                source.disconnect();
+                source = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            log('⏹ Test stopped', 'info');
+        }
+    </script>
+</body>
+</html>
+

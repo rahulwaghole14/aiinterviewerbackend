@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deepgram STT Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+        #transcript { border: 1px solid #ccc; padding: 10px; min-height: 100px; margin: 10px 0; }
+        #logs { border: 1px solid #ccc; padding: 10px; min-height: 200px; margin: 10px 0; background: #f5f5f5; font-family: monospace; font-size: 12px; overflow-y: auto; max-height: 400px; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Deepgram STT Direct Test</h1>
+    <div id="status" class="info">Ready to test</div>
+    
+    <button onclick="testMicrophone()">1. Test Microphone</button>
+    <button onclick="testDeepgramProxy()">2. Test Deepgram Proxy</button>
+    <button onclick="startRecording()">3. Start Recording</button>
+    <button onclick="stopRecording()">4. Stop Recording</button>
+    
+    <h3>Transcript:</h3>
+    <div id="transcript">Waiting for speech...</div>
+    
+    <h3>Debug Logs:</h3>
+    <div id="logs"></div>
+
+    <script>
+        let ws = null;
+        let stream = null;
+        let audioContext = null;
+        let workletNode = null;
+        let isRecording = false;
+
+        function log(msg, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'blue';
+            logs.innerHTML += `<div style="color: ${color}">[${timestamp}] ${msg}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+            console.log(msg);
+        }
+
+        function setStatus(msg, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = msg;
+            status.className = type;
+        }
+
+        async function testMicrophone() {
+            log('🎤 Testing microphone access...', 'info');
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 16000,
+                        channelCount: 2
+                    }
+                });
+                const tracks = stream.getAudioTracks();
+                log(`✅ Microphone access granted: ${tracks[0].label}`, 'success');
+                log(`📊 Settings: ${JSON.stringify(tracks[0].getSettings())}`, 'info');
+                setStatus('Microphone working!', 'success');
+            } catch (err) {
+                log(`❌ Microphone error: ${err.message}`, 'error');
+                setStatus('Microphone failed!', 'error');
+            }
+        }
+
+        async function testDeepgramProxy() {
+            log('🔗 Testing Deepgram proxy connection...', 'info');
+            try {
+                const wsUrl = `ws://${window.location.host}/dg_ws`;
+                log(`Connecting to: ${wsUrl}`, 'info');
+                
+                const testWs = new WebSocket(wsUrl);
+                
+                testWs.onopen = () => {
+                    log('✅ WebSocket connected!', 'success');
+                    testWs.send(JSON.stringify({ sample_rate: 16000, model: 'general' }));
+                    log('📤 Sent config to proxy', 'info');
+                };
+                
+                testWs.onmessage = (ev) => {
+                    log(`📥 Received: ${ev.data}`, 'success');
+                    setStatus('Deepgram proxy working!', 'success');
+                    setTimeout(() => testWs.close(), 2000);
+                };
+                
+                testWs.onerror = (ev) => {
+                    log(`❌ WebSocket error: ${ev}`, 'error');
+                    setStatus('Deepgram proxy failed!', 'error');
+                };
+                
+                testWs.onclose = (ev) => {
+                    log(`🔌 WebSocket closed: code=${ev.code}, reason=${ev.reason}`, 'info');
+                };
+            } catch (err) {
+                log(`❌ Connection error: ${err.message}`, 'error');
+                setStatus('Connection failed!', 'error');
+            }
+        }
+
+        async function startRecording() {
+            if (isRecording) {
+                log('⚠️ Already recording!', 'info');
+                return;
+            }
+
+            log('🎙️ Starting recording...', 'info');
+            isRecording = true;
+
+            try {
+                // Get microphone
+                if (!stream) {
+                    await testMicrophone();
+                }
+
+                // Create audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                log(`🎙️ Audio context created: SR=${audioContext.sampleRate}`, 'info');
+
+                // Connect to Deepgram proxy
+                const wsUrl = `ws://${window.location.host}/dg_ws`;
+                ws = new WebSocket(wsUrl);
+                ws.binaryType = 'arraybuffer';
+
+                ws.onopen = async () => {
+                    log('✅ Connected to Deepgram proxy', 'success');
+                    ws.send(JSON.stringify({ sample_rate: audioContext.sampleRate, model: 'general' }));
+                    log('📤 Sent config', 'info');
+
+                    // Set up audio worklet
+                    const workletCode = `
+                        class PCMWorkletProcessor extends AudioWorkletProcessor {
+                            process(inputs) {
+                                const input = inputs && inputs[0] && inputs[0][0];
+                                if (input) {
+                                    this.port.postMessage(input);
+                                }
+                                return true;
+                            }
+                        }
+                        registerProcessor('pcm-worklet', PCMWorkletProcessor);
+                    `;
+                    const blob = new Blob([workletCode], { type: 'application/javascript' });
+                    const url = URL.createObjectURL(blob);
+                    await audioContext.audioWorklet.addModule(url);
+                    URL.revokeObjectURL(url);
+                    log('✅ Audio worklet loaded', 'success');
+
+                    // Create worklet node
+                    workletNode = new AudioWorkletNode(audioContext, 'pcm-worklet');
+                    let packetCount = 0;
+                    let soundDetected = false;
+
+                    workletNode.port.onmessage = (ev) => {
+                        if (ws.readyState !== WebSocket.OPEN) return;
+
+                        const f32 = ev.data;
+                        const i16 = new Int16Array(f32.length);
+                        for (let i = 0; i < f32.length; i++) {
+                            let s = Math.max(-1, Math.min(1, f32[i]));
+                            i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
+
+                        // Calculate RMS
+                        const rms = Math.sqrt(f32.reduce((sum, val) => sum + val * val, 0) / f32.length);
+                        
+                        packetCount++;
+                        if (packetCount % 100 === 1) {
+                            log(`📊 Packet #${packetCount}, RMS: ${rms.toFixed(4)}`, 'info');
+                        }
+                        
+                        if (rms > 0.01 && !soundDetected) {
+                            log(`🔊 SOUND DETECTED! RMS: ${rms.toFixed(4)}`, 'success');
+                            soundDetected = true;
+                        }
+
+                        ws.send(i16.buffer);
+                    };
+
+                    // Connect audio graph
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const silent = audioContext.createGain();
+                    silent.gain.value = 0;
+                    source.connect(workletNode);
+                    workletNode.connect(silent).connect(audioContext.destination);
+                    log('✅ Audio graph connected', 'success');
+                    setStatus('Recording... Speak now!', 'success');
+                };
+
+                ws.onmessage = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.data);
+                        if (data.type === 'Connected') {
+                            log('✅ Deepgram connected', 'success');
+                        } else if (data.channel && data.channel.alternatives) {
+                            const transcript = data.channel.alternatives[0].transcript || '';
+                            const isFinal = !!data.is_final;
+                            if (transcript) {
+                                log(`📝 ${isFinal ? 'FINAL' : 'interim'}: "${transcript}"`, isFinal ? 'success' : 'info');
+                                if (isFinal) {
+                                    document.getElementById('transcript').innerHTML += transcript + ' ';
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        log(`❌ Parse error: ${err.message}`, 'error');
+                    }
+                };
+
+                ws.onerror = (ev) => {
+                    log(`❌ WebSocket error`, 'error');
+                    setStatus('WebSocket error!', 'error');
+                };
+
+                ws.onclose = (ev) => {
+                    log(`🔌 WebSocket closed: code=${ev.code}, reason=${ev.reason}`, 'info');
+                    setStatus('Recording stopped', 'info');
+                    isRecording = false;
+                };
+
+            } catch (err) {
+                log(`❌ Recording error: ${err.message}`, 'error');
+                setStatus('Recording failed!', 'error');
+                isRecording = false;
+            }
+        }
+
+        function stopRecording() {
+            log('⏹️ Stopping recording...', 'info');
+            isRecording = false;
+
+            if (workletNode) {
+                workletNode.disconnect();
+                workletNode = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+
+            log('✅ Recording stopped', 'success');
+            setStatus('Recording stopped', 'info');
+        }
+    </script>
+</body>
+</html>
+

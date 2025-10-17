@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Microphone Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        #meter { width: 500px; height: 50px; background: #eee; margin: 20px 0; position: relative; }
+        #bar { height: 100%; background: green; width: 0%; transition: width 0.1s; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Simple Microphone Test</h1>
+    <button onclick="startTest()">Start Test</button>
+    <button onclick="stopTest()">Stop Test</button>
+    
+    <h3>Audio Level:</h3>
+    <div id="meter"><div id="bar"></div></div>
+    
+    <h3>Status:</h3>
+    <div id="status">Click "Start Test" to begin</div>
+    
+    <h3>Logs:</h3>
+    <div id="logs" style="border: 1px solid #ccc; padding: 10px; min-height: 200px; font-family: monospace; font-size: 12px;"></div>
+
+    <script>
+        let stream = null;
+        let audioContext = null;
+        let processor = null;
+        let source = null;
+        let packetCount = 0;
+
+        function log(msg) {
+            const logs = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${time}] ${msg}<br>`;
+            logs.scrollTop = logs.scrollHeight;
+            console.log(msg);
+        }
+
+        async function startTest() {
+            try {
+                log('🎤 Requesting microphone...');
+                document.getElementById('status').textContent = 'Requesting microphone...';
+                
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+                
+                const track = stream.getAudioTracks()[0];
+                log(`✅ Microphone granted: ${track.label}`);
+                log(`📊 Settings: ${JSON.stringify(track.getSettings())}`);
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log(`🎙️ AudioContext created: SR=${audioContext.sampleRate}`);
+                
+                source = audioContext.createMediaStreamSource(stream);
+                processor = audioContext.createScriptProcessor(4096, 2, 1);
+                
+                packetCount = 0;
+                processor.onaudioprocess = (e) => {
+                    packetCount++;
+                    
+                    // Get audio data
+                    const left = e.inputBuffer.getChannelData(0);
+                    const right = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : left;
+                    
+                    // Mix to mono
+                    let sum = 0;
+                    for (let i = 0; i < left.length; i++) {
+                        const mono = (left[i] + right[i]) / 2;
+                        sum += mono * mono;
+                    }
+                    
+                    const rms = Math.sqrt(sum / left.length);
+                    const db = 20 * Math.log10(rms);
+                    
+                    // Update meter
+                    const percent = Math.min(100, Math.max(0, (db + 60) * 2));
+                    document.getElementById('bar').style.width = percent + '%';
+                    
+                    // Log periodically
+                    if (packetCount % 10 === 1) {
+                        log(`📊 Packet #${packetCount}: RMS=${rms.toFixed(6)}, dB=${db.toFixed(2)}`);
+                    }
+                    
+                    if (rms > 0.01) {
+                        log(`🔊 SOUND DETECTED! RMS=${rms.toFixed(4)}`);
+                    }
+                };
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                log('✅ Audio graph connected - speak now!');
+                document.getElementById('status').textContent = 'Recording... Speak into your microphone!';
+                document.getElementById('status').style.color = 'green';
+                
+            } catch (err) {
+                log(`❌ Error: ${err.message}`);
+                document.getElementById('status').textContent = `Error: ${err.message}`;
+                document.getElementById('status').style.color = 'red';
+            }
+        }
+
+        function stopTest() {
+            if (processor) {
+                processor.disconnect();
+                processor = null;
+            }
+            if (source) {
+                source.disconnect();
+                source = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            
+            document.getElementById('bar').style.width = '0%';
+            document.getElementById('status').textContent = 'Stopped';
+            document.getElementById('status').style.color = 'black';
+            log('⏹️ Test stopped');
+        }
+    </script>
+</body>
+</html>
+

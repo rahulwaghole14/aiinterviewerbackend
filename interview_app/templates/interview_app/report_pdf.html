@@ -8,52 +8,104 @@
             size: A4;
             margin: 1.5cm;
         }
+        * {
+            box-sizing: border-box;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
         body {
-            font-family: sans-serif;
+            font-family: 'Arial', 'Helvetica', sans-serif;
             font-size: 11px;
             color: #333;
+            line-height: 1.5;
+            max-width: 100%;
+            overflow-x: hidden;
         }
         h1, h2, h3, h4, h5 {
             color: #333;
             font-weight: bold;
+            word-wrap: break-word;
         }
         h1 {
             text-align: center;
-            border-bottom: 1px solid #eee;
+            border-bottom: 2px solid #333;
             padding-bottom: 10px;
             margin-bottom: 20px;
+            font-size: 20px;
+        }
+        h2 {
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
         }
         .section {
             margin-bottom: 20px;
-            border: 1px solid #eee;
+            border: 1px solid #ddd;
             padding: 15px;
             border-radius: 5px;
-            page-break-inside: avoid; /* Tries to keep sections from splitting across pages */
+            page-break-inside: avoid;
+            width: 100%;
+            max-width: 100%;
+        }
+        p {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            margin: 8px 0;
         }
         pre {
             white-space: pre-wrap;
-            font-family: monospace; /* Use a monospace font for code and logs */
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            font-family: 'Courier New', monospace;
             font-size: 9px;
             background-color: #f8f9fa;
             padding: 10px;
             border-radius: 4px;
             border: 1px solid #ddd;
+            max-width: 100%;
+            overflow-x: auto;
         }
         .chart-container {
             text-align: center;
-            margin-bottom: 20px;
+            margin: 20px 0;
+            page-break-inside: avoid;
         }
         .chart-container img {
-            max-width: 400px;
+            max-width: 100%;
+            width: 500px;
+            height: auto;
+        }
+        .charts-row {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+        .chart-item {
+            flex: 1;
+            min-width: 300px;
+            max-width: 450px;
+            margin: 10px;
         }
         ul {
             padding-left: 20px;
+            word-wrap: break-word;
+        }
+        li {
+            margin: 5px 0;
+            word-wrap: break-word;
         }
         .question-block {
             page-break-inside: avoid;
             margin-bottom: 15px;
             padding-top: 10px;
             border-top: 1px solid #eee;
+            word-wrap: break-word;
+            max-width: 100%;
         }
         .question-block:first-child {
             border-top: none;
@@ -64,10 +116,57 @@
             padding-left: 10px;
             margin-left: 15px;
             margin-top: 10px;
+            word-wrap: break-word;
         }
         .answer {
             font-style: italic;
             color: #555;
+            word-wrap: break-word;
+        }
+        .recommendation-section {
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 8px;
+            text-align: center;
+            page-break-inside: avoid;
+            border: 3px solid;
+        }
+        .recommendation-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .recommendation-percentage {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+        .metric-item {
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .metric-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -75,7 +174,49 @@
     <h1>Interview Report</h1>
     <p><strong>Candidate:</strong> {{ session.candidate_name }}</p>
     <p><strong>Session ID:</strong> {{ session.id }}</p>
-    <p><strong>Date:</strong> {{ session.created_at }}</p>
+    <p><strong>Date:</strong> {{ session.created_at|date:"F d, Y H:i" }}</p>
+
+    <!-- Performance Metrics Section -->
+    <div class="section">
+        <h2>Performance Metrics</h2>
+        <div class="metrics-grid">
+            <div class="metric-item">
+                <div class="metric-label">Grammar Score</div>
+                <div class="metric-value">{{ grammar_score }}%</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Technical Knowledge</div>
+                <div class="metric-value">{{ technical_knowledge }}%</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Coding Round</div>
+                <div class="metric-value">{{ coding_understanding }}%</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Technology Understanding</div>
+                <div class="metric-value">{{ tech_understanding }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="section">
+        <h2>Performance Analysis Charts</h2>
+        <div class="charts-row">
+            <div class="chart-item">
+                <h3 style="font-size: 14px; margin-bottom: 10px;">Skills Assessment</h3>
+                <div class="chart-container">
+                    <img src="{{ bar_chart_url }}" alt="Bar Chart - Grammar, Technical Knowledge, Coding Round">
+                </div>
+            </div>
+            <div class="chart-item">
+                <h3 style="font-size: 14px; margin-bottom: 10px;">Technology Understanding</h3>
+                <div class="chart-container">
+                    <img src="{{ pie_chart_url }}" alt="Pie Chart - Technology Understanding">
+                </div>
+            </div>
+        </div>
+    </div>
 
     {% if session.is_evaluated and session.language_code == 'en' %}
         <div class="section">
@@ -96,7 +237,11 @@
         <h2>Proctoring Warnings Summary</h2>
         {% if warning_counts %}
             <div class="chart-container">
-                <img src="{{ chart_url }}" alt="Proctoring Warnings Chart">
+                {% if chart_url|slice:":4" == "data" %}
+                    <img src="{{ chart_url }}" alt="Proctoring Warnings Chart">
+                {% else %}
+                    <img src="{{ chart_url }}" alt="Proctoring Warnings Chart">
+                {% endif %}
             </div>
             <ul>
                 {% for warning, count in warning_counts.items %}
@@ -113,13 +258,13 @@
         {% for main_question in main_questions_with_followups %}
             {% if main_question.question_type != 'CODING' %}
                 <div class="question-block">
-                    <h4>Q{{ main_question.order|add:1 }}: {{ main_question.question_text }}</h4>
-                    <p class="answer"><strong>Answer:</strong> {{ main_question.transcribed_answer|default:"No answer recorded." }}</p>
+                    <h4>Q{{ main_question.order|add:1 }}: {{ main_question.question_text|truncatewords:50 }}</h4>
+                    <p class="answer"><strong>Answer:</strong> {{ main_question.transcribed_answer|default:"No answer recorded."|truncatewords:200 }}</p>
                     
                     {% for follow_up in main_question.follow_ups.all %}
                         <div class="follow-up-question">
-                            <h5>Follow-Up: {{ follow_up.question_text }}</h5>
-                            <p class="answer"><strong>Answer:</strong> {{ follow_up.transcribed_answer|default:"No answer recorded." }}</p>
+                            <h5>Follow-Up: {{ follow_up.question_text|truncatewords:50 }}</h5>
+                            <p class="answer"><strong>Answer:</strong> {{ follow_up.transcribed_answer|default:"No answer recorded."|truncatewords:200 }}</p>
                         </div>
                     {% endfor %}
                 </div>
@@ -127,24 +272,53 @@
         {% endfor %}
     </div>
 
-    <!-- === NEW SECTION FOR CODING CHALLENGE SUBMISSIONS === -->
+    <!-- Coding Challenge Section -->
     {% if code_submissions %}
     <div class="section">
         <h2>Coding Challenge Submission(s)</h2>
         {% for submission in code_submissions %}
             <div class="question-block">
-                <h4>Challenge: {{ submission.question.question_text }}</h4>
+                <h4>Challenge: {{ submission.question.question_text|truncatewords:50 }}</h4>
                 <p class="answer"><strong>Language:</strong> {{ submission.language }}</p>
                 <p><strong>Submitted Code:</strong></p>
-                <pre>{{ submission.submitted_code|default:"No code was submitted." }}</pre>
+                <pre>{{ submission.submitted_code|default:"No code was submitted."|truncatewords:500 }}</pre>
                 
                 <p style="margin-top:15px;"><strong>Test Results & Output:</strong></p>
-                <pre>{{ submission.output_log|default:"Test results were not recorded." }}</pre>
+                <pre>{{ submission.output_log|default:"Test results were not recorded."|truncatewords:300 }}</pre>
             </div>
         {% endfor %}
     </div>
     {% endif %}
-    <!-- === END OF NEW SECTION === -->
+
+    <!-- Final Recommendation Section -->
+    <div class="recommendation-section" style="background-color: {{ recommendation_color }}20; border-color: {{ recommendation_color }};">
+        <div class="recommendation-title" style="color: {{ recommendation_color }};">
+            {{ recommendation }}
+        </div>
+        <div class="recommendation-percentage" style="color: {{ recommendation_color }};">
+            Overall Score: {{ overall_percentage|floatformat:1 }}%
+        </div>
+        <p style="font-size: 14px; color: #333; margin-top: 15px; font-weight: 500;">
+            Based on comprehensive evaluation of grammar, technical knowledge, coding performance, and technology understanding.
+        </p>
+        {% if overall_percentage >= 80 %}
+            <p style="font-size: 12px; color: #155724; margin-top: 10px;">
+                ✓ Excellent candidate with strong technical skills and communication abilities.
+            </p>
+        {% elif overall_percentage >= 65 %}
+            <p style="font-size: 12px; color: #0c5460; margin-top: 10px;">
+                ✓ Good candidate with solid foundation and potential for growth.
+            </p>
+        {% elif overall_percentage >= 50 %}
+            <p style="font-size: 12px; color: #856404; margin-top: 10px;">
+                ⚠ Candidate shows potential but may require additional training or mentoring.
+            </p>
+        {% else %}
+            <p style="font-size: 12px; color: #721c24; margin-top: 10px;">
+                ✗ Candidate does not meet the minimum requirements for this position.
+            </p>
+        {% endif %}
+    </div>
 
 </body>
 </html>

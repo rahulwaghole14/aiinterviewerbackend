@@ -148,7 +148,7 @@ class ChatSession:
     jd_text: str
     conversation_history: List[Dict[str, str]] = field(default_factory=list)
     current_question_number: int = 0
-    max_questions: int = 8
+    max_questions: int = 4
     is_completed: bool = False
     asked_for_questions: bool = False
     last_active_question_text: str = ""

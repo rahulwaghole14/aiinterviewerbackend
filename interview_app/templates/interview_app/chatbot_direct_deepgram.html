@@ -18,7 +18,7 @@ audio{width:100%;margin:10px 0;}
 <div class='container'>
   <h2 style='text-align:center;color:#333;margin-bottom:20px;'>🎤 AI Technical Interview</h2>
   <div class='progress'><div class='progress-fill' id='progressFill' style='width:0%'></div></div>
-  <div style='text-align:center;margin-bottom:20px;'><span id='progressText'>Question 1 of 8</span></div>
+  <div style='text-align:center;margin-bottom:20px;'><span id='progressText'>Question 1 of 4</span></div>
   <div class='status' id='st'>Initializing interview...</div>
   <div class='question' id='q'></div>
   <audio id='qa' controls style='display:none'></audio>
@@ -404,8 +404,8 @@ async function finalize(){
       console.log('⚠️ No question text, keeping previous question visible');
     }
     
-    document.getElementById('progressText').innerText='Question '+resp.question_number+' of 8';
-    document.getElementById('progressFill').style.width=((resp.question_number/8)*100)+'%';
+    document.getElementById('progressText').innerText='Question '+resp.question_number+' of '+(resp.max_questions || 4);
+    document.getElementById('progressFill').style.width=((resp.question_number/(resp.max_questions || 4))*100)+'%';
     
     if(resp.audio_url){
       document.getElementById('st').innerText='🔊 Playing next question...';

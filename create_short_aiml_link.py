@@ -52,6 +52,9 @@ Preferred Skills:
 """
 
 def main():
+    import sys
+    # Optional language at scheduling time, default PYTHON
+    coding_lang = (sys.argv[1].upper() if len(sys.argv) > 1 else 'PYTHON')
     # Generate clean session key
     session_key = secrets.token_hex(16)
     
@@ -68,6 +71,12 @@ def main():
         language_code='en-IN',
         accent_tld='co.in'
     )
+    # Store chosen coding language marker in a free-form field
+    try:
+        session.keyword_analysis = f"CODING_LANG={coding_lang}"
+        session.save()
+    except Exception:
+        pass
     
     print(f"Generated session key: {session_key}")
     print(f"✅ Created InterviewSession: {session.id}")
@@ -81,17 +90,19 @@ def main():
     print(f"Session ID: {session.id}")
     print(f"Session Key: {session_key}")
     print(f"Technical Voice Questions: 4")
-    print(f"Coding Questions: 2")
+    print(f"Coding Questions: 1")
     print(f"Scheduled At: {session.scheduled_at}")
     print(f"Status: {session.status}")
     print("=" * 70)
     print()
     print("Next step:")
-    print(f"  python generate_coding_questions.py {session_key} 2")
+    print(f"  Language selected at scheduling: {coding_lang}")
+    print(f"  (Override by URL param &lang=PYTHON if needed)")
     print("=" * 70)
     
     return session_key
 
 if __name__ == "__main__":
     session_key = main()
+
 

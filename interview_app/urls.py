@@ -6,6 +6,7 @@ from . import views
 urlpatterns = [
     # Existing URLs for the app
     path('invite/', views.create_interview_invite, name='create_invite'),
+    path('generate-link/', views.generate_interview_link, name='generate_interview_link'),
     path('', views.interview_portal, name='interview_portal'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('report/<uuid:session_id>/pdf/', views.download_report_pdf, name='download_report_pdf'),
@@ -14,10 +15,12 @@ urlpatterns = [
 
     # API Endpoints
     path('video_feed/', views.video_feed, name='video_feed'),
+    path('video_frame/', views.video_frame, name='video_frame'),
     path('status/', views.get_proctoring_status, name='get_proctoring_status'),
     path('report_tab_switch/', views.report_tab_switch, name='report_tab_switch'),
     path('transcribe/', views.transcribe_audio, name='transcribe_audio'),
     path('check_camera/', views.check_camera, name='check_camera'),
+    path('activate_proctoring/', views.activate_proctoring_camera, name='activate_proctoring_camera'),
     path('end_session/', views.end_interview_session, name='end_interview_session'),
     path('release_camera/', views.release_camera, name='release_camera'),
     path('verify_id/', views.verify_id, name='verify_id'),

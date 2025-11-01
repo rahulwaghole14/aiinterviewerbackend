@@ -34,7 +34,7 @@ class InterviewSession:
         self.candidate_name = candidate_name
         self.conversation_history = []
         self.current_question_number = 0
-        self.max_questions = 8
+        self.max_questions = 4
         self.is_completed = False
         self.jd_text = jd_text
         self.asked_for_questions = False

@@ -16,12 +16,17 @@ GEMINI_API_KEY = "AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Google Cloud TTS setup (exactly like app.py)
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "ringed-reach-471807-m3-cf0ec93e3257.json")
-if os.path.exists(GOOGLE_APPLICATION_CREDENTIALS):
+# Use absolute path from BASE_DIR
+credentials_path = os.path.join(settings.BASE_DIR, "ringed-reach-471807-m3-cf0ec93e3257.json")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", credentials_path)
+if os.path.exists(credentials_path):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+    print(f"✅ Google Cloud TTS credentials set to: {credentials_path}")
+elif os.path.exists(GOOGLE_APPLICATION_CREDENTIALS):
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS
     print(f"✅ Google Cloud TTS credentials set to: {GOOGLE_APPLICATION_CREDENTIALS}")
 else:
-    print(f"⚠️ Google Cloud TTS credentials not found at: {GOOGLE_APPLICATION_CREDENTIALS}")
+    print(f"⚠️ Google Cloud TTS credentials not found at: {credentials_path} or {GOOGLE_APPLICATION_CREDENTIALS}")
 
 # Import Google Cloud TTS (exactly like app.py)
 try:
@@ -109,7 +114,7 @@ class InterviewSession:
         self.candidate_name = candidate_name
         self.conversation_history = []
         self.current_question_number = 0
-        self.max_questions = 8
+        self.max_questions = 4
         self.is_completed = False
         self.jd_text = jd_text
         self.asked_for_questions = False
@@ -413,6 +418,15 @@ def text_to_speech(text, filename):
             print("⚠️ TTS library not available - skipping audio")
             return ""
 
+        # Ensure Google Cloud credentials are set
+        credentials_path = os.path.join(settings.BASE_DIR, "ringed-reach-471807-m3-cf0ec93e3257.json")
+        if os.path.exists(credentials_path):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+            print(f"✅ Google Cloud credentials set: {credentials_path}")
+        else:
+            print(f"❌ Google Cloud credentials not found: {credentials_path}")
+            # Still try to proceed in case credentials are set via environment variable
+
         client = texttospeech.TextToSpeechClient()
         synthesis_input = texttospeech.SynthesisInput(text=text)
         audio_config = texttospeech.AudioConfig(
@@ -465,15 +479,26 @@ def text_to_speech(text, filename):
         with open(audio_path, "wb") as out:
             out.write(response.audio_content)
         
+        # Verify file was created
+        if not os.path.exists(audio_path):
+            print(f"❌ TTS audio file not created at: {audio_path}")
+            return ""
+        
+        file_size = os.path.getsize(audio_path)
+        if file_size == 0:
+            print(f"❌ TTS audio file is empty (0 bytes): {audio_path}")
+            return ""
+        
         # Return URL for Django media serving
         audio_url = f"{settings.MEDIA_URL}ai_uploads/{filename}"
-        print(f"✅ TTS audio generated: {audio_url}")
+        print(f"✅ TTS audio generated successfully: {audio_url} (size: {file_size} bytes)")
         return audio_url
     except Exception as e:
         print(f"❌ Google Cloud TTS error: {e}")
         import traceback
         traceback.print_exc()
-        # Graceful fallback: return empty (clients will handle text-only mode)
+        # Don't fail silently - return empty string so frontend can handle gracefully
+        print(f"⚠️ Returning empty audio_url - frontend will handle text-only mode")
         return ""
 
 

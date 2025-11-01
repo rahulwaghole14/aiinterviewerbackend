@@ -3,6 +3,11 @@ import threading
 import cv2
 import numpy as np
 from dataclasses import dataclass
+import torch
+from datetime import datetime
+import os
+from django.conf import settings
+from interview_app_11.models import InterviewSession, WarningLog
 
 
 @dataclass
@@ -51,6 +56,9 @@ class RealVideoCamera:
         self._frame_thread = None
         self._running = False
         
+        # Load YOLOv8n model
+        self.yolo_model = torch.hub.load('ultralytics/yolov5', 'yolov8n', pretrained=True)
+
         # Start frame capture thread
         self._start_frame_capture()
 
@@ -83,6 +91,31 @@ class RealVideoCamera:
                     with self._frame_lock:
                         self._latest_frame = frame.copy()
                     frame_count += 1
+
+                    # --- YOLO FRAME ANALYSIS ---
+                    results = self.yolo_model(frame)
+                    labels = [self.yolo_model.names[int(cls)] for cls in results.pred[0][:, -1]] if len(results.pred) > 0 else []
+                    warning = None
+                    if labels.count('person') > 1:
+                        warning = 'multiple_people'
+                    elif 'person' not in labels:
+                        warning = 'no_person'
+                    elif 'cell phone' in labels or 'mobile phone' in labels:
+                        warning = 'phone_detected'
+                    if warning:
+                        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        fname = f"{self.session_id}_{warning}_{ts}.jpg"
+                        img_dir = os.path.join(settings.MEDIA_ROOT, "proctoring_snaps")
+                        os.makedirs(img_dir, exist_ok=True)
+                        img_path = os.path.join(img_dir, fname)
+                        cv2.imwrite(img_path, frame)
+                        try:
+                            session = InterviewSession.objects.get(id=self.session_id)
+                            WarningLog.objects.create(session=session, warning_type=warning, snapshot=fname)
+                        except Exception as e:
+                            print("[Proctoring] Failed to log warning:", e)
+                        self._last_warning_state[warning] = True
+                        threading.Timer(2, lambda: self._last_warning_state.update({warning: False})).start()
                     if frame_count % 30 == 1:  # Log every 30th frame
                         print(f"📹 Captured frame #{frame_count} for session {self.session_id}")
                 else:

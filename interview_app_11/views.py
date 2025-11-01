@@ -1078,11 +1078,31 @@ def verify_id(request):
 # --- Multi-Language Code Execution Logic (Windows Compatible) ---
 def run_subprocess_windows(command, cwd=None, input_data=None):
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=15, cwd=cwd, input=input_data)
+        start = time.time()
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=cwd,
+            input=input_data
+        )
+        print(f"Run Code: Command finished in {time.time() - start:.2f} seconds.")
         return result
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as ex:
+        print(f"Run Code: TIMEOUT! Attempting to kill stray child processes.")
+        import os
+        current_pid = os.getpid()
+        for p in psutil.process_iter(["pid", "name", "cmdline", "create_time"]):
+            if (p.info["pid"] != current_pid and (("python" in (p.info["name"] or "").lower()) or ("node" in (p.info["name"] or "").lower()))):
+                try:
+                    p.terminate()
+                    p.wait(timeout=2)
+                except Exception as kill_ex:
+                    print(f"Could not kill process {p.info['pid']}: {kill_ex}")
         return subprocess.CompletedProcess(command, 1, stdout=None, stderr="Execution timed out.")
     except Exception as e:
+        print(f"Run Code: Unexpected error: {e}")
         return subprocess.CompletedProcess(command, 1, stdout=None, stderr=f"Server execution error: {str(e)}")
 
 def execute_python_windows(code, test_input):

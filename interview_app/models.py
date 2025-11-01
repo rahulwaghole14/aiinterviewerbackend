@@ -40,6 +40,7 @@ class WarningLog(models.Model):
     session = models.ForeignKey(InterviewSession, related_name='logs', on_delete=models.CASCADE)
     warning_type = models.CharField(max_length=50)
     timestamp = models.DateTimeField(auto_now_add=True)
+    snapshot = models.CharField(max_length=255, null=True, blank=True, help_text="Filename of the snapshot image captured when warning occurred")
 
     def __str__(self):
         return f"Warning ({self.warning_type}) for {self.session.candidate_name}"

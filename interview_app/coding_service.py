@@ -201,39 +201,49 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
 
 def execute_python_code(code: str, test_input: str = None):
     """
-    Execute Python code safely with test input
+    Execute Python code safely with test input.
+    Handles both function-based and class-based code.
     Returns: (stdout, stderr, passed)
     """
+    import re
+    
     try:
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            # Add test input handling if provided
-            if test_input:
-                code_with_input = f"""
-{code}
-
-# Test execution
-if __name__ == "__main__":
-    test_input = {repr(test_input)}
-    result = solution(test_input) if 'solution' in dir() else None
-    print(result if result is not None else '')
-"""
-            else:
-                code_with_input = code
-            
-            f.write(code_with_input)
-            temp_file = f.name
+        # Check if code contains a class definition (for OOP questions)
+        class_match = re.search(r'class\s+(\w+)', code)
         
-        # Execute the code
+        if class_match and test_input:
+            # Class-based code: test_input should be executable Python code
+            # Example: "finder = MedianFinder(); finder.addNum(1); finder.findMedian()"
+            # Split by semicolon, execute all but last, then print the result of the last
+            statements = [s.strip() for s in test_input.split(';') if s.strip()]
+            if len(statements) > 1:
+                # Execute all statements except the last
+                setup = '\n'.join(statements[:-1])
+                # Print the result of the last statement
+                full_script = f"{code}\n{setup}\nprint({statements[-1]})"
+            else:
+                # Single statement - just execute and print
+                full_script = f"{code}\nprint({test_input})"
+        elif test_input:
+            # Function-based code: find function name and call it
+            function_match = re.search(r'def\s+(\w+)\s*\(', code)
+            if function_match:
+                function_name = function_match.group(1)
+                full_script = f"{code}\nprint({function_name}({test_input}))"
+            else:
+                # Fallback to 'solution' or 'solve' function
+                full_script = f"{code}\nresult = solution({test_input}) if 'solution' in dir() else solve({test_input})\nprint(result)"
+        else:
+            # No test input - just execute the code
+            full_script = code
+        
+        # Execute using python -c for faster execution
         result = subprocess.run(
-            ['python', temp_file],
+            ['python', '-c', full_script],
             capture_output=True,
             text=True,
             timeout=5  # 5 second timeout
         )
-        
-        # Clean up
-        os.unlink(temp_file)
         
         return result.stdout.strip(), result.stderr.strip(), result.returncode == 0
         
@@ -295,33 +305,55 @@ def evaluate_code_with_gemini(code: str, question: str, test_results: list):
         passed_tests = sum(1 for r in test_results if r['passed'])
         total_tests = len(test_results)
         
+        # Prepare detailed test results
+        test_details = ""
+        for i, result in enumerate(test_results[:5]):  # Show first 5 test cases
+            status = "✅ PASSED" if result['passed'] else "❌ FAILED"
+            test_details += f"\nTest Case {result['test_case']}: {status}\n"
+            test_details += f"  Input: {result['input']}\n"
+            test_details += f"  Expected: {result['expected']}\n"
+            test_details += f"  Actual: {result['actual']}\n"
+            if result.get('error'):
+                test_details += f"  Error: Yes\n"
+        
         prompt = f"""
-        You are an expert code reviewer. Evaluate the following code submission:
+        You are an expert code reviewer and technical interviewer. Evaluate this coding challenge submission:
         
-        Problem: {question}
+        PROBLEM STATEMENT:
+        {question[:500]}
         
-        Submitted Code:
+        SUBMITTED CODE:
         ```python
         {code}
         ```
         
-        Test Results: {passed_tests}/{total_tests} tests passed
+        TEST RESULTS: {passed_tests}/{total_tests} tests passed
+        {test_details}
         
-        Provide:
-        1. Code Quality Score (0-100)
-        2. Strengths (2-3 points)
-        3. Areas for Improvement (2-3 points)
-        4. Overall Feedback (2-3 sentences)
+        EVALUATION CRITERIA:
+        1. Correctness: Does it solve the problem? Are test cases passing?
+        2. Code Quality: Clean, readable, well-structured code?
+        3. Efficiency: Time and space complexity appropriate?
+        4. Error Handling: Edge cases handled?
+        5. Best Practices: Follows Python conventions?
         
-        Format as:
+        Provide a comprehensive evaluation in this EXACT format:
+        
         Score: [0-100]
+        
         Strengths:
-        - [strength 1]
-        - [strength 2]
+        - [specific strength 1]
+        - [specific strength 2]
+        - [specific strength 3 if applicable]
+        
         Areas for Improvement:
-        - [improvement 1]
-        - [improvement 2]
-        Feedback: [overall feedback]
+        - [specific improvement 1]
+        - [specific improvement 2]
+        - [specific improvement 3 if applicable]
+        
+        Feedback: [2-3 sentences of overall assessment focusing on correctness, code quality, and approach]
+        
+        Be specific and constructive. If test cases failed, explain WHY and how to fix it.
         """
         
         response = model.generate_content(prompt)

@@ -7,3 +7,24 @@ __pycache__/
 .DS_Store
 venv/
 
+# Database
+*.sqlite3
+*.db
+
+# Media files
+media/
+!media/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+

@@ -210,6 +210,102 @@ def create_interview_invite(request):
 
     return render(request, 'interview_app/create_invite.html', {'languages': SUPPORTED_LANGUAGES})
 
+@login_required
+def generate_interview_link(request):
+    """Generate an interview link for a candidate."""
+    if request.method == 'POST':
+        candidate_name = request.POST.get('candidate_name', '').strip()
+        candidate_email = request.POST.get('candidate_email', '').strip()
+        job_description = request.POST.get('job_description', '').strip()
+        resume_text = request.POST.get('resume_text', '').strip()
+        scheduled_at_str = request.POST.get('scheduled_at', '')
+        language_code = request.POST.get('language_code', 'en')
+        accent_tld = request.POST.get('accent_tld', 'com')
+        
+        # Validate required fields
+        if not candidate_name or not candidate_email:
+            return JsonResponse({
+                'success': False,
+                'error': 'Candidate name and email are required'
+            }, status=400)
+        
+        # Handle scheduled_at
+        scheduled_at = None
+        if scheduled_at_str:
+            try:
+                ist = pytz.timezone('Asia/Kolkata')
+                naive_datetime = datetime.strptime(scheduled_at_str, '%Y-%m-%dT%H:%M')
+                scheduled_at = ist.localize(naive_datetime)
+            except (ValueError, pytz.exceptions.InvalidTimeError):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid date and time format. Use YYYY-MM-DDTHH:MM'
+                }, status=400)
+        else:
+            # If no scheduled time provided, schedule for now
+            scheduled_at = timezone.now()
+        
+        # Create interview session
+        try:
+            session = InterviewSession.objects.create(
+                candidate_name=candidate_name,
+                candidate_email=candidate_email,
+                job_description=job_description or "Technical Role",
+                resume_text=resume_text or "Experienced professional seeking new opportunities.",
+                scheduled_at=scheduled_at,
+                language_code=language_code,
+                accent_tld=accent_tld,
+                status='SCHEDULED'
+            )
+            
+            # Generate interview link
+            base_url = request.build_absolute_uri('/')
+            interview_link = f"{base_url}?session_key={session.session_key}"
+            
+            return JsonResponse({
+                'success': True,
+                'interview_link': interview_link,
+                'session_key': session.session_key,
+                'session_id': str(session.id),
+                'candidate_name': session.candidate_name,
+                'candidate_email': session.candidate_email,
+                'scheduled_at': session.scheduled_at.isoformat() if session.scheduled_at else None,
+                'status': session.status
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Failed to create interview session: {str(e)}'
+            }, status=500)
+    
+    # GET request - show form or return instructions
+    if request.headers.get('Accept') == 'application/json':
+        return JsonResponse({
+            'success': False,
+            'error': 'POST request required',
+            'instructions': {
+                'method': 'POST',
+                'required_fields': ['candidate_name', 'candidate_email'],
+                'optional_fields': ['job_description', 'resume_text', 'scheduled_at', 'language_code', 'accent_tld'],
+                'scheduled_at_format': 'YYYY-MM-DDTHH:MM (e.g., 2024-12-25T14:30)',
+                'example': {
+                    'candidate_name': 'John Doe',
+                    'candidate_email': 'john@example.com',
+                    'job_description': 'Software Engineer position...',
+                    'resume_text': 'John has 5 years of experience...',
+                    'scheduled_at': '2024-12-25T14:30',
+                    'language_code': 'en',
+                    'accent_tld': 'com'
+                }
+            }
+        })
+    
+    # Render HTML form if GET request
+    return render(request, 'interview_app/generate_link.html', {
+        'languages': SUPPORTED_LANGUAGES
+    })
+
 def synthesize_speech(text, lang_code, accent_tld, output_path):
     """Use ONLY Google Cloud TTS - no fallback to gTTS"""
     if texttospeech is None:
@@ -255,7 +351,7 @@ def synthesize_speech(text, lang_code, accent_tld, output_path):
         
         print(f"✅ Google Cloud TTS: Audio saved to {output_path}")
         return
-        
+    
     except Exception as e:
         print(f"❌ Google Cloud TTS failed: {e}")
         raise Exception(f"Google Cloud TTS failed: {e}")
@@ -370,22 +466,171 @@ def interview_portal(request):
                 question_lines = q.question_text.split('\n')
                 title = question_lines[0][:80] if question_lines else q.question_text[:80]
                 
+                # Get starter_code from hardcoded_map if available, otherwise use default
+                lang = q.coding_language or 'PYTHON'
+                starter_code = f'def solution(input_data):\n    # Your code here\n    pass'
+                
+                # Try to match with hardcoded questions to get proper starter_code
+                hardcoded_starter_map = {
+                    'PYTHON': 'def reverse_string(s: str) -> str:\n    # TODO: implement\n    pass',
+                    'JAVASCRIPT': 'function reverseString(s){\n  // TODO\n}\nmodule.exports = reverseString;',
+                    'JAVA': 'public class Solution {\n  public static int add(int a,int b){\n    // TODO\n    return 0;\n  }\n}',
+                    'PHP': '<?php\nfunction reverse_string($s){\n  // TODO\n}\n?>',
+                    'C': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                    'CPP': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                    'GO': 'package main\nfunc Reverse(s string) string {\n  // TODO\n  return ""\n}',
+                    'HTML': '<!-- return <h1>Hello</h1> -->'
+                }
+                if lang in hardcoded_starter_map:
+                    starter_code = hardcoded_starter_map[lang]
+                
                 coding_q = {
                     'id': str(q.id),
                     'type': q.question_type,
                     'title': title,
                     'description': q.question_text,
-                    'language': q.coding_language or 'PYTHON',
-                    'starter_code': f'def solution(input_data):\n    # Your code here\n    pass',
+                    'language': lang,
+                    'starter_code': starter_code,
                     'test_cases': test_cases_data
                 }
                 coding_questions.append(coding_q)
-                print(f"DEBUG: Loaded coding question: {title[:50]}... with {len(test_cases_data)} test cases")
+                print(f"DEBUG: Loaded coding question: {title[:50]}... with {len(test_cases_data)} test cases, lang: {lang}")
             
             if coding_questions:
-                print(f"✅ Loaded {len(coding_questions)} Gemini-generated coding questions from database")
+                print(f"✅ Loaded {len(coding_questions)} coding questions from database")
             else:
-                print(f"⚠️ No coding questions found. Run: python generate_coding_questions.py {session.session_key} 2")
+                print(f"⚠️ No coding questions found. Creating hardcoded question...")
+                # Create hardcoded question if none exist
+                # Determine language from session or URL param
+                allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'}
+                requested_lang = None
+                try:
+                    if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                        requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                except Exception:
+                    requested_lang = None
+                if not requested_lang:
+                    requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
+                if requested_lang not in allowed_langs:
+                    requested_lang = 'PYTHON'
+                
+                # Import hardcoded map
+                hardcoded_map = {
+                    'PYTHON': {
+                        'title': 'Reverse a String',
+                        'description': 'Write a function reverse_string(s: str) -> str that returns the reversed string.',
+                        'language': 'PYTHON',
+                        'starter_code': 'def reverse_string(s: str) -> str:\n    # TODO: implement\n    pass',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'JAVASCRIPT': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement function reverseString(s) that returns the reversed string.',
+                        'language': 'JAVASCRIPT',
+                        'starter_code': 'function reverseString(s){\n  // TODO\n}\nmodule.exports = reverseString;',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'JAVA': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Implement a static method add(int a, int b) that returns a+b.',
+                        'language': 'JAVA',
+                        'starter_code': 'public class Solution {\n  public static int add(int a,int b){\n    // TODO\n    return 0;\n  }\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'PHP': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement function reverse_string($s) that returns the reversed string.',
+                        'language': 'PHP',
+                        'starter_code': '<?php\nfunction reverse_string($s){\n  // TODO\n}\n?>',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'C': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Write a function int add(int a,int b) that returns a+b.',
+                        'language': 'C',
+                        'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'CPP': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Implement int add(int a,int b) that returns a+b.',
+                        'language': 'CPP',
+                        'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'GO': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement func Reverse(s string) string that returns the reversed string.',
+                        'language': 'GO',
+                        'starter_code': 'package main\nfunc Reverse(s string) string {\n  // TODO\n  return ""\n}',
+                        'test_cases': [
+                            {'input': '"hello"', 'expected_output': 'olleh'},
+                            {'input': '""', 'expected_output': ''},
+                            {'input': '"abc"', 'expected_output': 'cba'}
+                        ]
+                    },
+                    'HTML': {
+                        'title': 'Simple Heading',
+                        'description': 'Return an HTML string with an <h1>Hello</h1> element.',
+                        'language': 'HTML',
+                        'starter_code': '<!-- return <h1>Hello</h1> -->',
+                        'test_cases': [
+                            {'input': 'n/a', 'expected_output': '<h1>Hello</h1>'}
+                        ]
+                    }
+                }
+                
+                coding_questions = [hardcoded_map[requested_lang]]
+                
+                # Save to database
+                for i, coding_q in enumerate(coding_questions):
+                    coding_question_obj = InterviewQuestion.objects.create(
+                        session=session,
+                        question_text=coding_q['description'],
+                        question_type='CODING',
+                        coding_language=coding_q['language'],
+                        order=(len(all_questions) + i) if all_questions else i,
+                        question_level='MAIN'
+                    )
+                    # Attach test cases
+                    try:
+                        from .models import TestCase
+                        if TestCase and coding_q.get('test_cases'):
+                            for tc in coding_q['test_cases']:
+                                TestCase.objects.create(
+                                    question=coding_question_obj,
+                                    input_data=str(tc.get('input', '')),
+                                    expected_output=str(tc.get('expected_output', ''))
+                                )
+                    except Exception as e:
+                        print(f"⚠️ Error creating test cases: {e}")
+                    # Update ID
+                    coding_q['id'] = str(coding_question_obj.id)
+                print(f"✅ Created hardcoded coding question ({requested_lang}) with ID: {coding_q['id']}")
             
             # Check if we need to generate new questions
             print(f"DEBUG: generate_new_questions flag: {generate_new_questions if 'generate_new_questions' in locals() else 'NOT SET'}")
@@ -506,9 +751,115 @@ def interview_portal(request):
                     if session.interview.job.domain:
                         domain_name = session.interview.job.domain.name
                 
-                # Use Gemini API for dynamic question generation
-                from interview_app_11.gemini_question_generator import get_coding_questions_from_gemini
-                coding_questions = get_coding_questions_from_gemini(job_title, domain_name)
+                # HARD-CODED SINGLE CODING QUESTION PER LANGUAGE (no Gemini)
+                # Allow selecting language via ?lang=PYTHON (defaults to PYTHON)
+                allowed_langs = {
+                    'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'
+                }
+                # Prioritize language chosen at scheduling time if stored
+                requested_lang = None
+                try:
+                    if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                        requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                except Exception:
+                    requested_lang = None
+                if not requested_lang:
+                    requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
+                if requested_lang not in allowed_langs:
+                    requested_lang = 'PYTHON'
+
+                # Define one question with test cases per language
+                hardcoded_map = {
+                    'PYTHON': {
+                        'title': 'Reverse a String',
+                        'description': 'Write a function reverse_string(s: str) -> str that returns the reversed string.',
+                        'language': 'PYTHON',
+                        'starter_code': 'def reverse_string(s: str) -> str:\n    # TODO: implement\n    pass',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'JAVASCRIPT': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement function reverseString(s) that returns the reversed string.',
+                        'language': 'JAVASCRIPT',
+                        'starter_code': 'function reverseString(s){\n  // TODO\n}\nmodule.exports = reverseString;',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'JAVA': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Implement a static method add(int a, int b) that returns a+b.',
+                        'language': 'JAVA',
+                        'starter_code': 'public class Solution {\n  public static int add(int a,int b){\n    // TODO\n    return 0;\n  }\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'PHP': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement function reverse_string($s) that returns the reversed string.',
+                        'language': 'PHP',
+                        'starter_code': '<?php\nfunction reverse_string($s){\n  // TODO\n}\n?>',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'C': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Write a function int add(int a,int b) that returns a+b.',
+                        'language': 'C',
+                        'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'CPP': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Implement int add(int a,int b) that returns a+b.',
+                        'language': 'CPP',
+                        'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'GO': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement func Reverse(s string) string that returns the reversed string.',
+                        'language': 'GO',
+                        'starter_code': 'package main\nfunc Reverse(s string) string {\n  // TODO\n  return ""\n}',
+                        'test_cases': [
+                            {'input': '"hello"', 'expected_output': 'olleh'},
+                            {'input': '""', 'expected_output': ''},
+                            {'input': '"abc"', 'expected_output': 'cba'}
+                        ]
+                    },
+                    'HTML': {
+                        'title': 'Simple Heading',
+                        'description': 'Return an HTML string with an <h1>Hello</h1> element.',
+                        'language': 'HTML',
+                        'starter_code': '<!-- return <h1>Hello</h1> -->',
+                        'test_cases': [
+                            {'input': 'n/a', 'expected_output': '<h1>Hello</h1>'}
+                        ]
+                    }
+                }
+
+                # Enforce exactly one coding question
+                coding_questions = [hardcoded_map[requested_lang]]
             if not all_questions: raise ValueError("No questions were generated or parsed.")
             if all_questions and "welcome" in all_questions[0]['text'].lower():
                 all_questions[0]['type'] = 'Ice-Breaker'
@@ -528,8 +879,14 @@ def interview_portal(request):
                     question_level='MAIN'
                 )
             
-            # Save coding questions to database and update coding_questions_data with real IDs
-            for i, coding_q in enumerate(coding_questions):
+            # Ensure no duplicate coding questions remain from previous runs
+            try:
+                session.questions.filter(question_type='CODING').delete()
+            except Exception:
+                pass
+
+            # Save coding questions (single) to database and attach test cases
+            for i, coding_q in enumerate(coding_questions[:1]):
                 coding_question_obj = InterviewQuestion.objects.create(
                     session=session,
                     question_text=coding_q['description'],
@@ -538,6 +895,21 @@ def interview_portal(request):
                     order=len(all_questions) + i,
                     question_level='MAIN'
                 )
+                # Attach test cases
+                try:
+                    from .models import TestCase
+                except Exception:
+                    TestCase = None
+                if TestCase and coding_q.get('test_cases'):
+                    for tc in coding_q['test_cases']:
+                        try:
+                            TestCase.objects.create(
+                                question=coding_question_obj,
+                                input_data=str(tc.get('input', '')),
+                                expected_output=str(tc.get('expected_output', ''))
+                            )
+                        except Exception:
+                            pass
                 # Update the coding_questions_data with the real database ID
                 coding_q['id'] = str(coding_question_obj.id)
         
@@ -577,7 +949,7 @@ def interview_portal(request):
                 'interview_started': True,
             }
             return render(request, 'interview_app/portal.html', context)
-        except Exception:
+        except Exception as e:
             import traceback
             traceback.print_exc()
             return HttpResponse(f"An API or processing error occurred: {str(e)}", status=500)
@@ -788,20 +1160,226 @@ def download_report_pdf(request, session_id):
         # 4. Fetch all CODING challenge submissions. This was the missing piece.
         code_submissions = session.code_submissions.all()
 
+        # 5. Calculate metrics for charts
+        # Grammar score (estimated from answers - assume good grammar if answers exist, can be refined)
+        grammar_score = min(100, max(0, (session.answers_score or 0) * 10 + 20)) if session.answers_score else 70
+        
+        # Technical knowledge (from answers_score converted to percentage)
+        technical_knowledge = min(100, max(0, (session.answers_score or 0) * 10)) if session.answers_score else 50
+        
+        # Coding round understanding (calculate from code submissions)
+        coding_understanding = 0
+        if code_submissions.exists():
+            total_tests = 0
+            passed_tests = 0
+            for submission in code_submissions:
+                # Parse test results from output_log
+                if submission.output_log:
+                    test_matches = re.findall(r'(\d+)/(\d+)', submission.output_log)
+                    if test_matches:
+                        for passed, total in test_matches:
+                            passed_tests += int(passed)
+                            total_tests += int(total)
+                    else:
+                        # If no test results, check if there's any success indicator
+                        if 'passed' in submission.output_log.lower() or 'success' in submission.output_log.lower():
+                            coding_understanding = 70
+                        else:
+                            coding_understanding = 40
+            if total_tests > 0:
+                coding_understanding = min(100, int((passed_tests / total_tests) * 100))
+            elif coding_understanding == 0:
+                coding_understanding = 60  # Default if code was submitted but no test results
+        else:
+            coding_understanding = 0  # No code submitted
+        
+        # Technology understanding (calculate from technical questions)
+        tech_questions_count = main_questions_with_followups.filter(question_type='TECHNICAL').count()
+        tech_understanding = min(100, max(0, (tech_questions_count / 5) * 100)) if tech_questions_count > 0 else 50
+        
+        # Determine recommendation
+        overall_percentage = (grammar_score * 0.2 + technical_knowledge * 0.4 + coding_understanding * 0.3 + tech_understanding * 0.1)
+        if overall_percentage >= 80:
+            recommendation = "STRONGLY RECOMMENDED"
+            recommendation_color = "#28a745"  # Green
+        elif overall_percentage >= 65:
+            recommendation = "RECOMMENDED"
+            recommendation_color = "#17a2b8"  # Blue
+        elif overall_percentage >= 50:
+            recommendation = "CONDITIONAL RECOMMENDATION"
+            recommendation_color = "#ffc107"  # Yellow
+        else:
+            recommendation = "NOT RECOMMENDED"
+            recommendation_color = "#dc3545"  # Red
+        
+        # Generate Bar Chart for Grammar, Technical Knowledge, Coding Round
+        bar_chart_config = {
+            'type': 'bar',
+            'data': {
+                'labels': ['Grammar', 'Technical Knowledge', 'Coding Round'],
+                'datasets': [{
+                    'label': 'Score (%)',
+                    'data': [grammar_score, technical_knowledge, coding_understanding],
+                    'backgroundColor': ['#3498db', '#9b59b6', '#e74c3c'],
+                    'borderColor': ['#2980b9', '#8e44ad', '#c0392b'],
+                    'borderWidth': 2
+                }]
+            },
+            'options': {
+                'scales': {
+                    'y': {
+                        'beginAtZero': True,
+                        'max': 100,
+                        'ticks': {
+                            'callback': "function(value) { return value + '%'; }"
+                        }
+                    }
+                },
+                'plugins': {
+                    'legend': {
+                        'display': False
+                    }
+                }
+            }
+        }
+        bar_chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(bar_chart_config))}"
+        
+        # Generate Pie Chart for Technology Understanding
+        pie_chart_config = {
+            'type': 'pie',
+            'data': {
+                'labels': ['Technology Understanding', 'Remaining'],
+                'datasets': [{
+                    'data': [tech_understanding, 100 - tech_understanding],
+                    'backgroundColor': ['#27ae60', '#ecf0f1'],
+                    'borderWidth': 2
+                }]
+            },
+            'options': {
+                'plugins': {
+                    'legend': {
+                        'position': 'bottom'
+                    },
+                    'tooltip': {
+                        'callbacks': {
+                            'label': "function(context) { return context.label + ': ' + context.parsed + '%'; }"
+                        }
+                    }
+                }
+            }
+        }
+        pie_chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(pie_chart_config))}"
+
         # 5. Assemble the complete context dictionary to be passed to the template.
         context = { 
             'session': session, 
             'main_questions_with_followups': main_questions_with_followups,
             'code_submissions': code_submissions,
             'warning_counts': dict(warning_counts), 
-            'chart_url': chart_url 
+            'chart_url': chart_url,
+            'grammar_score': grammar_score,
+            'technical_knowledge': technical_knowledge,
+            'coding_understanding': coding_understanding,
+            'tech_understanding': tech_understanding,
+            'bar_chart_url': bar_chart_url,
+            'pie_chart_url': pie_chart_url,
+            'recommendation': recommendation,
+            'recommendation_color': recommendation_color,
+            'overall_percentage': overall_percentage
         }
         
+        # 6. Download chart images and convert to base64 to avoid WeasyPrint network delays
+        try:
+            import requests
+        except ImportError:
+            print("⚠️ requests library not available, charts may load slowly")
+            requests = None
+        
+        def download_chart_to_base64(url, timeout=5):
+            """Download chart image and convert to base64 data URI"""
+            if not requests:
+                # If requests not available, return original URL (WeasyPrint will fetch it)
+                return url
+            try:
+                response = requests.get(url, timeout=timeout, stream=True)
+                response.raise_for_status()
+                img_data = response.content
+                img_base64 = base64.b64encode(img_data).decode('utf-8')
+                content_type = response.headers.get('Content-Type', 'image/png')
+                return f"data:{content_type};base64,{img_base64}"
+            except requests.exceptions.Timeout:
+                print(f"⚠️ Chart download timed out: {url}")
+                return url  # Return original URL as fallback
+            except Exception as e:
+                print(f"⚠️ Failed to download chart from {url}: {e}")
+                return url  # Return original URL as fallback
+        
+        # Download all chart images before rendering (with shorter timeout for faster failover)
+        # Use concurrent downloads to speed up the process
+        import concurrent.futures
+        print("📥 Downloading chart images (max 3s each, concurrent)...")
+        chart_urls_to_download = []
+        if chart_url:
+            chart_urls_to_download.append(('chart_url', chart_url))
+        if bar_chart_url:
+            chart_urls_to_download.append(('bar_chart_url', bar_chart_url))
+        if pie_chart_url:
+            chart_urls_to_download.append(('pie_chart_url', pie_chart_url))
+        
+        chart_results = {}
+        if chart_urls_to_download and requests:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_name = {
+                    executor.submit(download_chart_to_base64, url, timeout=3): name 
+                    for name, url in chart_urls_to_download
+                }
+                for future in concurrent.futures.as_completed(future_to_name, timeout=10):
+                    name = future_to_name[future]
+                    try:
+                        chart_results[name] = future.result()
+                    except Exception as e:
+                        print(f"⚠️ Chart download failed for {name}: {e}")
+                        # Fallback to original URL
+                        original_url = next((url for n, url in chart_urls_to_download if n == name), None)
+                        chart_results[name] = original_url if original_url else None
+        else:
+            # Fallback: sequential downloads or use original URLs
+            for name, url in chart_urls_to_download:
+                chart_results[name] = download_chart_to_base64(url, timeout=3) if requests else url
+        
+        print("✅ Chart downloads complete")
+        
+        # Update context with downloaded images (base64) or original URLs
+        context['chart_url'] = chart_results.get('chart_url', chart_url) if 'chart_url' in chart_results else chart_url
+        context['bar_chart_url'] = chart_results.get('bar_chart_url', bar_chart_url) if 'bar_chart_url' in chart_results else bar_chart_url
+        context['pie_chart_url'] = chart_results.get('pie_chart_url', pie_chart_url) if 'pie_chart_url' in chart_results else pie_chart_url
+        
         # 6. Render the HTML template to a string.
+        print("📄 Rendering HTML template...")
         html_string = render_to_string('interview_app/report_pdf.html', context)
         
         # 7. Use WeasyPrint to convert the rendered HTML string into a PDF.
-        pdf = HTML(string=html_string).write_pdf()
+        print("🖨️ Generating PDF with WeasyPrint...")
+        try:
+            # Use base_url to help resolve any relative URLs, but don't rely on it for external images
+            # (since we've already downloaded them as base64)
+            pdf = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+            print(f"✅ PDF generated successfully ({len(pdf)} bytes)")
+        except Exception as pdf_error:
+            print(f"❌ WeasyPrint error: {pdf_error}")
+            # Fallback: try without base_url
+            try:
+                pdf = HTML(string=html_string).write_pdf()
+                print(f"✅ PDF generated with fallback method ({len(pdf)} bytes)")
+            except Exception as fallback_error:
+                print(f"❌ PDF generation completely failed: {fallback_error}")
+                import traceback
+                traceback.print_exc()
+                return HttpResponse(
+                    f"PDF generation failed. Please check server logs. Error: {str(fallback_error)}",
+                    status=500,
+                    content_type='text/plain'
+                )
         
         # 8. Create and return the final HTTP response.
         response = HttpResponse(pdf, content_type='application/pdf')
@@ -1009,25 +1587,95 @@ def video_feed(request):
 
 def gen(camera_instance):
     """Generator function for video streaming."""
+    import time
+    frame_count = 0
+    consecutive_failures = 0
     try:
+        # Always start with a frame to initialize the stream
+        initial_frame = camera_instance.get_frame()
+        if initial_frame and len(initial_frame) > 0:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + initial_frame + b'\r\n\r\n')
+            print(f"📺 Initial frame sent for session {camera_instance.session_id}")
+        
         while True:
-            frame = camera_instance.get_frame()
-            if frame:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
-            else:
-                # If no frame available, wait a bit before trying again
-                time.sleep(0.033)  # ~30fps
+            try:
+                frame = camera_instance.get_frame()
+                if frame and len(frame) > 0:
+                    frame_count += 1
+                    consecutive_failures = 0
+                    # Ensure proper MJPEG format
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+                else:
+                    consecutive_failures += 1
+                    # Log if getting too many failures
+                    if consecutive_failures == 10:
+                        print(f"⚠️ Camera {camera_instance.session_id} - 10 consecutive frame failures")
+                    # Always yield fallback to keep stream alive
+                    fallback = camera_instance._create_fallback_frame()
+                    if fallback and len(fallback) > 0:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + fallback + b'\r\n\r\n')
+                # Consistent delay (~15fps)
+                time.sleep(0.067)
+            except Exception as frame_error:
+                # Always yield something to keep stream alive
+                try:
+                    fallback = camera_instance._create_fallback_frame()
+                    if fallback and len(fallback) > 0:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + fallback + b'\r\n\r\n')
+                except:
+                    # Last resort: minimal valid JPEG
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x11\x08\x01\xe0\x02\x80\x03\x01"\x00\x02\x11\x01\x03\x11\x01\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\xff\xc4\x00\x14\x10\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00\x3f\x00\xaa\xff\xd9' + b'\r\n\r\n')
+                time.sleep(0.067)
     except GeneratorExit:
-        print(f"📺 Video stream closed for camera")
+        print(f"📺 Video stream closed for camera {camera_instance.session_id}")
     except Exception as e:
         print(f"❌ Error in video stream: {e}")
 
 def get_proctoring_status(request):
     session_key = request.GET.get('session_key')
     camera = get_camera_for_session(session_key)
-    if not camera: return JsonResponse({}, status=404)
-    return JsonResponse(camera.get_latest_warnings())
+    if not camera: 
+        # Return empty warnings object with all fields False instead of 404
+        return JsonResponse({
+            'no_person_warning_active': False,
+            'multiple_people': False,
+            'phone_detected': False,
+            'no_person': False,
+            'low_concentration': False,
+            'tab_switched': False,
+            'excessive_noise': False,
+            'multiple_speakers': False
+        })
+    warnings = camera.get_latest_warnings()
+    # Remove _counts from response to avoid confusion in frontend
+    warnings.pop('_counts', None)
+    return JsonResponse(warnings)
+
+def video_frame(request):
+    """Return a single JPEG frame (for polling-based display)"""
+    session_key = request.GET.get('session_key')
+    camera = get_camera_for_session(session_key)
+    if not camera:
+        # Return a minimal error frame
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(frame, "Camera Not Found", (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        ok, buf = cv2.imencode('.jpg', frame)
+        if ok:
+            return HttpResponse(buf.tobytes(), content_type='image/jpeg')
+        return HttpResponse(status=404)
+    
+    frame_bytes = camera.get_frame()
+    if frame_bytes and len(frame_bytes) > 0:
+        return HttpResponse(frame_bytes, content_type='image/jpeg')
+    else:
+        # Return fallback frame
+        fallback = camera._create_fallback_frame()
+        return HttpResponse(fallback, content_type='image/jpeg')
 
 @csrf_exempt
 @require_POST
@@ -1047,6 +1695,54 @@ def check_camera(request):
     else:
         release_camera_for_session(session_key)
         return JsonResponse({"status": "error"}, status=500)
+
+@csrf_exempt
+@require_POST
+def activate_proctoring_camera(request):
+    """Explicitly activate camera and YOLOv8n detection when technical interview starts"""
+    try:
+        data = json.loads(request.body)
+        session_key = data.get('session_key')
+        
+        if not session_key:
+            return JsonResponse({'status': 'error', 'message': 'session_key required'}, status=400)
+        
+        # Get or create camera for this session
+        camera = get_camera_for_session(session_key)
+        
+        if not camera:
+            return JsonResponse({'status': 'error', 'message': 'Could not create camera'}, status=500)
+        
+        # Ensure camera is running and detection loop is active
+        if hasattr(camera, 'video') and camera.video.isOpened():
+            if not camera._running:
+                # Restart detection loop if it stopped
+                import threading
+                camera._running = True
+                if hasattr(camera, '_detector_thread'):
+                    if not camera._detector_thread.is_alive():
+                        camera._detector_thread = threading.Thread(target=camera._capture_and_detect_loop, daemon=True)
+                        camera._detector_thread.start()
+                        print(f"✅ YOLOv8n detection loop reactivated for session {str(camera.session_id)[:8]}")
+                else:
+                    # Start detection loop if it doesn't exist
+                    camera._detector_thread = threading.Thread(target=camera._capture_and_detect_loop, daemon=True)
+                    camera._detector_thread.start()
+                    print(f"✅ YOLOv8n detection loop started for session {str(camera.session_id)[:8]}")
+            
+            return JsonResponse({
+                'status': 'success', 
+                'message': 'Camera and YOLOv8n detection activated',
+                'camera_active': True,
+                'detection_running': camera._running if hasattr(camera, '_running') else False
+            })
+        else:
+            return JsonResponse({'status': 'error', 'message': 'Camera not opened'}, status=500)
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @csrf_exempt
 @require_POST
@@ -1165,6 +1861,9 @@ def ai_upload_answer(request):
             print(f"✅ Success - Completed: {result.get('completed', False)}")
             if not result.get('completed'):
                 print(f"✅ Next question: {result.get('next_question', 'N/A')[:100]}...")
+                print(f"✅ Audio URL: {result.get('audio_url', 'NOT PROVIDED')}")
+                if not result.get('audio_url'):
+                    print(f"⚠️ WARNING: No audio URL returned for next question!")
         print(f"{'='*60}\n")
         
         status_code = 200 if 'error' not in result else 400
@@ -1317,10 +2016,12 @@ def verify_id(request):
 # --- Multi-Language Code Execution Logic (Windows Compatible) ---
 def run_subprocess_windows(command, cwd=None, input_data=None):
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=15, cwd=cwd, input=input_data)
+        # Reduced timeout to 5 seconds per test case for faster execution
+        # Multiple test cases can accumulate, so keep individual timeouts very short
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5, cwd=cwd, input=input_data)
         return result
     except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(command, 1, stdout=None, stderr="Execution timed out.")
+        return subprocess.CompletedProcess(command, 1, stdout=None, stderr="Execution timed out after 5 seconds. Code may be too slow or have infinite loops.")
     except Exception as e:
         return subprocess.CompletedProcess(command, 1, stdout=None, stderr=f"Server execution error: {str(e)}")
 
@@ -1330,6 +2031,8 @@ def execute_python_windows(code, test_input):
     Handles both function-based and class-based code.
     """
     import re
+    
+    print(f"🔍 execute_python_windows called with test_input='{test_input}'")
     
     # Check if code contains a class definition (for OOP questions)
     class_match = re.search(r'class\s+(\w+)', code)
@@ -1352,12 +2055,27 @@ def execute_python_windows(code, test_input):
         function_match = re.search(r'def\s+(\w+)\s*\(', code)
         if function_match:
             function_name = function_match.group(1)
-            full_script = f"{code}\nprint({function_name}({test_input}))"
+            # test_input already contains quotes (e.g., "'hello'" or '"hello"')
+            # so we can use it directly: reverse_string('hello')
+            # Use repr() to ensure the output is properly formatted for comparison
+            full_script = f"{code}\nresult = {function_name}({test_input})\nif result is not None:\n    print(result)\nelse:\n    print('None')"
+            print(f"🔍 Generated script (preview): {full_script[:300]}...")
+            print(f"🔍 Function name detected: {function_name}")
         else:
             # Fallback to 'solve' if no function found
-            full_script = f"{code}\nprint(solve({test_input}))"
+            full_script = f"{code}\nresult = solve({test_input})\nif result is not None:\n    print(result)\nelse:\n    print('None')"
+            print(f"🔍 Using fallback 'solve' function")
     
-    return run_subprocess_windows(['python', '-c', full_script])
+    result = run_subprocess_windows(['python', '-c', full_script])
+    
+    # Clean up the output - remove any trailing newlines and normalize
+    if result.stdout:
+        result.stdout = result.stdout.strip()
+    if result.stderr:
+        result.stderr = result.stderr.strip()
+    
+    print(f"🔍 Execution result - stdout: '{result.stdout}', stderr: '{result.stderr}', returncode: {result.returncode}")
+    return result
 
 def execute_javascript_windows(code, test_input):
     full_script = f"{code}\nconsole.log(solve({test_input}));"
@@ -1482,35 +2200,86 @@ def run_test_suite(code, language, test_cases):
         if test_case.is_hidden:
             test_case_label += " (Hidden)"
 
-        result_obj = execution_function(code, test_case.input_data)
-        stdout = result_obj.stdout
-        stderr = result_obj.stderr
+        # Use test_case.input_data directly - it should be in correct format for the language
+        test_input = test_case.input_data.strip()
+        expected = test_case.expected_output.strip()
         
-        if stderr:
-            all_passed = False
-            output_log_lines.append(f"{test_case_label}: FAILED (Error)")
-            output_log_lines.append(f"  Error: {stderr.strip()}")
-            break
-        else:
-            actual_output = stdout.strip() if stdout else ""
-            if actual_output == test_case.expected_output:
-                output_log_lines.append(f"{test_case_label}: PASSED")
-            else:
+        print(f"🧪 Running test case {i+1}:")
+        print(f"   Input data: '{test_input}'")
+        print(f"   Expected output: '{expected}'")
+        print(f"   Code preview: {code[:100]}...")
+        
+        try:
+            result_obj = execution_function(code, test_input)
+            stdout = result_obj.stdout.strip() if result_obj.stdout else ""
+            stderr = result_obj.stderr.strip() if result_obj.stderr else ""
+            returncode = result_obj.returncode
+            
+            print(f"🧪 Test case {i+1} execution result:")
+            print(f"   Return code: {returncode}")
+            print(f"   Stdout: '{stdout}'")
+            print(f"   Stderr: '{stderr}'")
+            print(f"   Expected: '{expected}'")
+            print(f"   Match: {stdout == expected}")
+            
+            if returncode != 0 or stderr:
                 all_passed = False
-                output_log_lines.append(f"{test_case_label}: FAILED")
+                output_log_lines.append(f"{test_case_label}: FAILED (Error)")
+                if stderr:
+                    output_log_lines.append(f"  Error: {stderr}")
+                else:
+                    output_log_lines.append(f"  Exit code: {returncode}")
                 output_log_lines.append(f"  Input: {test_case.input_data}")
-                output_log_lines.append(f"  Expected: '{test_case.expected_output}'")
-                output_log_lines.append(f"  Got: '{actual_output}'")
+                output_log_lines.append(f"  Expected: '{expected}'")
+                if stdout:
+                    output_log_lines.append(f"  Got: '{stdout}'")
+            else:
+                # Normalize outputs for comparison (trim whitespace)
+                actual_output = stdout.strip() if stdout else ""
+                expected_output = expected
+                
+                # For string outputs, compare without quotes if they're present
+                if actual_output == expected_output:
+                    output_log_lines.append(f"{test_case_label}: PASSED ✅")
+                else:
+                    all_passed = False
+                    output_log_lines.append(f"{test_case_label}: FAILED ❌")
+                    output_log_lines.append(f"  Input: {test_case.input_data}")
+                    output_log_lines.append(f"  Expected: '{expected_output}'")
+                    output_log_lines.append(f"  Got: '{actual_output}'")
+                    output_log_lines.append(f"  (Character diff: expected {len(expected_output)} chars, got {len(actual_output)} chars)")
+        except Exception as e:
+            all_passed = False
+            error_msg = str(e)
+            output_log_lines.append(f"{test_case_label}: FAILED (Exception)")
+            output_log_lines.append(f"  Exception: {error_msg}")
+            output_log_lines.append(f"  Input: {test_case.input_data}")
+            output_log_lines.append(f"  Expected: '{expected}'")
+            print(f"❌ Exception in test case {i+1}: {error_msg}")
+            import traceback
+            traceback.print_exc()
     
     return all_passed, "\n".join(output_log_lines)
 @csrf_exempt
 @require_POST
 def execute_code(request):
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": f"Invalid JSON body: {str(e)}"}, status=400)
     code_to_run = data.get('code')
-    language = data.get('language', 'PYTHON').upper()
+    language = (data.get('language') or 'PYTHON').upper()
     question_id = data.get('question_id')
-    session_key = data.get('session_key')
+    # Get session_key from request body or query params
+    session_key = data.get('session_key') or request.GET.get('session_key')
+
+    # Validate required fields
+    if not session_key:
+        return JsonResponse({"status": "error", "message": "Missing session_key"}, status=400)
+    if not question_id:
+        return JsonResponse({"status": "error", "message": "Missing question_id"}, status=400)
+    if not code_to_run:
+        return JsonResponse({"status": "error", "message": "Missing code"}, status=400)
 
     # Fix: Convert question_id to UUID if it's an integer
     if isinstance(question_id, int):
@@ -1523,50 +2292,70 @@ def execute_code(request):
         # If it's already a UUID string, use it directly
         question = get_object_or_404(InterviewQuestion, id=question_id)
     
-    # Use test cases based on the question type (Reverse String)
-    if question.coding_language == 'PYTHON':
-        test_input = '"hello"'
-        expected_output = "olleh"
-    elif question.coding_language == 'JAVASCRIPT':
-        test_input = '"hello"'
-        expected_output = "olleh"
-    elif question.coding_language == 'JAVA':
-        test_input = '"hello"'
-        expected_output = "olleh"
-    else:
-        return JsonResponse({'status': 'error', 'output': 'Language not supported for testing.'})
-    
-    result_obj = None
-    stdout, stderr = None, None
+    # Get test cases from database for this question
+    test_cases_qs = question.test_cases.all()
+    # Debug info to help frontend
+    try:
+        tc_count = test_cases_qs.count()
+    except Exception:
+        tc_count = 0
 
-    lang_map = {
-        'PYTHON': execute_python_windows,
-        'JAVASCRIPT': execute_javascript_windows,
-        'JAVA': execute_java_windows,
-        'PHP': execute_php_windows,
-        'RUBY': execute_ruby_windows,
-        'CSHARP': execute_csharp_windows,
-        'SQL': execute_sql_windows,
-    }
-    
-    if language in lang_map:
-        result_obj = lang_map[language](code_to_run, test_input)
-        stdout = result_obj.stdout
-        stderr = result_obj.stderr
+    # Fallback hardcoded test cases if none exist in DB
+    if not test_cases_qs.exists():
+        class _TC:
+            def __init__(self, input_data, expected_output, is_hidden=False):
+                self.input_data = input_data
+                self.expected_output = expected_output
+                self.is_hidden = is_hidden
+
+        lang = (getattr(question, 'coding_language', None) or language or 'PYTHON').upper()
+        fallback_map = {
+            'PYTHON': [
+                _TC("'hello'", 'olleh'),
+                _TC("''", ''),
+                _TC("'abc'", 'cba'),
+            ],
+            'JAVASCRIPT': [
+                _TC("'hello'", 'olleh'),
+                _TC("''", ''),
+                _TC("'abc'", 'cba'),
+            ],
+            'JAVA': [
+                _TC('1,2', '3'),
+                _TC('-5,5', '0'),
+                _TC('10,15', '25'),
+            ],
+            'PHP': [
+                _TC("'hello'", 'olleh'),
+                _TC("''", ''),
+                _TC("'abc'", 'cba'),
+            ],
+            'C': [
+                _TC('1,2', '3'),
+                _TC('-5,5', '0'),
+                _TC('10,15', '25'),
+            ],
+            'CPP': [
+                _TC('1,2', '3'),
+                _TC('-5,5', '0'),
+                _TC('10,15', '25'),
+            ],
+        }
+        test_cases = fallback_map.get(lang, fallback_map['PYTHON'])
     else:
-        return JsonResponse({'status': 'error', 'output': f"Language '{language}' is not supported."}, status=400)
+        test_cases = list(test_cases_qs)
     
-    if stderr:
-        return JsonResponse({'status': 'error', 'output': stderr.strip(), 'passed': False})
-    else:
-        actual_output = stdout.strip() if stdout else ""
-        passed = (actual_output == expected_output)
-        
-        return JsonResponse({
-            'status': 'success',
-            'output': actual_output,
-            'passed': passed
-        })
+    # Run code against all test cases
+    all_passed, output_log = run_test_suite(code_to_run, language, test_cases)
+    
+    # Return detailed results
+    return JsonResponse({
+        'status': 'success' if all_passed else 'error',
+        'output': output_log,
+        'passed': all_passed,
+        'all_passed': all_passed,
+        'test_summary': output_log
+    })
     
 @csrf_exempt
 @require_POST
@@ -1596,44 +2385,28 @@ def submit_coding_challenge(request):
         test_cases = list(question.test_cases.all())
         print(f"📝 Running code against {len(test_cases)} test cases...")
         
-        # Import coding service
-        from .coding_service import evaluate_code_with_testcases, evaluate_code_with_gemini
+        # Evaluate using the same executor as Run & Test for consistency
+        all_passed, output_log = run_test_suite(submitted_code, language, test_cases)
         
-        # Prepare test cases for evaluation
-        test_cases_data = [
-            {'input': tc.input_data, 'expected_output': tc.expected_output}
-            for tc in test_cases
-        ]
-        
-        # If no test cases defined, use default ones
-        if not test_cases_data:
-            print("⚠️ No test cases found, using defaults")
-            if question.coding_language == 'PYTHON':
-                test_cases_data = [
-                    {'input': '"hello"', 'expected_output': 'olleh'},
-                    {'input': '"world"', 'expected_output': 'dlrow'},
-                    {'input': '"python"', 'expected_output': 'nohtyp'}
-                ]
-        
-        # Evaluate code against test cases
-        passed_count, total_count, test_results = evaluate_code_with_testcases(
-            submitted_code, 
-            test_cases_data, 
-            language
-        )
+        # Convert output_log into structured results for UI
+        # Simple parse: count PASSED/FAILED lines
+        passed_count = output_log.count('PASSED')
+        total_count = len(test_cases)
+        test_results = []
+        for idx, tc in enumerate(test_cases, 1):
+            # Best-effort parse; include actual not available without re-run per test
+            test_results.append({
+                'test_case': idx,
+                'input': tc.input_data,
+                'expected': tc.expected_output,
+                'actual': '',
+                'passed': 'Test Case %d: PASSED' % idx in output_log,
+                'error': 'FAILED (Error)' in output_log
+            })
         
         print(f"✅ Test Results: {passed_count}/{total_count} passed")
         
-        # Get Gemini evaluation
-        gemini_eval = evaluate_code_with_gemini(
-            submitted_code,
-            question.question_text,
-            test_results
-        )
-        
-        print(f"🤖 Gemini Score: {gemini_eval['score']}/100")
-        
-        # Create detailed log
+        # Create detailed log (no Gemini evaluation)
         final_log = f"Test Results: {passed_count}/{total_count} passed\n\n"
         for result in test_results:
             status_emoji = "✅" if result['passed'] else "❌"
@@ -1645,9 +2418,8 @@ def submit_coding_challenge(request):
                 final_log += f"   Error: Yes\n"
             final_log += "\n"
         
-        final_log += f"\n🤖 AI Evaluation:\n{gemini_eval['feedback']}"
         
-        # Store submission with Gemini evaluation
+        # Store submission without AI evaluation
         CodeSubmission.objects.create(
             session=session,
             question_id=str(question.id),
@@ -1655,7 +2427,7 @@ def submit_coding_challenge(request):
             language=language,
             passed_all_tests=(passed_count == total_count),
             output_log=final_log,
-            gemini_evaluation=gemini_eval
+            gemini_evaluation=None
         )
 
         session.status = 'COMPLETED'

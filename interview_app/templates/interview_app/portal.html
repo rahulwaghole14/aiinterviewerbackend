@@ -136,12 +136,36 @@
             top: 20px;
         }
         
-        #camera-check-feed, #proctoring-feed { 
+        .instruction-item {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .instruction-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        }
+        
+        #start-technical-interview-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(118, 185, 0, 0.4) !important;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        #coding-timer {
+            transition: all 0.3s ease;
+        }
+        
+        #camera-check-feed { 
             width: 100%; 
             height: auto; 
             border-radius: 15px; 
             background-color: #000; 
             aspect-ratio: 4 / 3;
+            min-height: 200px;
             box-shadow: var(--shadow);
         }
         
@@ -343,7 +367,63 @@
 
         <!-- Phase 0: Setup Screens -->
         <div id="setup-phase">
-            <div id="camera-check-screen" class="card">
+            <!-- Permission Check Screen - FIRST STEP -->
+            <div id="permission-check-screen" class="card" style="text-align: center; max-width: 700px; margin: 0 auto;">
+                <h1>🔐 Permission & System Check</h1>
+                <p style="color: var(--text-secondary); margin-bottom: 2.5rem; font-size: 1.1rem;">
+                    We need to verify your camera, microphone, and network connection before starting the interview.
+                </p>
+                
+                <div class="permission-checklist" style="margin: 2rem 0;">
+                    <!-- Camera Permission -->
+                    <div class="permission-item" id="camera-permission-item" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span style="font-size: 2rem;">📷</span>
+                            <div style="text-align: left;">
+                                <h3 style="margin: 0; font-size: 1.2rem; color: var(--text-primary);">Camera Access</h3>
+                                <p style="margin: 0.3rem 0 0 0; color: var(--text-secondary); font-size: 0.95rem;">Required for proctoring and identity verification</p>
+                            </div>
+                        </div>
+                        <div id="camera-status" style="font-size: 1.5rem;">⏳</div>
+                    </div>
+                    
+                    <!-- Microphone Permission -->
+                    <div class="permission-item" id="mic-permission-item" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span style="font-size: 2rem;">🎤</span>
+                            <div style="text-align: left;">
+                                <h3 style="margin: 0; font-size: 1.2rem; color: var(--text-primary);">Microphone Access</h3>
+                                <p style="margin: 0.3rem 0 0 0; color: var(--text-secondary); font-size: 0.95rem;">Required for voice responses during interview</p>
+                            </div>
+                        </div>
+                        <div id="mic-status" style="font-size: 1.5rem;">⏳</div>
+                    </div>
+                    
+                    <!-- Network Connection -->
+                    <div class="permission-item" id="network-permission-item" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span style="font-size: 2rem;">🌐</span>
+                            <div style="text-align: left;">
+                                <h3 style="margin: 0; font-size: 1.2rem; color: var(--text-primary);">Network Connection</h3>
+                                <p style="margin: 0.3rem 0 0 0; color: var(--text-secondary); font-size: 0.95rem;">Stable internet required for smooth interview</p>
+                            </div>
+                        </div>
+                        <div id="network-status" style="font-size: 1.5rem;">⏳</div>
+                    </div>
+                </div>
+                
+                <div id="permission-error-message" style="display: none; background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 1rem; margin: 1.5rem 0; color: #856404;"></div>
+                
+                <button id="request-permissions-btn" class="btn submit-btn" style="padding: 16px 48px; font-size: 1.1rem; font-weight: 600; margin-top: 1rem;">
+                    🔓 Request Permissions
+                </button>
+                
+                <button id="proceed-to-verification-btn" class="btn submit-btn" style="padding: 16px 48px; font-size: 1.1rem; font-weight: 600; margin-top: 1rem; display: none; background: linear-gradient(135deg, #28a745, #20c997);">
+                    ✅ All Set - Continue to Identity Verification
+                </button>
+            </div>
+            
+            <div id="camera-check-screen" class="card" style="display: none;">
                 <h1>🎥 Camera & System Check</h1>
                 <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please allow camera access. We are making sure everything is ready for your interview.</p>
                 <div style="text-align: center;">
@@ -355,10 +435,38 @@
                 <h1>🆔 ID Verification</h1>
                 <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please hold your ID card next to your face so both are clearly visible in the frame.</p>
                 <div style="max-width: 640px; margin: 0 auto;">
-                    <video id="verification-feed" autoplay playsinline style="margin-bottom: 1.5rem;"></video>
+                    <img id="verification-feed" style="width: 100%; max-width: 640px; height: auto; border-radius: 15px; background-color: #000; aspect-ratio: 4/3; margin-bottom: 1.5rem; display: block;" />
+                    <canvas id="verification-canvas" style="display: none;"></canvas>
                     <button id="capture-id-btn" class="btn submit-btn" style="width: 100%; max-width: 300px;">📸 Capture & Verify ID</button>
                     <button id="start-coding-btn" class="btn done-btn" style="width: 100%; max-width: 300px; display: none;">💻 Start Coding Round</button>
                     <p id="id-verification-status" style="font-weight: 600; margin-top: 1rem; padding: 1rem; border-radius: 10px; background: var(--bg-primary);"></p>
+                </div>
+            </div>
+            <div id="instructions-screen" class="card" style="display: none;">
+                <div style="max-width: 900px; margin: 0 auto;">
+                    <h1 style="text-align: center; color: var(--primary-color); margin-bottom: 0.5rem;">📋 Interview Instructions</h1>
+                    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 3rem; font-size: 1.1rem;">Please read these instructions carefully before starting your interview</p>
+                    
+                    <div class="instructions-container" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 20px; padding: 1.5rem 2rem; margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                        <ul style="list-style: none; display: grid; gap: 0.75rem; margin: 0; padding: 0;">
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">⏹️</span>Wait for the question to finish before answering.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">👁️</span>Look at the camera while answering.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🤫</span>Keep movements minimal and stay centered.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🖥️</span>Do not switch tabs or minimize the window.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🗣️</span>Speak clearly and at a normal volume.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">📝</span>Do not read from notes or other screens.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">⏱️</span>If silent, say "Let me think" instead of pausing.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🙂</span>Keep a calm, neutral expression.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">📷</span>Keep your full face visible at all times.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">📵</span>Do not use phones or other devices.</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 2.5rem;">
+                        <button id="start-technical-interview-btn" class="btn submit-btn" style="padding: 16px 48px; font-size: 1.2rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 15px rgba(118, 185, 0, 0.3); transition: all 0.3s;">
+                            🎤 Start Technical Interview
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -374,22 +482,30 @@
                 <button id="done-btn" class="btn done-btn" style="display:none;">✅ I'm Done Answering</button>
                 <div id="transcription-box" class="transcription-box"></div>
                 <div style="margin-top:1rem; display:flex; gap:10px; flex-wrap:wrap;">
-                    <button id="finish-chatbot-btn" class="btn" style="display:none;">✅ I’ve finished the technical Q&A</button>
+                    <button id="finish-chatbot-btn" class="btn" style="display:none;">✅ I've finished the technical Q&A</button>
                     <button id="start-coding-btn-proctor" class="btn done-btn" style="display:none;">💻 Start Coding Round</button>
                 </div>
             </div>
             <div class="proctoring-sidebar">
                 <h3>🔍 Proctoring Monitor</h3>
-                <img id="proctoring-feed" src="" alt="Loading...">
+                <div id="proctoring-feed-container" style="width: 100%; height: auto; border-radius: 15px; background-color: #000; aspect-ratio: 4 / 3; min-height: 200px; position: relative; overflow: hidden;">
+                    <img id="proctoring-feed" style="width: 100%; height: 100%; object-fit: cover; display: block; background: #000;" alt="Proctoring Camera Feed" />
+                    <canvas id="proctoring-feed-canvas" style="width: 100%; height: 100%; object-fit: cover; display: none; background: #000;"></canvas>
+                </div>
                 <h4 style="margin-top: 1.5rem; color: var(--text-secondary);">⚠️ Active Warnings</h4>
                 <ul id="warnings-list" class="warnings-list"></ul>
             </div>
         </div>
 
         <!-- Phase 2: Coding Challenge -->
-        <div id="coding-interview-phase" style="display: none;">
-            <div class="coding-container">
-                <h1>💻 Coding Challenge</h1>
+        <div id="coding-interview-phase" class="spoken-phase-layout" style="display: none;">
+            <div class="interview-main">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h1 style="margin: 0;">💻 Coding Challenge</h1>
+                    <div id="coding-timer" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 24px; border-radius: 12px; font-size: 1.2rem; font-weight: 600; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); min-width: 140px; text-align: center;">
+                        ⏱️ 20:00
+                    </div>
+                </div>
                 <div id="coding-problem-container" class="coding-problem">
                     <h2 id="coding-question-title" style="margin-top:0; color: var(--primary-color);"></h2>
                     <h3 id="coding-language-display" style="margin-top:0; color: var(--text-secondary);"></h3>
@@ -404,6 +520,15 @@
                     <h4 style="color: #fff; margin-bottom: 1rem;">📤 Output:</h4>
                     <pre id="code-output-pre" style="white-space: pre-wrap; word-wrap: break-word; margin: 0;"></pre>
                 </div>
+            </div>
+            <div class="proctoring-sidebar">
+                <h3>🔍 Proctoring Monitor</h3>
+                <div id="proctoring-feed-container-2" style="width: 100%; height: auto; border-radius: 15px; background-color: #000; aspect-ratio: 4 / 3; min-height: 200px; position: relative; overflow: hidden;">
+                    <img id="proctoring-feed-2" style="width: 100%; height: 100%; object-fit: cover; display: block; background: #000;" alt="Proctoring Camera Feed" />
+                    <canvas id="proctoring-feed-canvas-2" style="width: 100%; height: 100%; object-fit: cover; display: none; background: #000;"></canvas>
+                </div>
+                <h4 style="margin-top: 1.5rem; color: var(--text-secondary);">⚠️ Active Warnings</h4>
+                <ul id="warnings-list-2" class="warnings-list"></ul>
             </div>
         </div>
     {% endif %}
@@ -439,6 +564,8 @@
     let currentCodingQuestionIndex = -1;
     let monacoEditor;
     let interviewEnded = false;
+    let codingTimerInterval = null;
+    let codingTimeRemaining = 20 * 60; // 20 minutes in seconds (1200 seconds)
     let questionStartTime; 
     let verificationStream;
     let thinkingTimer, answeringTimer, reviewInterval, proctoringInterval, noAnswerTimeout;
@@ -449,6 +576,39 @@
     let silenceDetector = { counter: 0, threshold: 39 };
     // When true, keep proctoring ON but do not auto-start spoken Q&A (external chatbot in use)
     let PROCTOR_ONLY = false;
+
+    // Network status monitoring
+    window.addEventListener('online', () => {
+        if (document.getElementById('network-status')) {
+            checkNetworkConnection();
+        }
+    });
+    
+    window.addEventListener('offline', () => {
+        const statusEl = document.getElementById('network-status');
+        if (statusEl) {
+            statusEl.textContent = '❌';
+            statusEl.style.color = '#dc3545';
+            updatePermissionStatus();
+        }
+    });
+
+    // Tab switch detection - report to backend when tab visibility changes
+    document.addEventListener('visibilitychange', function() {
+        if (!SESSION_KEY || interviewEnded) return;
+        const isHidden = document.hidden || document.webkitHidden || document.mozHidden || false;
+        console.log(`📑 Tab visibility changed: ${isHidden ? 'hidden' : 'visible'}`);
+        
+        // Report to backend
+        fetch("{% url 'report_tab_switch' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_key: SESSION_KEY,
+                status: isHidden ? 'hidden' : 'visible'
+            })
+        }).catch(err => console.error('Error reporting tab switch:', err));
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
         // Optional: allow jumping straight to coding via URL parameter
@@ -461,10 +621,19 @@
                 return;
             }
         } catch (e) {}
-        if (document.getElementById('camera-check-screen')) {
-            runCameraCheck();
+        
+        // Start with permission check screen
+        if (document.getElementById('permission-check-screen')) {
+            checkInitialPermissions();
         }
+        
+        // Permission check button handlers
+        document.getElementById('request-permissions-btn')?.addEventListener('click', requestAllPermissions);
+        document.getElementById('proceed-to-verification-btn')?.addEventListener('click', proceedToVerification);
+        
+        // Other button handlers
         document.getElementById('capture-id-btn')?.addEventListener('click', runIdVerification);
+        document.getElementById('start-technical-interview-btn')?.addEventListener('click', startTechnicalInterview);
         document.getElementById('start-coding-btn')?.addEventListener('click', () => {
             try { document.getElementById('setup-phase').style.display = 'none'; } catch (e) {}
             startCodingPhase();
@@ -479,6 +648,198 @@
         document.getElementById('cancel-termination-btn')?.addEventListener('click', hideTerminationWarning);
     });
     
+    // Permission checking functions
+    async function checkInitialPermissions() {
+        console.log('🔍 Checking initial permissions...');
+        
+        // Check network first (doesn't require user interaction)
+        await checkNetworkConnection();
+        
+        // Check camera and mic permissions (may show prompts)
+        await checkCameraPermission();
+        await checkMicrophonePermission();
+        
+        // If all are granted, show proceed button
+        updatePermissionStatus();
+    }
+    
+    async function checkCameraPermission() {
+        const statusEl = document.getElementById('camera-status');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            statusEl.textContent = '✅';
+            statusEl.style.color = '#28a745';
+            // Release stream immediately - we'll request again later
+            stream.getTracks().forEach(track => track.stop());
+            return true;
+        } catch (err) {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                statusEl.textContent = '❌';
+                statusEl.style.color = '#dc3545';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                statusEl.textContent = '⚠️';
+                statusEl.style.color = '#ffc107';
+            } else {
+                statusEl.textContent = '❌';
+                statusEl.style.color = '#dc3545';
+            }
+            return false;
+        }
+    }
+    
+    async function checkMicrophonePermission() {
+        const statusEl = document.getElementById('mic-status');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            statusEl.textContent = '✅';
+            statusEl.style.color = '#28a745';
+            // Release stream immediately - we'll request again later
+            stream.getTracks().forEach(track => track.stop());
+            return true;
+        } catch (err) {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                statusEl.textContent = '❌';
+                statusEl.style.color = '#dc3545';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                statusEl.textContent = '⚠️';
+                statusEl.style.color = '#ffc107';
+            } else {
+                statusEl.textContent = '❌';
+                statusEl.style.color = '#dc3545';
+            }
+            return false;
+        }
+    }
+    
+    async function checkNetworkConnection() {
+        const statusEl = document.getElementById('network-status');
+        
+        // Check if online
+        if (!navigator.onLine) {
+            statusEl.textContent = '❌';
+            statusEl.style.color = '#dc3545';
+            return false;
+        }
+        
+        // Try to fetch a small resource to verify connectivity
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+            
+            const response = await fetch(window.location.origin + '/static/', {
+                method: 'HEAD',
+                signal: controller.signal,
+                cache: 'no-cache'
+            }).catch(() => {
+                // If fetch fails, try a simpler check
+                return { ok: navigator.onLine };
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (navigator.onLine) {
+                statusEl.textContent = '✅';
+                statusEl.style.color = '#28a745';
+                return true;
+            } else {
+                statusEl.textContent = '❌';
+                statusEl.style.color = '#dc3545';
+                return false;
+            }
+        } catch (err) {
+            // If fetch fails but we're online, assume connection is okay
+            if (navigator.onLine) {
+                statusEl.textContent = '✅';
+                statusEl.style.color = '#28a745';
+                return true;
+            } else {
+                statusEl.textContent = '❌';
+                statusEl.style.color = '#dc3545';
+                return false;
+            }
+        }
+    }
+    
+    async function requestAllPermissions() {
+        const errorEl = document.getElementById('permission-error-message');
+        errorEl.style.display = 'none';
+        
+        const requestBtn = document.getElementById('request-permissions-btn');
+        requestBtn.disabled = true;
+        requestBtn.textContent = '⏳ Requesting...';
+        
+        try {
+            // Request camera and microphone together
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+            
+            // Check permissions again
+            await checkCameraPermission();
+            await checkMicrophonePermission();
+            await checkNetworkConnection();
+            
+            // Release stream
+            stream.getTracks().forEach(track => track.stop());
+            
+            // Update UI
+            updatePermissionStatus();
+            requestBtn.disabled = false;
+            requestBtn.textContent = '🔓 Request Permissions';
+            
+        } catch (err) {
+            console.error('Permission request error:', err);
+            requestBtn.disabled = false;
+            requestBtn.textContent = '🔓 Request Permissions';
+            
+            let errorMsg = 'Failed to get permissions. ';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errorMsg += 'Please allow camera and microphone access in your browser settings and try again.';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                errorMsg += 'No camera or microphone found. Please connect a camera and microphone.';
+            } else if (err.name === 'NotReadableError') {
+                errorMsg += 'Camera or microphone is being used by another application. Please close other applications and try again.';
+            } else {
+                errorMsg += err.message || 'Unknown error occurred.';
+            }
+            
+            errorEl.textContent = errorMsg;
+            errorEl.style.display = 'block';
+            
+            // Still check individual permissions to show status
+            await checkCameraPermission();
+            await checkMicrophonePermission();
+            updatePermissionStatus();
+        }
+    }
+    
+    function updatePermissionStatus() {
+        const cameraStatus = document.getElementById('camera-status').textContent;
+        const micStatus = document.getElementById('mic-status').textContent;
+        const networkStatus = document.getElementById('network-status').textContent;
+        
+        const allGranted = cameraStatus === '✅' && micStatus === '✅' && networkStatus === '✅';
+        
+        const proceedBtn = document.getElementById('proceed-to-verification-btn');
+        if (allGranted) {
+            proceedBtn.style.display = 'inline-block';
+            document.getElementById('request-permissions-btn').style.display = 'none';
+        } else {
+            proceedBtn.style.display = 'none';
+            document.getElementById('request-permissions-btn').style.display = 'inline-block';
+        }
+    }
+    
+    function proceedToVerification() {
+        // Hide permission check screen and show camera check screen
+        document.getElementById('permission-check-screen').style.display = 'none';
+        document.getElementById('camera-check-screen').style.display = 'block';
+        
+        // Run camera check which will then proceed to ID verification
+        runCameraCheck();
+    }
+    
     // Release media resources when page is about to unload
     window.addEventListener('beforeunload', function() {
         releaseMediaResources();
@@ -487,6 +848,13 @@
     async function runCameraCheck() {
         const statusEl = document.getElementById('camera-check-status');
         const feedEl = document.getElementById('camera-check-feed');
+        const cameraCheckScreen = document.getElementById('camera-check-screen');
+        
+        // Only run if camera check screen is visible
+        if (!cameraCheckScreen || cameraCheckScreen.style.display === 'none') {
+            return;
+        }
+        
         statusEl.innerText = "Initializing camera...";
         try {
             const response = await fetch(`{% url 'check_camera' %}?session_key=${SESSION_KEY}`);
@@ -503,11 +871,7 @@
                 feedLoaded = true;
                 
                 statusEl.innerText = "Camera check successful!";
-                await fetch("{% url 'release_camera' %}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_key: SESSION_KEY })
-                });
+                // DON'T release camera here - it needs to stay alive for the interview!
                 setTimeout(() => {
                     document.getElementById('camera-check-screen').style.display = 'none';
                     document.getElementById('id-verification-screen').style.display = 'block';
@@ -526,11 +890,7 @@
                     console.log('⏰ Video feed timeout - proceeding anyway');
                     feedLoaded = true;
                     statusEl.innerText = "Camera check successful!";
-                    await fetch("{% url 'release_camera' %}", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ session_key: SESSION_KEY })
-                    });
+                    // DON'T release camera here - it needs to stay alive for the interview!
                     setTimeout(() => {
                         document.getElementById('camera-check-screen').style.display = 'none';
                         document.getElementById('id-verification-screen').style.display = 'block';
@@ -545,27 +905,132 @@
     }
     
     function startVerificationCamera() {
-        const videoEl = document.getElementById('verification-feed');
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                verificationStream = stream;
-                videoEl.srcObject = stream;
-            })
-            .catch(err => {
-                document.getElementById('id-verification-status').innerText = "Error: Could not access camera.";
-            });
+        const imgEl = document.getElementById('verification-feed');
+        const statusEl = document.getElementById('id-verification-status');
+        
+        if (!imgEl) {
+            console.error('❌ Verification feed element not found');
+            return;
+        }
+        
+        console.log('🎥 Starting verification camera (using backend feed)...');
+        statusEl.innerText = "Initializing camera...";
+        statusEl.style.color = "";
+        
+        // Use backend video feed instead of getUserMedia (avoids camera conflict)
+        const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
+        let frameUpdateInterval = null;
+        
+        const updateFrame = () => {
+            if (interviewEnded) {
+                if (frameUpdateInterval) clearInterval(frameUpdateInterval);
+                return;
+            }
+            
+            const url = `${frameUrl}&t=${Date.now()}&cache=${Math.random()}`;
+            imgEl.onload = () => {
+                console.log('✅ Verification frame loaded');
+                if (statusEl.innerText === "Initializing camera...") {
+                    statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                    statusEl.style.color = "green";
+                }
+            };
+            imgEl.onerror = () => {
+                console.warn('⚠️ Failed to load verification frame');
+            };
+            imgEl.src = url;
+        };
+        
+        // Start polling for frames every 500ms (~2fps - sufficient for verification, reduces load)
+        frameUpdateInterval = setInterval(updateFrame, 500);
+        updateFrame(); // Start immediately
+        
+        console.log('✅ Verification camera feed started (backend video)');
+        statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+        statusEl.style.color = "green";
+        
+        // Store interval so we can clear it later
+        window._verificationFrameInterval = frameUpdateInterval;
+    }
+
+    function startTechnicalInterview() {
+        console.log('🎤 Starting technical interview...');
+        
+        // Hide instructions screen
+        document.getElementById('instructions-screen').style.display = 'none';
+        document.getElementById('setup-phase').style.display = 'none';
+        
+        // Keep proctoring enabled AND keep PROCTOR_ONLY = true to disable old interview system
+        PROCTOR_ONLY = true;
+        console.log('%c✅ Setting PROCTOR_ONLY = true to disable old interview system', 'background: #222; color: #bada55; font-size: 14px;');
+        
+        // ACTIVATE YOLOv8n detection when technical interview starts
+        fetch("{% url 'activate_proctoring_camera' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_key: SESSION_KEY })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                console.log('✅ YOLOv8n detection activated for technical interview:', data);
+            } else {
+                console.warn('⚠️ Failed to activate YOLOv8n:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error activating YOLOv8n:', error);
+        });
+        
+        const spokenPhase = document.getElementById('spoken-interview-phase');
+        if (spokenPhase) {
+            spokenPhase.style.display = 'grid';
+            // Ensure SESSION_KEY is accessible to iframe
+            window.SESSION_KEY = SESSION_KEY;
+            console.log('%c✅ Set window.SESSION_KEY =', 'background: #222; color: #bada55; font-size: 14px;', window.SESSION_KEY);
+            // Start the integrated chatbot instead of old interview system
+            startIntegratedChatbot();
+            // Show the "finished Q&A" control; coding button stays hidden until clicked
+            const finishBtn = document.getElementById('finish-chatbot-btn');
+            if (finishBtn) finishBtn.style.display = 'inline-block';
+        }
+        
+        // Start proctoring monitors with getUserMedia cameras
+        startProctoringMonitors();
     }
 
     async function runIdVerification() {
         const statusEl = document.getElementById('id-verification-status');
-        const videoEl = document.getElementById('verification-feed');
-        statusEl.innerText = "Processing, please hold still...";
+        const imgEl = document.getElementById('verification-feed');
+        const canvasEl = document.getElementById('verification-canvas');
         
-        const canvas = document.createElement('canvas');
-        canvas.width = videoEl.videoWidth;
-        canvas.height = videoEl.videoHeight;
-        canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-        const imageDataUrl = canvas.toDataURL('image/jpeg');
+        // Check if image is loaded
+        if (!imgEl || !imgEl.complete || !imgEl.naturalWidth) {
+            statusEl.innerText = "Error: Camera not ready. Please wait for camera to initialize.";
+            statusEl.style.color = "red";
+            console.error('❌ Image not loaded - complete:', imgEl?.complete, 'naturalWidth:', imgEl?.naturalWidth);
+            return;
+        }
+        
+        if (imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
+            statusEl.innerText = "Error: Image dimensions invalid. Please wait a moment and try again.";
+            statusEl.style.color = "red";
+            console.error('❌ Invalid image dimensions');
+            return;
+        }
+        
+        statusEl.innerText = "Processing, please hold still...";
+        statusEl.style.color = "";
+        
+        // Use the canvas element or create one to capture the image
+        const canvas = canvasEl || document.createElement('canvas');
+        canvas.width = imgEl.naturalWidth;
+        canvas.height = imgEl.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw the current frame from the backend feed
+        ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         const formData = new FormData();
         formData.append('session_id', INTERVIEW_SESSION_ID);
         formData.append('image_data', imageDataUrl);
@@ -574,26 +1039,22 @@
             const response = await fetch("{% url 'verify_id' %}", { method: 'POST', body: formData });
             const result = await response.json();
             if (result.status === 'success') {
-                statusEl.innerText = "Verification successful! Launching technical chat...";
+                statusEl.innerText = "Verification successful!";
                 statusEl.style.color = 'green';
-                if (verificationStream) { verificationStream.getTracks().forEach(track => track.stop()); }
-                // Keep proctoring enabled AND keep PROCTOR_ONLY = true to disable old interview system
-                PROCTOR_ONLY = true;
-                console.log('%c✅ Setting PROCTOR_ONLY = true to disable old interview system', 'background: #222; color: #bada55; font-size: 14px;');
-                try { document.getElementById('setup-phase').style.display = 'none'; } catch (e) {}
-                const spokenPhase = document.getElementById('spoken-interview-phase');
-                if (spokenPhase) {
-                    spokenPhase.style.display = 'grid';
-                    // Ensure SESSION_KEY is accessible to iframe
-                    window.SESSION_KEY = SESSION_KEY;
-                    console.log('%c✅ Set window.SESSION_KEY =', 'background: #222; color: #bada55; font-size: 14px;', window.SESSION_KEY);
-                    // Start the integrated chatbot instead of old interview system
-                    startIntegratedChatbot();
-                    // Show the "finished Q&A" control; coding button stays hidden until clicked
-                    const finishBtn = document.getElementById('finish-chatbot-btn');
-                    if (finishBtn) finishBtn.style.display = 'inline-block';
+                
+                // Clean up verification feed interval
+                if (window._verificationFrameInterval) {
+                    clearInterval(window._verificationFrameInterval);
+                    window._verificationFrameInterval = null;
                 }
-                startProctoringMonitors();
+                
+                // Note: No need to stop verificationStream anymore since we're using backend feed
+                
+                // Show instructions screen instead of going directly to interview
+                setTimeout(() => {
+                    document.getElementById('id-verification-screen').style.display = 'none';
+                    document.getElementById('instructions-screen').style.display = 'block';
+                }, 1500);
             } else {
                 throw new Error(result.message || "Verification failed.");
             }
@@ -618,18 +1079,9 @@
 
     // Function to show coding round after Q&A completion
     function showCodingRound() {
-        const container = document.getElementById('question-container');
-        if (container) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 2rem;">
-                    <h3 style="color: var(--text-primary); margin-bottom: 1rem;">🎉 Technical Q&A Complete!</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 2rem;">Great job! Now let's move to the coding challenge.</p>
-                    <button onclick="startCodingRound()" class="btn btn-primary" style="padding: 12px 24px; font-size: 16px;">
-                        Start Coding Challenge
-                    </button>
-                </div>
-            `;
-        }
+        console.log('🎉 Technical Q&A Complete! Starting coding round...');
+        // Auto-start coding round instead of showing button
+        startCodingRound();
     }
 
     // Function to start coding round
@@ -885,17 +1337,141 @@
         clearTimeout(noAnswerTimeout);
         clearInterval(thinkingTimer); clearInterval(answeringTimer); clearInterval(reviewInterval);
 
-        if (codingQuestions.length === 0) {
-            endSpokenOnlyInterview();
+        // Hide spoken phase and setup
+        const spokenPhase = document.getElementById('spoken-interview-phase');
+        const setupPhase = document.getElementById('setup-phase');
+        const questionContainer = document.getElementById('question-container');
+        
+        if (spokenPhase) spokenPhase.style.display = 'none';
+        if (setupPhase) setupPhase.style.display = 'none';
+        if (questionContainer) questionContainer.style.display = 'none';
+
+        // Show coding phase
+        const codingPhase = document.getElementById('coding-interview-phase');
+        if (codingPhase) {
+            // Use grid to match technical interview layout (content + right sidebar)
+            codingPhase.style.display = 'grid';
+            console.log('✅ Coding phase div displayed');
+        } else {
+            console.error('❌ coding-interview-phase div not found!');
             return;
         }
 
-        document.getElementById('spoken-interview-phase').style.display = 'none';
-        document.getElementById('coding-interview-phase').style.display = 'block';
+        if (codingQuestions.length === 0) {
+            console.warn('No coding questions available. Checking database...');
+            // Still show the coding phase UI but with a message
+            document.getElementById('coding-question-title').innerText = 'No Coding Question Available';
+            document.getElementById('coding-problem-text').innerText = 'Please contact support.';
+            return;
+        }
+
+        // Ensure proctoring camera is active for coding phase (using backend MJPEG stream)
+        try {
+            // Ensure warnings list is visible and ready
+            const warningsList2 = document.getElementById('warnings-list-2');
+            if (warningsList2) {
+                warningsList2.innerHTML = ''; // Clear any old warnings
+                console.log('✅ Coding warnings list cleared and ready');
+            }
+            
+            // Restart proctoring monitors - this will set up both feeds via backend
+            startProctoringMonitors(); 
+            console.log('✅ Proctoring monitors restarted for coding phase');
+            
+            // Force an immediate warning check after a brief delay
+            setTimeout(() => {
+                const codingPhase = document.getElementById('coding-interview-phase');
+                if (codingPhase && codingPhase.style.display !== 'none') {
+                    console.log('🔍 Coding phase confirmed active - warnings should start updating');
+                    // The interval is already running from startProctoringMonitors()
+                }
+            }, 500);
+        } catch(e) { 
+            console.error('❌ Proctoring restart error:', e?.message); 
+        }
+        
+        // Start the 20-minute countdown timer
+        startCodingTimer();
+        
+        // Load the first coding question
         nextCodingQuestion();
+    }
+    
+    function startCodingTimer() {
+        // Reset timer to 20 minutes
+        codingTimeRemaining = 20 * 60;
+        
+        // Clear any existing timer
+        if (codingTimerInterval) {
+            clearInterval(codingTimerInterval);
+        }
+        
+        // Update timer display immediately
+        updateCodingTimerDisplay();
+        
+        // Start countdown interval (update every second)
+        codingTimerInterval = setInterval(() => {
+            codingTimeRemaining--;
+            updateCodingTimerDisplay();
+            
+            if (codingTimeRemaining <= 0) {
+                clearInterval(codingTimerInterval);
+                handleCodingTimerExpired();
+            } else if (codingTimeRemaining <= 300) { // Last 5 minutes
+                // Change color to red for last 5 minutes
+                const timerEl = document.getElementById('coding-timer');
+                if (timerEl) {
+                    timerEl.style.background = 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)';
+                    timerEl.style.animation = 'pulse 1s infinite';
+                }
+            }
+        }, 1000);
+    }
+    
+    function updateCodingTimerDisplay() {
+        const timerEl = document.getElementById('coding-timer');
+        if (!timerEl) return;
+        
+        const minutes = Math.floor(codingTimeRemaining / 60);
+        const seconds = codingTimeRemaining % 60;
+        const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        timerEl.innerHTML = `⏱️ ${timeString}`;
+    }
+    
+    function handleCodingTimerExpired() {
+        const timerEl = document.getElementById('coding-timer');
+        if (timerEl) {
+            timerEl.innerHTML = '⏱️ 00:00';
+            timerEl.style.background = 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)';
+        }
+        
+        // Disable buttons
+        const runBtn = document.getElementById('run-code-btn');
+        const submitBtn = document.getElementById('submit-code-btn');
+        if (runBtn) runBtn.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+        
+        // Show warning
+        alert('⏱️ Time is up! Your code will be auto-submitted now.');
+        
+        // Auto-submit current code if available
+        const currentQuestion = codingQuestions[currentCodingQuestionIndex];
+        if (currentQuestion && monacoEditor) {
+            submitCurrentCode(currentQuestion);
+        }
     }
 
     function nextCodingQuestion() {
+        console.log('📝 nextCodingQuestion called, index:', currentCodingQuestionIndex, 'total:', codingQuestions.length);
+        
+        if (codingQuestions.length === 0) {
+            console.error('❌ No coding questions available!');
+            document.getElementById('coding-question-title').innerText = 'No Coding Question Available';
+            document.getElementById('coding-problem-text').innerText = 'Please contact support.';
+            return;
+        }
+
         currentCodingQuestionIndex++;
 
         if (currentCodingQuestionIndex >= codingQuestions.length) {
@@ -905,11 +1481,28 @@
         }
 
         const codingQuestion = codingQuestions[currentCodingQuestionIndex];
+        console.log('✅ Loading coding question:', codingQuestion.title, 'ID:', codingQuestion.id);
         
         document.getElementById('coding-question-title').innerText = codingQuestion.title || 'Coding Challenge';
         document.getElementById('coding-language-display').innerText = `Language: ${codingQuestion.language}`;
-        document.getElementById('coding-problem-text').innerText = codingQuestion.description || codingQuestion.text;
+        document.getElementById('coding-problem-text').innerText = codingQuestion.description || codingQuestion.text || 'No description available.';
         document.getElementById('code-output-pre').innerHTML = "";
+        // ======================
+        // NEW: Show test cases table above code editor
+        const testCasesContainerId = 'coding-test-cases-table';
+        let tcHtml = `<h4 style="color: #667eea;">🔬 Test Cases:</h4><table id='${testCasesContainerId}' style="width:100%; border-collapse:collapse; background:#f9f9fa; margin-bottom:16px;">
+                <tr style='background:#f2f2f2;'><th style='padding:5px;border:1px solid #ddd;'>#</th><th style='padding:5px;border:1px solid #ddd;'>Input</th><th style='padding:5px;border:1px solid #ddd;'>Expected Output</th><th style='padding:5px;border:1px solid #ddd;'>Result</th></tr>`;
+        (codingQuestion.test_cases||[]).forEach((tc, idx) => {
+            tcHtml += `<tr><td style='padding:4px 8px; border:1px solid #ddd;'>${idx+1}</td><td style='padding:4px 8px; border:1px solid #ddd;'><code>${tc.input}</code></td><td style='padding:4px 8px; border:1px solid #ddd;'><code>${tc.expected_output||tc.output}</code></td><td style='border:1px solid #ddd;' id='tc-result-${idx}'></td></tr>`
+        });
+        tcHtml += `</table>`;
+        const probDiv = document.getElementById('coding-problem-container');
+        if (!document.getElementById(testCasesContainerId)) {
+          probDiv.insertAdjacentHTML('beforeend', tcHtml);
+        } else {
+          document.getElementById(testCasesContainerId).outerHTML = tcHtml;
+        }
+        // ======================
 
         const submitBtn = document.getElementById('submit-code-btn');
         if (currentCodingQuestionIndex === codingQuestions.length - 1) {
@@ -922,14 +1515,15 @@
         if (!monacoEditor) {
             require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs' }});
             require(['vs/editor/editor.main'], function() {
+                const initialCode = codingQuestion.starter_code || `// Your ${codingQuestion.language} code here...`;
                 monacoEditor = monaco.editor.create(document.getElementById('monaco-editor-container'), {
-                    value: `// Your ${codingQuestion.language} code here...`,
+                    value: initialCode,
                     language: codingQuestion.language.toLowerCase(),
                     theme: 'vs-dark'
                 });
             });
         } else {
-            monacoEditor.setValue(`// Your ${codingQuestion.language} code here...`);
+            monacoEditor.setValue(codingQuestion.starter_code || `// Your ${codingQuestion.language} code here...`);
             monaco.editor.setModelLanguage(monacoEditor.getModel(), codingQuestion.language.toLowerCase());
         }
 
@@ -945,23 +1539,119 @@
 
     async function runCode(question) {
         const outputEl = document.getElementById('code-output-pre');
-        outputEl.innerText = "Running...";
+        const runBtn = document.getElementById('run-code-btn');
+        const originalText = runBtn.innerText;
+        
+        runBtn.disabled = true;
+        runBtn.innerText = "Running...";
+        outputEl.innerHTML = '<span style="color: #4CAF50;">⏳ Running test cases...</span>';
+        
         const code = monacoEditor.getValue();
 
-        const response = await fetch("{% url 'execute_code' %}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code: code,
-                language: question.language,
-                question_id: question.id,
-            })
-        });
-        const result = await response.json();
-        
-        let outputText = `Status: ${result.status.toUpperCase()}\n`;
-        outputText += `${result.output || '(No output)'}`;
-        outputEl.innerText = outputText;
+        try {
+            // Add timeout abort controller - increased to 120 seconds to handle multiple test cases safely
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout for multiple test cases
+
+            const response = await fetch("{% url 'execute_code' %}?session_key=" + SESSION_KEY, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: code,
+                    language: question.language,
+                    question_id: question.id,
+                    session_key: SESSION_KEY,
+                }),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            // Format output with test case results
+            let outputHTML = '';
+            const resultTestCases = (question.test_cases || []);
+            let perTestStatus = [];
+            if (result.output) {
+                const lines = result.output.split('\n');
+                let inTestCase = false;
+                let testIndex = 0;
+                // Try to match pass/fail per test
+                lines.forEach(line => {
+                    if (line.includes('Test Case') && (line.includes('PASSED') || line.includes('FAILED'))) {
+                        const isPassed = line.includes('PASSED');
+                        perTestStatus.push(isPassed);
+                        const color = isPassed ? '#4CAF50' : '#f44336';
+                        const icon = isPassed ? '✅' : '❌';
+                        outputHTML += `<div style="color: ${color}; font-weight: bold; margin: 5px 0;">${icon} ${line}</div>`;
+                        // Update table row for this test
+                        const cell = document.getElementById(`tc-result-${testIndex}`);
+                        if (cell) cell.innerHTML = `<span style='font-weight:bold; color:${color};'>${icon} ${isPassed?"Pass":"Fail"}</span>`;
+                        testIndex += 1;
+                        inTestCase = true;
+                    } else if (line.trim() && inTestCase) {
+                        outputHTML += `<div style="margin-left: 20px; color: #ccc;">${line}</div>`;
+                    } else if (line.trim()) {
+                        outputHTML += `<div style="color: #fff;">${line}</div>`;
+                    }
+                });
+                // Reset table rows if not updated
+                resultTestCases.forEach((tc, idx)=>{
+                  if(typeof perTestStatus[idx]==='undefined'){
+                    const cell = document.getElementById(`tc-result-${idx}`);
+                    if(cell) cell.innerHTML = '';
+                  }
+                });
+                // Show summary
+                const passedCount = (result.output.match(/PASSED/g) || []).length;
+                const failedCount = (result.output.match(/FAILED/g) || []).length;
+                const totalCount = passedCount + failedCount;
+                if (totalCount > 0) {
+                    outputHTML = `<div style="color: #4CAF50; font-weight: bold; margin-bottom: 10px; padding: 10px; background: rgba(76, 175, 80, 0.07); border-radius: 5px;">\n📊 Test Results: ${passedCount}/${totalCount} passed\n</div>` + outputHTML;
+                }
+            } else {
+                outputHTML = '<span style="color: #ff9800;">⚠️ No test results returned</span>';
+            }
+            outputEl.innerHTML = outputHTML || result.output || 'No output';
+            
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                outputEl.innerHTML = '<span style="color: #f44336;">⏱️ Request timed out after 120 seconds. Please check your code for infinite loops or optimize your solution.</span>';
+            } else if (err instanceof Error && err.message.startsWith('Server error:')) {
+                // Try to fetch the real error message from the response body (if available)
+                try {
+                    // If we have a response object, get it here (must be in try block above scope)
+                    if (typeof err.response !== 'undefined') {
+                        err.response.json().then(json => {
+                            outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ Server Error: ${json.message || JSON.stringify(json) || err.message}</span>`;
+                        }).catch(() => {
+                            outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ ${err.message}</span>`;
+                        });
+                    } else {
+                        outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ ${err.message}</span>`;
+                    }
+                } catch (e) {
+                    outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ ${err.message}</span>`;
+                }
+            } else if (typeof err.response !== 'undefined') {
+                // Generic fetch error with possible response (older browsers)
+                err.response.json().then(json => {
+                    outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ Error: ${json.message || JSON.stringify(json) || err.message}</span>`;
+                }).catch(() => {
+                    outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ Error: ${err.message}</span>`;
+                });
+            } else {
+                outputEl.innerHTML = `<span style=\"color: #f44336;\">❌ Error: ${err.message}</span>`;
+            }
+        } finally {
+            runBtn.disabled = false;
+            runBtn.innerText = originalText;
+        }
     }
 
     async function submitCurrentCode(question) {
@@ -973,11 +1663,20 @@
         if (!confirm(confirmationMessage)) return;
 
         const submitBtn = document.getElementById('submit-code-btn');
+        const originalText = submitBtn.innerText;
         submitBtn.disabled = true;
         submitBtn.innerText = "Submitting...";
         const code = monacoEditor.getValue();
+        
+        // Show submission status in output
+        const outputEl = document.getElementById('code-output-pre');
+        outputEl.innerHTML = '<span style="color: #4CAF50;">⏳ Submitting code and running final tests...</span>';
 
         try {
+            // Add timeout for submission - increased for multiple test cases
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout for submission
+
             const response = await fetch("{% url 'submit_coding_challenge' %}", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -988,22 +1687,56 @@
                     language: question.language,
                     is_final: isFinalSubmission
                 }),
-                keepalive: true
+                keepalive: true,
+                signal: controller.signal
             });
             
-            if (!response.ok) throw new Error("Server error during submission.");
-
-            if (isFinalSubmission) {
-                // Release media resources before redirecting
-                releaseMediaResources();
-                window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
-            } else {
-                nextCodingQuestion();
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server error: ${response.status}`);
             }
+
+            const result = await response.json();
+            
+            // Show submission result
+            if (result.passed_all_tests !== undefined) {
+                const statusText = result.passed_all_tests ? '✅ All tests passed!' : '❌ Some tests failed';
+                outputEl.innerHTML = `<div style="color: ${result.passed_all_tests ? '#4CAF50' : '#f44336'}; font-weight: bold; padding: 10px; background: rgba(76, 175, 80, 0.1); border-radius: 5px;">
+                    ${statusText}<br>
+                    ${result.output_log ? result.output_log.replace(/\n/g, '<br>') : ''}
+                </div>`;
+            }
+
+            // Stop timer on successful submission
+            if (codingTimerInterval) {
+                clearInterval(codingTimerInterval);
+                codingTimerInterval = null;
+            }
+            
+            // Small delay to show result, then proceed
+            setTimeout(() => {
+                if (isFinalSubmission) {
+                    releaseMediaResources();
+                    window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                } else {
+                    nextCodingQuestion();
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = originalText;
+                }
+            }, 1500);
+            
         } catch (err) {
-            alert("An error occurred. Please try again. Error: " + err.message);
+            if (err.name === 'AbortError') {
+                outputEl.innerHTML = '<span style="color: #f44336;">⏱️ Submission timed out. Please try again.</span>';
+                alert("Submission timed out. Please check your connection and try again.");
+            } else {
+                outputEl.innerHTML = `<span style="color: #f44336;">❌ Submission failed: ${err.message}</span>`;
+                alert("An error occurred during submission. Please try again.\nError: " + err.message);
+            }
             submitBtn.disabled = false;
-            submitBtn.innerText = isFinalSubmission ? "Submit & End Interview" : "Submit & Next Challenge";
+            submitBtn.innerText = originalText;
         }
     }
 
@@ -1029,10 +1762,27 @@
     
     async function releaseMediaResources() {
         try {
+            // Stop coding timer
+            if (codingTimerInterval) {
+                clearInterval(codingTimerInterval);
+                codingTimerInterval = null;
+            }
+            
             // Stop all media streams
             if (verificationStream) {
                 verificationStream.getTracks().forEach(track => track.stop());
                 console.log('Released verification stream');
+            }
+            
+            // Stop proctoring streams
+            if (window.proctoringStream1) {
+                window.proctoringStream1.getTracks().forEach(track => track.stop());
+                console.log('Released proctoring stream 1');
+            }
+            
+            if (window.proctoringStream2) {
+                window.proctoringStream2.getTracks().forEach(track => track.stop());
+                console.log('Released proctoring stream 2');
             }
             
             // Stop media recorder
@@ -1074,32 +1824,62 @@
     }
 
         function startProctoringMonitors() {
-        const proctoringFeed = document.getElementById('proctoring-feed');
-        console.log("Starting proctoring monitors...");
+        // Clear any existing interval to avoid duplicates
+        if (proctoringInterval) {
+            clearInterval(proctoringInterval);
+            proctoringInterval = null;
+        }
         
-        proctoringFeed.onload = () => {
-            console.log("Proctoring feed loaded successfully.");
-            if (!PROCTOR_ONLY) {
-                console.log("Starting interview flow (spoken questions).");
-                startFirstSpokenQuestion();
-            } else {
-                console.log("Proctor-only mode active; not starting spoken questions.");
+        const proctoringFeed = document.getElementById('proctoring-feed');
+        const proctoringFeed2 = document.getElementById('proctoring-feed-2');
+        console.log("Starting proctoring monitors via backend video_frame (same as identity verification)...");
+        
+        const startBackendFeed = (imgElement, name, canvasId = null) => {
+            if (!imgElement) {
+                console.error(`❌ ${name} image element not found`);
+                return;
             }
-        };
-        proctoringFeed.onerror = () => {
-            console.error("Failed to load proctoring feed.");
-            console.log("Attempting to start interview without proctoring feed...");
-            // Start interview even if proctoring feed fails
-            setTimeout(() => {
-                if (!PROCTOR_ONLY) {
-                    startFirstSpokenQuestion();
+            
+            console.log(`📺 Starting ${name} live camera feed (same as identity verification)...`);
+            
+            // Use same approach as identity verification - direct video_frame polling
+            const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
+            let frameUpdateInterval = null;
+            
+            const updateFrame = () => {
+                if (interviewEnded) {
+                    if (frameUpdateInterval) clearInterval(frameUpdateInterval);
+                    return;
                 }
-            }, 2000);
+                
+                const url = `${frameUrl}&t=${Date.now()}&cache=${Math.random()}`;
+                imgElement.onload = () => {
+                    // Frame loaded successfully
+                    imgElement.style.opacity = '1';
+                    imgElement.style.backgroundColor = 'transparent';
+                };
+                imgElement.onerror = () => {
+                    // Silently continue - might be temporary network issue
+                    imgElement.style.backgroundColor = '#000';
+                };
+                imgElement.src = url;
+                imgElement.style.display = 'block';
+                imgElement.style.opacity = '0.9';
+            };
+            
+            // Poll every 500ms (~2fps - same as identity verification, sufficient for live monitoring)
+            frameUpdateInterval = setInterval(updateFrame, 500);
+            updateFrame(); // Start immediately
+            
+            console.log(`✅ ${name} live camera feed started (backend video_frame endpoint)`);
+            
+            // Store interval for cleanup
+            if (!window._proctoringIntervals) window._proctoringIntervals = [];
+            window._proctoringIntervals.push(frameUpdateInterval);
         };
-
-        const feedUrl = `{% url 'video_feed' %}?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
-        console.log("Loading proctoring feed from:", feedUrl);
-        proctoringFeed.src = feedUrl;
+        
+        startBackendFeed(proctoringFeed, 'Technical Interview', 'proctoring-feed-canvas');
+        startBackendFeed(proctoringFeed2, 'Coding Round', 'proctoring-feed-canvas-2');
 
         // Set a timeout to start interview even if proctoring feed doesn't load
         setTimeout(() => {
@@ -1114,72 +1894,141 @@
         }, 10000);
 
         proctoringInterval = setInterval(async () => {
-            if(interviewEnded) return;
-            
-            // Check if spoken interview phase is visible
-            const spokenPhase = document.getElementById('spoken-interview-phase');
-            if (spokenPhase && spokenPhase.style.display === 'none') {
-                console.log('Spoken interview phase not visible, skipping warning display');
+            if(interviewEnded) {
+                clearInterval(proctoringInterval);
                 return;
             }
-            try {
-                const res = await fetch(`{% url 'get_proctoring_status' %}?session_key=${SESSION_KEY}`);
-                const warnings = await res.json();
-                console.log('Proctoring warnings received:', warnings);
-                
-                if (warnings.no_person_warning_active) showTerminationWarning();
-                else hideTerminationWarning();
-                
-                const list = document.getElementById('warnings-list');
-                if (!list) {
-                    console.error('warnings-list element not found!');
-                    return;
-                }
-                
-                // Check if proctoring sidebar is visible
-                const sidebar = document.querySelector('.proctoring-sidebar');
-                if (sidebar) {
-                    console.log('Proctoring sidebar display style:', sidebar.style.display);
-                    console.log('Proctoring sidebar computed display:', window.getComputedStyle(sidebar).display);
-                } else {
-                    console.error('Proctoring sidebar not found!');
-                }
-                
-                
-                list.innerHTML = '';
-                let warningCount = 0;
-                for (const [key, value] of Object.entries(warnings)) {
-                    // Check for all warning types, not just those ending with '_warning'
-                    if (value === true && (
-                        key.endsWith('_warning') || 
-                        key === 'multiple_people' ||
-                        key === 'phone_detected' ||
-                        key === 'no_person' ||
-                        key === 'low_concentration' ||
-                        key === 'tab_switched' ||
-                        key === 'excessive_noise' ||
-                        key === 'multiple_speakers'
-                    )) {
-                        const li = document.createElement('li');
-                        li.textContent = key.replace(/_/g, ' ').toUpperCase();
-                        li.style.backgroundColor = '#dc3545'; // Ensure visibility
-                        li.style.color = 'white';
-                        li.style.padding = '0.75rem 1.5rem';
-                        li.style.borderRadius = '25px';
-                        li.style.marginBottom = '0.75rem';
-                        li.style.textAlign = 'center';
-                        li.style.fontWeight = '600';
-                        li.style.fontSize = '0.9rem';
-                        list.appendChild(li);
-                        warningCount++;
-                        console.log('Added warning to list:', key);
-                    }
-                }
-                console.log(`Total warnings displayed: ${warningCount}`);
-            } catch (e) {
-                console.error('Error in proctoring interval:', e);
+            
+            // Check which phase is visible - update warnings for active phase
+            const spokenPhase = document.getElementById('spoken-interview-phase');
+            const codingPhase = document.getElementById('coding-interview-phase');
+            const isSpokenVisible = spokenPhase && spokenPhase.style.display !== 'none' && spokenPhase.style.display !== '';
+            const isCodingVisible = codingPhase && codingPhase.style.display !== 'none' && codingPhase.style.display !== '';
+            
+            if (!isSpokenVisible && !isCodingVisible) {
+                return; // No active phase
             }
-        }, 2500);
+            
+            try {
+                // Fetch warnings with timeout to prevent hanging
+                const controller = new AbortController();
+                let timeoutId;
+                try {
+                    timeoutId = setTimeout(() => {
+                        if (!controller.signal.aborted) {
+                            controller.abort();
+                        }
+                    }, 2000); // 2 second timeout
+                    
+                    const res = await fetch(`{% url 'get_proctoring_status' %}?session_key=${SESSION_KEY}&t=${Date.now()}`, {
+                        signal: controller.signal
+                    });
+                    
+                    if (timeoutId) clearTimeout(timeoutId);
+                    
+                    if (!res.ok) {
+                        console.error('❌ Failed to fetch proctoring status:', res.status);
+                        return;
+                    }
+                    const warnings = await res.json();
+                    console.log('📊 Warnings received:', warnings); // Debug: log all warnings
+                    
+                    // Debounce absence warning - require it to be true for 2 consecutive checks (3 seconds total)
+                    // This prevents rapid on/off flickering
+                    if (!window._lastAbsenceState) window._lastAbsenceState = false;
+                    if (!window._absenceCheckCount) window._absenceCheckCount = 0;
+                    
+                    if (warnings.no_person_warning_active) {
+                        // Absence detected - increment counter
+                        if (!window._lastAbsenceState) {
+                            // Just became true - start counting
+                            window._absenceCheckCount = 1;
+                        } else {
+                            // Still true - increment
+                            window._absenceCheckCount++;
+                        }
+                        // Only show warning after 2 consecutive true checks (3 seconds)
+                        if (window._absenceCheckCount >= 2) {
+                            showTerminationWarning();
+                        }
+                    } else {
+                        // Person present - reset counter and hide warning immediately
+                        window._absenceCheckCount = 0;
+                        hideTerminationWarning();
+                    }
+                    window._lastAbsenceState = warnings.no_person_warning_active;
+                    
+                    const list = document.getElementById('warnings-list');
+                    const list2 = document.getElementById('warnings-list-2');
+                    
+                    // Always clear and update both lists if elements exist - ensure fresh update
+                    if (list && isSpokenVisible) list.innerHTML = '';
+                    if (list2 && isCodingVisible) list2.innerHTML = '';
+                    let warningCount = 0;
+                    // FRIENDLY NAMES MAP
+                    const warningFriendlyMap = {
+                      'no_person_warning_active': 'No Person Detected (Termination)',
+                      'multiple_people': 'Multiple People Detected',
+                      'phone_detected': 'Phone Detected',
+                      'no_person': 'No Person in Frame',
+                      'low_concentration': 'Low Concentration',
+                      'tab_switched': 'Browser Tab Switched',
+                      'excessive_noise': 'Excessive Noise',
+                      'multiple_speakers': 'Multiple Speakers Detected'
+                    };
+                    for (const [key, value] of Object.entries(warnings)) {
+                        if (value === true && (
+                            key.endsWith('_warning') || 
+                            key === 'multiple_people' ||
+                            key === 'phone_detected' ||
+                            key === 'no_person' ||
+                            key === 'low_concentration' ||
+                            key === 'tab_switched' ||
+                            key === 'excessive_noise' ||
+                            key === 'multiple_speakers')) {
+                            const li = document.createElement('li');
+                            li.textContent = warningFriendlyMap[key] || key.replace(/_/g, ' ').toUpperCase();
+                            li.style.backgroundColor = '#dc3545';
+                            li.style.color = 'white';
+                            li.style.padding = '0.75rem 1.5rem';
+                            li.style.borderRadius = '25px';
+                            li.style.marginBottom = '0.75rem';
+                            li.style.textAlign = 'center';
+                            li.style.fontWeight = '600';
+                            li.style.fontSize = '0.9rem';
+                            // Always add to both lists if they exist (for visibility)
+                            if (list && isSpokenVisible) {
+                                list.appendChild(li.cloneNode(true));
+                                console.log(`⚠️ Warning added to technical list: ${warningFriendlyMap[key]}`);
+                            }
+                            if (list2 && isCodingVisible) {
+                                list2.appendChild(li.cloneNode(true));
+                                console.log(`⚠️ Warning added to coding list: ${warningFriendlyMap[key]}`);
+                            }
+                            warningCount++;
+                        }
+                    }
+                    // Log warning count for debugging
+                    if (warningCount > 0) {
+                        console.log(`📊 Total warnings displayed: ${warningCount} (Technical: ${isSpokenVisible}, Coding: ${isCodingVisible})`);
+                    }
+                } catch (fetchError) {
+                    // Handle AbortError gracefully - just skip this iteration
+                    if (fetchError.name === 'AbortError') {
+                        // Request timed out or was aborted - skip silently
+                        return;
+                    }
+                    throw fetchError; // Re-throw other errors
+                } finally {
+                    if (timeoutId) clearTimeout(timeoutId);
+                }
+            } catch (e) {
+                // Only log non-AbortError exceptions
+                if (e.name !== 'AbortError') {
+                    console.error('❌ Error in proctoring interval:', e);
+                }
+            }
+        }, 4000); // Check every 4 seconds to reduce load and prevent lag (increased from 3s)
         document.getElementById('done-btn')?.addEventListener('click', moveToReviewPhase);
     }
 

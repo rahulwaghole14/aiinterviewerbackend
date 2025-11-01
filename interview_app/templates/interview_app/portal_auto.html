@@ -147,7 +147,7 @@
                 <div class="progress-fill" id="progressFill" style="width: 0%"></div>
             </div>
             <div style="text-align: center; margin-bottom: 20px;">
-                <span id="progressText">Question 1 of 8</span>
+                <span id="progressText">Question 1 of 4</span>
             </div>
             
             <div class="status info" id="status">Starting technical interview...</div>
@@ -187,7 +187,7 @@
         let isRecording = false;
         let isFinalizing = false;
         let currentQuestionNumber = 1;
-        let maxQuestions = 8;
+        let maxQuestions = 4;
         
         // Deepgram WebSocket variables
         let deepgramWebSocket = null;
@@ -261,7 +261,7 @@
                 
                 sessionId = data.session_id;
                 currentQuestionNumber = data.question_number || 1;
-                maxQuestions = data.max_questions || 8;
+                maxQuestions = data.max_questions || 4;
                 
                 // Update progress
                 updateProgress(currentQuestionNumber, maxQuestions);

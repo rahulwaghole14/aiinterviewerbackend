@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
+from datetime import datetime
 from .models import (
     Notification,
     NotificationTemplate,
@@ -160,50 +161,106 @@ class NotificationService:
     @staticmethod
     def send_candidate_interview_scheduled_notification(interview):
         """Send notification directly to candidate when interview is scheduled"""
+        logger.info(f"📧 send_candidate_interview_scheduled_notification called for interview: {interview.id if interview else 'None'}")
+        print(f"\n{'='*70}")
+        print(f"[EMAIL DEBUG] send_candidate_interview_scheduled_notification called")
+        print(f"  Interview ID: {interview.id if interview else 'None'}")
+        print(f"{'='*70}\n")
+        
         try:
+            # CRITICAL: Validate interview has candidate before proceeding
+            if not interview:
+                logger.error("❌ Cannot send email: interview is None")
+                print("[EMAIL FAILED] Interview is None")
+                return False
+            
+            if not interview.candidate:
+                logger.error(f"❌ Cannot send email: interview {interview.id} has no candidate")
+                print(f"[EMAIL FAILED] Interview {interview.id} has no associated candidate")
+                return False
+            
             # Get interview details
-            candidate_name = interview.candidate.full_name
+            candidate_name = interview.candidate.full_name or "Candidate"
             candidate_email = interview.candidate.email
+            
+            # CRITICAL: Validate candidate email exists
+            if not candidate_email or not candidate_email.strip():
+                logger.error(f"❌ Cannot send email: candidate {interview.candidate.id} has no email address")
+                print(f"[EMAIL FAILED] Candidate {interview.candidate.id} has no email address")
+                return False
 
             # Try to get job information from multiple sources
-            job_title = "N/A"
-            company_name = "N/A"
+            job_title = "Interview Position"
+            company_name = "Company"
 
             # First try: direct interview job link
             if interview.job:
-                job_title = interview.job.job_title
-                company_name = interview.job.company_name
+                job_title = interview.job.job_title or "Interview Position"
+                company_name = interview.job.company_name or "Company"
             # Second try: job from slot
             elif (
                 hasattr(interview, "schedule")
                 and interview.schedule
+                and interview.schedule.slot
+                and hasattr(interview.schedule.slot, 'job')
                 and interview.schedule.slot.job
             ):
-                job_title = interview.schedule.slot.job.job_title
-                company_name = interview.schedule.slot.job.company_name
+                job_title = interview.schedule.slot.job.job_title or "Interview Position"
+                company_name = interview.schedule.slot.job.company_name or "Company"
             # Third try: job from candidate
-            elif interview.candidate.job:
-                job_title = interview.candidate.job.job_title
-                company_name = interview.candidate.job.company_name
+            elif interview.candidate and interview.candidate.job:
+                job_title = interview.candidate.job.job_title or "Interview Position"
+                company_name = interview.candidate.job.company_name or "Company"
 
             # Get comprehensive slot details
             slot_details = ""
             scheduled_time = "TBD"
             duration = "TBD"
             interview_type = "AI Interview"
-
-            if hasattr(interview, "schedule") and interview.schedule:
+            
+            # CRITICAL: Always use interview.started_at/ended_at for time display - they are timezone-aware (stored in UTC)
+            # Convert to IST (Asia/Kolkata) for display in emails
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            
+            if interview.started_at and interview.ended_at:
+                # Convert UTC to IST for display
+                start_ist = interview.started_at.astimezone(ist)
+                end_ist = interview.ended_at.astimezone(ist)
+                
+                scheduled_time = start_ist.strftime("%B %d, %Y at %I:%M %p IST")
+                end_time = end_ist.strftime("%I:%M %p IST")
+                duration = f"{(interview.ended_at - interview.started_at).total_seconds() / 60:.0f} minutes"
+                interview_type = (
+                    interview.ai_interview_type.title()
+                    if interview.ai_interview_type
+                    else "AI Interview"
+                )
+                
+                # Get slot details if available for additional info
+                if hasattr(interview, "schedule") and interview.schedule:
+                    slot = interview.schedule.slot
+                    slot_details = f"""
+📅 **Detailed Schedule:**
+• Start Time: {start_ist.strftime('%B %d, %Y at %I:%M %p IST')}
+• End Time: {end_ist.strftime('%I:%M %p IST')}
+• Duration: {slot.duration_minutes if slot else duration} minutes
+• Interview Type: {slot.ai_interview_type.title() if slot and slot.ai_interview_type else interview_type}
+• Time Zone: IST (Indian Standard Time)
+"""
+                else:
+                    slot_details = ""
+            elif hasattr(interview, "schedule") and interview.schedule:
+                # Fallback: use slot times if started_at not available (shouldn't happen after booking)
                 slot = interview.schedule.slot
-                # Combine date+time and format in local timezone
-                try:
-                    from django.utils import timezone as _tz
-                    start_dt = _tz.make_aware(datetime.combine(slot.interview_date, slot.start_time)) if _tz.is_naive(datetime.combine(slot.interview_date, slot.start_time)) else datetime.combine(slot.interview_date, slot.start_time)
-                    end_dt = _tz.make_aware(datetime.combine(slot.interview_date, slot.end_time)) if _tz.is_naive(datetime.combine(slot.interview_date, slot.end_time)) else datetime.combine(slot.interview_date, slot.end_time)
-                    scheduled_time = start_dt.strftime("%B %d, %Y at %I:%M %p")
-                    end_time = end_dt.strftime("%I:%M %p")
-                except Exception:
-                    scheduled_time = slot.start_time.strftime("%B %d, %Y at %I:%M %p")
-                    end_time = slot.end_time.strftime("%I:%M %p")
+                # Combine slot date + time and treat as IST
+                start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+                end_datetime_naive = datetime.combine(slot.interview_date, slot.end_time)
+                start_dt = ist.localize(start_datetime_naive)
+                end_dt = ist.localize(end_datetime_naive)
+                
+                scheduled_time = start_dt.strftime("%B %d, %Y at %I:%M %p IST")
+                end_time = end_dt.strftime("%I:%M %p IST")
                 duration = f"{slot.duration_minutes} minutes"
                 interview_type = (
                     slot.ai_interview_type.title()
@@ -213,31 +270,41 @@ class NotificationService:
 
                 slot_details = f"""
 📅 **Detailed Schedule:**
-• Start Time: {slot.start_time.strftime('%B %d, %Y at %I:%M %p')}
-• End Time: {slot.end_time.strftime('%B %d, %Y at %I:%M %p')}
+• Start Time: {start_dt.strftime('%B %d, %Y at %I:%M %p IST')}
+• End Time: {end_dt.strftime('%I:%M %p IST')}
 • Duration: {slot.duration_minutes} minutes
-• Interview Type: {slot.ai_interview_type.title() if slot.ai_interview_type else 'AI Interview'}
-• Time Zone: {slot.start_time.tzinfo}
+• Interview Type: {interview_type}
+• Time Zone: IST (Indian Standard Time)
 """
-            elif interview.started_at and interview.ended_at:
-                scheduled_time = interview.started_at.strftime("%B %d, %Y at %I:%M %p")
-                end_time = interview.ended_at.strftime("%I:%M %p")
-                duration = f"{(interview.ended_at - interview.started_at).total_seconds() / 60:.0f} minutes"
-                interview_type = (
-                    interview.ai_interview_type.title()
-                    if interview.ai_interview_type
-                    else "AI Interview"
-                )
 
             # Set interview times from slot if not already set
+            # IMPORTANT: Combine slot date + time to create proper DateTime objects
+            # IMPORTANT: Interpret slot times in IST (Asia/Kolkata) since that's likely where users are
             if (
                 hasattr(interview, "schedule")
                 and interview.schedule
-                and not interview.started_at
+                and interview.schedule.slot
             ):
-                interview.started_at = interview.schedule.slot.start_time
-                interview.ended_at = interview.schedule.slot.end_time
-                interview.save(update_fields=["started_at", "ended_at"])
+                slot = interview.schedule.slot
+                # ALWAYS update interview times from slot, even if already set (in case of incorrect values)
+                if slot.interview_date and slot.start_time:
+                    # Combine date and time - assume slot times are in IST (India Standard Time)
+                    import pytz
+                    ist = pytz.timezone('Asia/Kolkata')
+                    start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+                    end_datetime_naive = datetime.combine(slot.interview_date, slot.end_time)
+                    
+                    # Localize to IST (treat slot times as IST)
+                    start_datetime = ist.localize(start_datetime_naive)
+                    end_datetime = ist.localize(end_datetime_naive)
+                    
+                    # Convert to UTC for storage (Django stores in UTC)
+                    start_datetime_utc = start_datetime.astimezone(pytz.UTC)
+                    end_datetime_utc = end_datetime.astimezone(pytz.UTC)
+                    
+                    interview.started_at = start_datetime_utc
+                    interview.ended_at = end_datetime_utc
+                    interview.save(update_fields=["started_at", "ended_at"])
 
             # Generate interview link if not already generated
             if not interview.interview_link:
@@ -252,30 +319,56 @@ class NotificationService:
             else:
                 interview_link = interview.interview_link
 
-            # Get the full interview URL
-            try:
-                interview_url = interview.get_interview_url()
-                if not interview_url:
-                    # Fallback: generate a simple public URL
-                    base_url = getattr(settings, "BACKEND_URL", "http://localhost:8000")
-                    session_key = (
-                        interview.session_key
-                        if interview.session_key
-                        else interview.interview_link
-                    )
-                    interview_url = (
-                        f"{base_url}/interview_app/?session_key={session_key}"
-                    )
-            except Exception as e:
-                logger.error(f"Failed to get interview URL: {e}")
-                # Fallback: generate a simple public URL
+            # Get the full interview URL - prioritize session_key from InterviewSession
+            interview_url = None
+            session_key = None
+            
+            # First, try to get session_key from Interview model
+            if interview.session_key:
+                session_key = interview.session_key
+            else:
+                # Try to get from InterviewSession
+                try:
+                    from interview_app.models import InterviewSession
+                    session = InterviewSession.objects.filter(
+                        candidate_email=candidate_email,
+                        scheduled_at__isnull=False
+                    ).order_by('-created_at').first()
+                    if session:
+                        session_key = session.session_key
+                        interview.session_key = session_key
+                        interview.save(update_fields=['session_key'])
+                except Exception as e:
+                    logger.warning(f"Could not fetch InterviewSession: {e}")
+            
+            # Generate URL using session_key - format must match interview_portal view
+            if session_key:
+                # Use BACKEND_URL from settings or fallback to localhost
                 base_url = getattr(settings, "BACKEND_URL", "http://localhost:8000")
-                session_key = (
-                    interview.session_key
-                    if interview.session_key
-                    else interview.interview_link
-                )
-                interview_url = f"{base_url}/interview_app/?session_key={session_key}"
+                # Format: http://localhost:8000/?session_key=xxx (matches interview_portal view)
+                interview_url = f"{base_url}/?session_key={session_key}"
+                logger.info(f"📧 Generated interview URL: {interview_url}")
+                print(f"[EMAIL DEBUG] Generated interview URL: {interview_url}")
+            else:
+                # Fallback: try interview.get_interview_url()
+                try:
+                    interview_url = interview.get_interview_url()
+                    if interview_url:
+                        # Extract session_key from URL if possible
+                        if 'session_key=' in interview_url:
+                            session_key = interview_url.split('session_key=')[-1].split('&')[0]
+                except Exception as e:
+                    logger.warning(f"Failed to get interview URL: {e}")
+                
+                # Final fallback: use interview_link if available
+                if not interview_url and interview.interview_link:
+                    interview_url = interview.interview_link
+                
+                # Last resort: generate URL
+                if not interview_url:
+                    base_url = getattr(settings, "BACKEND_URL", "http://localhost:8000")
+                    interview_url = f"{base_url}/interview_app/?interview_id={interview.id}"
+                    logger.warning(f"Using fallback interview URL: {interview_url}")
 
             # Get booking notes if available
             booking_notes = ""
@@ -328,56 +421,167 @@ Best regards,
 This is an automated message. Please do not reply to this email.
             """
 
-            # Send email to candidate
-            from django.core.mail import send_mail
-            from django.conf import settings
+            # Send email to candidate - using same approach as test_email_sending_live.py
+            # Note: settings is already imported at the top of the file
+            # Get email configuration from settings (loaded from .env)
+            email_backend = settings.EMAIL_BACKEND
+            email_host = settings.EMAIL_HOST
+            email_port = settings.EMAIL_PORT
+            email_use_tls = settings.EMAIL_USE_TLS
+            email_use_ssl = settings.EMAIL_USE_SSL
+            email_user = settings.EMAIL_HOST_USER
+            email_password = settings.EMAIL_HOST_PASSWORD
+            default_from_email = settings.DEFAULT_FROM_EMAIL
+            
+            # CRITICAL VALIDATION: Check if email configuration is complete
+            if not email_host or not email_user or not email_password:
+                logger.error(
+                    f"❌ Email configuration incomplete. Cannot send email to {candidate_email}. "
+                    f"EMAIL_HOST: {'SET' if email_host else 'NOT SET'}, "
+                    f"EMAIL_HOST_USER: {'SET' if email_user else 'NOT SET'}, "
+                    f"EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}"
+                )
+                print(f"\n[EMAIL FAILED] Configuration incomplete:")
+                print(f"  EMAIL_HOST: {'SET' if email_host else 'NOT SET'}")
+                print(f"  EMAIL_HOST_USER: {'SET' if email_user else 'NOT SET'}")
+                print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
+                print(f"  Please configure these in .env file")
+                return False
+            
+            # CRITICAL: Fix TLS/SSL conflict - for Gmail with port 587, use TLS only
+            # Same approach as test_email_sending_live.py - modify settings directly
+            if email_port == 587 and email_use_tls and email_use_ssl:
+                logger.warning("Both TLS and SSL are enabled. Disabling SSL for port 587 (TLS only)...")
+                settings.EMAIL_USE_SSL = False
+                email_use_ssl = False
+                print("  EMAIL_USE_SSL set to: False (temporarily for this email)")
+            
+            # Final check for TLS/SSL conflict
+            if email_use_tls and email_use_ssl:
+                logger.error("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
+                print(f"\n[EMAIL NOT SENT] EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
+                print(f"To fix: For Gmail port 587, set EMAIL_USE_TLS=True and EMAIL_USE_SSL=False in .env")
+                return False
 
-            # Try to send email via SMTP first
+            # CRITICAL: Check email configuration BEFORE attempting to send (same checks as test script)
+            if "console" in email_backend.lower():
+                logger.warning(
+                    f"EMAIL_BACKEND is set to console - email will not be sent to {candidate_email}. "
+                    "Update .env: EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend"
+                )
+                print(f"\n[EMAIL NOT SENT] EMAIL_BACKEND is 'console' - email would print to console only")
+                print(f"To fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env file")
+                return False
+            elif not email_host:
+                logger.error(
+                    f"EMAIL_HOST is not set - cannot send email to {candidate_email}. "
+                    "Update .env: EMAIL_HOST=smtp.gmail.com"
+                )
+                print(f"\n[EMAIL NOT SENT] EMAIL_HOST is not set")
+                print(f"To fix: Set EMAIL_HOST=smtp.gmail.com in .env file")
+                return False
+            elif not email_user or not email_password:
+                logger.error(
+                    f"Email credentials incomplete - cannot send email to {candidate_email}. "
+                    f"Missing: EMAIL_HOST_USER={bool(email_user)}, EMAIL_HOST_PASSWORD={bool(email_password)}"
+                )
+                print(f"\n[EMAIL NOT SENT] Email credentials incomplete")
+                print(f"To fix: Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in .env file")
+                return False
+
+            # Try to send email via SMTP (same approach as test_email_sending_live.py)
             try:
+                logger.info(f"Attempting to send interview notification email to {candidate_email}...")
+                print(f"EMAIL: Configuration check:")
+                print(f"  EMAIL_BACKEND: {email_backend}")
+                print(f"  EMAIL_HOST: {email_host}")
+                print(f"  EMAIL_PORT: {email_port}")
+                print(f"  EMAIL_USE_TLS: {email_use_tls}")
+                print(f"  EMAIL_USE_SSL: {email_use_ssl}")
+                print(f"  EMAIL_HOST_USER: {email_user[:20] + '...' if email_user and len(email_user) > 20 else email_user}")
+                print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
+                print(f"  DEFAULT_FROM_EMAIL: {default_from_email}")
+                print(f"EMAIL: Sending interview notification email")
+                print(f"EMAIL: To: {candidate_email}")
+                print(f"EMAIL: Subject: {subject}")
+                print(f"EMAIL: Interview URL: {interview_url}")
+                
+                # Use DEFAULT_FROM_EMAIL (same as test_email_sending_live.py)
+                from_email = default_from_email
+                
+                logger.info(f"📧 About to call send_mail() for {candidate_email}")
+                print(f"[EMAIL DEBUG] About to call send_mail()")
+                print(f"  From: {from_email}")
+                print(f"  To: {candidate_email}")
+                print(f"  Subject: {subject[:50]}...")
+                
                 send_mail(
                     subject=subject,
                     message=message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    from_email=from_email,
                     recipient_list=[candidate_email],
                     fail_silently=False,
                 )
-                logger.info(f"Interview notification sent via email: {candidate_email}")
-            except Exception as email_error:
-                logger.warning(
-                    f"SMTP email failed, falling back to console: {email_error}"
-                )
-
-                # Fallback to console backend if SMTP fails
+                
+                logger.info(f"✅ Interview notification sent via email successfully: {candidate_email}")
+                print(f"\n[SUCCESS] Interview notification email sent successfully!")
+                print(f"  ✅ send_mail() returned without exception")
+                print(f"  ✅ Recipient: {candidate_email}")
+                print(f"  ✅ Interview URL: {interview_url}")
+                print(f"  Check inbox for interview link!")
+                
+                # Also create an in-app notification for the recruiter
                 try:
-                    from django.core.mail import get_connection
-                    from django.core.mail.backends.console import EmailBackend
-
-                    # Use console backend to print email to console
-                    connection = get_connection(
-                        backend="django.core.mail.backends.console.EmailBackend"
+                    NotificationService.send_interview_scheduled_notification(interview)
+                except Exception as notif_error:
+                    logger.warning(f"Failed to send in-app notification: {notif_error}")
+                
+                return True
+            except Exception as email_error:
+                error_msg = str(email_error)
+                logger.error(
+                    f"❌ SMTP email failed for {candidate_email}: {error_msg}"
+                )
+                print(f"\n[EMAIL FAILED] Error sending email to {candidate_email}")
+                print(f"Error: {error_msg}")
+                
+                # Provide helpful error messages (same as test script)
+                if "authentication" in error_msg.lower() or "535" in error_msg:
+                    logger.error(
+                        "⚠️  Authentication failed - Check EMAIL_HOST_PASSWORD. "
+                        "For Gmail, use an App Password (not your regular password). "
+                        "Generate at: https://myaccount.google.com/apppasswords"
                     )
-                    send_mail(
-                        subject=subject,
-                        message=message,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[candidate_email],
-                        fail_silently=False,
-                        connection=connection,
+                    print("\nPossible fixes:")
+                    print("1. Check EMAIL_HOST_PASSWORD - use Gmail App Password, not regular password")
+                    print("2. Generate new App Password at: https://myaccount.google.com/apppasswords")
+                elif "connection" in error_msg.lower() or "timed out" in error_msg.lower():
+                    logger.error(
+                        "⚠️  Connection failed - Check EMAIL_HOST and EMAIL_PORT. "
+                        "For Gmail: smtp.gmail.com:587 with TLS"
                     )
-                    logger.info(
-                        f"Interview notification sent to console (fallback mode): {candidate_email}"
-                    )
-                except Exception as console_error:
-                    logger.error(f"Both SMTP and console email failed: {console_error}")
-                    # Still return True to not break the interview scheduling process
-
-            # Also create an in-app notification for the recruiter
-            NotificationService.send_interview_scheduled_notification(interview)
-
-            return True
+                    print("\nPossible fixes:")
+                    print("1. Check EMAIL_HOST and EMAIL_PORT in .env")
+                    print("2. Verify EMAIL_USE_TLS=True for port 587")
+                    print("3. Check internet connection and firewall settings")
+                else:
+                    print("\nPossible fixes:")
+                    print("1. Verify all email settings in .env file")
+                    print("2. Check EMAIL_HOST_PASSWORD - use Gmail App Password")
+                    print("3. Ensure EMAIL_USE_TLS=True for port 587")
+                
+                # Don't fallback - fail explicitly so user knows
+                return False
 
         except Exception as e:
-            logger.error(f"Failed to send candidate interview notification: {e}")
+            error_msg = str(e)
+            logger.error(f"❌ Failed to send candidate interview notification: {error_msg}")
+            print(f"\n[EMAIL FAILED] Exception in send_candidate_interview_scheduled_notification:")
+            print(f"  Error: {error_msg}")
+            print(f"  Interview ID: {interview.id if interview else 'N/A'}")
+            print(f"  Candidate: {interview.candidate.id if interview and interview.candidate else 'N/A'}")
+            import traceback
+            traceback.print_exc()
             return False
 
     @staticmethod

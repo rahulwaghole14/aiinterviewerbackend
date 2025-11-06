@@ -11,6 +11,7 @@ class Evaluation(models.Model):
     traits = models.TextField(blank=True, null=True)
     suggestions = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    details = models.JSONField(blank=True, null=True, default=dict, help_text="Extended AI evaluation details, proctoring warnings, and statistics.")
 
     def __str__(self):
         return f"Evaluation for {self.interview.candidate.full_name}"

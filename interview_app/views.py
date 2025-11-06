@@ -76,15 +76,16 @@ except ImportError:
 
 
 load_dotenv()
-# Use hardcoded API key for now (same as other files)
-gemini_api_key = "AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw"
+# Use API key from Django settings (from environment variable)
 try:
     from django.conf import settings as dj_settings
-    active_key = getattr(dj_settings, 'GEMINI_API_KEY', gemini_api_key)
+    active_key = getattr(dj_settings, 'GEMINI_API_KEY', '')
     if active_key:
         genai.configure(api_key=active_key)
-except Exception:
-    pass
+    else:
+        print("⚠️ WARNING: GEMINI_API_KEY not set in environment. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
+except Exception as e:
+    print(f"⚠️ WARNING: Could not configure Gemini API: {e}")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.
@@ -182,29 +183,99 @@ def create_interview_invite(request):
         interview_url = request.build_absolute_uri(f"/?session_key={session.session_key}")
 
         try:
-            scheduled_time_str = aware_datetime.strftime('%A, %B %d, %Y at %I:%M %p %Z')
+            # Use same reliable email sending approach as test_email_sending_live.py
+            from django.conf import settings
+            
+            email_backend = getattr(settings, 'EMAIL_BACKEND', '')
+            email_host = getattr(settings, 'EMAIL_HOST', '')
+            email_port = getattr(settings, 'EMAIL_PORT', 587)
+            email_use_tls = getattr(settings, 'EMAIL_USE_TLS', True)
+            email_use_ssl = getattr(settings, 'EMAIL_USE_SSL', False)
+            email_user = getattr(settings, 'EMAIL_HOST_USER', '') or os.getenv('EMAIL_HOST_USER', '')
+            email_password = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', email_user or 'noreply@talaro.com')
+            
+            # CRITICAL: Fix TLS/SSL conflict - for Gmail with port 587, use TLS only
+            if email_port == 587 and email_use_tls and email_use_ssl:
+                print("[WARNING] Both TLS and SSL are enabled. Disabling SSL for port 587 (TLS only)...")
+                settings.EMAIL_USE_SSL = False
+                email_use_ssl = False
+            
+            # Validate configuration
+            if "console" in str(email_backend).lower():
+                error_msg = "EMAIL_BACKEND is set to console - emails won't be sent!"
+                print(f"[ERROR] {error_msg}")
+                return render(request, 'interview_app/create_invite.html', {
+                    'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env',
+                    'languages': SUPPORTED_LANGUAGES
+                })
+            elif not email_host:
+                error_msg = "EMAIL_HOST is not set"
+                print(f"[ERROR] {error_msg}")
+                return render(request, 'interview_app/create_invite.html', {
+                    'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_HOST=smtp.gmail.com in .env',
+                    'languages': SUPPORTED_LANGUAGES
+                })
+            elif not email_user or not email_password:
+                error_msg = "Email credentials incomplete"
+                print(f"[ERROR] {error_msg}")
+                return render(request, 'interview_app/create_invite.html', {
+                    'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in .env',
+                    'languages': SUPPORTED_LANGUAGES
+                })
+            
+            # Configuration valid - send email
+            scheduled_time_str = aware_datetime.astimezone(pytz.timezone('Asia/Kolkata')).strftime('%A, %B %d, %Y at %I:%M %p IST')
             
             email_subject = "Your Talaro Interview Invitation"
             email_body = (
                 f"Dear {candidate_name},\n\n"
                 f"Your AI screening interview has been scheduled for: {scheduled_time_str}.\n\n"
                 "Please use the following unique link to begin your interview at the scheduled time. "
-                "The link will become active at the start time and will expire 10 minutes after.\n"
+                "The link will become active 30 seconds before the start time and will expire 10 minutes after.\n\n"
                 f"{interview_url}\n\n"
+                "⚠️ **Important Instructions:**\n"
+                "• Please join the interview 5-10 minutes before the scheduled time\n"
+                "• Make sure you have a stable internet connection and a quiet environment\n"
+                "• Ensure your camera and microphone are working properly\n"
+                "• Have a valid government-issued ID ready for verification\n\n"
                 "Best of luck!\n"
             )
+            
+            print(f"\n{'='*70}")
+            print(f"EMAIL: Sending interview invitation email")
+            print(f"EMAIL: To: {candidate_email}")
+            print(f"EMAIL: Subject: {email_subject}")
+            print(f"EMAIL: Interview Link: {interview_url}")
+            print(f"{'='*70}\n")
             
             send_mail(
                 email_subject,
                 email_body,
-                os.getenv('EMAIL_HOST_USER'),
+                default_from_email,
                 [candidate_email],
                 fail_silently=False,
             )
-            print(f"--- Invitation sent to {candidate_email} via Gmail SMTP ---")
+            print(f"[SUCCESS] Invitation sent to {candidate_email} via Gmail SMTP")
+            print(f"Interview link: {interview_url}")
         except Exception as e:
-            print(f"ERROR sending email: {e}")
-            return render(request, 'interview_app/create_invite.html', {'error': f'Could not send email. Please check your .env settings and ensure you are using a Google App Password. Error: {e}', 'languages': SUPPORTED_LANGUAGES})
+            error_msg = str(e)
+            print(f"[ERROR] Error sending email: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            
+            # Provide helpful error message
+            if "authentication" in error_msg.lower() or "535" in error_msg:
+                detailed_error = "Authentication failed. Use Gmail App Password (not regular password). Generate at: https://myaccount.google.com/apppasswords"
+            elif "connection" in error_msg.lower() or "timed out" in error_msg.lower():
+                detailed_error = "Connection failed. Check EMAIL_HOST and EMAIL_PORT in .env file."
+            else:
+                detailed_error = f"Could not send email. Error: {error_msg}"
+            
+            return render(request, 'interview_app/create_invite.html', {
+                'error': detailed_error,
+                'languages': SUPPORTED_LANGUAGES
+            })
 
         return redirect('dashboard')
 
@@ -262,6 +333,154 @@ def generate_interview_link(request):
             base_url = request.build_absolute_uri('/')
             interview_link = f"{base_url}?session_key={session.session_key}"
             
+            # Send email notification to candidate
+            try:
+                # Format scheduled time in IST
+                ist = pytz.timezone('Asia/Kolkata')
+                if session.scheduled_at:
+                    scheduled_time_ist = session.scheduled_at.astimezone(ist)
+                    scheduled_time_str = scheduled_time_ist.strftime('%A, %B %d, %Y at %I:%M %p IST')
+                    scheduled_date = scheduled_time_ist.strftime('%B %d, %Y')
+                    scheduled_time_only = scheduled_time_ist.strftime('%I:%M %p IST')
+                else:
+                    scheduled_time_str = "To be determined"
+                    scheduled_date = "TBD"
+                    scheduled_time_only = "TBD"
+                
+                # Extract job title from job_description if available
+                job_title = "Technical Role"
+                if session.job_description:
+                    lines = session.job_description.split('\n')
+                    for line in lines:
+                        if 'Job Title:' in line or 'Title:' in line:
+                            job_title = line.split(':')[-1].strip()
+                            break
+                        elif 'Position:' in line:
+                            job_title = line.split(':')[-1].strip()
+                            break
+                
+                # Check email configuration - use same reliable approach as test_email_sending_live.py
+                email_backend = getattr(settings, 'EMAIL_BACKEND', '')
+                email_host = getattr(settings, 'EMAIL_HOST', '')
+                email_port = getattr(settings, 'EMAIL_PORT', 587)
+                email_use_tls = getattr(settings, 'EMAIL_USE_TLS', True)
+                email_use_ssl = getattr(settings, 'EMAIL_USE_SSL', False)
+                email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+                email_password = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+                default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', email_user or 'noreply@talaro.com')
+                
+                # CRITICAL: Fix TLS/SSL conflict - for Gmail with port 587, use TLS only
+                if email_port == 587 and email_use_tls and email_use_ssl:
+                    print("[WARNING] Both TLS and SSL are enabled. Disabling SSL for port 587 (TLS only)...")
+                    settings.EMAIL_USE_SSL = False
+                    email_use_ssl = False
+                
+                # Final check for TLS/SSL conflict
+                if email_use_tls and email_use_ssl:
+                    print("[ERROR] EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
+                    print("To fix: For Gmail port 587, set EMAIL_USE_TLS=True and EMAIL_USE_SSL=False in .env")
+                    email_sent = False
+                # Check configuration (same checks as test_email_sending_live.py)
+                elif "console" in str(email_backend).lower():
+                    print(f"[ERROR] EMAIL_BACKEND is set to console - emails won't be sent!")
+                    print("Fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env")
+                    email_sent = False
+                elif not email_host:
+                    print(f"[ERROR] EMAIL_HOST is not set!")
+                    print("Fix: Set EMAIL_HOST=smtp.gmail.com in .env")
+                    email_sent = False
+                elif not email_user or not email_password:
+                    print(f"[ERROR] Email credentials not set!")
+                    print("Fix: Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in .env")
+                    email_sent = False
+                else:
+                    # Configuration is valid - send email
+                    try:
+                        email_subject = f"Your Interview Has Been Scheduled - {job_title}"
+                        email_body = f"""Dear {session.candidate_name},
+
+Your AI interview has been scheduled successfully!
+
+📋 **Interview Details:**
+• Candidate: {session.candidate_name}
+• Position: {job_title}
+• Date: {scheduled_date}
+• Time: {scheduled_time_only}
+• Session ID: {session.id}
+
+🔗 **Join Your Interview:**
+Click the link below to join your interview at the scheduled time:
+{interview_link}
+
+⚠️ **Important Instructions:**
+• Please join the interview 5-10 minutes before the scheduled time
+• The link will be active 30 seconds before the scheduled time
+• The link will expire 10 minutes after the scheduled start time
+• Make sure you have a stable internet connection and a quiet environment
+• Ensure your camera and microphone are working properly
+• Have a valid government-issued ID ready for verification
+
+Best of luck with your interview!
+
+---
+This is an automated message. Please do not reply to this email.
+"""
+                        from_email = default_from_email
+                        
+                        print(f"\n{'='*70}")
+                        print(f"EMAIL: Sending interview invitation email")
+                        print(f"EMAIL: Configuration:")
+                        print(f"  EMAIL_BACKEND: {email_backend}")
+                        print(f"  EMAIL_HOST: {email_host}")
+                        print(f"  EMAIL_PORT: {email_port}")
+                        print(f"  EMAIL_USE_TLS: {email_use_tls}")
+                        print(f"  EMAIL_USE_SSL: {email_use_ssl}")
+                        print(f"  EMAIL_HOST_USER: {email_user[:20] + '...' if email_user and len(email_user) > 20 else email_user}")
+                        print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
+                        print(f"  DEFAULT_FROM_EMAIL: {default_from_email}")
+                        print(f"EMAIL: To: {session.candidate_email}")
+                        print(f"EMAIL: Subject: {email_subject}")
+                        print(f"EMAIL: Interview Link: {interview_link}")
+                        print(f"{'='*70}\n")
+                        
+                        send_mail(
+                            email_subject,
+                            email_body,
+                            from_email,
+                            [session.candidate_email],
+                            fail_silently=False,
+                        )
+                        email_sent = True
+                        print(f"[SUCCESS] Email sent successfully to {session.candidate_email}")
+                        print(f"Check inbox for interview link: {interview_link}")
+                    except Exception as email_error:
+                        error_msg = str(email_error)
+                        print(f"[EMAIL FAILED] Error sending email to {session.candidate_email}")
+                        print(f"Error: {error_msg}")
+                        
+                        # Provide helpful error messages
+                        if "authentication" in error_msg.lower() or "535" in error_msg:
+                            print("\nPossible fixes:")
+                            print("1. Check EMAIL_HOST_PASSWORD - use Gmail App Password, not regular password")
+                            print("2. Generate new App Password at: https://myaccount.google.com/apppasswords")
+                        elif "connection" in error_msg.lower() or "timed out" in error_msg.lower():
+                            print("\nPossible fixes:")
+                            print("1. Check EMAIL_HOST and EMAIL_PORT in .env")
+                            print("2. Verify EMAIL_USE_TLS=True for port 587")
+                            print("3. Check internet connection and firewall settings")
+                        else:
+                            print("\nPossible fixes:")
+                            print("1. Verify all email settings in .env file")
+                            print("2. Check EMAIL_HOST_PASSWORD - use Gmail App Password")
+                            print("3. Ensure EMAIL_USE_TLS=True for port 587")
+                        
+                        email_sent = False
+            except Exception as e:
+                print(f"❌ ERROR in email sending process: {e}")
+                import traceback
+                traceback.print_exc()
+                email_sent = False
+            
             return JsonResponse({
                 'success': True,
                 'interview_link': interview_link,
@@ -270,7 +489,8 @@ def generate_interview_link(request):
                 'candidate_name': session.candidate_name,
                 'candidate_email': session.candidate_email,
                 'scheduled_at': session.scheduled_at.isoformat() if session.scheduled_at else None,
-                'status': session.status
+                'status': session.status,
+                'email_sent': email_sent
             })
             
         except Exception as e:
@@ -501,18 +721,42 @@ def interview_portal(request):
             else:
                 print(f"⚠️ No coding questions found. Creating hardcoded question...")
                 # Create hardcoded question if none exist
-                # Determine language from session or URL param
+                # Determine language from job.coding_language (priority 1), then session, then URL param
                 allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'}
                 requested_lang = None
+                
+                # Priority 1: Get from Interview.job.coding_language via session_key (most reliable)
                 try:
-                    if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                        requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                except Exception:
-                    requested_lang = None
+                    from interviews.models import Interview
+                    interview = Interview.objects.filter(session_key=session.session_key).first()
+                    if interview and interview.job:
+                        job_lang = getattr(interview.job, 'coding_language', None)
+                        if job_lang and job_lang.upper() in allowed_langs:
+                            requested_lang = job_lang.upper()
+                            print(f"✅ Using coding language from job via Interview: {requested_lang}")
+                except Exception as e:
+                    print(f"⚠️ Error getting coding language from Interview: {e}")
+                
+                # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
+                if not requested_lang:
+                    try:
+                        if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                            requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                            if requested_lang in allowed_langs:
+                                print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
+                    except Exception as e:
+                        print(f"⚠️ Error parsing keyword_analysis: {e}")
+                        requested_lang = None
+                
+                # Priority 3: Get from URL parameter (fallback)
                 if not requested_lang:
                     requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
+                    print(f"⚠️ Using coding language from URL parameter: {requested_lang}")
+                
+                # Validate and default to PYTHON if invalid
                 if requested_lang not in allowed_langs:
                     requested_lang = 'PYTHON'
+                    print(f"⚠️ Invalid language, defaulting to PYTHON")
                 
                 # Import hardcoded map
                 hardcoded_map = {
@@ -647,17 +891,135 @@ def interview_portal(request):
                         {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
                     ]
                     
-                    # Add dynamic coding questions based on job profile using Gemini API
-                    job_title = None
-                    domain_name = None
-                    if hasattr(session, 'interview') and session.interview and session.interview.job:
-                        job_title = session.interview.job.job_title
-                        if session.interview.job.domain:
-                            domain_name = session.interview.job.domain.name
+                    # Use hardcoded coding questions (NOT Gemini) - Get language from job.coding_language
+                    allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'}
+                    requested_lang = None
                     
-                    # Use Gemini API for dynamic question generation
-                    from interview_app_11.gemini_question_generator import get_coding_questions_from_gemini
-                    coding_questions = get_coding_questions_from_gemini(job_title, domain_name)
+                    # Priority 1: Get from Interview.job.coding_language via session_key (most reliable)
+                    try:
+                        from interviews.models import Interview
+                        interview = Interview.objects.filter(session_key=session.session_key).first()
+                        if interview and interview.job:
+                            job_lang = getattr(interview.job, 'coding_language', None)
+                            if job_lang and job_lang.upper() in allowed_langs:
+                                requested_lang = job_lang.upper()
+                                print(f"✅ Using coding language from job via Interview: {requested_lang}")
+                    except Exception as e:
+                        print(f"⚠️ Error getting coding language from Interview: {e}")
+                    
+                    # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
+                    if not requested_lang:
+                        try:
+                            if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                                requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                                if requested_lang in allowed_langs:
+                                    print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
+                        except Exception as e:
+                            print(f"⚠️ Error parsing keyword_analysis: {e}")
+                            requested_lang = None
+                    
+                    # Priority 3: Get from URL parameter (fallback)
+                    if not requested_lang:
+                        requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
+                        print(f"⚠️ Using coding language from URL parameter: {requested_lang}")
+                    
+                    # Validate and default to PYTHON if invalid
+                    if requested_lang not in allowed_langs:
+                        requested_lang = 'PYTHON'
+                        print(f"⚠️ Invalid language, defaulting to PYTHON")
+                    
+                    # Use hardcoded questions instead of Gemini
+                    hardcoded_map = {
+                        'PYTHON': {
+                            'title': 'Reverse a String',
+                            'description': 'Write a function reverse_string(s: str) -> str that returns the reversed string.',
+                            'language': 'PYTHON',
+                            'starter_code': 'def reverse_string(s: str) -> str:\n    # TODO: implement\n    pass',
+                            'test_cases': [
+                                {'input': "'hello'", 'expected_output': 'olleh'},
+                                {'input': "''", 'expected_output': ''},
+                                {'input': "'abc'", 'expected_output': 'cba'}
+                            ]
+                        },
+                        'JAVASCRIPT': {
+                            'title': 'Reverse a String',
+                            'description': 'Implement function reverseString(s) that returns the reversed string.',
+                            'language': 'JAVASCRIPT',
+                            'starter_code': 'function reverseString(s){\n  // TODO\n}\nmodule.exports = reverseString;',
+                            'test_cases': [
+                                {'input': "'hello'", 'expected_output': 'olleh'},
+                                {'input': "''", 'expected_output': ''},
+                                {'input': "'abc'", 'expected_output': 'cba'}
+                            ]
+                        },
+                        'JAVA': {
+                            'title': 'Add Two Numbers',
+                            'description': 'Implement a static method add(int a, int b) that returns a+b.',
+                            'language': 'JAVA',
+                            'starter_code': 'public class Solution {\n  public static int add(int a,int b){\n    // TODO\n    return 0;\n  }\n}',
+                            'test_cases': [
+                                {'input': '1,2', 'expected_output': '3'},
+                                {'input': '-5,5', 'expected_output': '0'},
+                                {'input': '10,15', 'expected_output': '25'}
+                            ]
+                        },
+                        'PHP': {
+                            'title': 'Reverse a String',
+                            'description': 'Implement function reverse_string($s) that returns the reversed string.',
+                            'language': 'PHP',
+                            'starter_code': '<?php\nfunction reverse_string($s){\n  // TODO\n}\n?>',
+                            'test_cases': [
+                                {'input': "'hello'", 'expected_output': 'olleh'},
+                                {'input': "''", 'expected_output': ''},
+                                {'input': "'abc'", 'expected_output': 'cba'}
+                            ]
+                        },
+                        'C': {
+                            'title': 'Add Two Numbers',
+                            'description': 'Write a function int add(int a,int b) that returns a+b.',
+                            'language': 'C',
+                            'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                            'test_cases': [
+                                {'input': '1,2', 'expected_output': '3'},
+                                {'input': '-5,5', 'expected_output': '0'},
+                                {'input': '10,15', 'expected_output': '25'}
+                            ]
+                        },
+                        'CPP': {
+                            'title': 'Add Two Numbers',
+                            'description': 'Implement int add(int a,int b) that returns a+b.',
+                            'language': 'CPP',
+                            'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                            'test_cases': [
+                                {'input': '1,2', 'expected_output': '3'},
+                                {'input': '-5,5', 'expected_output': '0'},
+                                {'input': '10,15', 'expected_output': '25'}
+                            ]
+                        },
+                        'GO': {
+                            'title': 'Reverse a String',
+                            'description': 'Implement func Reverse(s string) string that returns the reversed string.',
+                            'language': 'GO',
+                            'starter_code': 'package main\nfunc Reverse(s string) string {\n  // TODO\n  return ""\n}',
+                            'test_cases': [
+                                {'input': '"hello"', 'expected_output': 'olleh'},
+                                {'input': '""', 'expected_output': ''},
+                                {'input': '"abc"', 'expected_output': 'cba'}
+                            ]
+                        },
+                        'HTML': {
+                            'title': 'Simple Heading',
+                            'description': 'Return an HTML string with an <h1>Hello</h1> element.',
+                            'language': 'HTML',
+                            'starter_code': '<!-- return <h1>Hello</h1> -->',
+                            'test_cases': [
+                                {'input': 'n/a', 'expected_output': '<h1>Hello</h1>'}
+                            ]
+                        }
+                    }
+                    
+                    coding_questions = [hardcoded_map[requested_lang]]
+                    print(f"✅ Using hardcoded coding question in {requested_lang} (NOT Gemini)")
                 
                 # Save spoken questions to database
                 for i, q_data in enumerate(all_questions):
@@ -683,6 +1045,18 @@ def interview_portal(request):
                         order=len(all_questions) + i,
                         question_level='MAIN'
                     )
+                    # Attach test cases
+                    try:
+                        from .models import TestCase
+                        if TestCase and coding_q.get('test_cases'):
+                            for tc in coding_q['test_cases']:
+                                TestCase.objects.create(
+                                    question=coding_question_obj,
+                                    input_data=str(tc.get('input', '')),
+                                    expected_output=str(tc.get('expected_output', ''))
+                                )
+                    except Exception as e:
+                        print(f"⚠️ Error creating test cases: {e}")
                     # Update the coding_questions_data with the real database ID
                     coding_q['id'] = str(coding_question_obj.id)
         else:
@@ -721,8 +1095,56 @@ def interview_portal(request):
                 summary_response = model.generate_content(summary_prompt)
                 session.resume_summary = summary_response.text
                 language_name = SUPPORTED_LANGUAGES.get(session.language_code, 'English')
+                
+                # Get question count from InterviewSlot.ai_configuration or default to 4
+                question_count = 4  # Default
+                try:
+                    # Get Interview via session_key (priority 1)
+                    from interviews.models import Interview
+                    interview = Interview.objects.filter(session_key=session.session_key).first()
+                    
+                    # If not found via session_key, try via candidate email (priority 2)
+                    if not interview and session.candidate_email:
+                        from candidates.models import Candidate
+                        try:
+                            candidate = Candidate.objects.get(email=session.candidate_email)
+                            interview = Interview.objects.filter(candidate=candidate).order_by('-created_at').first()
+                        except:
+                            pass
+                    
+                    if interview and interview.slot:
+                        slot = interview.slot
+                        print(f"✅ Found Interview {interview.id} with Slot {slot.id}")
+                        print(f"   Slot AI Config: {slot.ai_configuration}")
+                        
+                        if slot.ai_configuration and isinstance(slot.ai_configuration, dict):
+                            question_count = slot.ai_configuration.get('question_count', 4)
+                            # Ensure it's an integer
+                            try:
+                                question_count = int(question_count)
+                            except (ValueError, TypeError):
+                                question_count = 4
+                            print(f"✅ Using question count from InterviewSlot.ai_configuration: {question_count}")
+                        # Also check if question_count is in slot directly (if it was added as a field)
+                        elif hasattr(slot, 'question_count') and slot.question_count:
+                            question_count = int(slot.question_count)
+                            print(f"✅ Using question count from InterviewSlot.question_count: {question_count}")
+                        else:
+                            print(f"⚠️ No question_count found in slot.ai_configuration, using default 4")
+                            print(f"   Available keys in ai_configuration: {list(slot.ai_configuration.keys()) if slot.ai_configuration else 'None'}")
+                    else:
+                        if not interview:
+                            print(f"⚠️ No Interview found for session_key={session.session_key}, candidate_email={session.candidate_email}")
+                        elif not interview.slot:
+                            print(f"⚠️ Interview {interview.id} has no slot assigned")
+                        print(f"⚠️ Using default question_count: 4")
+                except Exception as e:
+                    print(f"⚠️ Error getting question count, using default 4: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
                 master_prompt = (
-                    f"You are an expert Talaro interviewer.Your task is to generate 5 insightful interview 1-2 liner questions in {language_name}. "
+                    f"You are an expert Talaro interviewer.Your task is to generate {question_count} insightful interview 1-2 liner questions in {language_name}. "
                     f"The interview is for a '{session.job_description.splitlines()[0]}' role. "
                     "starting from introduction question .Please base the questions on the provided job description and candidate's resume. "
                     "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
@@ -751,22 +1173,44 @@ def interview_portal(request):
                     if session.interview.job.domain:
                         domain_name = session.interview.job.domain.name
                 
-                # HARD-CODED SINGLE CODING QUESTION PER LANGUAGE (no Gemini)
-                # Allow selecting language via ?lang=PYTHON (defaults to PYTHON)
+                # Get coding language from job (prioritize job.coding_language)
                 allowed_langs = {
                     'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'
                 }
-                # Prioritize language chosen at scheduling time if stored
                 requested_lang = None
+                
+                # Priority 1: Get from Interview.job.coding_language via session_key (most reliable)
                 try:
-                    if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                        requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                except Exception:
-                    requested_lang = None
+                    from interviews.models import Interview
+                    interview = Interview.objects.filter(session_key=session.session_key).first()
+                    if interview and interview.job:
+                        job_lang = getattr(interview.job, 'coding_language', None)
+                        if job_lang and job_lang.upper() in allowed_langs:
+                            requested_lang = job_lang.upper()
+                            print(f"✅ Using coding language from job via Interview: {requested_lang}")
+                except Exception as e:
+                    print(f"⚠️ Error getting coding language from Interview: {e}")
+                
+                # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
+                if not requested_lang:
+                    try:
+                        if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                            requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                            if requested_lang in allowed_langs:
+                                print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
+                    except Exception as e:
+                        print(f"⚠️ Error parsing keyword_analysis: {e}")
+                        pass
+                
+                # Priority 3: Get from URL parameter (fallback)
                 if not requested_lang:
                     requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
+                    print(f"⚠️ Using coding language from URL parameter: {requested_lang}")
+                
+                # Validate and default to PYTHON if invalid
                 if requested_lang not in allowed_langs:
                     requested_lang = 'PYTHON'
+                    print(f"⚠️ Invalid language, defaulting to PYTHON")
 
                 # Define one question with test cases per language
                 hardcoded_map = {
@@ -1419,55 +1863,58 @@ def end_interview_session(request):
             except Exception as e:
                 print(f"--- Error in comprehensive evaluation: {e} ---")
             
+            # Create Evaluation after interview completion
+            try:
+                from evaluation.services import create_evaluation_from_session
+                evaluation = create_evaluation_from_session(session_key)
+                if evaluation:
+                    print(f"✅ Evaluation created for session {session_key}")
+            except Exception as e:
+                print(f"⚠️ Error creating evaluation: {e}")
+                import traceback
+                traceback.print_exc()
+            
         release_camera_for_session(session_key)
         return JsonResponse({"status": "ok"})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
-@csrf_exempt
-@require_POST
-def submit_coding_challenge(request):
-    try:
-        data = json.loads(request.body)
-        session_key = data.get('session_key')
-        question_id = data.get('question_id')
-        submitted_code = data.get('code')
-        language = data.get('language')
-
-        if not all([session_key, question_id, submitted_code, language]):
-            return JsonResponse({"status": "error", "message": "Missing required data."}, status=400)
-
-        session = get_object_or_404(InterviewSession, session_key=session_key)
-        question = get_object_or_404(InterviewQuestion, id=question_id)
-
-        CodeSubmission.objects.create(
-            session=session,
-            question=question,
-            submitted_code=submitted_code,
-            language=language,
-            passed_all_tests=False # Placeholder, would need full test suite logic
-        )
-
-        session.status = 'COMPLETED'
-        session.save()
-        print(f"--- Session {session_key} with coding challenge marked as COMPLETED. ---")
-        
-        release_camera_for_session(session_key)
-        return JsonResponse({"status": "ok", "message": "Submission successful."})
-    except Exception as e:
-        traceback.print_exc()
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+# Removed duplicate submit_coding_challenge function - using the one at line 2643
 
 def interview_complete(request):
     session_key = request.GET.get('session_key')
     context = {}
+    
     if session_key:
         context['session_key'] = session_key
-        # Also release camera resources when complete page is accessed
+        
+        # Release camera and microphone resources immediately
         try:
             release_camera_for_session(session_key)
+            print(f"✅ Camera resources released for session {session_key}")
         except Exception as e:
-            print(f"Error releasing camera for session {session_key}: {e}")
+            print(f"⚠️ Error releasing camera for session {session_key}: {e}")
+        
+        # Create evaluation and generate PDF in background (don't wait for it)
+        import threading
+        def generate_evaluation_background():
+            try:
+                from evaluation.services import create_evaluation_from_session
+                print(f"🔄 Starting background evaluation generation for session {session_key}")
+                evaluation = create_evaluation_from_session(session_key)
+                if evaluation:
+                    print(f"✅ Background evaluation completed for session {session_key}")
+                else:
+                    print(f"⚠️ Background evaluation not created for session {session_key}")
+            except Exception as e:
+                print(f"⚠️ Error in background evaluation generation: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Start evaluation generation in background thread
+        evaluation_thread = threading.Thread(target=generate_evaluation_background, daemon=True)
+        evaluation_thread.start()
+        print(f"🔄 Background evaluation thread started for session {session_key}")
     
     template = loader.get_template('interview_app/interview_complete.html')
     return HttpResponse(template.render(context, request))

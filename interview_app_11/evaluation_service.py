@@ -22,9 +22,37 @@ class ComprehensiveEvaluationService:
     """
     
     def __init__(self):
-        # Configure Gemini API
-        genai.configure(api_key="AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw")
-        self.model = genai.GenerativeModel('gemini-1.5-flash-002')
+        # Configure Gemini API - Get from Django settings
+        from django.conf import settings
+        api_key = getattr(settings, 'GEMINI_API_KEY', '')
+        if api_key:
+            genai.configure(api_key=api_key)
+            # Try newer models first, then fallback
+            model_priority = [
+                'gemini-2.0-flash-exp',  # Latest experimental
+                'gemini-2.5-flash',       # Latest stable
+                'gemini-1.5-pro-latest',  # Latest of 1.5 series
+                'gemini-pro',             # Standard name
+            ]
+            
+            self.model = None
+            self.model_name = None
+            
+            for model_name in model_priority:
+                try:
+                    self.model = genai.GenerativeModel(model_name)
+                    self.model_name = model_name
+                    print(f"✅ Using Gemini model: {model_name}")
+                    break
+                except Exception as e:
+                    print(f"⚠️ Error with {model_name}: {e}")
+                    continue
+            
+            if self.model is None:
+                print("⚠️ All SDK models failed, evaluation will use fallback")
+                self.model = None
+        else:
+            raise ValueError("GEMINI_API_KEY not set in environment. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
     
     def evaluate_complete_interview(self, session_key):
         """

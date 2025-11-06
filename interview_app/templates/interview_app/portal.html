@@ -1170,14 +1170,43 @@
         console.log("Loading question:", q);
         document.getElementById('question-container').innerHTML = `<div id="question-category" class="question-category">${q.type}</div><p id="question-text" class="question-text">${q.text}</p>`;
         document.getElementById('transcription-box').innerHTML = "<span class='status-indicator status-loading'></span><i>The question will be read now...</i>";
-        currentAudio.src = q.audio_url;
-        console.log("Playing audio from:", q.audio_url);
-        currentAudio.play().catch(e => console.error("Error playing question audio:", e));
-        currentAudio.onended = () => {
-            console.log("Audio ended, starting thinking phase");
-            questionStartTime = new Date(); 
-            startThinkingPhase();
-        };
+        
+        if(q.audio_url && q.audio_url.trim()){
+            // Use Google Cloud TTS audio if available
+            currentAudio.src = q.audio_url;
+            console.log("Playing audio from:", q.audio_url);
+            currentAudio.play().catch(e => console.error("Error playing question audio:", e));
+            currentAudio.onended = () => {
+                console.log("Audio ended, starting thinking phase");
+                questionStartTime = new Date(); 
+                startThinkingPhase();
+            };
+        }else{
+            // Use browser's built-in TTS as fallback when Google Cloud TTS is not available
+            console.log("No audio URL, using browser TTS fallback");
+            if('speechSynthesis' in window && q.text){
+                const utterance = new SpeechSynthesisUtterance(q.text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                utterance.onend = () => {
+                    console.log("Browser TTS ended, starting thinking phase");
+                    questionStartTime = new Date(); 
+                    startThinkingPhase();
+                };
+                utterance.onerror = (e) => {
+                    console.error("Browser TTS error:", e);
+                    questionStartTime = new Date(); 
+                    startThinkingPhase();
+                };
+                speechSynthesis.speak(utterance);
+            }else{
+                // No TTS available, go directly to thinking phase
+                console.log("No TTS available, starting thinking phase immediately");
+                questionStartTime = new Date(); 
+                startThinkingPhase();
+            }
+        }
     }
 
     function startThinkingPhase() {
@@ -1713,6 +1742,56 @@
             if (codingTimerInterval) {
                 clearInterval(codingTimerInterval);
                 codingTimerInterval = null;
+            }
+            
+            // Release camera and microphone immediately after submission
+            try {
+                // Stop all media tracks
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                        .then(stream => {
+                            stream.getTracks().forEach(track => {
+                                track.stop();
+                                console.log('Released media track:', track.kind);
+                            });
+                        })
+                        .catch(err => {
+                            console.log('No active media streams to release');
+                        });
+                }
+                
+                // Release any existing streams
+                if (window.verificationStream) {
+                    window.verificationStream.getTracks().forEach(track => track.stop());
+                    console.log('Released verification stream');
+                }
+                
+                // Close audio contexts
+                if (window.audioContext) {
+                    window.audioContext.close().catch(e => console.log('Audio context already closed'));
+                    console.log('Closed audio context');
+                }
+                
+                // Stop media recorders
+                if (window.mediaRecorder && window.mediaRecorder.state !== 'inactive') {
+                    window.mediaRecorder.stop();
+                    console.log('Stopped media recorder');
+                }
+                
+                // Release backend camera resources
+                fetch('/interview_app/release_camera/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_key: SESSION_KEY })
+                }).then(() => {
+                    console.log('Backend camera resources released');
+                }).catch(err => {
+                    console.log('Error releasing backend camera:', err);
+                });
+                
+                console.log('✅ Camera and microphone released after coding submission');
+            } catch (error) {
+                console.log('Error releasing media resources:', error);
             }
             
             // Small delay to show result, then proceed

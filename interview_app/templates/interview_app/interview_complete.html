@@ -160,16 +160,6 @@
             </div>
         </div>
         
-        {% if session_key %}
-        <div style="margin: 30px 0;">
-            <a href="/ai/transcript_pdf?session_key={{ session_key }}" 
-               target="_blank"
-               style="background: #28a745; color: white; padding: 15px 30px; border-radius: 25px; text-decoration: none; display: inline-block; font-size: 1.1em; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3); transition: transform 0.2s;">
-                📄 Download Complete Interview Report (PDF)
-            </a>
-        </div>
-        {% endif %}
-        
         <div class="next-steps">
             <h3>What happens next?</h3>
             <ul>
@@ -271,13 +261,6 @@
             releaseMediaResources();
         });
         
-        // Auto-close after 10 seconds
-        setTimeout(function() {
-            if (confirm("Interview completed successfully. Close this window?")) {
-                closeInterview();
-            }
-        }, 10000);
-        
         // Prevent going back
         window.history.pushState(null, null, window.location.href);
         window.onpopstate = function() {
@@ -292,6 +275,7 @@
             }
         });
     </script>
+    
 </body>
 </html>
 

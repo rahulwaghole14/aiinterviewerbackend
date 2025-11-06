@@ -50,6 +50,8 @@ urlpatterns = [
     path('api/companies/', include('companies.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/interviews/', include('interviews.urls')),
+    path('api/evaluation/', include('evaluation.urls')),  # Evaluation CRUD endpoints
+    path('api/requests/', include('candidates.urls')),  # Requests endpoints (pending, etc.)
 ]
 
 # Serve media files in development

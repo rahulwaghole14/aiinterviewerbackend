@@ -54,6 +54,9 @@ from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
 from django.core.mail import send_mail
 from weasyprint import HTML
+import logging
+
+logger = logging.getLogger(__name__)
 
 # from .camera import VideoCamera
 # from .simple_camera import SimpleVideoCamera as VideoCamera
@@ -89,9 +92,15 @@ except ImportError:
 
 
 load_dotenv()
-# Use hardcoded API key for now (same as other files)
-gemini_api_key = "AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw"
-genai.configure(api_key=gemini_api_key)
+# Use API key from Django settings (from environment variable)
+try:
+    api_key = getattr(settings, 'GEMINI_API_KEY', '')
+    if api_key:
+        genai.configure(api_key=api_key)
+    else:
+        print("⚠️ WARNING: GEMINI_API_KEY not set. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
+except Exception as e:
+    print(f"⚠️ WARNING: Could not configure Gemini API: {e}")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.
@@ -145,6 +154,128 @@ def get_text_from_file(uploaded_file):
     else: text = uploaded_file.read().decode('utf-8', errors='ignore')
     return text
 
+def send_interview_session_email(session, interview_url, request=None):
+    """
+    Send email notification to candidate when InterviewSession is scheduled.
+    
+    Args:
+        session: InterviewSession object
+        interview_url: Full URL for the interview link
+        request: Optional Django request object for building absolute URIs
+    
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    try:
+        if not session.candidate_email:
+            logger.warning(f"Cannot send email: InterviewSession {session.id} has no candidate_email")
+            return False
+        
+        # Format scheduled time in IST
+        ist = pytz.timezone('Asia/Kolkata')
+        if session.scheduled_at:
+            scheduled_time_ist = session.scheduled_at.astimezone(ist)
+            scheduled_time_str = scheduled_time_ist.strftime('%A, %B %d, %Y at %I:%M %p IST')
+            scheduled_date = scheduled_time_ist.strftime('%B %d, %Y')
+            scheduled_time_only = scheduled_time_ist.strftime('%I:%M %p IST')
+        else:
+            scheduled_time_str = "To be determined"
+            scheduled_date = "TBD"
+            scheduled_time_only = "TBD"
+        
+        # Extract job title from job_description if available
+        job_title = "AI Interview"
+        if session.job_description:
+            # Try to extract job title from JD
+            lines = session.job_description.split('\n')
+            for line in lines:
+                if 'Job Title:' in line or 'Title:' in line:
+                    job_title = line.split(':')[-1].strip()
+                    break
+                elif 'Position:' in line:
+                    job_title = line.split(':')[-1].strip()
+                    break
+        
+        # Create email subject and body
+        email_subject = f"Your Interview Has Been Scheduled - {job_title}"
+        
+        email_body = f"""Dear {session.candidate_name},
+
+Your AI interview has been scheduled successfully!
+
+📋 **Interview Details:**
+• Candidate: {session.candidate_name}
+• Position: {job_title}
+• Date: {scheduled_date}
+• Time: {scheduled_time_only}
+• Session ID: {session.id}
+
+🔗 **Join Your Interview:**
+Click the link below to join your interview at the scheduled time:
+{interview_url}
+
+⚠️ **Important Instructions:**
+• Please join the interview 5-10 minutes before the scheduled time
+• The link will be active 30 seconds before the scheduled time
+• The link will expire 10 minutes after the scheduled start time
+• Make sure you have a stable internet connection and a quiet environment
+• Ensure your camera and microphone are working properly
+• Have a valid government-issued ID ready for verification
+
+Best of luck with your interview!
+
+---
+This is an automated message. Please do not reply to this email.
+"""
+        
+        # Check email configuration
+        email_backend = getattr(settings, 'EMAIL_BACKEND', '')
+        email_host = getattr(settings, 'EMAIL_HOST', '')
+        email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+        email_password = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+        
+        # Check if email is properly configured
+        if 'console' in str(email_backend).lower():
+            logger.warning(f"EMAIL_BACKEND is set to console - email will not be sent to {session.candidate_email}")
+            print(f"\n[EMAIL NOT SENT] EMAIL_BACKEND is 'console' - email would print to console only")
+            print(f"To fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env file")
+            return False
+        elif not email_host:
+            logger.error(f"EMAIL_HOST is not set - cannot send email to {session.candidate_email}")
+            print(f"\n[EMAIL NOT SENT] EMAIL_HOST is not set")
+            print(f"To fix: Set EMAIL_HOST=smtp.gmail.com in .env file")
+            return False
+        elif not email_user or not email_password:
+            logger.error(f"Email credentials incomplete - cannot send email to {session.candidate_email}")
+            print(f"\n[EMAIL NOT SENT] Email credentials incomplete")
+            print(f"Missing: EMAIL_HOST_USER={bool(email_user)}, EMAIL_HOST_PASSWORD={bool(email_password)}")
+            return False
+        
+        # Send email
+        try:
+            from_email = email_user or getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@talaro.com')
+            send_mail(
+                email_subject,
+                email_body,
+                from_email,
+                [session.candidate_email],
+                fail_silently=False,
+            )
+            logger.info(f"✅ Email sent successfully to {session.candidate_email} for session {session.id}")
+            print(f"✅ Email sent successfully to {session.candidate_email} for session {session.id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send email to {session.candidate_email}: {e}")
+            print(f"❌ ERROR sending email to {session.candidate_email}: {e}")
+            traceback.print_exc()
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error in send_interview_session_email for session {session.id}: {e}")
+        print(f"❌ ERROR in send_interview_session_email: {e}")
+        traceback.print_exc()
+        return False
+
 @login_required
 def create_interview_invite(request):
     if request.method == 'POST':
@@ -179,30 +310,11 @@ def create_interview_invite(request):
 
         interview_url = request.build_absolute_uri(f"/?session_key={session.session_key}")
 
-        try:
-            scheduled_time_str = aware_datetime.strftime('%A, %B %d, %Y at %I:%M %p %Z')
-            
-            email_subject = "Your Talaro Interview Invitation"
-            email_body = (
-                f"Dear {candidate_name},\n\n"
-                f"Your AI screening interview has been scheduled for: {scheduled_time_str}.\n\n"
-                "Please use the following unique link to begin your interview at the scheduled time. "
-                "The link will become active at the start time and will expire 10 minutes after.\n"
-                f"{interview_url}\n\n"
-                "Best of luck!\n"
-            )
-            
-            send_mail(
-                email_subject,
-                email_body,
-                os.getenv('EMAIL_HOST_USER'),
-                [candidate_email],
-                fail_silently=False,
-            )
-            print(f"--- Invitation sent to {candidate_email} via Gmail SMTP ---")
-        except Exception as e:
-            print(f"ERROR sending email: {e}")
-            return render(request, 'interview_app/create_invite.html', {'error': f'Could not send email. Please check your .env settings and ensure you are using a Google App Password. Error: {e}', 'languages': SUPPORTED_LANGUAGES})
+        # Send email notification
+        email_sent = send_interview_session_email(session, interview_url, request)
+        if not email_sent:
+            # Show warning but don't fail the request
+            print(f"⚠️ Email notification failed, but interview session created successfully")
 
         return redirect('dashboard')
 
@@ -1374,60 +1486,120 @@ def run_test_suite(code, language, test_cases, question_description=None):
 @csrf_exempt
 @require_POST
 def execute_code(request):
-    data = json.loads(request.body)
-    code_to_run = data.get('code')
-    language = data.get('language', 'PYTHON').upper()
-    question_id = data.get('question_id')
-    session_key = data.get('session_key')
-
-    # Fix: Convert question_id to UUID if it's an integer
-    if isinstance(question_id, int):
-        # If it's an integer, try to find the question by order
-        session = get_object_or_404(InterviewSession, session_key=session_key)
-        question = InterviewQuestion.objects.filter(session=session, order=question_id-1).first()
-        if not question:
-            return JsonResponse({"status": "error", "message": "Question not found."}, status=400)
-    else:
-        # If it's already a UUID string, use it directly
-        question = get_object_or_404(InterviewQuestion, id=question_id)
-    
-    # Get test cases based on question type and job profile
-    test_input, expected_output = get_test_case_for_question(question)
-    
-    if not test_input or not expected_output:
-        return JsonResponse({'status': 'error', 'output': 'No test cases available for this question.'})
-    
-    result_obj = None
-    stdout, stderr = None, None
-
-    lang_map = {
-        'PYTHON': execute_python_windows,
-        'JAVASCRIPT': execute_javascript_windows,
-        'JAVA': execute_java_windows,
-        'PHP': execute_php_windows,
-        'RUBY': execute_ruby_windows,
-        'CSHARP': execute_csharp_windows,
-        'SQL': execute_sql_windows,
-    }
-    
-    if language in lang_map:
-        result_obj = lang_map[language](code_to_run, test_input)
-        stdout = result_obj.stdout
-        stderr = result_obj.stderr
-    else:
-        return JsonResponse({'status': 'error', 'output': f"Language '{language}' is not supported."}, status=400)
-    
-    if stderr:
-        return JsonResponse({'status': 'error', 'output': stderr.strip(), 'passed': False})
-    else:
-        actual_output = stdout.strip() if stdout else ""
-        passed = (actual_output == expected_output)
+    try:
+        # Validate request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError as e:
+            print(f"❌ [execute_code] Invalid JSON in request body: {e}")
+            return JsonResponse({'status': 'error', 'output': f'Invalid request data: {str(e)}'}, status=200)
         
-        return JsonResponse({
-            'status': 'success',
-            'output': actual_output,
-            'passed': passed
-        })
+        # Validate required parameters
+        code_to_run = data.get('code')
+        language = data.get('language', 'PYTHON').upper()
+        question_id = data.get('question_id')
+        session_key = data.get('session_key')
+        
+        if not session_key:
+            print("❌ [execute_code] Missing session_key")
+            return JsonResponse({'status': 'error', 'output': 'Session key is required.'}, status=200)
+        
+        if not question_id:
+            print("❌ [execute_code] Missing question_id")
+            return JsonResponse({'status': 'error', 'output': 'Question ID is required.'}, status=200)
+        
+        if not code_to_run:
+            print("❌ [execute_code] Missing code")
+            return JsonResponse({'status': 'error', 'output': 'Code is required.'}, status=200)
+        
+        print(f"✅ [execute_code] Received request: session_key={session_key[:10]}..., question_id={question_id}, language={language}")
+        
+        # Fix: Convert question_id to UUID if it's an integer
+        try:
+            if isinstance(question_id, int):
+                # If it's an integer, try to find the question by order
+                try:
+                    session = InterviewSession.objects.get(session_key=session_key)
+                except InterviewSession.DoesNotExist:
+                    print(f"❌ [execute_code] Session not found: {session_key}")
+                    return JsonResponse({'status': 'error', 'output': 'Interview session not found.'}, status=200)
+                
+                question = InterviewQuestion.objects.filter(session=session, order=question_id-1).first()
+                if not question:
+                    print(f"❌ [execute_code] Question not found for order: {question_id-1}")
+                    return JsonResponse({'status': 'error', 'output': 'Question not found for this order.'}, status=200)
+            else:
+                # If it's already a UUID string, use it directly
+                try:
+                    question = InterviewQuestion.objects.get(id=question_id)
+                except InterviewQuestion.DoesNotExist:
+                    print(f"❌ [execute_code] Question not found: {question_id}")
+                    return JsonResponse({'status': 'error', 'output': 'Question not found.'}, status=200)
+        except Exception as e:
+            print(f"❌ [execute_code] Error fetching question: {e}")
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'output': f'Error loading question: {str(e)}'}, status=200)
+        
+        # Get test cases based on question type and job profile
+        try:
+            test_input, expected_output = get_test_case_for_question(question)
+        except Exception as e:
+            print(f"❌ [execute_code] Error getting test cases: {e}")
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'output': f'Error loading test cases: {str(e)}'}, status=200)
+        
+        if not test_input or not expected_output:
+            print(f"❌ [execute_code] No test cases available for question {question_id}")
+            return JsonResponse({'status': 'error', 'output': 'No test cases available for this question.'}, status=200)
+        
+        result_obj = None
+        stdout, stderr = None, None
+
+        lang_map = {
+            'PYTHON': execute_python_windows,
+            'JAVASCRIPT': execute_javascript_windows,
+            'JAVA': execute_java_windows,
+            'PHP': execute_php_windows,
+            'RUBY': execute_ruby_windows,
+            'CSHARP': execute_csharp_windows,
+            'SQL': execute_sql_windows,
+        }
+        
+        if language not in lang_map:
+            print(f"❌ [execute_code] Unsupported language: {language}")
+            return JsonResponse({'status': 'error', 'output': f"Language '{language}' is not supported."}, status=200)
+        
+        # Execute the code
+        try:
+            print(f"✅ [execute_code] Executing {language} code...")
+            result_obj = lang_map[language](code_to_run, test_input)
+            stdout = result_obj.stdout if result_obj else None
+            stderr = result_obj.stderr if result_obj else None
+            print(f"✅ [execute_code] Code execution completed. stdout={stdout[:100] if stdout else None}, stderr={stderr[:100] if stderr else None}")
+        except Exception as e:
+            print(f"❌ [execute_code] Error executing code: {e}")
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'output': f'Error executing code: {str(e)}'}, status=200)
+        
+        if stderr:
+            print(f"⚠️ [execute_code] Code execution produced stderr: {stderr[:200]}")
+            return JsonResponse({'status': 'error', 'output': stderr.strip(), 'passed': False}, status=200)
+        else:
+            actual_output = stdout.strip() if stdout else ""
+            passed = (actual_output == expected_output)
+            
+            print(f"✅ [execute_code] Result: passed={passed}, output={actual_output[:100]}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'output': actual_output,
+                'passed': passed
+            }, status=200)
+            
+    except Exception as e:
+        print(f"❌ [execute_code] Unexpected error: {e}")
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'output': f'Server error: {str(e)}'}, status=200)
     
 @csrf_exempt
 @require_POST

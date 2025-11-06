@@ -382,7 +382,7 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     - candidate: Filter by candidate ID (alternative)
     """
 
-    queryset = Interview.objects.select_related("candidate", "job")
+    queryset = Interview.objects.select_related("candidate", "job", "evaluation")
     serializer_class = InterviewSerializer
     permission_classes = [InterviewHierarchyPermission]
 
@@ -732,13 +732,37 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user_role = getattr(self.request.user, "role", "").lower()
 
+        # Log the ai_configuration being saved
+        validated_data = serializer.validated_data
+        if 'ai_configuration' in validated_data:
+            ai_config = validated_data.get('ai_configuration', {})
+            print(f"📋 Saving InterviewSlot with ai_configuration: {ai_config}")
+            if isinstance(ai_config, dict) and 'question_count' in ai_config:
+                print(f"✅ question_count found in ai_configuration: {ai_config['question_count']}")
+
         if user_role == "admin" or self.request.user.is_superuser:
             # Admin can create slots for any company - let the serializer handle it
-            serializer.save()
+            slot = serializer.save()
+            # Verify question_count was saved
+            if slot.ai_configuration and isinstance(slot.ai_configuration, dict):
+                print(f"✅ Slot created with ai_configuration: {slot.ai_configuration}")
+                if 'question_count' in slot.ai_configuration:
+                    print(f"✅ question_count successfully saved: {slot.ai_configuration['question_count']}")
+                else:
+                    print(f"⚠️ WARNING: question_count NOT found in saved slot.ai_configuration")
+                    print(f"   Available keys: {list(slot.ai_configuration.keys())}")
         elif user_role == "company":
             # Company users can only create slots for their company
             if hasattr(self.request.user, "company") and self.request.user.company:
-                serializer.save(company=self.request.user.company)
+                slot = serializer.save(company=self.request.user.company)
+                # Verify question_count was saved
+                if slot.ai_configuration and isinstance(slot.ai_configuration, dict):
+                    print(f"✅ Slot created with ai_configuration: {slot.ai_configuration}")
+                    if 'question_count' in slot.ai_configuration:
+                        print(f"✅ question_count successfully saved: {slot.ai_configuration['question_count']}")
+                    else:
+                        print(f"⚠️ WARNING: question_count NOT found in saved slot.ai_configuration")
+                        print(f"   Available keys: {list(slot.ai_configuration.keys())}")
             else:
                 raise PermissionDenied("Company user must be associated with a company")
         else:
@@ -898,75 +922,461 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         Book a slot for an interview
         """
         slot = self.get_object()
+        
+        # Debug logging
+        import json
+        print(f"\n{'='*70}")
+        print(f"DEBUG: book_slot called for slot {pk}")
+        print(f"DEBUG: Request method: {request.method}")
+        print(f"DEBUG: Request content_type: {request.content_type}")
+        print(f"DEBUG: Request data type: {type(request.data)}")
+        print(f"DEBUG: Request data: {request.data}")
+        print(f"DEBUG: User: {request.user.email if request.user.is_authenticated else 'Anonymous'}")
+        print(f"{'='*70}\n")
+        
+        # Try to get data from request body if request.data is empty
+        request_body = None
+        try:
+            if hasattr(request, 'body') and request.body:
+                request_body = json.loads(request.body.decode('utf-8'))
+                print(f"DEBUG: Parsed request body from raw body: {request_body}")
+        except Exception as e:
+            print(f"DEBUG: Could not parse request body: {e}")
+        
+        # DRF should automatically parse JSON, but sometimes request.data is empty
+        # Try to use request.data first, then fallback to parsed body
+        if request.data and (isinstance(request.data, dict) and len(request.data) > 0):
+            data_source = request.data
+            print(f"DEBUG: Using request.data as data_source")
+        elif request_body:
+            data_source = request_body
+            print(f"DEBUG: Using request_body as data_source (request.data was empty)")
+        else:
+            data_source = request.data if request.data else {}
+            print(f"DEBUG: Using request.data as fallback (may be empty)")
+        
+        print(f"DEBUG: Final data_source: {data_source}")
+        print(f"DEBUG: data_source type: {type(data_source)}")
+        print(f"DEBUG: Slot current_bookings: {slot.current_bookings}, max_candidates: {slot.max_candidates}, status: {slot.status}")
 
-        if slot.status != "available":
-            return Response(
-                {"error": "Slot is not available for booking"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        interview_id = request.data.get("interview_id")
+        # Try to get interview_id from multiple sources
+        interview_id = None
+        booking_notes = ""
+        
+        # Try data_source first (most reliable - this is the parsed JSON)
+        if isinstance(data_source, dict):
+            interview_id = data_source.get("interview_id") or data_source.get("interview")
+            booking_notes = data_source.get("booking_notes", "")
+            print(f"DEBUG: Found in data_source: interview_id={interview_id}, booking_notes={booking_notes}")
+        
+        # Fallback to request.data (DRF parsed)
+        if not interview_id and isinstance(request.data, dict) and len(request.data) > 0:
+            interview_id = request.data.get("interview_id") or request.data.get("interview")
+            if not booking_notes:
+                booking_notes = request.data.get("booking_notes", "")
+            print(f"DEBUG: Found in request.data: interview_id={interview_id}, booking_notes={booking_notes}")
+        
+        # Fallback to request_body (manually parsed)
+        if not interview_id and request_body and isinstance(request_body, dict):
+            interview_id = request_body.get("interview_id") or request_body.get("interview")
+            if not booking_notes:
+                booking_notes = request_body.get("booking_notes", "")
+            print(f"DEBUG: Found in request_body: interview_id={interview_id}, booking_notes={booking_notes}")
+        
+        # Try to get from query parameters as last resort
         if not interview_id:
+            interview_id = request.query_params.get("interview_id")
+            print(f"DEBUG: Found in query_params: interview_id={interview_id}")
+        
+        print(f"DEBUG: FINAL interview_id: {interview_id}")
+        print(f"DEBUG: FINAL booking_notes: {booking_notes}")
+        print(f"DEBUG: data_source keys: {list(data_source.keys()) if isinstance(data_source, dict) else 'N/A'}")
+        print(f"DEBUG: request.data keys: {list(request.data.keys()) if isinstance(request.data, dict) else 'N/A'}")
+        print(f"DEBUG: request_body keys: {list(request_body.keys()) if isinstance(request_body, dict) and request_body else 'N/A'}")
+        print(f"DEBUG: Content-Type header: {request.META.get('CONTENT_TYPE', 'NOT SET')}")
+        
+        if not interview_id:
+            error_msg = "interview_id is required in request body"
+            print(f"DEBUG: ERROR - {error_msg}")
+            print(f"DEBUG: Full request.data: {request.data}")
+            print(f"DEBUG: Full request_body: {request_body}")
+            print(f"DEBUG: Full data_source: {data_source}")
+            print(f"DEBUG: Request META: {dict(request.META.get('CONTENT_TYPE', ''))}")
             return Response(
-                {"error": "interview_id is required"},
+                {
+                    "error": error_msg, 
+                    "received_data": dict(data_source) if isinstance(data_source, dict) else str(data_source),
+                    "request_data": dict(request.data) if isinstance(request.data, dict) else str(request.data),
+                    "request_body": dict(request_body) if isinstance(request_body, dict) else str(request_body),
+                    "help": "Please send interview_id in the request body as JSON: {\"interview_id\": \"<uuid>\", \"booking_notes\": \"optional notes\"}"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             interview = Interview.objects.get(id=interview_id)
+            print(f"DEBUG: Found interview: {interview.id}, candidate: {interview.candidate.email if interview.candidate else 'N/A'}")
+            
+            # CRITICAL: Validate candidate email exists before proceeding
+            if not interview.candidate:
+                return Response(
+                    {"error": "Interview has no associated candidate"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if not interview.candidate.email:
+                return Response(
+                    {"error": "Candidate email is missing - cannot send interview notification"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         except Interview.DoesNotExist:
+            error_msg = f"Interview not found with id: {interview_id}"
+            print(f"DEBUG: {error_msg}")
             return Response(
-                {"error": "Interview not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": error_msg, "interview_id_provided": str(interview_id)}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            error_msg = f"Error retrieving interview: {str(e)}"
+            print(f"DEBUG: {error_msg}")
+            return Response(
+                {"error": error_msg, "interview_id_provided": str(interview_id)}, 
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check if interview already has a schedule
-        existing_schedule = getattr(interview, "schedule", None)
+        # Check if interview already has a schedule for this slot
+        existing_schedule = InterviewSchedule.objects.filter(
+            interview=interview,
+            slot=slot
+        ).first()
+        
         if existing_schedule:
-            # Update existing schedule
-            existing_schedule.slot = slot
-            existing_schedule.booking_notes = request.data.get("booking_notes", "")
+            # Update existing schedule (allow rescheduling to same slot)
+            print(f"DEBUG: Interview {interview.id} already has schedule {existing_schedule.id} for slot {slot.id} - updating")
+            existing_schedule.booking_notes = booking_notes
             existing_schedule.status = "pending"
             existing_schedule.save()
             schedule = existing_schedule
+            # Don't call slot.book_slot() again - slot is already booked
+            print(f"DEBUG: Skipping slot.book_slot() - schedule already exists for this slot")
         else:
-            # Create new schedule
-            schedule = InterviewSchedule.objects.create(
-                interview=interview,
-                slot=slot,
-                booking_notes=request.data.get("booking_notes", ""),
-                status="pending",
-            )
-
-        # Book the slot
-        slot.book_slot()
-
-        # Send notification to candidate when slot is booked (optional)
-        try:
-            from notifications.services import NotificationService
-
-            NotificationService.send_candidate_interview_scheduled_notification(
-                interview
-            )
-        except Exception as e:
-            # Log notification failure but don't fail the request
-            try:
-                ActionLogger.log_user_action(
-                    user=request.user,
-                    action="slot_booking_notification_failed",
-                    details={
-                        "slot_id": slot.id,
-                        "interview_id": interview.id,
-                        "error": str(e),
-                    },
-                    status="FAILED",
+            # Check if slot has capacity BEFORE creating schedule
+            # CRITICAL: Frontend may have already updated slot.current_bookings via PUT request
+            # So we need to check if a schedule can be created even if slot appears full
+            current_bookings = slot.current_bookings or 0
+            max_candidates = slot.max_candidates or 1
+            
+            # Check if this interview already has a schedule for a different slot
+            other_schedule = InterviewSchedule.objects.filter(interview=interview).exclude(slot=slot).first()
+            
+            # Check if slot appears full (current_bookings >= max_candidates)
+            if current_bookings >= max_candidates:
+                # Check if this interview is the one that booked the slot (by checking slot's schedules)
+                slot_schedules = InterviewSchedule.objects.filter(slot=slot)
+                interview_has_schedule_for_slot = slot_schedules.filter(interview=interview).exists()
+                
+                if interview_has_schedule_for_slot:
+                    # This interview already has a schedule for this slot - just update it
+                    schedule = slot_schedules.filter(interview=interview).first()
+                    schedule.booking_notes = booking_notes
+                    schedule.status = "pending"
+                    schedule.save()
+                    print(f"DEBUG: Found existing schedule for this interview+slot - updated")
+                elif other_schedule:
+                    # Interview has schedule for different slot - allow updating to this slot
+                    print(f"DEBUG: Interview has schedule for different slot - updating to new slot")
+                    other_schedule.slot = slot
+                    other_schedule.booking_notes = booking_notes
+                    other_schedule.status = "pending"
+                    other_schedule.save()
+                    schedule = other_schedule
+                    # Don't call slot.book_slot() - slot might already be booked by frontend
+                    print(f"DEBUG: Updated schedule to new slot - not calling slot.book_slot()")
+                else:
+                    # Slot appears full but no schedule exists for this interview
+                    # This could mean:
+                    # 1. Frontend updated slot but no schedule created yet (race condition)
+                    # 2. Slot is actually booked by another interview
+                    # 
+                    # Strategy: Allow creating schedule if slot.current_bookings == max_candidates
+                    # and no other interview has a schedule for this slot
+                    # (This handles the case where frontend updated slot but book_slot hasn't created schedule yet)
+                    other_interviews_with_schedule = slot_schedules.exclude(interview=interview).count()
+                    
+                    if other_interviews_with_schedule == 0:
+                        # No other interviews have schedule - frontend must have updated slot for this interview
+                        # Allow creating schedule (frontend already booked the slot)
+                        print(f"DEBUG: Slot appears full but no schedules exist - frontend likely updated it")
+                        print(f"DEBUG: Creating schedule (frontend already booked slot)")
+                        schedule = InterviewSchedule.objects.create(
+                            interview=interview,
+                            slot=slot,
+                            booking_notes=booking_notes,
+                            status="pending",
+                        )
+                        # Don't call slot.book_slot() - frontend already did it
+                        print(f"DEBUG: Created schedule {schedule.id} - slot already booked by frontend")
+                    else:
+                        # Slot is fully booked by other interviews
+                        error_msg = f"Slot is fully booked (current_bookings={current_bookings} >= max_candidates={max_candidates}) by other interviews"
+                        print(f"DEBUG: {error_msg}")
+                        return Response(
+                            {"error": error_msg},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+            else:
+                # Slot has capacity - create new schedule and book the slot
+                schedule = InterviewSchedule.objects.create(
+                    interview=interview,
+                    slot=slot,
+                    booking_notes=booking_notes,
+                    status="pending",
                 )
-            except Exception as log_error:
-                # Even logging can fail, but we don't want to break the booking
-                print(f"Failed to log notification error: {log_error}")
-                print(f"Original notification error: {e}")
+                # Book the slot (increments current_bookings and updates status if needed)
+                # Only if slot hasn't been booked yet by frontend
+                if slot.current_bookings < max_candidates:
+                    slot.book_slot()
+                    print(f"DEBUG: Created new schedule {schedule.id} and called slot.book_slot()")
+                else:
+                    print(f"DEBUG: Created new schedule {schedule.id} but slot already booked (frontend updated it)")
 
+        # IMPORTANT: ALWAYS update interview started_at and ended_at from slot date + time
+        # This ensures times match the slot even if interview was created with different times
+        # Combine slot.interview_date with slot.start_time and slot.end_time to create proper DateTime objects
+        # IMPORTANT: Interpret slot times in IST (Asia/Kolkata) since that's likely where users are
+        from datetime import datetime
+        from django.utils import timezone as tz
+        import pytz
+        
+        if slot.interview_date and slot.start_time and slot.end_time:
+            # Combine date and time - assume slot times are in IST (India Standard Time)
+            ist = pytz.timezone('Asia/Kolkata')
+            start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+            end_datetime_naive = datetime.combine(slot.interview_date, slot.end_time)
+            
+            # Localize to IST (treat slot times as IST)
+            start_datetime = ist.localize(start_datetime_naive)
+            end_datetime = ist.localize(end_datetime_naive)
+            
+            # Convert to UTC for storage (Django stores in UTC)
+            start_datetime_utc = start_datetime.astimezone(pytz.UTC)
+            end_datetime_utc = end_datetime.astimezone(pytz.UTC)
+            
+            # ALWAYS update interview times to match slot (stored in UTC) - overwrite any existing values
+            interview.started_at = start_datetime_utc
+            interview.ended_at = end_datetime_utc
+            interview.status = Interview.Status.SCHEDULED
+            interview.save(update_fields=["started_at", "ended_at", "status"])
+
+        # Auto-create InterviewSession from database and send email (if not exists)
+        try:
+            from interview_app.models import InterviewSession
+            import secrets
+            
+            # Only create if session_key doesn't exist
+            if not interview.session_key:
+                candidate = interview.candidate
+                job = interview.job
+                
+                # CRITICAL: Create InterviewSession even if job is None
+                # Job might be set later, but we need session_key for email
+                if candidate:
+                    # Get coding language from job (if available)
+                    if job:
+                        coding_language = getattr(job, 'coding_language', 'PYTHON')
+                    elif candidate.job:
+                        coding_language = getattr(candidate.job, 'coding_language', 'PYTHON')
+                    else:
+                        coding_language = 'PYTHON'
+                    
+                    # Get scheduled time (already set above)
+                    scheduled_at = interview.started_at
+                    if not scheduled_at:
+                        if slot.interview_date and slot.start_time:
+                            ist = pytz.timezone('Asia/Kolkata')
+                            start_dt = datetime.combine(slot.interview_date, slot.start_time)
+                            scheduled_at = ist.localize(start_dt).astimezone(pytz.UTC)
+                    
+                    if not scheduled_at:
+                        scheduled_at = timezone.now()
+                    
+                    # Extract resume text
+                    resume_text = ""
+                    if candidate.resume:
+                        try:
+                            if hasattr(candidate.resume, 'parsed_text') and candidate.resume.parsed_text:
+                                resume_text = candidate.resume.parsed_text
+                            elif hasattr(candidate.resume, 'file') and candidate.resume.file:
+                                from interview_app_11.views import get_text_from_file
+                                resume_text = get_text_from_file(candidate.resume.file) or ""
+                        except Exception as e:
+                            print(f"Warning: Could not extract resume text: {e}")
+                            resume_text = f"Resume for {candidate.full_name or 'Candidate'}"
+                    
+                    # Build job description (handle job being None)
+                    if job:
+                        job_description = job.job_description or f"Job Title: {job.job_title}\nCompany: {job.company_name}"
+                        if job.domain:
+                            job_description += f"\nDomain: {job.domain.name}"
+                    elif candidate.job:
+                        job_description = candidate.job.job_description or f"Job Title: {candidate.job.job_title}\nCompany: {candidate.job.company_name}"
+                    else:
+                        job_description = "Interview Position"
+                    
+                    # Generate session key
+                    session_key = secrets.token_hex(16)
+                    
+                    # Create InterviewSession
+                    session = InterviewSession.objects.create(
+                        candidate_name=candidate.full_name or "Candidate",
+                        candidate_email=candidate.email or "",
+                        job_description=job_description,
+                        resume_text=resume_text,
+                        session_key=session_key,
+                        scheduled_at=scheduled_at,
+                        status='SCHEDULED',
+                        language_code='en-IN',
+                        accent_tld='co.in'
+                    )
+                    
+                    # Store coding language
+                    try:
+                        session.keyword_analysis = f"CODING_LANG={coding_language}"
+                        session.save()
+                    except Exception:
+                        pass
+                    
+                    # Update Interview with session_key
+                    interview.session_key = session_key
+                    interview.save(update_fields=['session_key'])
+                    
+                    print(f"✅ InterviewSession created for interview {interview.id}, session_key: {session_key}")
+                    
+                    # Send email notification using the send_interview_session_email function
+                    try:
+                        from interview_app_11.views import send_interview_session_email
+                        base_url = request.build_absolute_uri('/').rstrip('/')
+                        interview_link = f"{base_url}/?session_key={session_key}"
+                        email_sent = send_interview_session_email(session, interview_link, request)
+                        if email_sent:
+                            print(f"✅ Email sent to {candidate.email} with interview link: {interview_link}")
+                        else:
+                            print(f"⚠️ Email sending failed for {candidate.email} - check email configuration")
+                    except Exception as e:
+                        print(f"⚠️ Email sending exception: {e}")
+                        import traceback
+                        traceback.print_exc()
+            # ALWAYS try to send email using NotificationService (most reliable)
+            try:
+                from notifications.services import NotificationService
+                NotificationService.send_candidate_interview_scheduled_notification(interview)
+                print(f"✅ Email sent via NotificationService for interview {interview.id}")
+            except Exception as e:
+                print(f"⚠️ NotificationService email failed: {e}")
+                import traceback
+                traceback.print_exc()
+                    
+        except Exception as e:
+            print(f"⚠️ Auto-creation of InterviewSession failed: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # CRITICAL: ALWAYS send email notification - this is the PRIMARY method
+        # Ensure candidate and email exist before attempting
+        if interview.candidate and interview.candidate.email:
+            print(f"\n{'='*70}")
+            print(f"EMAIL: Attempting to send interview notification email for interview {interview.id}")
+            print(f"EMAIL: Interview session_key: {interview.session_key}")
+            print(f"EMAIL: Candidate email: {interview.candidate.email}")
+            print(f"EMAIL: Interview started_at: {interview.started_at}")
+            print(f"EMAIL: Interview ended_at: {interview.ended_at}")
+            print(f"{'='*70}\n")
+            
+            try:
+                from notifications.services import NotificationService
+                print(f"[EMAIL DEBUG] Calling NotificationService.send_candidate_interview_scheduled_notification")
+                print(f"[EMAIL DEBUG] Interview ID: {interview.id}")
+                print(f"[EMAIL DEBUG] Interview has session_key: {bool(interview.session_key)}")
+                print(f"[EMAIL DEBUG] Session Key: {interview.session_key}")
+                print(f"[EMAIL DEBUG] Candidate Email: {interview.candidate.email}")
+                
+                email_sent = NotificationService.send_candidate_interview_scheduled_notification(interview)
+                
+                print(f"[EMAIL DEBUG] NotificationService returned: {email_sent} (type: {type(email_sent)})")
+                
+                if email_sent:
+                    print(f"\n{'='*70}")
+                    print(f"✅ SUCCESS: Email notification sent successfully for interview {interview.id}")
+                    print(f"✅ Recipient: {interview.candidate.email}")
+                    print(f"✅ Interview link should be in the email")
+                    print(f"{'='*70}\n")
+                else:
+                    print(f"\n{'='*70}")
+                    print(f"⚠️ WARNING: Email notification returned False for interview {interview.id}")
+                    print(f"⚠️ This means email configuration is incorrect or missing")
+                    print(f"⚠️ Check the logs above for specific configuration errors")
+                    print(f"⚠️ Required in .env: EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD")
+                    print(f"{'='*70}\n")
+                    # Log the failure
+                    try:
+                        ActionLogger.log_user_action(
+                            user=request.user,
+                            action="slot_booking_notification_failed",
+                            details={
+                                "slot_id": slot.id,
+                                "interview_id": interview.id,
+                                "error": "Email sending returned False - check configuration",
+                            },
+                            status="FAILED",
+                        )
+                    except Exception:
+                        pass
+            except Exception as notif_error:
+                print(f"\n{'='*70}")
+                print(f"❌ ERROR: NotificationService failed for interview {interview.id}")
+                print(f"❌ Error: {str(notif_error)}")
+                import traceback
+                traceback.print_exc()
+                print(f"{'='*70}\n")
+                # Log notification failure
+                try:
+                    ActionLogger.log_user_action(
+                        user=request.user,
+                        action="slot_booking_notification_failed",
+                        details={
+                            "slot_id": slot.id,
+                            "interview_id": interview.id,
+                            "error": str(notif_error),
+                        },
+                        status="FAILED",
+                    )
+                except Exception:
+                    pass
+        else:
+            print(f"\n{'='*70}")
+            print(f"⚠️ WARNING: Cannot send email - candidate or email missing")
+            print(f"⚠️ Interview ID: {interview.id}")
+            print(f"⚠️ Candidate: {'EXISTS' if interview.candidate else 'MISSING'}")
+            print(f"⚠️ Email: {interview.candidate.email if interview.candidate else 'N/A'}")
+            print(f"{'='*70}\n")
+
+        print(f"DEBUG: Schedule created successfully: {schedule.id}")
+        print(f"DEBUG: Interview: {interview.id}, Status: {interview.status}")
+        print(f"DEBUG: Interview started_at: {interview.started_at}, ended_at: {interview.ended_at}")
+        print(f"DEBUG: Interview session_key: {interview.session_key}")
+        print(f"DEBUG: About to send email notification...")
+        print(f"{'='*70}\n")
+        
         serializer = InterviewScheduleSerializer(schedule)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        response_data = serializer.data
+        
+        # Log successful booking
+        print(f"\n{'='*70}")
+        print(f"SUCCESS: Slot booking completed for interview {interview.id}")
+        print(f"SUCCESS: Schedule ID: {schedule.id}")
+        print(f"SUCCESS: Session Key: {interview.session_key}")
+        print(f"{'='*70}\n")
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def release_slot(self, request, pk=None):
@@ -1062,6 +1472,34 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         # Book the slot
         slot.book_slot()
 
+        # IMPORTANT: ALWAYS update interview started_at and ended_at from slot date + time
+        # This ensures times match the slot even if interview was created with different times
+        # Combine slot.interview_date with slot.start_time and slot.end_time to create proper DateTime objects
+        # IMPORTANT: Interpret slot times in IST (Asia/Kolkata) since that's likely where users are
+        from datetime import datetime, date, time as time_type
+        from django.utils import timezone as tz
+        import pytz
+        
+        if slot.interview_date and slot.start_time and slot.end_time:
+            # Combine date and time - assume slot times are in IST (India Standard Time)
+            ist = pytz.timezone('Asia/Kolkata')
+            start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+            end_datetime_naive = datetime.combine(slot.interview_date, slot.end_time)
+            
+            # Localize to IST (treat slot times as IST)
+            start_datetime = ist.localize(start_datetime_naive)
+            end_datetime = ist.localize(end_datetime_naive)
+            
+            # Convert to UTC for storage (Django stores in UTC)
+            start_datetime_utc = start_datetime.astimezone(pytz.UTC)
+            end_datetime_utc = end_datetime.astimezone(pytz.UTC)
+            
+            # ALWAYS update interview times to match slot (stored in UTC) - overwrite any existing values
+            interview.started_at = start_datetime_utc
+            interview.ended_at = end_datetime_utc
+            interview.status = Interview.Status.SCHEDULED
+            interview.save(update_fields=["started_at", "ended_at", "status"])
+        
         # Send notification to candidate when interview is scheduled
         try:
             from notifications.services import NotificationService
@@ -1082,8 +1520,246 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 status="FAILED",
             )
 
+        # Auto-create InterviewSession from database (if not exists)
+        try:
+            from interview_app.models import InterviewSession
+            import secrets
+            
+            # Only create if session_key doesn't exist
+            if not interview.session_key:
+                candidate = interview.candidate
+                job = interview.job
+                
+                if candidate and job:
+                    # Get coding language from job
+                    coding_language = getattr(job, 'coding_language', 'PYTHON')
+                    
+                    # Get scheduled time
+                    scheduled_at = interview.started_at
+                    if not scheduled_at:
+                        slot = interview.schedule.slot if hasattr(interview, 'schedule') and interview.schedule else None
+                        if slot and slot.interview_date and slot.start_time:
+                            import pytz
+                            from datetime import datetime
+                            ist = pytz.timezone('Asia/Kolkata')
+                            start_dt = datetime.combine(slot.interview_date, slot.start_time)
+                            scheduled_at = ist.localize(start_dt).astimezone(pytz.UTC)
+                    
+                    if not scheduled_at:
+                        scheduled_at = timezone.now()
+                    
+                    # Extract resume text
+                    resume_text = ""
+                    if candidate.resume:
+                        try:
+                            if hasattr(candidate.resume, 'parsed_text') and candidate.resume.parsed_text:
+                                resume_text = candidate.resume.parsed_text
+                            elif hasattr(candidate.resume, 'file') and candidate.resume.file:
+                                from interview_app_11.views import get_text_from_file
+                                resume_text = get_text_from_file(candidate.resume.file) or ""
+                        except Exception as e:
+                            print(f"Warning: Could not extract resume text: {e}")
+                            resume_text = f"Resume for {candidate.full_name or 'Candidate'}"
+                    
+                    # Build job description
+                    job_description = job.job_description or f"Job Title: {job.job_title}\nCompany: {job.company_name}"
+                    if job.domain:
+                        job_description += f"\nDomain: {job.domain.name}"
+                    
+                    # Generate session key
+                    session_key = secrets.token_hex(16)
+                    
+                    # Create InterviewSession
+                    session = InterviewSession.objects.create(
+                        candidate_name=candidate.full_name or "Candidate",
+                        candidate_email=candidate.email or "",
+                        job_description=job_description,
+                        resume_text=resume_text,
+                        session_key=session_key,
+                        scheduled_at=scheduled_at,
+                        status='SCHEDULED',
+                        language_code='en-IN',
+                        accent_tld='co.in'
+                    )
+                    
+                    # Store coding language
+                    try:
+                        session.keyword_analysis = f"CODING_LANG={coding_language}"
+                        session.save()
+                    except Exception:
+                        pass
+                    
+                    # Update Interview with session_key
+                    interview.session_key = session_key
+                    interview.save(update_fields=['session_key'])
+                    
+                    # Send email notification
+                    try:
+                        from interview_app_11.views import send_interview_session_email
+                        base_url = request.build_absolute_uri('/').rstrip('/')
+                        interview_link = f"{base_url}/?session_key={session_key}"
+                        send_interview_session_email(session, interview_link, request)
+                        print(f"✅ InterviewSession created and email sent for interview {interview.id}")
+                    except Exception as e:
+                        print(f"⚠️ Email sending failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+        except Exception as e:
+            print(f"⚠️ Auto-creation of InterviewSession failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Don't fail the booking if InterviewSession creation fails
+
         serializer = self.get_serializer(schedule)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=["post"])
+    def create_interview_session(self, request):
+        """
+        Create InterviewSession from database (Candidate, Job, InterviewSchedule)
+        This replaces file-based scheduling with database-driven scheduling
+        """
+        try:
+            from interview_app.models import InterviewSession
+            from resumes.models import Resume
+            import secrets
+            
+            interview_id = request.data.get('interview_id')
+            if not interview_id:
+                return Response(
+                    {"error": "interview_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Fetch Interview from database
+            try:
+                interview = Interview.objects.select_related(
+                    'candidate', 'job', 'slot'
+                ).prefetch_related('schedule').get(id=interview_id)
+            except Interview.DoesNotExist:
+                return Response(
+                    {"error": "Interview not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Fetch candidate details
+            candidate = interview.candidate
+            if not candidate:
+                return Response(
+                    {"error": "Candidate not found for this interview"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Fetch job details
+            job = interview.job
+            if not job:
+                return Response(
+                    {"error": "Job not found for this interview"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get coding language from job (default to PYTHON if not set)
+            coding_language = getattr(job, 'coding_language', 'PYTHON')
+            
+            # Get scheduled time from interview or schedule
+            scheduled_at = interview.started_at
+            if not scheduled_at and hasattr(interview, 'schedule') and interview.schedule:
+                # Combine slot date and time
+                slot = interview.schedule.slot
+                if slot.interview_date and slot.start_time:
+                    import pytz
+                    from datetime import datetime
+                    ist = pytz.timezone('Asia/Kolkata')
+                    start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+                    scheduled_at = ist.localize(start_datetime_naive).astimezone(pytz.UTC)
+            
+            if not scheduled_at:
+                from django.utils import timezone
+                scheduled_at = timezone.now()
+            
+            # Get resume text if available
+            resume_text = ""
+            if candidate.resume:
+                try:
+                    resume = candidate.resume
+                    # Try to read resume file
+                    if hasattr(resume, 'file') and resume.file:
+                        from interview_app_11.views import get_text_from_file
+                        resume_text = get_text_from_file(resume.file) or ""
+                    # Or use extracted text if available
+                    elif hasattr(resume, 'extracted_text'):
+                        resume_text = resume.extracted_text or ""
+                except Exception as e:
+                    print(f"Warning: Could not extract resume text: {e}")
+                    resume_text = f"Resume for {candidate.full_name}"
+            
+            # Build job description from job
+            job_description = job.job_description or f"Job Title: {job.job_title}\nCompany: {job.company_name}"
+            if job.domain:
+                job_description += f"\nDomain: {job.domain.name}"
+            
+            # Generate session key
+            session_key = secrets.token_hex(16)
+            
+            # Create InterviewSession
+            session = InterviewSession.objects.create(
+                candidate_name=candidate.full_name or "Candidate",
+                candidate_email=candidate.email or "",
+                job_description=job_description,
+                resume_text=resume_text,
+                session_key=session_key,
+                scheduled_at=scheduled_at,
+                status='SCHEDULED',
+                language_code='en-IN',
+                accent_tld='co.in'
+            )
+            
+            # Store coding language in keyword_analysis field
+            try:
+                session.keyword_analysis = f"CODING_LANG={coding_language}"
+                session.save()
+            except Exception:
+                pass
+            
+            # Update Interview with session_key for reference
+            interview.session_key = session_key
+            interview.save(update_fields=['session_key'])
+            
+            # Generate interview link
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            interview_link = f"{base_url}/?session_key={session_key}"
+            
+            # Send email notification
+            try:
+                from interview_app_11.views import send_interview_session_email
+                email_sent = send_interview_session_email(session, interview_link, request)
+                if email_sent:
+                    print(f"✅ Email sent to {candidate.email}")
+            except Exception as e:
+                print(f"⚠️ Email sending failed: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            return Response({
+                "success": True,
+                "interview_link": interview_link,
+                "session_key": session_key,
+                "session_id": str(session.id),
+                "candidate_name": candidate.full_name,
+                "candidate_email": candidate.email,
+                "scheduled_at": scheduled_at.isoformat() if scheduled_at else None,
+                "coding_language": coding_language,
+                "email_sent": email_sent if 'email_sent' in locals() else False
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            print(f"Error creating interview session: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": f"Failed to create interview session: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=["post"])
     def confirm_schedule(self, request, pk=None):

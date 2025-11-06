@@ -232,7 +232,12 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
         if ai_session and ai_session.conversation_history:
             try:
                 import google.generativeai as genai
-                genai.configure(api_key="AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw")
+                from django.conf import settings
+                api_key = getattr(settings, 'GEMINI_API_KEY', '')
+                if api_key:
+                    genai.configure(api_key=api_key)
+                else:
+                    raise ValueError("GEMINI_API_KEY not set in environment")
                 model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 
                 # Build conversation context
@@ -283,8 +288,13 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
         if coding_submissions.exists():
             try:
                 import google.generativeai as genai
-                genai.configure(api_key="AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw")
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                from django.conf import settings
+                api_key = getattr(settings, 'GEMINI_API_KEY', '')
+                if api_key:
+                    genai.configure(api_key=api_key)
+                    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                else:
+                    raise ValueError("GEMINI_API_KEY not set in environment")
                 
                 coding_analysis_text = []
                 for submission in coding_submissions:

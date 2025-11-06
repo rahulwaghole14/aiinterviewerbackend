@@ -10,6 +10,9 @@ class EvaluationSerializer(serializers.ModelSerializer):
 
 
 class EvaluationReportSerializer(serializers.ModelSerializer):
+    proctoring_warnings = serializers.SerializerMethodField()
+    proctoring_pdf_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = Evaluation
         fields = [
@@ -19,8 +22,34 @@ class EvaluationReportSerializer(serializers.ModelSerializer):
             "traits",
             "suggestions",
             "created_at",
+            "details",
+            "proctoring_warnings",
+            "proctoring_pdf_url",
         ]
         read_only_fields = ["id", "created_at"]
+    
+    def get_proctoring_warnings(self, obj):
+        """Extract proctoring warnings with snapshot URLs from details"""
+        if not obj.details or not isinstance(obj.details, dict):
+            return []
+        
+        proctoring = obj.details.get('proctoring', {})
+        warnings = proctoring.get('warnings', [])
+        
+        # Add full media URLs for snapshots
+        from django.conf import settings
+        for warning in warnings:
+            if warning.get('snapshot'):
+                warning['snapshot_url'] = f"{settings.MEDIA_URL}proctoring_snaps/{warning['snapshot']}"
+        
+        return warnings
+    
+    def get_proctoring_pdf_url(self, obj):
+        """Get proctoring PDF URL from details"""
+        if not obj.details or not isinstance(obj.details, dict):
+            return None
+        
+        return obj.details.get('proctoring_pdf_url')
 
 
 class EvaluationCreateUpdateSerializer(serializers.ModelSerializer):
@@ -37,6 +66,7 @@ class EvaluationCreateUpdateSerializer(serializers.ModelSerializer):
             "traits",
             "suggestions",
             "created_at",
+            "details",
         ]
         read_only_fields = ["id", "created_at"]
         extra_kwargs = {"interview": {"required": False}}

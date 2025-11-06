@@ -78,6 +78,8 @@ async function start(){
     qa.onended=()=>beginRecord();
     qa.play().catch(()=>beginRecord());
   }else{
+    // Wait for Google Cloud TTS audio - if not available, wait a bit then start recording
+    console.warn('⚠️ No audio_url provided - Google Cloud TTS may not be configured');
     setTimeout(beginRecord,600);
   }
 }
@@ -436,8 +438,10 @@ async function finalize(){
         beginRecord();
       }
     }else{
+      // Wait for Google Cloud TTS audio - if not available, wait a bit then start recording
+      console.warn('⚠️ No audio_url provided - Google Cloud TTS may not be configured');
       isFinalizing=false;
-      setTimeout(beginRecord,400);
+      setTimeout(beginRecord,600);
     }
   }catch(e){
     console.error('Finalize error:',e);

@@ -160,9 +160,13 @@ class InterviewSlot(models.Model):
         )
 
     def book_slot(self):
-        """Book the slot for an interview"""
-        if not self.is_available():
-            raise ValidationError(_("Slot is not available for booking"))
+        """Book the slot for an interview - increments current_bookings"""
+        # Check capacity rather than strict availability check
+        current_bookings = self.current_bookings or 0
+        max_candidates = self.max_candidates or 1
+        
+        if current_bookings >= max_candidates:
+            raise ValidationError(_("Slot is fully booked (no available spots)"))
 
         print(f"Booking slot {self.id}:")
         print(
@@ -406,22 +410,51 @@ class Interview(models.Model):
         # Ensure we have the latest data from DB
         self.refresh_from_db()
 
-        InterviewSession.objects.get_or_create(
+        # Build job description from job fields
+        job_description = "Technical Role"
+        if self.job:
+            job_description = self.job.job_description or f"Job Title: {self.job.job_title}\nCompany: {self.job.company_name}"
+            if self.job.domain:
+                job_description += f"\nDomain: {self.job.domain.name}"
+        
+        # Extract resume text
+        resume_text = "Experienced professional seeking new opportunities."
+        if self.candidate and self.candidate.resume:
+            if hasattr(self.candidate.resume, 'parsed_text') and self.candidate.resume.parsed_text:
+                resume_text = self.candidate.resume.parsed_text
+            elif hasattr(self.candidate.resume, 'file') and self.candidate.resume.file:
+                try:
+                    from interview_app_11.views import get_text_from_file
+                    resume_text = get_text_from_file(self.candidate.resume.file) or resume_text
+                except Exception:
+                    pass
+        
+        # Get coding language from job
+        coding_language = 'PYTHON'
+        if self.job:
+            coding_language = getattr(self.job, 'coding_language', 'PYTHON')
+        
+        session, created = InterviewSession.objects.get_or_create(
             session_key=session_key,
             defaults={
-                "candidate_name": self.candidate.full_name,
-                "candidate_email": self.candidate.email,
-                "job_description": (
-                    self.job.tech_stack_details if self.job else "Technical Role"
-                ),
-                "resume_text": getattr(self.candidate, "resume_text", "")
-                or "Experienced professional seeking new opportunities.",
-                "language_code": "en",
-                "accent_tld": "com",
-                "scheduled_at": self.started_at,
+                "candidate_name": self.candidate.full_name if self.candidate else "Candidate",
+                "candidate_email": self.candidate.email if self.candidate else "",
+                "job_description": job_description,
+                "resume_text": resume_text,
+                "language_code": "en-IN",
+                "accent_tld": "co.in",
+                "scheduled_at": self.started_at or timezone.now(),
                 "status": "SCHEDULED",
             },
         )
+        
+        # Store coding language if session was created or updated
+        if created or not session.keyword_analysis:
+            try:
+                session.keyword_analysis = f"CODING_LANG={coding_language}"
+                session.save(update_fields=['keyword_analysis'])
+            except Exception:
+                pass
 
         return link_token
 

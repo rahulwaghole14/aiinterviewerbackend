@@ -10,6 +10,7 @@ from .views import (
     CandidateSubmissionView,
     # New bulk candidate creation view
     BulkCandidateCreationView,
+    PendingRequestsView,
 )
 
 urlpatterns = [
@@ -41,4 +42,9 @@ urlpatterns = [
     path("", CandidateListCreateView.as_view(), name="candidate-list-create"),
     path("<int:pk>/", CandidateDetailView.as_view(), name="candidate-detail"),
     path("summary/", CandidateSummaryView.as_view(), name="candidate-summary"),
+]
+
+# Add requests endpoints (under /api/requests/)
+urlpatterns += [
+    path("pending/", PendingRequestsView.as_view(), name="pending-requests"),
 ]

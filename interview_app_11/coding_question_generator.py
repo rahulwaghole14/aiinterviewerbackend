@@ -89,9 +89,13 @@ except ImportError:
 
 
 load_dotenv()
-# Use hardcoded API key for now (same as other files)
-gemini_api_key = "AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw"
-genai.configure(api_key=gemini_api_key)
+# Use API key from Django settings (from environment variable)
+from django.conf import settings
+api_key = getattr(settings, 'GEMINI_API_KEY', '')
+if api_key:
+    genai.configure(api_key=api_key)
+else:
+    print("⚠️ WARNING: GEMINI_API_KEY not set. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.

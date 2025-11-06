@@ -52,7 +52,25 @@ class Job(models.Model):
     position_level = models.CharField(max_length=50, choices=PositionLevel.choices)
 
     current_process = models.TextField(blank=True)
-    tech_stack_details = models.TextField()
+    tech_stack_details = models.TextField(blank=True, help_text="Legacy field - use coding_language instead")
+    coding_language = models.CharField(
+        max_length=50,
+        default='PYTHON',
+        choices=[
+            ('PYTHON', 'Python'),
+            ('JAVASCRIPT', 'JavaScript'),
+            ('C', 'C'),
+            ('CPP', 'C++'),
+            ('JAVA', 'Java'),
+            ('GO', 'Go'),
+            ('HTML', 'HTML'),
+            ('PHP', 'PHP'),
+            ('RUBY', 'Ruby'),
+            ('CSHARP', 'C#'),
+            ('SQL', 'SQL'),
+        ],
+        help_text="Primary coding language for coding round interviews"
+    )
 
     job_description = models.TextField(
         blank=True,

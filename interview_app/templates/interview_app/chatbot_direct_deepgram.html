@@ -77,8 +77,26 @@ async function start(){
       beginRecord();
     });
   }else{
-    document.getElementById('st').innerText='🎤 Speak your answer now...';
-    setTimeout(beginRecord,600);
+    // Use browser's built-in TTS as fallback when Google Cloud TTS is not available
+    if(questionText && 'speechSynthesis' in window){
+      document.getElementById('st').innerText='🔊 Speaking question...';
+      const utterance=new SpeechSynthesisUtterance(questionText);
+      utterance.rate=0.9;
+      utterance.pitch=1.0;
+      utterance.volume=1.0;
+      utterance.onend=()=>{
+        document.getElementById('st').innerText='🎤 Speak your answer now...';
+        setTimeout(beginRecord,600);
+      };
+      utterance.onerror=()=>{
+        document.getElementById('st').innerText='🎤 Speak your answer now...';
+        setTimeout(beginRecord,600);
+      };
+      speechSynthesis.speak(utterance);
+    }else{
+      document.getElementById('st').innerText='🎤 Speak your answer now...';
+      setTimeout(beginRecord,600);
+    }
   }
 }
 
@@ -422,9 +440,28 @@ async function finalize(){
         beginRecord();
       });
     }else{
-      console.log('⚠️ No audio URL in response, starting recording immediately');
-      document.getElementById('st').innerText='🎤 Speak your answer now...';
-      setTimeout(beginRecord,600);
+      // Use browser's built-in TTS as fallback when Google Cloud TTS is not available
+      if(nextQuestionText && 'speechSynthesis' in window){
+        console.log('⚠️ No audio URL, using browser TTS fallback');
+        document.getElementById('st').innerText='🔊 Speaking question...';
+        const utterance=new SpeechSynthesisUtterance(nextQuestionText);
+        utterance.rate=0.9;
+        utterance.pitch=1.0;
+        utterance.volume=1.0;
+        utterance.onend=()=>{
+          document.getElementById('st').innerText='🎤 Speak your answer now...';
+          setTimeout(beginRecord,600);
+        };
+        utterance.onerror=()=>{
+          document.getElementById('st').innerText='🎤 Speak your answer now...';
+          setTimeout(beginRecord,600);
+        };
+        speechSynthesis.speak(utterance);
+      }else{
+        console.log('⚠️ No audio URL in response, starting recording immediately');
+        document.getElementById('st').innerText='🎤 Speak your answer now...';
+        setTimeout(beginRecord,600);
+      }
     }
   }
 }

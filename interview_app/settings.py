@@ -197,9 +197,10 @@ CORS_ALLOW_HEADERS = [
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # Gemini / AI configuration
-# Expose GEMINI_API_KEY on settings; fall back to GOOGLE_API_KEY, then provided key
+# IMPORTANT: Never hardcode API keys in source code!
+# Set GEMINI_API_KEY or GOOGLE_API_KEY in your .env file
 GEMINI_API_KEY = os.environ.get(
     "GEMINI_API_KEY",
-    os.environ.get("GOOGLE_API_KEY", "AIzaSyA7RkLLwQlNfGJRSqCb9xuVbqhjPLDXIMk"),
+    os.environ.get("GOOGLE_API_KEY", ""),  # Empty string if not set - will fail gracefully
 )
 

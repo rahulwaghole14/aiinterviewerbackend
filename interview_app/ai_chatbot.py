@@ -31,8 +31,9 @@ except Exception:  # pragma: no cover
 import numpy as np
 
 
-# Configure Gemini with hardcoded API key (same as views.py and original app.py)
-_GEMINI_KEY = "AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw"
+# Configure Gemini - Get API key from Django settings
+from django.conf import settings as django_settings
+_GEMINI_KEY = getattr(django_settings, 'GEMINI_API_KEY', '')
 if genai:
     try:
         genai.configure(api_key=_GEMINI_KEY)

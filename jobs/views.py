@@ -21,8 +21,8 @@ from notifications.services import NotificationService
 
 class DomainListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/domains/  → list all domains
-    POST /api/domains/  → create new domain (admin only)
+    GET  /api/domains/  -> list all domains
+    POST /api/domains/  -> create new domain (admin only)
     """
 
     queryset = Domain.objects.filter(is_active=True).order_by("name")
@@ -59,9 +59,9 @@ class DomainListCreateView(generics.ListCreateAPIView):
 
 class DomainDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET    /api/domains/{id}/  → get specific domain
-    PUT    /api/domains/{id}/  → update domain (admin only)
-    DELETE /api/domains/{id}/  → delete domain (admin only)
+    GET    /api/domains/{id}/  -> get specific domain
+    PUT    /api/domains/{id}/  -> update domain (admin only)
+    DELETE /api/domains/{id}/  -> delete domain (admin only)
     """
 
     queryset = Domain.objects.all()
@@ -108,7 +108,7 @@ class DomainDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class DomainActiveListView(generics.ListAPIView):
     """
-    GET /api/domains/active/  → list only active domains
+    GET /api/domains/active/  -> list only active domains
     """
 
     queryset = Domain.objects.filter(is_active=True).order_by("name")
@@ -133,8 +133,8 @@ class DomainActiveListView(generics.ListAPIView):
 
 class JobListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/jobs/  → list all jobs
-    POST /api/jobs/  → create new job (admin/company only, requires domain)
+    GET  /api/jobs/  -> list all jobs
+    POST /api/jobs/  -> create new job (admin/company only, requires domain)
     """
 
     queryset = Job.objects.select_related("domain").all().order_by("-created_at")
@@ -153,17 +153,27 @@ class JobListCreateView(generics.ListCreateAPIView):
         """Log job creation with domain validation"""
         # Validate domain exists and is active
         domain_id = request.data.get("domain")
-        if not domain_id:
+        
+        # Handle NaN, None, empty string, or invalid domain_id
+        if domain_id is None or domain_id == "" or (isinstance(domain_id, (int, float)) and (domain_id != domain_id or domain_id <= 0)):  # domain_id != domain_id checks for NaN
             return Response(
-                {"error": "Domain is required for job creation"},
+                {"error": "Domain is required for job creation", "received_domain": domain_id},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
+            # Convert to int if it's a string
+            if isinstance(domain_id, str):
+                domain_id = int(domain_id)
             domain = Domain.objects.get(id=domain_id, is_active=True)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": f"Invalid domain ID: {domain_id}. Must be a valid integer."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Domain.DoesNotExist:
             return Response(
-                {"error": "Selected domain does not exist or is inactive"},
+                {"error": f"Selected domain (ID: {domain_id}) does not exist or is inactive"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -191,14 +201,26 @@ class JobListCreateView(generics.ListCreateAPIView):
         #         status='FAILED'
         #     )
 
-        return super().create(request, *args, **kwargs)
+        # Call parent create method - DRF will handle ValidationError properly
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            # Return detailed validation errors
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Save the job
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class JobDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET    /api/jobs/{id}/  → get specific job
-    PUT    /api/jobs/{id}/  → update job
-    DELETE /api/jobs/{id}/  → delete job
+    GET    /api/jobs/{id}/  -> get specific job
+    PUT    /api/jobs/{id}/  -> update job
+    DELETE /api/jobs/{id}/  -> delete job
     """
 
     queryset = Job.objects.select_related("domain").all()
@@ -234,7 +256,7 @@ class JobDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class JobTitleListView(generics.ListAPIView):
     """
-    GET /api/jobs/titles/  → list job titles with domain information
+    GET /api/jobs/titles/  -> list job titles with domain information
     """
 
     queryset = Job.objects.select_related("domain").all()
@@ -247,7 +269,7 @@ class JobTitleListView(generics.ListAPIView):
 
 class JobsByDomainView(generics.ListAPIView):
     """
-    GET /api/jobs/by-domain/{domain_id}/  → list jobs by specific domain
+    GET /api/jobs/by-domain/{domain_id}/  -> list jobs by specific domain
     """
 
     serializer_class = JobSerializer

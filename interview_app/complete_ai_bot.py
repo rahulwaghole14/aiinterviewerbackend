@@ -11,9 +11,12 @@ import google.generativeai as genai
 from django.conf import settings
 import numpy as np
 
-# Configure Gemini - Using 2.5-flash as per your app.py
-GEMINI_API_KEY = "AIzaSyBU4ZmzsBdCUGlHg4eZCednvOwL4lqDVtw"
-genai.configure(api_key=GEMINI_API_KEY)
+# Configure Gemini - Get API key from Django settings
+api_key = getattr(settings, 'GEMINI_API_KEY', '')
+if api_key:
+    genai.configure(api_key=api_key)
+else:
+    print("⚠️ WARNING: GEMINI_API_KEY not set. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
 
 # Google Cloud TTS setup (exactly like app.py)
 # Use absolute path from BASE_DIR

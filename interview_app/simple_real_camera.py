@@ -108,32 +108,49 @@ class SimpleRealVideoCamera:
         self._fallback_frame_cache_time = 0
         self._fallback_print_time = 0  # Track when we last printed fallback warning
         
-        # Try to load YOLOv8 ("volv89" as per request) for robust detection
+        # YOLO model - NOT loaded during initialization (only during technical interview)
         self._yolo = None
-        try:
-            from ultralytics import YOLO
-            try:
-                # Use a small model for speed
-                self._yolo = YOLO('yolov8n.pt')
-                print("✅ YOLOv8 model loaded for proctoring warnings")
-            except Exception as e:
-                print(f"⚠️ Could not load yolov8n.pt: {e}")
-                self._yolo = None
-        except Exception as e:
-            print(f"ℹ️ ultralytics not installed; falling back to Haar cascade. {e}")
-
-        # NEW: start detection loop if camera available
+        self._yolo_loaded = False
+        self._proctoring_active = False  # Flag to track if proctoring/warning capture is active
+        
+        # NEW: start basic frame capture loop (without YOLO) if camera available
+        # This allows camera to work for identity verification without YOLO
         try:
             import threading
             import cv2
             if self.video.isOpened():
                 self._frame_lock = threading.Lock()
                 self._running = True
+                # Start basic frame capture only (no YOLO detection yet)
                 self._detector_thread = threading.Thread(target=self._capture_and_detect_loop, daemon=True)
                 self._detector_thread.start()
-                print(f"✅ Detection loop started for session {self.session_id}")
+                print(f"✅ Basic camera frame capture started for session {self.session_id} (YOLO not loaded yet)")
         except Exception as e:
-            print(f"⚠️ Failed to start detection loop: {e}")
+            print(f"⚠️ Failed to start frame capture loop: {e}")
+    
+    def activate_yolo_proctoring(self):
+        """Activate YOLO model and start proctoring warnings when technical interview starts"""
+        if self._yolo_loaded:
+            print(f"✅ YOLO already loaded for session {self.session_id}")
+            self._proctoring_active = True
+            return True
+        
+        try:
+            from ultralytics import YOLO
+            try:
+                # Load YOLO model only when technical interview starts
+                self._yolo = YOLO('yolov8n.pt')
+                self._yolo_loaded = True
+                self._proctoring_active = True
+                print(f"✅ YOLOv8 model loaded and proctoring activated for session {self.session_id}")
+                return True
+            except Exception as e:
+                print(f"⚠️ Could not load yolov8n.pt: {e}")
+                self._yolo = None
+                return False
+        except Exception as e:
+            print(f"ℹ️ ultralytics not installed; falling back to Haar cascade. {e}")
+            return False
 
     def _capture_and_detect_loop(self):
         """Continuously capture frames, update latest frame, and run simple face-based warnings."""
@@ -169,8 +186,9 @@ class SimpleRealVideoCamera:
                         break
                     warning_type, frame_copy, snapshot_filename = warning_data
                     
-                    # Save snapshot
-                    if frame_copy is not None and snapshot_filename:
+                    # Save snapshot only if proctoring is active (technical interview started)
+                    # Skip snapshot saving during identity verification
+                    if self._proctoring_active and frame_copy is not None and snapshot_filename:
                         try:
                             img_dir = os.path.join(settings.MEDIA_ROOT, "proctoring_snaps")
                             os.makedirs(img_dir, exist_ok=True)
@@ -179,28 +197,36 @@ class SimpleRealVideoCamera:
                             print(f"📸 Snapshot saved: {snapshot_filename}")
                         except Exception as e:
                             print(f"[Proctoring] Failed to save snapshot: {e}")
+                    elif not self._proctoring_active:
+                        # Proctoring not active - skip snapshot saving
+                        print(f"⚠️ Skipping snapshot save - proctoring not active yet (still in identity verification)")
                     
                     # Log to database (with timeout to prevent blocking)
-                    try:
-                        from .models import InterviewSession, WarningLog
-                        from django.db import transaction
-                        # Use select_for_update with nowait to prevent blocking
+                    # Only log warnings if proctoring is active (technical interview started)
+                    if self._proctoring_active:
                         try:
-                            session = InterviewSession.objects.select_for_update(nowait=True).get(id=self.session_id)
-                            with transaction.atomic():
-                                WarningLog.objects.create(
-                                    session=session,
-                                    warning_type=warning_type,
-                                    snapshot=snapshot_filename
-                                )
-                        except Exception as db_error:
-                            # Skip database logging if it would block - snapshot is still saved
-                            # Only print if it's not the expected "no column named snapshot" error
-                            if 'snapshot' not in str(db_error).lower():
-                                pass  # Other errors are silently skipped
-                    except Exception as e:
-                        # Silently continue - snapshot was saved, DB logging is optional
-                        pass
+                            from .models import InterviewSession, WarningLog
+                            from django.db import transaction
+                            # Use select_for_update with nowait to prevent blocking
+                            try:
+                                session = InterviewSession.objects.select_for_update(nowait=True).get(id=self.session_id)
+                                with transaction.atomic():
+                                    WarningLog.objects.create(
+                                        session=session,
+                                        warning_type=warning_type,
+                                        snapshot=snapshot_filename
+                                    )
+                            except Exception as db_error:
+                                # Skip database logging if it would block - snapshot is still saved
+                                # Only print if it's not the expected "no column named snapshot" error
+                                if 'snapshot' not in str(db_error).lower():
+                                    pass  # Other errors are silently skipped
+                        except Exception as e:
+                            # Silently continue - snapshot was saved, DB logging is optional
+                            pass
+                    else:
+                        # Proctoring not active yet (still in identity verification), don't save warnings
+                        print(f"⚠️ Warning detected but proctoring not active yet - skipping snapshot save")
                     
                     warning_queue.task_done()
                 except queue.Empty:
@@ -275,7 +301,9 @@ class SimpleRealVideoCamera:
                 now_ts = _t.time()
                 should_run_yolo = (now_ts - last_yolo_time) >= YOLO_INTERVAL
 
-                if should_run_yolo and self._yolo is not None:
+                # Only run YOLO if proctoring is active (technical interview has started)
+                # Skip YOLO during identity verification
+                if should_run_yolo and self._yolo is not None and self._proctoring_active:
                     try:
                         # Run YOLO with lower confidence for sensitivity; small imgsz for speed
                         results = self._yolo.predict(source=frame, imgsz=480, conf=0.35, iou=0.45, verbose=False)
@@ -534,6 +562,11 @@ class SimpleRealVideoCamera:
             frame: Current camera frame (numpy array)
             rate_limit_seconds: Minimum seconds between logs for same warning (default 2)
         """
+        # Only log warnings if proctoring is active (technical interview has started)
+        # Skip warnings during identity verification
+        if not self._proctoring_active:
+            return
+        
         # Only log when warning first becomes active (transitions from False to True)
         if not current_state or prev_state:
             return

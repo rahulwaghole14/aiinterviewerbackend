@@ -521,12 +521,41 @@ class InterviewSerializer(serializers.ModelSerializer):
             
             print(f"✅ Found {questions.count()} questions for session {session.session_key}")
             
+            # Import CodeSubmission model
+            from interview_app.models import CodeSubmission
+            
             qa_list = []
             for q in questions:
                 # Include questions with answers, or questions that were asked (even if no answer yet)
                 if q.question_text:
-                    # Get the answer - prefer transcribed_answer, but also check if there's any answer
-                    answer_text = q.transcribed_answer or ''
+                    # Determine question type for sorting
+                    question_type = q.question_type or 'TECHNICAL'
+                    
+                    # For CODING questions, get the answer from CodeSubmission
+                    if question_type == 'CODING':
+                        # Try to find CodeSubmission for this question
+                        try:
+                            code_submission = CodeSubmission.objects.filter(
+                                session=session,
+                                question_id=str(q.id)
+                            ).order_by('-created_at').first()
+                            
+                            if code_submission and code_submission.submitted_code:
+                                answer_text = code_submission.submitted_code
+                                # Get created_at from code submission
+                                created_at = code_submission.created_at
+                            else:
+                                # Fallback to transcribed_answer if no code submission found
+                                answer_text = q.transcribed_answer or ''
+                                created_at = q.session.created_at if hasattr(q.session, 'created_at') else None
+                        except Exception as e:
+                            print(f"⚠️ Error fetching CodeSubmission for question {q.id}: {e}")
+                            answer_text = q.transcribed_answer or ''
+                            created_at = q.session.created_at if hasattr(q.session, 'created_at') else None
+                    else:
+                        # For TECHNICAL and BEHAVIORAL questions, use transcribed_answer
+                        answer_text = q.transcribed_answer or ''
+                        created_at = q.session.created_at if hasattr(q.session, 'created_at') else None
                     
                     # Only skip if it's explicitly marked as no answer AND it's a follow-up
                     if not answer_text and q.question_level == 'FOLLOW_UP':
@@ -540,12 +569,6 @@ class InterviewSerializer(serializers.ModelSerializer):
                     
                     # Get response time
                     response_time = q.response_time_seconds or 0
-                    
-                    # Get created_at for timestamp
-                    created_at = q.session.created_at if hasattr(q.session, 'created_at') else None
-                    
-                    # Determine question type for sorting
-                    question_type = q.question_type or 'TECHNICAL'
                     
                     qa_list.append({
                         'id': str(q.id),

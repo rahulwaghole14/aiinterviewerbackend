@@ -2146,7 +2146,7 @@ def check_camera(request):
 @csrf_exempt
 @require_POST
 def activate_proctoring_camera(request):
-    """Explicitly activate camera and YOLOv8n detection when technical interview starts"""
+    """Explicitly activate YOLO model and proctoring warnings when technical interview starts"""
     try:
         data = json.loads(request.body)
         session_key = data.get('session_key')
@@ -2160,8 +2160,18 @@ def activate_proctoring_camera(request):
         if not camera:
             return JsonResponse({'status': 'error', 'message': 'Could not create camera'}, status=500)
         
-        # Ensure camera is running and detection loop is active
+        # Ensure camera is running
         if hasattr(camera, 'video') and camera.video.isOpened():
+            # Activate YOLO model and proctoring (only now, not during identity verification)
+            yolo_activated = False
+            if hasattr(camera, 'activate_yolo_proctoring'):
+                yolo_activated = camera.activate_yolo_proctoring()
+            else:
+                # Fallback for older camera implementations
+                print(f"⚠️ Camera doesn't have activate_yolo_proctoring method, using fallback")
+                yolo_activated = True
+            
+            # Ensure detection loop is running
             if not camera._running:
                 # Restart detection loop if it stopped
                 import threading
@@ -2170,17 +2180,19 @@ def activate_proctoring_camera(request):
                     if not camera._detector_thread.is_alive():
                         camera._detector_thread = threading.Thread(target=camera._capture_and_detect_loop, daemon=True)
                         camera._detector_thread.start()
-                        print(f"✅ YOLOv8n detection loop reactivated for session {str(camera.session_id)[:8]}")
+                        print(f"✅ Detection loop reactivated for session {str(camera.session_id)[:8]}")
                 else:
                     # Start detection loop if it doesn't exist
                     camera._detector_thread = threading.Thread(target=camera._capture_and_detect_loop, daemon=True)
                     camera._detector_thread.start()
-                    print(f"✅ YOLOv8n detection loop started for session {str(camera.session_id)[:8]}")
+                    print(f"✅ Detection loop started for session {str(camera.session_id)[:8]}")
             
             return JsonResponse({
                 'status': 'success', 
-                'message': 'Camera and YOLOv8n detection activated',
+                'message': 'YOLO model and proctoring warnings activated for technical interview',
                 'camera_active': True,
+                'yolo_loaded': yolo_activated,
+                'proctoring_active': getattr(camera, '_proctoring_active', False),
                 'detection_running': camera._running if hasattr(camera, '_running') else False
             })
         else:
@@ -2232,11 +2244,11 @@ def chatbot_standalone(request):
 @csrf_exempt
 @require_POST
 def ai_start(request):
-    from .complete_ai_bot import start_interview
-    from .models import InterviewSession as DjangoSession
+    from .complete_ai_bot import start_interview, sessions
+    from .models import InterviewSession as DjangoSession, InterviewQuestion
     
     print(f"\n{'='*60}")
-    print(f"🎯 AI_START called (using simple_ai_bot)")
+    print(f"🎯 AI_START called (using complete_ai_bot)")
     print(f"{'='*60}")
     try:
         data = json.loads(request.body.decode('utf-8'))
@@ -2251,6 +2263,7 @@ def ai_start(request):
     # Get candidate name and JD from database
     candidate_name = 'Candidate'
     jd_text = ''
+    django_session = None
     
     if session_key:
         try:
@@ -2264,8 +2277,32 @@ def ai_start(request):
             print(f"❌ Session not found in DB")
             return JsonResponse({"error": "Invalid session key"}, status=400)
     
-    # Call simple AI bot (exact copy of app.py logic)
+    # Call AI bot to start interview
     result = start_interview(candidate_name, jd_text)
+    
+    # Link the AI session to Django session and create first question in database
+    if 'error' not in result and django_session:
+        session_id = result.get('session_id')
+        if session_id and session_id in sessions:
+            ai_session = sessions[session_id]
+            # Store django session_key in AI session for later reference
+            ai_session.django_session_key = session_key
+            
+            # Create the first question in database
+            first_question_text = result.get('question', '')
+            if first_question_text:
+                try:
+                    InterviewQuestion.objects.create(
+                        session=django_session,
+                        question_text=first_question_text,
+                        question_type='TECHNICAL',
+                        order=0,
+                        question_level='MAIN',
+                        audio_url=result.get('audio_url', '')
+                    )
+                    print(f"✅ Created first question in database")
+                except Exception as e:
+                    print(f"⚠️ Error creating question in database: {e}")
     
     if 'error' in result:
         print(f"❌ Error in result: {result['error']}")
@@ -2282,7 +2319,8 @@ def ai_start(request):
 @csrf_exempt
 @require_POST
 def ai_upload_answer(request):
-    from .complete_ai_bot import upload_answer
+    from .complete_ai_bot import upload_answer, sessions
+    from .models import InterviewSession as DjangoSession, InterviewQuestion
     
     try:
         # Support both multipart and JSON
@@ -2300,7 +2338,94 @@ def ai_upload_answer(request):
         print(f"   Transcript: {transcript[:100] if transcript else 'Empty'}...")
         print(f"{'='*60}")
         
+        # Save answer to database if session exists
+        if session_id and session_id in sessions:
+            ai_session = sessions[session_id]
+            # Try to find the Django session using session_key stored in ai_session
+            django_session = None
+            if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
+                try:
+                    django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
+                except DjangoSession.DoesNotExist:
+                    print(f"⚠️ Django session not found for session_key: {ai_session.django_session_key}")
+            
+            # If we have a Django session, save the answer to InterviewQuestion
+            if django_session and transcript and transcript.strip() and not transcript.startswith("["):
+                try:
+                    # Find the current question for this session based on question number
+                    current_q_num = ai_session.current_question_number
+                    # Get the last question that was asked (current_question_number - 1 is the one being answered)
+                    question_to_answer = current_q_num - 1 if current_q_num > 0 else 0
+                    
+                    # Find the question by order (question numbers are 1-indexed in UI, 0-indexed in code)
+                    questions = InterviewQuestion.objects.filter(
+                        session=django_session
+                    ).order_by('order')
+                    
+                    if questions.exists():
+                        # Get the question at the index we're answering
+                        if question_to_answer < questions.count():
+                            question_obj = questions[question_to_answer]
+                            question_obj.transcribed_answer = transcript
+                            # Calculate response time if available
+                            import time as time_module
+                            if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
+                                response_time = time_module.time() - ai_session.question_asked_at
+                                question_obj.response_time_seconds = response_time
+                            question_obj.save()
+                            print(f"✅ Saved answer to database for question {question_obj.order}: {transcript[:50]}...")
+                        else:
+                            # Create a new question if it doesn't exist
+                            last_question = questions.last()
+                            new_order = last_question.order + 1 if last_question else 0
+                            question_obj = InterviewQuestion.objects.create(
+                                session=django_session,
+                                question_text=ai_session.last_active_question_text or "Question",
+                                question_type='TECHNICAL',
+                                order=new_order,
+                                question_level='MAIN',
+                                transcribed_answer=transcript
+                            )
+                            print(f"✅ Created and saved answer to new question {new_order}")
+                except Exception as e:
+                    print(f"⚠️ Error saving answer to database: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
         result = upload_answer(session_id, transcript)
+        
+        # Create new question in database if a next question was generated
+        if 'error' not in result and not result.get('completed') and session_id and session_id in sessions:
+            ai_session = sessions[session_id]
+            if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
+                try:
+                    django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
+                    next_question_text = result.get('next_question', '')
+                    if next_question_text and next_question_text.strip():
+                        # Check if this question already exists
+                        existing_questions = InterviewQuestion.objects.filter(
+                            session=django_session
+                        ).order_by('order')
+                        
+                        # Get the current question number from AI session
+                        current_q_num = ai_session.current_question_number
+                        
+                        # Check if question at this order already exists
+                        question_exists = existing_questions.filter(order=current_q_num - 1).exists()
+                        
+                        if not question_exists:
+                            # Create new question
+                            InterviewQuestion.objects.create(
+                                session=django_session,
+                                question_text=next_question_text,
+                                question_type='TECHNICAL',
+                                order=current_q_num - 1,
+                                question_level='MAIN',
+                                audio_url=result.get('audio_url', '')
+                            )
+                            print(f"✅ Created new question {current_q_num - 1} in database")
+                except Exception as e:
+                    print(f"⚠️ Error creating question in database: {e}")
         
         if 'error' in result:
             print(f"❌ Error: {result['error']}")

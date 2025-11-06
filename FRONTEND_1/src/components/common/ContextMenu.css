@@ -1,0 +1,109 @@
+/* Context Menu Styles */
+.context-menu {
+  background: var(--color-card);
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-width: 160px;
+  padding: 4px 0;
+  z-index: 10000;
+  border: 1px solid var(--color-border);
+  position: fixed;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.context-menu-item:hover {
+  background-color: var(--color-hover);
+  color: var(--color-text-primary);
+}
+
+.context-menu-item .context-menu-icon {
+  margin-right: 8px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.context-menu-item:hover .context-menu-icon {
+  color: var(--color-primary);
+}
+
+/* Action-specific styles */
+.context-menu-item.delete {
+  color: var(--color-danger);
+}
+
+.context-menu-item.delete:hover {
+  background-color: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+.context-menu-item.delete .context-menu-icon {
+  color: var(--color-danger);
+}
+
+.context-menu-item.delete:hover .context-menu-icon {
+  color: var(--color-danger-dark);
+}
+
+.context-menu-item.edit .context-menu-icon {
+  color: var(--color-primary);
+}
+
+.context-menu-item.edit:hover .context-menu-icon {
+  color: var(--color-primary-dark);
+}
+
+/* Dark theme support */
+body[data-theme='dark'] .context-menu {
+  background: var(--color-card);
+  border-color: var(--color-border);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme='dark'] .context-menu-item {
+  color: var(--color-text-primary);
+}
+
+body[data-theme='dark'] .context-menu-item:hover {
+  background-color: var(--color-hover);
+}
+
+body[data-theme='dark'] .context-menu-item .context-menu-icon {
+  color: var(--color-text-secondary);
+}
+
+body[data-theme='dark'] .context-menu-item:hover .context-menu-icon {
+  color: var(--color-primary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .context-menu {
+    min-width: 140px;
+    font-size: 12px;
+  }
+  
+  .context-menu-item {
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+  
+  .context-menu-item .context-menu-icon {
+    font-size: 12px;
+    width: 14px;
+  }
+}
+
+

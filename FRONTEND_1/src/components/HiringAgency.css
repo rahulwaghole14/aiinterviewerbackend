@@ -1,0 +1,788 @@
+/* src/components/HiringAgency.css */
+
+
+.hiring-agencies-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.5rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  /* Ensure background matches global theme */
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family-base); /* Consistent font */
+  transition: filter 0.3s ease;
+  position: relative; /* Ensure proper positioning context for context menus */
+}
+
+/* Blur effect when modal is open */
+.hiring-agencies-container.blur-background {
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.hiring-agencies-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* NEW: Container for tabs and add button */
+.hiring-agencies-tabs-container {
+  display: flex;
+  flex-direction: row; /* Arrange items in a row */
+  justify-content: space-between; /* Space out tabs and add button */
+  align-items: center; /* Vertically align items */
+  margin-bottom: 1.5rem; /* Space below the header section */
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 1rem; /* Gap between tab group and add button if wrapped */
+}
+
+/* NEW: Styling for the tab buttons container */
+.hiring-agency-tabs {
+  display: flex;
+  gap: 0.8rem; /* Space between each tab button */
+  flex-wrap: wrap; /* Allow tabs to wrap on smaller screens */
+}
+
+/* NEW: Styling for individual tab buttons */
+.hiring-agency-tab {
+  background-color: var(
+    --color-bg-secondary
+  ); /* Default background for inactive tabs */
+  color: var(--color-text-secondary); /* Default text color for inactive tabs */
+  padding: 0.7rem 1.2rem;
+  border: 1px solid var(--color-border-light); /* Subtle border for tabs */
+  border-radius: var(--radius); /* Rounded corners for tabs */
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease,
+    border-color 0.3s ease;
+  white-space: nowrap; /* Prevent text from wrapping inside tabs */
+}
+
+.hiring-agency-tab:hover {
+  background-color: var(--color-hover); /* Hover effect */
+  color: var(--color-text);
+}
+
+.hiring-agency-tab.active {
+  background-color: var(--color-primary); /* Highlight color for active tab */
+  color: white; /* White text for active tab */
+  border-color: var(--color-primary); /* Border matches active background */
+  font-weight: 600; /* Make active tab text bolder */
+}
+
+
+
+
+
+
+.hiring-agencies-list-section {
+  background: var(--color-card);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* Removed overflow: hidden to allow context menus to show */
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-active {
+  background-color: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.status-inactive {
+  background-color: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+
+.hiring-agencies-form {
+  display: flex;
+  flex-direction: column;
+  /* Removed gap here as form-group will handle vertical spacing */
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column; /* Force single column layout for all screen sizes */
+  /* Removed gap: 1.5rem; as it's no longer needed for horizontal spacing */
+  width: 100%;
+}
+
+.hiring-agencies-container .form-group {
+  /* Removed flex: 1; as it's not relevant when the parent is a column */
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  margin-bottom: 1rem; /* Provides vertical spacing between each form field */
+}
+
+.hiring-agencies-container .form-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  display: block;
+}
+
+.hiring-agencies-container .form-group input,
+.hiring-agencies-container .form-group select {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid var(--color-muted);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  box-sizing: border-box;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hiring-agencies-container .form-group input:focus,
+.hiring-agencies-container .form-group select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(127, 202, 146, 0.2);
+}
+
+.submit-btn {
+  background-color: var(
+    --color-primary
+  ); /* Changed to primary color as requested */
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  align-self: flex-start;
+  margin-top: 1rem;
+}
+
+.submit-btn:hover {
+  background-color: var(
+    --color-primary-dark
+  ); /* Changed to primary-dark on hover */
+  transform: translateY(-2px);
+}
+
+.error-message {
+  color: var(--color-error);
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.no-results {
+  text-align: center;
+  color: var(--color-muted);
+  padding: 1rem;
+}
+
+.add-agency-btn {
+  background-color: var(
+    --color-primary
+  ); /* Changed to primary color as requested */
+  color: white;
+  padding: 0.7rem 1.2rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-agency-btn:hover {
+  background-color: var(
+    --color-primary-dark
+  ); /* Changed to primary-dark on hover */
+  transform: translateY(-2px);
+}
+
+/* Modal Styles */
+.add-agency-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(
+    --color-overlay
+  ); /* Use theme variable for overlay color */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 0; /* Initial state for animation */
+  transition: opacity 1s ease-in-out; /* Fade-in transition - Made slower */
+  pointer-events: none; /* Allows clicks to pass through when hidden */
+}
+
+.add-agency-modal-overlay.show {
+  opacity: 1;
+  pointer-events: auto; /* Re-enable clicks when shown */
+}
+
+.add-agency-modal-content {
+  background-color: var(--color-card);
+  padding: 2rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  position: relative;
+  max-width: 600px;
+  width: 90%;
+  box-sizing: border-box;
+  max-height: 90vh; /* Limit height to 90% of viewport height */
+  overflow-y: auto; /* Enable vertical scrolling */
+  transform: scale(0.9); /* Initial state for animation */
+  transition: transform 1s ease-in-out, opacity 1s ease-in-out; /* Scale-in and fade-in transition - Made slower */
+  opacity: 0; /* Initial state for animation */
+}
+
+.add-agency-modal-overlay.show .add-agency-modal-content {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Modal Header Styles */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.modal-close:hover {
+  color: var(--color-text);
+  background-color: var(--color-hover);
+}
+
+/* Modal Form Styles */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hiring-agencies-container .modal-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.hiring-agencies-container .modal-form .form-group label {
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  display: block;
+}
+
+.hiring-agencies-container .modal-form .form-group input,
+.hiring-agencies-container .modal-form .form-group select {
+  padding: 0.8rem;
+  border: 1px solid var(--color-muted);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hiring-agencies-container .modal-form .form-group input:focus,
+.hiring-agencies-container .modal-form .form-group select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(127, 202, 146, 0.2);
+}
+
+/* API Message Styles */
+.api-message {
+  padding: 0.75rem;
+  border-radius: var(--radius-small);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.api-message.success {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: var(--color-success-dark);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.api-message.error {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Modal Actions Styles */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.modal-cancel {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background-color: var(--color-card);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-cancel:hover {
+  background-color: var(--color-hover);
+  color: var(--color-text);
+  border-color: var(--color-border-dark);
+}
+
+.modal-submit {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-small);
+  background-color: var(--color-primary);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-submit:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  transform: translateY(-1px);
+}
+
+.modal-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.modal-close-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-small);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-button);
+}
+
+.modal-close-button:hover {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-button-hover);
+  transform: translateY(-1px) scale(1.05);
+}
+
+/* Delete Confirmation Modal Styles */
+.delete-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.delete-confirm-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.delete-confirm-modal {
+  background: var(--color-card);
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transform: translateY(-20px);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.delete-confirm-overlay.show .delete-confirm-modal {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.delete-confirm-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--color-primary);
+}
+
+.delete-confirm-message {
+  margin-bottom: 1.5rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.delete-confirm-cancel {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-card);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-confirm-cancel:hover {
+  background: var(--color-hover);
+}
+
+.delete-confirm-delete {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-danger);
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+}
+
+.delete-confirm-delete:hover {
+  background: var(--color-danger-dark);
+}
+
+.delete-confirm-delete:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Custom Mobile Tab Dropdown - Matches Candidates Style */
+.mobile-tab-selector {
+  display: none;
+  position: relative;
+}
+
+.tab-dropdown-button {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 40px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tab-dropdown-button:hover {
+  background-color: var(--color-hover);
+  border-color: var(--color-primary);
+}
+
+.tab-dropdown-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tab-dropdown-button .dropdown-selected-text {
+  flex: 1;
+  text-align: left;
+}
+
+.tab-dropdown-button .dropdown-icon {
+  font-size: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.tab-dropdown-button .dropdown-icon.open {
+  transform: rotate(180deg);
+}
+
+.tab-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-medium);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  animation: dropdownSlideDown 0.2s ease-out;
+}
+
+@keyframes dropdownSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-dropdown-item {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: block;
+}
+
+.tab-dropdown-item:hover {
+  background-color: var(--color-hover);
+  color: var(--color-text-primary);
+}
+
+.tab-dropdown-item.active {
+  background-color: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .hiring-agencies-add-section,
+  .hiring-agencies-list-section {
+    padding: 1rem;
+  }
+  
+  /* Hide desktop tabs on mobile */
+  .desktop-tabs {
+    display: none;
+  }
+  
+  /* Show mobile dropdown on mobile */
+  .mobile-tab-selector {
+    display: block;
+    flex: 1;
+    margin-right: 1rem;
+  }
+  
+  /* Adjust tabs container for mobile */
+  .hiring-agencies-tabs-container {
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+  }
+  
+  /* Adjust add button for mobile */
+  .add-agency-btn {
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .hiring-agencies-header {
+    flex-direction: row; /* Keep as row */
+    justify-content: flex-end; /* Align button to end (right) */
+    align-items: center; /* Vertically center button */
+    gap: 0; /* Remove gap if only one item */
+  }
+
+  /* These specific overrides for form-row and form-group are now less critical
+     as the default is already column, but kept for fine-tuning if needed */
+  .form-row {
+    /* flex-direction: column; - Redundant now as it's default */
+    gap: 0.8rem; /* Adjusted for smaller screens, now applies vertically if form-row uses gap */
+  }
+
+  .hiring-agencies-container .form-group {
+    margin-bottom: 0.8rem; /* Adjusted for smaller screens */
+  }
+
+  .submit-btn {
+    width: 100%;
+    align-self: center;
+  }
+
+
+}
+
+@media (max-width: 480px) {
+
+  .hiring-agencies-container .form-group input,
+  .hiring-agencies-container .form-group select {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+  }
+
+  .add-agency-modal-content {
+    padding: 1.5rem;
+  }
+}
+
+/* Search and Filter */
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-box input {
+  padding: 8px 12px 8px 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  width: 240px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+th {
+  padding: 0.5rem 1rem;
+  text-align: left;
+  background-color: var(--color-bg-secondary);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-border);
+}
+
+td {
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+th:last-child,
+td:last-child {
+  text-align: left;
+  padding: 0.75rem 1rem !important;
+  width: auto;
+}
+
+/* Fix context menu positioning in Hiring Agency */
+.hiring-agencies-container .context-menu {
+  z-index: 99999 !important;
+  /* Let DataTable handle positioning with inline styles */
+}
+
+.hiring-agencies-container .action-menu {
+  z-index: 99999 !important;
+  /* Let DataTable handle positioning with inline styles */
+}
+
+.hiring-agencies-container .data-table-container {
+  overflow: visible !important;
+  contain: none !important;
+}
+
+.hiring-agencies-container .table-responsive {
+  overflow-x: auto !important; /* Restore horizontal scrolling */
+  overflow-y: auto !important; /* Keep vertical scrolling */
+  contain: none !important;
+}
+

@@ -1,0 +1,106 @@
+/* Simple inline time picker - perfect fit with no extra padding */
+.time-picker-inline.edit-input {
+  display: flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  width: fit-content !important;
+  height: 40px !important;
+  padding: 6px 4px !important;
+  background: white !important;
+  border: 1px solid #ced4da !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  font-size: 13px !important;
+  color: #333 !important;
+  transition: border-color 0.2s ease;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.time-select {
+  padding: 2px 4px !important;
+  border: none !important;
+  border-radius: 2px !important;
+  font-size: 12px !important;
+  background: #f8f9fa !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none !important;
+  font-family: inherit !important;
+  color: #333 !important;
+  height: 28px !important;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.time-picker-inline.edit-input:hover {
+  border-color: #ced4da !important;
+}
+
+.time-picker-inline.edit-input:focus-within {
+  border-color: #80bdff !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+.time-select:hover {
+  background: #e9ecef !important;
+}
+
+.time-select:focus {
+  background: #fff !important;
+  box-shadow: 0 0 0 1px #007bff !important;
+}
+
+.hour-select {
+  width: 42px;
+  flex-shrink: 0;
+}
+
+.minute-select {
+  width: 42px;
+  flex-shrink: 0;
+}
+
+.ampm-select {
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.time-separator {
+  font-size: 14px;
+  font-weight: bold;
+  color: #666;
+  line-height: 1;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .time-picker-inline.edit-input {
+    gap: 2px;
+    padding: 4px 2px !important;
+  }
+  
+  .hour-select,
+  .minute-select {
+    width: 38px;
+  }
+  
+  .ampm-select {
+    width: 42px;
+  }
+  
+  .time-select {
+    font-size: 11px !important;
+    padding: 2px 3px !important;
+    height: 26px !important;
+  }
+  
+  .time-separator {
+    font-size: 12px;
+    margin: 0 1px;
+  }
+}

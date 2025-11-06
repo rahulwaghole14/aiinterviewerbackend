@@ -1,0 +1,444 @@
+/* src/components/dashboard/CustomizableDashboard.css */
+.customizable-dashboard {
+  padding: 1rem;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  /* Hide scrollbars */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.customizable-dashboard::-webkit-scrollbar {
+  display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+}
+
+/* Dark theme background */
+body[data-theme='dark'] .customizable-dashboard {
+  background: var(--color-background);
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.dashboard-title h1 {
+  margin: 0 0 0.5rem 0;
+  color: var(--color-text-primary);
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dashboard-title p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.dashboard-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.last-saved {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.control-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-background-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.control-btn:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.control-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.control-btn.add-widget {
+  background: var(--color-success);
+  color: white;
+  border-color: var(--color-success);
+}
+
+.control-btn.add-widget:hover {
+  background: var(--color-success-dark);
+  border-color: var(--color-success-dark);
+}
+
+.control-btn.reset {
+  background: var(--color-warning);
+  color: white;
+  border-color: var(--color-warning);
+}
+
+.control-btn.reset:hover {
+  background: var(--color-warning-dark);
+  border-color: var(--color-warning-dark);
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  width: 100%;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  max-height: calc(100vh - 150px); /* Reduce max height for more compact layout */
+  /* Hide scrollbars */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.dashboard-grid::-webkit-scrollbar {
+  display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+}
+
+.dashboard-grid-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(auto-fit, minmax(150px, max-content));
+  gap: 1rem;
+  min-height: min-content;
+  padding: 0.5rem 0;
+  align-items: start;
+  justify-items: stretch;
+  width: 100%;
+  height: auto;
+  grid-auto-flow: row;
+  position: relative;
+}
+
+/* Ensure widgets only take the height they need */
+.dashboard-widget {
+  height: fit-content !important;
+  min-height: 150px; /* Reduced minimum height */
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-widget .widget-content {
+  flex: 0 1 auto; /* Don't grow, shrink if needed */
+  height: fit-content;
+  overflow: hidden;
+}
+
+/* Specific widget height optimizations */
+.dashboard-widget .activity-feed {
+  height: fit-content !important;
+  min-height: 200px;
+  max-height: 400px;
+}
+
+.dashboard-widget .performance-metrics {
+  height: fit-content !important;
+  min-height: 200px;
+  max-height: 400px;
+}
+
+.dashboard-widget .kpi-card {
+  height: fit-content !important;
+  min-height: 120px;
+}
+
+.dashboard-widget .chart-widget {
+  height: fit-content !important;
+  min-height: 180px;
+}
+
+
+.dashboard-grid-container.dragging-over {
+  background: rgba(139, 92, 246, 0.05);
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius);
+}
+
+.drag-preview-placeholder {
+  background: rgba(139, 92, 246, 0.1);
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius);
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.drag-preview-placeholder.active {
+  background: rgba(139, 92, 246, 0.2);
+  border: 2px solid var(--color-primary);
+  animation: pulse 1s infinite;
+}
+
+.drag-preview-placeholder.available {
+  background: rgba(139, 92, 246, 0.05);
+  border: 1px dashed rgba(139, 92, 246, 0.3);
+  opacity: 0.6;
+}
+
+.drag-preview-placeholder.available:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px dashed var(--color-primary);
+  opacity: 1;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.placeholder-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.placeholder-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Responsive - Grid columns reduce on smaller screens */
+@media (max-width: 1200px) {
+  .dashboard-grid-container {
+    grid-template-columns: repeat(3, 1fr); /* 3 columns */
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid-container {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns */
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid-container {
+    display: flex !important; /* Change to flex on mobile */
+    flex-direction: column !important; /* Stack vertically */
+    grid-template-columns: unset !important; /* Remove grid columns */
+    grid-template-rows: unset !important; /* Remove grid rows */
+    gap: 1rem;
+  }
+  
+  .dashboard-grid-container > * {
+    grid-column: unset !important; /* Remove grid positioning */
+    grid-row: unset !important; /* Remove grid positioning */
+  }
+}
+
+/* Empty State */
+.dashboard-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.dashboard-empty h3 {
+  margin: 0 0 1rem 0;
+  color: var(--color-text-primary);
+}
+
+.dashboard-empty p {
+  margin: 0 0 2rem 0;
+  max-width: 400px;
+}
+
+/* Loading State */
+.dashboard-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dashboard-loading .loading-spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid var(--color-border);
+  border-top: 3px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Animation for grid items */
+.dashboard-grid-container > * {
+  animation: widgetSlideIn 0.3s ease-out;
+}
+
+@keyframes widgetSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark theme adjustments */
+body[data-theme='dark'] .dashboard-header {
+  border-bottom-color: var(--color-border);
+}
+
+body[data-theme='dark'] .control-btn {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+body[data-theme='dark'] .control-btn:hover {
+  background: var(--color-hover);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .customizable-dashboard {
+    padding: 1rem;
+    height: 100%;
+    width: 100%;
+  }
+  
+  .dashboard-header {
+    flex-direction: row; /* Keep horizontal layout */
+    align-items: center; /* Center vertically */
+    justify-content: space-between; /* Title left, controls right */
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: nowrap; /* Don't wrap */
+  }
+  
+  .dashboard-title {
+    display: none; /* Hide title when editing shows all buttons */
+  }
+  
+  .dashboard-title p {
+    display: none; /* Hide paragraph on mobile */
+  }
+  
+  .dashboard-controls {
+    display: flex;
+    gap: 0.4rem; /* Comfortable spacing between buttons */
+    flex-shrink: 0; /* Don't shrink controls */
+    margin-left: auto; /* Push to right when single button */
+    flex-wrap: nowrap; /* Keep buttons in same line */
+    justify-content: center; /* Center all buttons */
+    width: 100%; /* Take full width when multiple buttons */
+  }
+  
+  /* When only Edit Layout button is visible */
+  .dashboard-controls:has(.control-btn:only-of-type) {
+    width: auto; /* Auto width for single button */
+    margin-left: auto; /* Push to right */
+  }
+  
+  .last-saved {
+    display: none; /* Hide "Last saved" on mobile to save space */
+  }
+  
+  .control-btn {
+    padding: 0.45rem 0.6rem; /* Good balance */
+    font-size: 0.7rem; /* Readable text */
+    white-space: nowrap;
+    gap: 0.3rem; /* Gap between icon and text */
+    min-width: fit-content; /* Fit content width */
+    height: auto; /* Auto height */
+    justify-content: center;
+    flex: 1; /* Equal width for all buttons when multiple */
+    max-width: 33%; /* Each takes max 1/3 width */
+  }
+  
+  .control-btn svg {
+    font-size: 0.8rem; /* Icon size */
+  }
+  
+  .dashboard-grid {
+    flex: 1;
+    overflow-y: auto;
+    /* Hide scrollbars */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+  }
+  
+  .dashboard-grid::-webkit-scrollbar {
+    display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+  }
+}
+
+/* Print styles */
+@media print {
+  .dashboard-header {
+    display: none;
+  }
+  
+  .dashboard-grid-container {
+    /* Keep single column for print */
+    gap: 1rem;
+  }
+  
+  .dashboard-widget {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}

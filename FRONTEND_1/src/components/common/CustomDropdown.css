@@ -1,0 +1,220 @@
+/* Custom Dropdown Component Styles */
+
+.custom-dropdown {
+  position: relative;
+  width: 100%;
+  z-index: 1; /* Ensure dropdown container creates stacking context */
+}
+
+.custom-dropdown.open {
+  z-index: 10000; /* Even higher when dropdown is open */
+}
+
+.custom-dropdown-button {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.custom-dropdown-button:hover:not(:disabled) {
+  background-color: var(--color-hover);
+  border-color: var(--color-primary);
+}
+
+.custom-dropdown-button:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.custom-dropdown-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--color-bg-secondary);
+}
+
+.custom-dropdown-button.open {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.dropdown-selected-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  color: var(--color-text-secondary);
+}
+
+.dropdown-icon.open {
+  transform: rotate(180deg);
+  color: var(--color-primary);
+}
+
+.custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2), 0 6px 12px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 9999; /* Very high z-index to appear above all UI */
+  animation: dropdownSlideDown 0.2s ease-out;
+}
+
+/* Portal version - renders in document.body */
+.custom-dropdown-menu.custom-dropdown-portal {
+  position: fixed; /* Fixed positioning relative to viewport */
+  /* top, left, width set via inline styles */
+  z-index: 99999; /* Even higher for portal */
+}
+
+@keyframes dropdownSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-dropdown-item {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: block;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-item:hover {
+  background-color: var(--color-hover);
+  color: var(--color-text-primary);
+}
+
+.custom-dropdown-item.active {
+  background-color: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+
+.custom-dropdown-item:focus {
+  outline: none;
+  background-color: var(--color-hover);
+}
+
+/* Hide scrollbar for dropdown menu */
+.custom-dropdown-menu {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.custom-dropdown-menu::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
+/* Placeholder state */
+.custom-dropdown-button .dropdown-selected-text.placeholder {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+/* Small variant for compact forms */
+.custom-dropdown.small .custom-dropdown-button {
+  min-height: 36px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.custom-dropdown.small .custom-dropdown-item {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+  .custom-dropdown-button {
+    font-size: 0.85rem;
+    min-height: 40px;
+  }
+  
+  .custom-dropdown-item {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* Search functionality styles */
+.custom-dropdown-search {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-card);
+}
+
+.custom-dropdown-search-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+}
+
+.custom-dropdown-search-input::placeholder {
+  color: var(--color-muted);
+}
+
+.custom-dropdown-options {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.custom-dropdown-no-results {
+  padding: 0.75rem 1rem;
+  color: var(--color-muted);
+  font-style: italic;
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+}
+

@@ -1,0 +1,295 @@
+/* src/components/dashboard/widgets/TrendAnalysis.css */
+.trend-analysis {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.trend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.trend-title h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.trend-title p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.metric-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.metric-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metric-btn:hover {
+  background: var(--color-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-primary);
+}
+
+.metric-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.trend-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+}
+
+.current-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.current-value .value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.current-value .label {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.25rem;
+}
+
+.trend-change {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.trend-chart {
+  flex: 1;
+  min-height: 120px;
+}
+
+.chart-container {
+  display: flex;
+  align-items: end;
+  gap: 0.25rem;
+  height: 100%;
+  padding: 0.5rem 0;
+}
+
+.chart-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  min-height: 80px;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  transition: all 0.3s ease;
+  position: relative;
+  min-height: 4px;
+}
+
+.bar:hover {
+  opacity: 0.8;
+  transform: scaleY(1.05);
+}
+
+.bar-label {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+.trend-insights {
+  background: var(--color-background);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.trend-insights h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.trend-insights ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trend-insights li {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+  padding-left: 1rem;
+  position: relative;
+  line-height: 1.4;
+}
+
+.trend-insights li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+  font-weight: bold;
+}
+
+.trend-analysis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.trend-analysis-loading p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Animation for chart bars */
+@keyframes barGrow {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--height);
+    opacity: 1;
+  }
+}
+
+.bar {
+  animation: barGrow 0.6s ease-out;
+}
+
+.bar:nth-child(1) { animation-delay: 0.1s; }
+.bar:nth-child(2) { animation-delay: 0.2s; }
+.bar:nth-child(3) { animation-delay: 0.3s; }
+.bar:nth-child(4) { animation-delay: 0.4s; }
+.bar:nth-child(5) { animation-delay: 0.5s; }
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .trend-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .metric-selector {
+    justify-content: center;
+  }
+  
+  .trend-summary {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .current-value {
+    align-items: center;
+  }
+  
+  .current-value .value {
+    font-size: 1.5rem;
+  }
+  
+  .chart-container {
+    gap: 0.125rem;
+  }
+  
+  .bar-label {
+    font-size: 0.65rem;
+  }
+  
+  .trend-insights {
+    padding: 0.75rem;
+  }
+  
+  .trend-insights h4 {
+    font-size: 0.85rem;
+  }
+  
+  .trend-insights li {
+    font-size: 0.75rem;
+  }
+}
+
+/* Dark theme adjustments */
+body[data-theme='dark'] .trend-summary,
+body[data-theme='dark'] .trend-insights {
+  background: var(--color-background-elevated);
+  border-color: var(--color-border);
+}
+
+body[data-theme='dark'] .metric-btn {
+  background: var(--color-background-elevated);
+  border-color: var(--color-border);
+}
+
+body[data-theme='dark'] .metric-btn:hover {
+  background: var(--color-hover);
+}
+
+
+
+
+

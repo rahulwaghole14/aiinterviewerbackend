@@ -1,0 +1,166 @@
+/* src/components/Registration.css */
+
+/* Auth Container and Card styles for Registration */
+.registration-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--color-bg); /* Use global theme variable */
+  z-index: 9999; /* Make sure it's above other content */
+}
+
+.registration-card {
+  margin: 0 auto; /* Center the card horizontally */
+  background-color: var(--color-card); /* Use global theme variable */
+  box-shadow: var(--shadow-soft); /* Use global theme variable */
+  border-radius: var(--radius); /* Use global theme variable */
+  padding: 2rem;
+  width: 100%;
+  max-width: 850px; /* Adjusted max-width for two columns */
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.registration-title {
+  color: var(--color-primary-dark); /* Use global theme variable */
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+.registration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center; /* Center the button if it's smaller than the form */
+}
+
+/* Two-column grid for registration form fields */
+.registration-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Two equal columns */
+  gap: 1.5rem; /* Space between grid items */
+  width: 100%; /* Ensure the grid takes full width of its parent */
+}
+
+/* Ensure form-group inside form-grid doesn't override label/input styles */
+.registration-form-group {
+  text-align: left;
+  margin-bottom: 0; /* Remove default margin-bottom from form-group */
+}
+
+.registration-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-secondary); /* Use global theme variable */
+  font-weight: 500;
+}
+
+.registration-form-group input {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid var(--color-muted); /* Use global theme variable */
+  border-radius: var(--radius); /* Adjusted to match login input border-radius */
+  font-size: 1rem;
+  box-sizing: border-box;
+  background-color: var(--color-bg-secondary); /* Use global theme variable */
+  color: var(--color-text-primary); /* Use global theme variable */
+}
+
+.registration-form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary); /* Use global theme variable */
+  box-shadow: 0 0 0 2px rgba(127, 202, 146, 0.2); /* Use global theme variable for RGB */
+}
+
+.registration-error-message {
+  color: #e74c3c; /* Red color for errors */
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  text-align: center;
+  width: 100%; /* Ensure it spans full width */
+  grid-column: 1 / -1; /* Make error message span across both columns */
+}
+
+.registration-success-message {
+  color: #2ecc71; /* Green color for success */
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  text-align: center;
+  width: 100%; /* Ensure it spans full width */
+  grid-column: 1 / -1; /* Make success message span across both columns */
+}
+
+.registration-button {
+  background-color: var(--color-primary); /* Use global theme variable */
+  color: white; /* Changed to white as requested */
+  padding: 0.9rem 1.5rem; /* Adjusted padding to match login button */
+  border: none;
+  border-radius: var(--radius); /* Adjusted border-radius to match login button */
+  font-size: 1.1rem; /* Adjusted font size to match login button */
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease; /* Added transform for hover effect */
+  width: 33.33%; /* Shortened to one-third width */
+  margin-top: 1rem;
+}
+
+.registration-button:hover {
+  background-color: var(--color-primary-dark); /* Use global theme variable */
+  transform: translateY(-2px); /* Added transform for hover effect */
+}
+
+.registration-link-text {
+  margin-top: 1.5rem;
+  color: var(--color-text-secondary); /* Use global theme variable */
+}
+
+.registration-link-text a {
+  color: var(--color-primary); /* Use global theme variable */
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.registration-link-text a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments for Registration page */
+@media (max-width: 768px) {
+  .registration-form-grid {
+    grid-template-columns: 1fr; /* Stack columns on smaller screens */
+    gap: 1rem;
+  }
+
+  .registration-card {
+    padding: 1.5rem;
+    max-width: 600px; /* Adjusted max-width for mobile/tablet to allow more space */
+  }
+
+  .registration-title {
+    font-size: 1.5rem;
+  }
+
+  .registration-button {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.9rem;
+    width: 50%; /* Adjust button width for smaller screens */
+  }
+}
+
+@media (max-width: 480px) {
+  .registration-card {
+    padding: 1rem;
+  }
+  .registration-title {
+    font-size: 1.3rem;
+  }
+  .registration-button {
+    width: 70%; /* Further adjust button width for very small screens */
+  }
+}

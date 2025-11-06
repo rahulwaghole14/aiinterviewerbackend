@@ -1,0 +1,379 @@
+/* src/components/dashboard/DashboardWidget.css */
+.dashboard-widget {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.dashboard-widget::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  transition: left 0.5s;
+  z-index: 1;
+  border-radius: var(--radius);
+}
+
+.dashboard-widget:hover::before {
+  left: 100%;
+}
+
+.dashboard-widget:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dashboard-widget.editing {
+  border: 2px dashed var(--color-primary);
+  background: rgba(139, 92, 246, 0.1);
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-widget.expanded {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 85vw;
+  height: auto; /* Auto height to fit content */
+  max-width: 1200px;
+  max-height: 90vh; /* Maximum height but can be smaller */
+  z-index: 1000;
+  background: var(--color-background-elevated);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  grid-column: unset !important;
+  grid-row: unset !important;
+  border-radius: var(--radius);
+  overflow-y: auto; /* Scroll only if exceeds max-height */
+  overflow-x: hidden; /* Hide horizontal overflow */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Widget hover effects */
+.dashboard-widget:hover {
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-card);
+  position: relative;
+  z-index: 2;
+  margin: 0.25rem 0.25rem 0 0.25rem;
+  border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
+  gap: 1rem; /* Add gap between title and controls */
+}
+
+.widget-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.widget-subtitle {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.widget-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto; /* Push controls to the right */
+  justify-content: flex-end; /* Align controls to the right */
+}
+
+.widget-control-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.widget-control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-primary);
+  transform: scale(1.1);
+}
+
+.widget-control-btn.refresh .spinning {
+  animation: spin 1s linear infinite;
+}
+
+.widget-control-btn.remove:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+
+.widget-control-btn.data-settings {
+  color: var(--color-text-secondary);
+}
+
+.widget-control-btn.data-settings:hover {
+  color: var(--color-success);
+  background: var(--color-success-light);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.widget-content {
+  flex: 1;
+  padding: 0.75rem;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+  background: var(--color-background-elevated);
+  margin: 0.25rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--color-border-light);
+  /* Hide scrollbars */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.widget-content::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for WebKit */
+}
+
+/* For chart widgets, no scrolling on mobile - show all content */
+.widget-content.chart-widget {
+  overflow: auto;
+  /* Hide scrollbars on desktop too */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.widget-content.chart-widget::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .widget-content.chart-widget {
+    overflow: visible !important; /* No scrolling on mobile */
+  }
+}
+
+/* Expanded widget content */
+.dashboard-widget.expanded .widget-content {
+  flex: 0 0 auto; /* Don't flex - use natural size */
+  overflow: visible; /* No scroll inside content */
+  padding: 1rem;
+  height: auto; /* Auto height to fit content */
+  max-height: none; /* No height restrictions */
+}
+
+.dashboard-widget.expanded .widget-content.chart-widget {
+  overflow: visible; /* No scroll - show all content */
+  height: auto; /* Auto height */
+}
+
+.widget-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+}
+
+.widget-loading .loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.widget-loading p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+
+/* Draggable States */
+.dashboard-widget.editing {
+  user-select: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .dashboard-widget {
+    min-height: auto !important; /* No minimum - fit content */
+    height: auto !important; /* Auto height to fit content */
+    width: 100% !important; /* Full width */
+    margin-bottom: 0; /* No margin - using gap */
+    overflow: visible !important; /* Allow content to expand */
+  }
+  
+  .widget-header {
+    padding: 0.75rem 1rem;
+    flex-direction: row;
+    justify-content: space-between; /* Title left, controls right */
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0; /* Don't shrink header */
+  }
+  
+  .widget-title {
+    display: block; /* Show title on mobile */
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .widget-title h3 {
+    display: block; /* Show heading text */
+    font-size: 0.95rem; /* Smaller on mobile */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .widget-subtitle {
+    display: block; /* Show subtitle */
+    font-size: 0.75rem;
+  }
+  
+  .widget-controls {
+    gap: 0.25rem;
+    flex-shrink: 0;
+    margin-left: 0; /* No auto margin needed */
+  }
+  
+  .widget-content {
+    padding: 0.75rem;
+    height: auto !important; /* Auto height to fit content */
+    min-height: auto !important; /* No minimum */
+    max-height: 50vh !important; /* Maximum 50vh - scroll if more */
+    overflow-y: auto !important; /* Scroll vertically if exceeds 50vh */
+    overflow-x: visible !important; /* No horizontal scroll */
+    flex: 0 0 auto !important; /* Natural size */
+  }
+  
+  /* Custom scrollbar for mobile widgets */
+  .widget-content::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .widget-content::-webkit-scrollbar-track {
+    background: var(--color-bg-secondary);
+  }
+  
+  .widget-content::-webkit-scrollbar-thumb {
+    background: var(--color-text-secondary);
+    border-radius: 3px;
+  }
+  
+  /* Scale down charts to fit mobile width */
+  .widget-content.chart-widget {
+    max-width: 100%;
+    max-height: 50vh !important; /* Maximum 50vh */
+    overflow-y: auto !important; /* Scroll if too tall */
+    overflow-x: visible !important;
+    height: auto !important;
+  }
+  
+  .widget-content.chart-widget > * {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  
+  .widget-control-btn {
+    width: 2rem;
+    height: 2rem;
+    padding: 0.5rem;
+  }
+  
+  .dashboard-widget.expanded {
+    width: 95vw;
+    height: auto; /* Auto height - fit content */
+    max-height: 80vh; /* Maximum 80vh */
+    max-width: none;
+    overflow-y: auto; /* Scroll if exceeds 80vh */
+  }
+  
+  .dashboard-widget.expanded .widget-content {
+    overflow: visible; /* No scroll inside - widget scrolls */
+    height: auto; /* Auto height */
+    max-height: none; /* No restrictions on content */
+  }
+}
+
+/* Widget backdrop for expanded state */
+.widget-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 999;
+  cursor: pointer;
+}
+
+/* Animation for widget appearance */
+@keyframes widgetAppear {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dashboard-widget {
+  animation: widgetAppear 0.3s ease-out;
+}

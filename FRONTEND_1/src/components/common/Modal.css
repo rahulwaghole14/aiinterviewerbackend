@@ -1,0 +1,415 @@
+/* src/components/common/Modal.css */
+
+/* Base Modal Overlay */
+.common-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Modal Content Container */
+.common-modal-content {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-medium);
+  border: 1px solid var(--color-border);
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Modal Header */
+.common-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-card);
+}
+
+.common-modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.common-modal-close-btn {
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--radius-small);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-text-primary);
+  transition: var(--transition);
+  box-shadow: var(--shadow-button);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.common-modal-close-btn:hover {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-button-hover);
+  transform: translateY(-1px) scale(1.05);
+}
+
+.common-modal-close-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  stroke-width: 2.5;
+}
+
+/* Modal Body */
+.common-modal-body {
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  background: var(--color-card);
+  /* Hide scrollbars */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Hide scrollbar for Webkit browsers (Chrome, Safari) */
+.common-modal-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Modal Footer */
+.common-modal-footer {
+  padding: 1rem 2rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-card);
+}
+
+/* Size Variants */
+.modal-small .common-modal-content {
+  width: 100%;
+  max-width: 400px;
+  max-height: 400px;
+}
+
+.modal-medium .common-modal-content {
+  width: 100%;
+  max-width: 700px;
+  max-height: 500px;
+}
+
+.modal-large .common-modal-content {
+  width: 100%;
+  max-width: 800px;
+  max-height: 600px;
+}
+
+.modal-fullscreen .common-modal-content {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+}
+
+/* Content Size Adjustments */
+.content-small .common-modal-body {
+  padding: 20px;
+}
+
+.content-large .common-modal-body {
+  padding: 32px;
+}
+
+/* Variant Styles - Removed left borders */
+.modal-confirm .common-modal-content {
+  /* No left border for cleaner look */
+}
+
+.modal-form .common-modal-content {
+  /* No left border for cleaner look */
+}
+
+/* Animation Variants */
+.modal-fade {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.modal-fade .common-modal-content {
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-slide {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.modal-slide .common-modal-content {
+  animation: modalSlideDown 0.3s ease-out;
+}
+
+.modal-scale {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.modal-scale .common-modal-content {
+  animation: modalScaleIn 0.3s ease-out;
+}
+
+/* Button Styles - Base styling without background */
+.common-modal-btn {
+  padding: 0.7rem 1.5rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  transition: background-color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.common-modal-btn:hover {
+  transform: translateY(-2px);
+}
+
+.common-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Button Variants - Override base styles */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--color-danger-dark);
+}
+
+.btn-cancel {
+  background-color: var(--color-bg-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border: 2px solid var(--color-border) !important;
+  font-weight: 500 !important;
+  box-shadow: var(--shadow-button) !important;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background-color: var(--color-secondary) !important;
+  border-color: var(--color-secondary) !important;
+  color: white !important;
+  box-shadow: var(--shadow-button-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-cancel:active {
+  background-color: var(--color-secondary-dark) !important;
+  transform: translateY(0) !important;
+}
+
+/* Action Groups */
+.modal-confirm-actions,
+.modal-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* Form Specific Styles - Match existing jobs-input styles */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modal-form .form-group label {
+  font-weight: 500;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.modal-form .form-group input,
+.modal-form .form-group select,
+.modal-form .form-group textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-muted);
+  border-radius: var(--radius-small);
+  font-size: 0.95rem;
+  color: var(--color-text);
+  background-color: var(--color-bg-secondary);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.modal-form .form-group input::placeholder,
+.modal-form .form-group textarea::placeholder {
+  color: var(--color-muted);
+  opacity: 0.7;
+}
+
+.modal-form .form-group input:focus,
+.modal-form .form-group select:focus,
+.modal-form .form-group textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.2);
+}
+
+.modal-form .form-group input:disabled,
+.modal-form .form-group select:disabled,
+.modal-form .form-group textarea:disabled {
+  background-color: var(--color-disabled, var(--color-bg-secondary));
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modal-form .form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+  font-family: inherit;
+}
+
+/* Confirm Modal Specific */
+.confirm-message {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* Animations */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .common-modal-overlay {
+    padding: 10px;
+  }
+  
+  .modal-small .common-modal-content,
+  .modal-medium .common-modal-content,
+  .modal-large .common-modal-content {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+  
+  .common-modal-header {
+    padding: 16px 20px;
+  }
+  
+  .common-modal-body {
+    padding: 20px;
+  }
+  
+  .common-modal-footer {
+    padding: 16px 20px;
+  }
+  
+  .modal-confirm-actions,
+  .modal-form-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .common-modal-btn {
+    width: 100%;
+  }
+}
+
+/* Confirm Modal Specific */
+.confirm-message {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  margin: 0;
+  text-align: center;
+}

@@ -1,0 +1,95 @@
+/* src/components/dashboard/widgets/ChartWidget.css */
+.chart-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-container {
+  flex: 1;
+  position: relative;
+  min-height: 320px;
+  padding: 0.5rem;
+}
+
+.chart-widget-no-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: 2rem;
+}
+
+.no-data-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.chart-widget-no-data p {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.chart-widget-no-data small {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* Chart.js overrides */
+.chart-container canvas {
+  max-height: 100% !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .chart-container {
+    min-height: 150px;
+    padding: 0.25rem;
+  }
+  
+  .no-data-icon {
+    font-size: 2rem;
+  }
+  
+  .chart-widget-no-data p {
+    font-size: 0.9rem;
+  }
+  
+  .chart-widget-no-data small {
+    font-size: 0.75rem;
+  }
+}
+
+/* Animation for chart loading */
+@keyframes chartFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chart-container {
+  animation: chartFadeIn 0.3s ease-out;
+}
+
+/* Hover effects */
+.chart-widget:hover .chart-container {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+
+
+
+
+
+

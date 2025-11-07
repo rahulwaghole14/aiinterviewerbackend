@@ -673,6 +673,56 @@ def interview_portal(request):
             
             print(f"DEBUG: Found {db_coding_questions.count()} coding questions in database")
             
+            # First, determine the correct language that should be used
+            allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'}
+            correct_lang = None
+            
+            # Priority 1: Get from Interview.job.coding_language
+            try:
+                from interviews.models import Interview
+                interview = Interview.objects.filter(session_key=session.session_key).first()
+                if interview and interview.job:
+                    job_lang = getattr(interview.job, 'coding_language', None)
+                    if job_lang and job_lang.upper() in allowed_langs:
+                        correct_lang = job_lang.upper()
+                        print(f"✅ Correct language from job: {correct_lang}")
+            except Exception as e:
+                print(f"⚠️ Error getting language from Interview: {e}")
+            
+            # Priority 2: Get from session.keyword_analysis
+            if not correct_lang:
+                try:
+                    if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                        correct_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                        if correct_lang in allowed_langs:
+                            print(f"✅ Correct language from keyword_analysis: {correct_lang}")
+                except Exception as e:
+                    print(f"⚠️ Error parsing keyword_analysis: {e}")
+            
+            # Priority 3: Default to PYTHON
+            if not correct_lang:
+                correct_lang = 'PYTHON'
+                print(f"⚠️ Using default language: {correct_lang}")
+            
+            # Check if existing coding questions have the wrong language
+            need_recreate = False
+            for q in db_coding_questions:
+                existing_lang = (q.coding_language or 'PYTHON').upper()
+                if existing_lang != correct_lang:
+                    print(f"⚠️ Existing coding question has wrong language: {existing_lang}, should be: {correct_lang}")
+                    need_recreate = True
+                    break
+            
+            # If wrong language, delete and recreate
+            if need_recreate:
+                print(f"🔄 Deleting coding questions with wrong language and recreating with {correct_lang}")
+                try:
+                    session.questions.filter(question_type='CODING').delete()
+                    db_coding_questions = []  # Clear so we create new ones
+                    coding_questions = []  # Clear the list so we go to the else block to create new ones
+                except Exception as e:
+                    print(f"⚠️ Error deleting wrong language questions: {e}")
+            
             for q in db_coding_questions:
                 # Get test cases for this question
                 test_cases_data = []
@@ -720,43 +770,10 @@ def interview_portal(request):
                 print(f"✅ Loaded {len(coding_questions)} coding questions from database")
             else:
                 print(f"⚠️ No coding questions found. Creating hardcoded question...")
-                # Create hardcoded question if none exist
-                # Determine language from job.coding_language (priority 1), then session, then URL param
-                allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'}
-                requested_lang = None
-                
-                # Priority 1: Get from Interview.job.coding_language via session_key (most reliable)
-                try:
-                    from interviews.models import Interview
-                    interview = Interview.objects.filter(session_key=session.session_key).first()
-                    if interview and interview.job:
-                        job_lang = getattr(interview.job, 'coding_language', None)
-                        if job_lang and job_lang.upper() in allowed_langs:
-                            requested_lang = job_lang.upper()
-                            print(f"✅ Using coding language from job via Interview: {requested_lang}")
-                except Exception as e:
-                    print(f"⚠️ Error getting coding language from Interview: {e}")
-                
-                # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
-                if not requested_lang:
-                    try:
-                        if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                            requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                            if requested_lang in allowed_langs:
-                                print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
-                    except Exception as e:
-                        print(f"⚠️ Error parsing keyword_analysis: {e}")
-                        requested_lang = None
-                
-                # Priority 3: Get from URL parameter (fallback)
-                if not requested_lang:
-                    requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
-                    print(f"⚠️ Using coding language from URL parameter: {requested_lang}")
-                
-                # Validate and default to PYTHON if invalid
-                if requested_lang not in allowed_langs:
-                    requested_lang = 'PYTHON'
-                    print(f"⚠️ Invalid language, defaulting to PYTHON")
+                # Use the correct_lang that was already determined above (from job.coding_language)
+                # This ensures we use the language from the job, not default to PYTHON
+                requested_lang = correct_lang if correct_lang else 'PYTHON'
+                print(f"✅ Using determined language for new coding question: {requested_lang}")
                 
                 # Import hardcoded map
                 hardcoded_map = {
@@ -850,8 +867,15 @@ def interview_portal(request):
                 
                 coding_questions = [hardcoded_map[requested_lang]]
                 
-                # Save to database
-                for i, coding_q in enumerate(coding_questions):
+                # Delete any existing coding questions to prevent duplicates
+                try:
+                    session.questions.filter(question_type='CODING').delete()
+                    print(f"✅ Deleted existing coding questions to prevent duplicates")
+                except Exception as e:
+                    print(f"⚠️ Error deleting existing coding questions: {e}")
+                
+                # Save to database - ONLY ONE coding question
+                for i, coding_q in enumerate(coding_questions[:1]):  # Limit to 1 question
                     coding_question_obj = InterviewQuestion.objects.create(
                         session=session,
                         question_text=coding_q['description'],
@@ -1035,8 +1059,15 @@ def interview_portal(request):
                         question_level='MAIN'
                     )
                 
-                # Save coding questions to database and update coding_questions_data with real IDs
-                for i, coding_q in enumerate(coding_questions):
+                # Delete any existing coding questions to prevent duplicates
+                try:
+                    session.questions.filter(question_type='CODING').delete()
+                    print(f"✅ Deleted existing coding questions to prevent duplicates")
+                except Exception as e:
+                    print(f"⚠️ Error deleting existing coding questions: {e}")
+                
+                # Save coding questions to database - ONLY ONE coding question
+                for i, coding_q in enumerate(coding_questions[:1]):  # Limit to 1 question
                     coding_question_obj = InterviewQuestion.objects.create(
                         session=session,
                         question_text=coding_q['description'],
@@ -1072,22 +1103,166 @@ def interview_portal(request):
                     {'type': 'Behavioral Questions', 'text': 'Describe a time you had a conflict with a coworker and how you resolved it.'}
                 ]
                 
-                # Add coding question
+                # Get coding language from job (prioritize job.coding_language)
+                allowed_langs = {
+                    'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'
+                }
+                requested_lang = None
+                
+                # Priority 1: Get from Interview.job.coding_language via session_key (most reliable)
+                try:
+                    from interviews.models import Interview
+                    interview = Interview.objects.filter(session_key=session.session_key).first()
+                    print(f"🔍 DEBUG: Looking for Interview with session_key={session.session_key}")
+                    if interview:
+                        print(f"🔍 DEBUG: Found Interview {interview.id}, job={interview.job}")
+                        if interview.job:
+                            job_lang = getattr(interview.job, 'coding_language', None)
+                            print(f"🔍 DEBUG: job.coding_language = {job_lang}")
+                            if job_lang:
+                                job_lang_upper = job_lang.upper()
+                                print(f"🔍 DEBUG: job_lang_upper = {job_lang_upper}, allowed_langs = {allowed_langs}")
+                                if job_lang_upper in allowed_langs:
+                                    requested_lang = job_lang_upper
+                                    print(f"✅ Using coding language from job via Interview: {requested_lang}")
+                                else:
+                                    print(f"⚠️ Language {job_lang_upper} not in allowed_langs {allowed_langs}")
+                            else:
+                                print(f"⚠️ job.coding_language is None or empty")
+                        else:
+                            print(f"⚠️ Interview found but interview.job is None")
+                    else:
+                        print(f"⚠️ No Interview found with session_key={session.session_key}")
+                except Exception as e:
+                    print(f"⚠️ Error getting coding language from Interview: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
+                # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
+                if not requested_lang:
+                    try:
+                        if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
+                            requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
+                            if requested_lang in allowed_langs:
+                                print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
+                    except Exception as e:
+                        print(f"⚠️ Error parsing keyword_analysis: {e}")
+                        requested_lang = None
+                
+                # Priority 3: Get from URL parameter (fallback)
+                if not requested_lang:
+                    requested_lang = (request.GET.get('lang') or 'PYTHON').upper()
+                    print(f"⚠️ Using coding language from URL parameter: {requested_lang}")
+                
+                # Validate and default to PYTHON if invalid
+                if requested_lang not in allowed_langs:
+                    requested_lang = 'PYTHON'
+                    print(f"⚠️ Invalid language, defaulting to PYTHON")
+                
+                # Use hardcoded questions based on language
+                hardcoded_map = {
+                    'PYTHON': {
+                        'title': 'Reverse a String',
+                        'description': 'Write a function reverse_string(s: str) -> str that returns the reversed string.',
+                        'language': 'PYTHON',
+                        'starter_code': 'def reverse_string(s: str) -> str:\n    # TODO: implement\n    pass',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'JAVASCRIPT': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement function reverseString(s) that returns the reversed string.',
+                        'language': 'JAVASCRIPT',
+                        'starter_code': 'function reverseString(s){\n  // TODO\n}\nmodule.exports = reverseString;',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'JAVA': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Implement a static method add(int a, int b) that returns a+b.',
+                        'language': 'JAVA',
+                        'starter_code': 'public class Solution {\n  public static int add(int a,int b){\n    // TODO\n    return 0;\n  }\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'PHP': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement function reverse_string($s) that returns the reversed string.',
+                        'language': 'PHP',
+                        'starter_code': '<?php\nfunction reverse_string($s){\n  // TODO\n}\n?>',
+                        'test_cases': [
+                            {'input': "'hello'", 'expected_output': 'olleh'},
+                            {'input': "''", 'expected_output': ''},
+                            {'input': "'abc'", 'expected_output': 'cba'}
+                        ]
+                    },
+                    'C': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Write a function int add(int a,int b) that returns a+b.',
+                        'language': 'C',
+                        'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'CPP': {
+                        'title': 'Add Two Numbers',
+                        'description': 'Implement int add(int a,int b) that returns a+b.',
+                        'language': 'CPP',
+                        'starter_code': 'int add(int a,int b){\n  // TODO\n  return 0;\n}',
+                        'test_cases': [
+                            {'input': '1,2', 'expected_output': '3'},
+                            {'input': '-5,5', 'expected_output': '0'},
+                            {'input': '10,15', 'expected_output': '25'}
+                        ]
+                    },
+                    'GO': {
+                        'title': 'Reverse a String',
+                        'description': 'Implement func Reverse(s string) string that returns the reversed string.',
+                        'language': 'GO',
+                        'starter_code': 'package main\nfunc Reverse(s string) string {\n  // TODO\n  return ""\n}',
+                        'test_cases': [
+                            {'input': '"hello"', 'expected_output': 'olleh'},
+                            {'input': '""', 'expected_output': ''},
+                            {'input': '"abc"', 'expected_output': 'cba'}
+                        ]
+                    },
+                    'HTML': {
+                        'title': 'Simple Heading',
+                        'description': 'Return an HTML string with an <h1>Hello</h1> element.',
+                        'language': 'HTML',
+                        'starter_code': '<!-- return <h1>Hello</h1> -->',
+                        'test_cases': [
+                            {'input': 'n/a', 'expected_output': '<h1>Hello</h1>'}
+                        ]
+                    }
+                }
+                
+                # Add coding question using the correct language
+                coding_q_data = hardcoded_map.get(requested_lang, hardcoded_map['PYTHON'])
                 coding_questions = [
                     {
                         'id': 'coding_1',
                         'type': 'CODING',
-                        'title': 'Reverse String',
-                        'description': 'Write a function that reverses a string. For example, if the input is "hello", the output should be "olleh".',
-                        'language': 'PYTHON',
-                        'starter_code': 'def reverse_string(s):\n    # Your code here\n    pass',
-                        'test_cases': [
-                            {'input': '"hello"', 'output': 'olleh'},
-                            {'input': '"world"', 'output': 'dlrow'},
-                            {'input': '"python"', 'output': 'nohtyp'}
-                        ]
+                        'title': coding_q_data['title'],
+                        'description': coding_q_data['description'],
+                        'language': coding_q_data['language'],
+                        'starter_code': coding_q_data['starter_code'],
+                        'test_cases': coding_q_data['test_cases']
                     }
                 ]
+                print(f"✅ Using hardcoded coding question in {requested_lang} for DEV MODE")
             else:
                 print("--- RUNNING IN PRODUCTION MODE: Calling Gemini API. ---")
                 model = genai.GenerativeModel('gemini-2.5-flash')
@@ -1183,13 +1358,30 @@ def interview_portal(request):
                 try:
                     from interviews.models import Interview
                     interview = Interview.objects.filter(session_key=session.session_key).first()
-                    if interview and interview.job:
-                        job_lang = getattr(interview.job, 'coding_language', None)
-                        if job_lang and job_lang.upper() in allowed_langs:
-                            requested_lang = job_lang.upper()
-                            print(f"✅ Using coding language from job via Interview: {requested_lang}")
+                    print(f"🔍 DEBUG: Looking for Interview with session_key={session.session_key}")
+                    if interview:
+                        print(f"🔍 DEBUG: Found Interview {interview.id}, job={interview.job}")
+                        if interview.job:
+                            job_lang = getattr(interview.job, 'coding_language', None)
+                            print(f"🔍 DEBUG: job.coding_language = {job_lang}")
+                            if job_lang:
+                                job_lang_upper = job_lang.upper()
+                                print(f"🔍 DEBUG: job_lang_upper = {job_lang_upper}, allowed_langs = {allowed_langs}")
+                                if job_lang_upper in allowed_langs:
+                                    requested_lang = job_lang_upper
+                                    print(f"✅ Using coding language from job via Interview: {requested_lang}")
+                                else:
+                                    print(f"⚠️ Language {job_lang_upper} not in allowed_langs {allowed_langs}")
+                            else:
+                                print(f"⚠️ job.coding_language is None or empty")
+                        else:
+                            print(f"⚠️ Interview found but interview.job is None")
+                    else:
+                        print(f"⚠️ No Interview found with session_key={session.session_key}")
                 except Exception as e:
                     print(f"⚠️ Error getting coding language from Interview: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
                 # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
                 if not requested_lang:

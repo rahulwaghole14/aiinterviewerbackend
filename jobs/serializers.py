@@ -52,6 +52,18 @@ class JobSerializer(serializers.ModelSerializer):
                 "Cannot assign an inactive domain to a job."
             )
         return value
+    
+    def validate_coding_language(self, value):
+        """Ensure coding_language is always uppercase"""
+        if value:
+            value = value.upper()
+            # Validate against allowed choices
+            allowed_languages = ['PYTHON', 'JAVASCRIPT', 'JAVA', 'PHP', 'RUBY', 'CSHARP', 'SQL', 'C', 'CPP', 'GO', 'HTML']
+            if value not in allowed_languages:
+                raise serializers.ValidationError(
+                    f"Invalid coding language: {value}. Must be one of: {', '.join(allowed_languages)}"
+                )
+        return value
 
 
 class JobTitleSerializer(serializers.ModelSerializer):

@@ -71,9 +71,13 @@ class InterviewQuestion(models.Model):
         ('PYTHON', 'Python'),
         ('JAVASCRIPT', 'JavaScript'),
         ('JAVA', 'Java'),
-        ('CSHARP', 'C#'),
+        ('C', 'C'),
+        ('CPP', 'C++'),
+        ('GO', 'Go'),
+        ('HTML', 'HTML'),
         ('PHP', 'PHP'),
         ('RUBY', 'Ruby'),
+        ('CSHARP', 'C#'),
         ('SQL', 'SQL'),
     ]
     coding_language = models.CharField(

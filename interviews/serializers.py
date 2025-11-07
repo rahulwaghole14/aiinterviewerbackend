@@ -531,26 +531,38 @@ class InterviewSerializer(serializers.ModelSerializer):
                     # Determine question type for sorting
                     question_type = q.question_type or 'TECHNICAL'
                     
-                    # For CODING questions, get the answer from CodeSubmission
+                    # For CODING questions, get the answer from CodeSubmission ONLY
                     if question_type == 'CODING':
                         # Try to find CodeSubmission for this question
+                        answer_text = ''  # Default to empty for coding questions
+                        created_at = None
                         try:
+                            # Try exact match first
                             code_submission = CodeSubmission.objects.filter(
                                 session=session,
                                 question_id=str(q.id)
                             ).order_by('-created_at').first()
                             
+                            # If not found, try without session filter (fallback)
+                            if not code_submission:
+                                code_submission = CodeSubmission.objects.filter(
+                                    question_id=str(q.id)
+                                ).order_by('-created_at').first()
+                            
                             if code_submission and code_submission.submitted_code:
                                 answer_text = code_submission.submitted_code
-                                # Get created_at from code submission
                                 created_at = code_submission.created_at
+                                print(f"✅ Found CodeSubmission for coding question {q.id}")
                             else:
-                                # Fallback to transcribed_answer if no code submission found
-                                answer_text = q.transcribed_answer or ''
+                                # For coding questions, don't use transcribed_answer - it's for technical questions
+                                answer_text = 'No code submitted'
                                 created_at = q.session.created_at if hasattr(q.session, 'created_at') else None
+                                print(f"⚠️ No CodeSubmission found for coding question {q.id}, showing 'No code submitted'")
                         except Exception as e:
                             print(f"⚠️ Error fetching CodeSubmission for question {q.id}: {e}")
-                            answer_text = q.transcribed_answer or ''
+                            import traceback
+                            traceback.print_exc()
+                            answer_text = 'No code submitted'
                             created_at = q.session.created_at if hasattr(q.session, 'created_at') else None
                     else:
                         # For TECHNICAL and BEHAVIORAL questions, use transcribed_answer

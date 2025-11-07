@@ -491,7 +491,7 @@ const Jobs = () => {
           number_to_hire: parseInt(number_to_hire, 10),
           position_level,
           current_process: current_process || "",
-          coding_language,
+          coding_language: coding_language ? coding_language.toUpperCase() : "PYTHON",
           job_description: job_description || "",
         }),
       });
@@ -640,7 +640,7 @@ const Jobs = () => {
               number_to_hire: parseInt(editedJobData.number_to_hire, 10), // Ensure number
               position_level: editedJobData.position_level,
               current_process: editedJobData.current_process,
-              coding_language: editedJobData.coding_language || "PYTHON",
+              coding_language: editedJobData.coding_language ? editedJobData.coding_language.toUpperCase() : "PYTHON",
               job_description: editedJobData.job_description || "",
             }),
           }
@@ -692,7 +692,7 @@ const Jobs = () => {
       number_to_hire: job.number_to_hire || "",
       position_level: job.position_level || "",
       current_process: job.current_process || "",
-      coding_language: job.coding_language || "PYTHON",
+      coding_language: job.coding_language ? job.coding_language.toUpperCase() : "PYTHON",
       job_description: job.job_description || "",
     });
     // Set editing state to track which job is being edited
@@ -827,7 +827,7 @@ const Jobs = () => {
             number_to_hire: Math.max(1, parseInt(editedData.number_to_hire, 10) || 1), // Ensure number is at least 1
             position_level: editedData.position_level,
             current_process: editedData.current_process,
-            coding_language: editedData.coding_language || "PYTHON",
+            coding_language: editedData.coding_language ? editedData.coding_language.toUpperCase() : "PYTHON",
             job_description: editedData.job_description || "",
             // Remove is_active field as it doesn't exist in the Job model
           }),

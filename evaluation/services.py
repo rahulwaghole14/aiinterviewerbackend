@@ -224,11 +224,30 @@ def create_evaluation_from_session(session_key: str):
                 if question_index < questions_correct:
                     is_correct = True
             
+            # For CODING questions, get answer from CodeSubmission, not transcribed_answer
+            answer_text = 'No answer provided'
+            if q.question_type == 'CODING':
+                try:
+                    code_submission = CodeSubmission.objects.filter(
+                        session=session,
+                        question_id=str(q.id)
+                    ).order_by('-created_at').first()
+                    if code_submission and code_submission.submitted_code:
+                        answer_text = code_submission.submitted_code
+                    else:
+                        answer_text = 'No code submitted'
+                except Exception as e:
+                    print(f"⚠️ Error fetching CodeSubmission for question {q.id} in evaluation: {e}")
+                    answer_text = 'No code submitted'
+            else:
+                # For TECHNICAL and BEHAVIORAL questions, use transcribed_answer
+                answer_text = q.transcribed_answer or 'No answer provided'
+            
             technical_questions.append({
                 'question_text': q.question_text,
                 'question_type': q.question_type or 'TECHNICAL',
                 'order': q.order,
-                'answer': q.transcribed_answer or 'No answer provided',
+                'answer': answer_text,
                 'response_time': q.response_time_seconds or 0,
                 'is_correct': is_correct,
                 'question_level': q.question_level or 'MAIN',

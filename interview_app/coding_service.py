@@ -17,13 +17,25 @@ else:
     print("⚠️ WARNING: GEMINI_API_KEY not set. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
 
 
-def generate_coding_questions_with_testcases(job_description: str, num_questions: int = 2):
+def generate_coding_questions_with_testcases(job_description: str, num_questions: int = 2, language_preference: str = 'PYTHON'):
     """
     Generate coding questions with test cases using Gemini AI
     Uses the EXACT prompt from interview_app_11/gemini_question_generator.py
+    
+    Args:
+        job_description (str): The job description text
+        num_questions (int): Number of coding questions to generate (default: 2)
+        language_preference (str): Preferred programming language (default: 'PYTHON')
     """
     try:
         model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        
+        # Validate and normalize language
+        allowed_languages = {'PYTHON', 'JAVASCRIPT', 'JAVA', 'PHP', 'RUBY', 'CSHARP', 'SQL', 'C', 'CPP', 'GO', 'HTML'}
+        language_preference = language_preference.upper() if language_preference else 'PYTHON'
+        if language_preference not in allowed_languages:
+            language_preference = 'PYTHON'
+            print(f"⚠️ Invalid language preference, defaulting to PYTHON")
         
         # Extract job title from JD
         job_title = "Technical Role"
@@ -42,7 +54,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
         {job_description[:2000]}
         
         Job Title: {job_title}
-        Preferred Language: PYTHON
+        Preferred Language: {language_preference}
         
         Requirements:
         1. Generate {num_questions} coding questions that are DIRECTLY RELEVANT to the skills and responsibilities in the JD above
@@ -61,7 +73,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
         For each question, provide:
         - title: Clear, descriptive title
         - description: Detailed problem statement with examples
-        - language: Programming language to use (PYTHON)
+        - language: Programming language to use ({language_preference})
         - starter_code: Complete function or class skeleton with docstrings
         - test_cases: Array of test cases with input and expected output
         - difficulty: Easy/Medium/Hard (based on JD experience level)
@@ -74,7 +86,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
                 "type": "CODING",
                 "title": "Question Title",
                 "description": "Detailed description with examples",
-                "language": "PYTHON",
+                "language": "{language_preference}",
                 "difficulty": "Medium",
                 "time_limit": 15,
                 "starter_code": "def function_name(param):\\n    # Your code here\\n    pass",
@@ -150,7 +162,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
             model = genai.GenerativeModel('gemini-2.0-flash-exp')  # Same model, simpler prompt
             
             simple_prompt = f"""
-            Based on this job description, create {num_questions} Python coding problems.
+            Based on this job description, create {num_questions} {language_preference} coding problems.
             
             JOB DESCRIPTION:
             {job_description[:1500]}
@@ -166,7 +178,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
                     {{
                         "title": "Problem Name",
                         "description": "Clear problem statement with example",
-                        "language": "PYTHON",
+                        "language": "{language_preference}",
                         "difficulty": "Medium",
                         "test_cases": [
                             {{"input": "input1", "expected_output": "output1"}},

@@ -161,3 +161,5 @@ The frontend (`CandidateDetails.jsx`) can now:
 
 
 
+
+

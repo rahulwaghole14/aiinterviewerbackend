@@ -38,6 +38,7 @@ export const fetchJobs = createAsyncThunk(
         number_to_hire: job.number_to_hire,
         position_level: job.position_level,
         current_process: job.current_process,
+        coding_language: (job.coding_language || 'PYTHON').toUpperCase(),
         tech_stack_details: job.tech_stack_details,
         job_description: job.job_description || '', // Add job_description field
         jd_file: job.jd_file,
@@ -106,13 +107,23 @@ const jobsSlice = createSlice({
       if (!Array.isArray(state.allJobs)) {
         state.allJobs = [];
       }
-      state.allJobs.push(action.payload);
+      const payload = {
+        ...action.payload,
+        coding_language: (action.payload?.coding_language || 'PYTHON').toUpperCase(),
+      };
+      state.allJobs.push(payload);
     },
     updateJob: (state, action) => {
       const { id, updatedData } = action.payload;
       const jobIndex = state.allJobs.findIndex(job => job.id === id);
       if (jobIndex !== -1) {
-        state.allJobs[jobIndex] = { ...state.allJobs[jobIndex], ...updatedData };
+        const normalizedUpdate = {
+          ...updatedData,
+          ...(updatedData?.coding_language
+            ? { coding_language: updatedData.coding_language.toUpperCase() }
+            : {}),
+        };
+        state.allJobs[jobIndex] = { ...state.allJobs[jobIndex], ...normalizedUpdate };
       }
     },
     deleteJob: (state, action) => {

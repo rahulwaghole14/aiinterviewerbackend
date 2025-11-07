@@ -692,7 +692,7 @@ const Jobs = () => {
       number_to_hire: job.number_to_hire || "",
       position_level: job.position_level || "",
       current_process: job.current_process || "",
-      coding_language: job.coding_language ? job.coding_language.toUpperCase() : "PYTHON",
+            coding_language: job.coding_language ? job.coding_language.toUpperCase() : "PYTHON",
       job_description: job.job_description || "",
     });
     // Set editing state to track which job is being edited

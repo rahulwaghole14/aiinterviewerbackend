@@ -440,7 +440,7 @@ const StatusUpdateModal = ({
         // Also create the schedule relationship
         const bookingData = {
           interview_id: interviewId,
-          booking_notes: scheduleForm.feedback || ""
+          booking_notes: scheduleForm.feedback || "",
         };
 
         console.log("=== CREATING SCHEDULE RELATIONSHIP ===");

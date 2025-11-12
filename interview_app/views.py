@@ -8,6 +8,7 @@ import re
 import json
 import threading
 import csv
+import shutil
 # from gtts import gTTS  # Removed - using only Google Cloud TTS
 from pathlib import Path
 from dotenv import load_dotenv
@@ -674,7 +675,11 @@ def interview_portal(request):
             print(f"DEBUG: Found {db_coding_questions.count()} coding questions in database")
             
             # First, determine the correct language that should be used
-            allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP'}
+            try:
+                from jobs.models import Job
+                allowed_langs = {choice[0] for choice in Job._meta.get_field("coding_language").choices}
+            except Exception:
+                allowed_langs = {'PYTHON', 'JAVASCRIPT', 'C', 'CPP', 'JAVA', 'GO', 'HTML', 'PHP', 'RUBY', 'CSHARP', 'SQL'}
             correct_lang = None
             
             # Priority 1: Get from Interview.job.coding_language
@@ -683,26 +688,20 @@ def interview_portal(request):
                 interview = Interview.objects.filter(session_key=session.session_key).first()
                 if interview and interview.job:
                     job_lang = getattr(interview.job, 'coding_language', None)
+                    print(f"🧾 Job {interview.job.id if interview.job else 'N/A'} coding_language (raw): {job_lang}")
                     if job_lang and job_lang.upper() in allowed_langs:
                         correct_lang = job_lang.upper()
                         print(f"✅ Correct language from job: {correct_lang}")
+                    elif job_lang:
+                        print(f"⚠️ Job coding_language '{job_lang}' not in allowed set {sorted(allowed_langs)}")
             except Exception as e:
                 print(f"⚠️ Error getting language from Interview: {e}")
             
-            # Priority 2: Get from session.keyword_analysis
             if not correct_lang:
-                try:
-                    if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                        correct_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                        if correct_lang in allowed_langs:
-                            print(f"✅ Correct language from keyword_analysis: {correct_lang}")
-                except Exception as e:
-                    print(f"⚠️ Error parsing keyword_analysis: {e}")
-            
-            # Priority 3: Default to PYTHON
-            if not correct_lang:
-                correct_lang = 'PYTHON'
-                print(f"⚠️ Using default language: {correct_lang}")
+                print("❌ Unable to determine coding language from job configuration. Aborting.")
+                return render(request, 'interview_app/invalid_link.html', {
+                    'error': "Coding language not configured for this interview. Please contact support."
+                })
             
             # Check if existing coding questions have the wrong language
             need_recreate = False
@@ -866,6 +865,7 @@ def interview_portal(request):
                 }
                 
                 coding_questions = [hardcoded_map[requested_lang]]
+                print(f"🧩 Prepared hardcoded coding question for {requested_lang}: {coding_questions[0].get('title')}")
                 
                 # Delete any existing coding questions to prevent duplicates
                 try:
@@ -930,17 +930,6 @@ def interview_portal(request):
                                 print(f"✅ Using coding language from job via Interview: {requested_lang}")
                     except Exception as e:
                         print(f"⚠️ Error getting coding language from Interview: {e}")
-                    
-                    # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
-                    if not requested_lang:
-                        try:
-                            if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                                requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                                if requested_lang in allowed_langs:
-                                    print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
-                        except Exception as e:
-                            print(f"⚠️ Error parsing keyword_analysis: {e}")
-                            requested_lang = None
                     
                     # Priority 3: Get from URL parameter (fallback)
                     if not requested_lang:
@@ -1043,7 +1032,7 @@ def interview_portal(request):
                     }
                     
                     coding_questions = [hardcoded_map[requested_lang]]
-                    print(f"✅ Using hardcoded coding question in {requested_lang} (NOT Gemini)")
+                    print(f"🧩 Prepared hardcoded coding question for {requested_lang}: {coding_questions[0].get('title')}")
                 
                 # Save spoken questions to database
                 for i, q_data in enumerate(all_questions):
@@ -1137,17 +1126,6 @@ def interview_portal(request):
                     print(f"⚠️ Error getting coding language from Interview: {e}")
                     import traceback
                     traceback.print_exc()
-                
-                # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
-                if not requested_lang:
-                    try:
-                        if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                            requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                            if requested_lang in allowed_langs:
-                                print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
-                    except Exception as e:
-                        print(f"⚠️ Error parsing keyword_analysis: {e}")
-                        requested_lang = None
                 
                 # Priority 3: Get from URL parameter (fallback)
                 if not requested_lang:
@@ -1382,17 +1360,6 @@ def interview_portal(request):
                     print(f"⚠️ Error getting coding language from Interview: {e}")
                     import traceback
                     traceback.print_exc()
-                
-                # Priority 2: Get from session.keyword_analysis (fallback - stored during link generation)
-                if not requested_lang:
-                    try:
-                        if session.keyword_analysis and 'CODING_LANG=' in session.keyword_analysis:
-                            requested_lang = session.keyword_analysis.split('CODING_LANG=')[1].split()[0].upper()
-                            if requested_lang in allowed_langs:
-                                print(f"✅ Using coding language from session.keyword_analysis: {requested_lang}")
-                    except Exception as e:
-                        print(f"⚠️ Error parsing keyword_analysis: {e}")
-                        pass
                 
                 # Priority 3: Get from URL parameter (fallback)
                 if not requested_lang:
@@ -2845,6 +2812,137 @@ def execute_javascript_windows(code, test_input):
     full_script = f"{code}\nconsole.log(solve({test_input}));"
     return run_subprocess_windows(['node', '-e', full_script])
 
+def _resolve_java_binary(binary_name: str):
+    """
+    Locate the full path for a Java executable (e.g., javac, java).
+    Checks PATH, Django settings, JAVA_HOME, and common Windows install directories.
+    """
+    if not binary_name:
+        return None
+
+    candidates = []
+    exe_name = binary_name
+    if os.name == "nt" and not binary_name.lower().endswith(".exe"):
+        exe_name = f"{binary_name}.exe"
+
+    # PATH lookup first
+    for name in {binary_name, exe_name}:
+        located = shutil.which(name)
+        if located:
+            return located
+
+    # Django settings or environment JAVA_HOME
+    java_home = getattr(settings, "JAVA_HOME", None) or os.environ.get("JAVA_HOME")
+    if java_home:
+        candidate = os.path.join(java_home, "bin", exe_name)
+        if os.path.exists(candidate):
+            return candidate
+
+    # Common Windows install locations
+    if os.name == "nt":
+        potential_roots = [
+            os.environ.get("PROGRAMFILES"),
+            os.environ.get("PROGRAMFILES(X86)"),
+            r"C:\Program Files\Java",
+            r"C:\Program Files (x86)\Java",
+        ]
+        for root in filter(None, potential_roots):
+            if not os.path.isdir(root):
+                continue
+            try:
+                entries = sorted(os.listdir(root))
+            except OSError:
+                continue
+            for entry in entries:
+                entry_lower = entry.lower()
+                if not (entry_lower.startswith("java") or entry_lower.startswith("jdk") or entry_lower.startswith("jre")):
+                    continue
+                candidate = os.path.join(root, entry, "bin", exe_name)
+                if os.path.exists(candidate):
+                    return candidate
+
+    return None
+
+def _format_java_arguments(raw_input: str) -> str:
+    """
+    Convert stored test case input (e.g., '1,2' or '\'hello\'') into
+    Java-friendly argument expressions.
+    """
+    if raw_input is None:
+        return ""
+
+    raw = raw_input.strip()
+    if not raw:
+        return ""
+
+    if raw.startswith("(") and raw.endswith(")"):
+        raw = raw[1:-1]
+
+    parts = [part.strip() for part in raw.split(",") if part.strip()]
+    formatted_parts = []
+
+    for part in parts:
+        if re.fullmatch(r"-?\d+", part) or re.fullmatch(r"-?\d+\.\d+", part):
+            formatted_parts.append(part)
+        elif part.lower() in {"true", "false", "null"}:
+            formatted_parts.append(part.lower())
+        elif part.startswith('"') and part.endswith('"'):
+            formatted_parts.append(part)
+        elif part.startswith("'") and part.endswith("'"):
+            inner = part[1:-1]
+            if len(inner) == 1:
+                formatted_parts.append(f"'{inner}'")
+            else:
+                escaped = inner.replace('"', '\\"')
+                formatted_parts.append(f"\"{escaped}\"")
+        else:
+            formatted_parts.append(part)
+
+    return ", ".join(formatted_parts)
+
+def _detect_java_entrypoint(code: str):
+    """
+    Determine class name, method name, and whether the method is static.
+    Defaults to Solution.solve if not found.
+    """
+    class_match = re.search(r'class\s+(\w+)', code)
+    class_name = class_match.group(1) if class_match else "Solution"
+
+    preferred_methods = ["solve", "add", "answer", "result"]
+    method_name = "solve"
+    is_static = True
+
+    for method in preferred_methods:
+        pattern = re.compile(r'(public\s+)?(static\s+)?[^\s]+\s+' + re.escape(method) + r'\s*\(')
+        match = pattern.search(code)
+        if match:
+            method_name = method
+            is_static = bool(match.group(2))
+            break
+    else:
+        generic_match = re.search(r'(public\s+)?(static\s+)?[^\s]+\s+(\w+)\s*\(', code)
+        if generic_match:
+            method_name = generic_match.group(3)
+            is_static = bool(generic_match.group(2))
+
+    return class_name, method_name, is_static
+
+def _ensure_java_class_wrapper(code: str, class_name: str) -> str:
+    """
+    If user code does not declare a class, wrap it in a public class so it compiles.
+    """
+    if re.search(r'\bclass\b', code):
+        return code
+
+    indented = []
+    for line in code.splitlines():
+        if line.strip():
+            indented.append(f"    {line}")
+        else:
+            indented.append("")
+    body = "\n".join(indented)
+    return f"public class {class_name} {{\n{body}\n}}\n"
+
 def execute_java_windows(code, test_input):
     """
     Compiles and then executes Java code safely on Windows.
@@ -2853,51 +2951,63 @@ def execute_java_windows(code, test_input):
     It returns a standard subprocess.CompletedProcess object for consistency.
     """
     # Create a temporary directory that will be automatically cleaned up
-    with tempfile.TemporaryDirectory() as temp_dir:
-        java_file_path = os.path.join(temp_dir, 'Main.java')
-        
-        # The user's code is injected into a complete, runnable Java class structure.
-        # The question prompt must instruct the user to provide only the method body.
-        # For example: "Write a public static String solve(String s) { ... }"
-        full_code = f"""
-        public class Main {{
-            // --- Start of User's Injected Code ---
-            {code}
-            // --- End of User's Injected Code ---
-            
-            // The main method that will execute the user's function with the test case input.
-            public static void main(String[] args) {{
-                try {{
-                    // This simple input handling works for primitive types like numbers and strings.
-                    // For more complex types, this part would need to be more sophisticated.
-                    System.out.println(solve({test_input}));
-                }} catch (Exception e) {{
-                    e.printStackTrace();
-                }}
-            }}
-        }}
-        """
-        
-        # Write the complete Java code to a temporary file
-        with open(java_file_path, 'w') as f:
-            f.write(full_code)
+    javac_cmd = _resolve_java_binary("javac")
+    java_cmd = _resolve_java_binary("java")
 
-        # Step 1: Compile the code using the Java Compiler (javac).
-        # 'javac' must be in the system's PATH environment variable.
-        # We run this command inside the temporary directory.
-        compile_result = run_subprocess_windows(['javac', java_file_path], cwd=temp_dir)
-        
-        # If the compiler returns anything in stderr, it means there was a compilation error
-        # (e.g., a syntax error). We should stop here and return that error.
-        if compile_result.stderr:
+    missing = []
+    if not javac_cmd:
+        missing.append("javac")
+    if not java_cmd:
+        missing.append("java")
+
+    if missing:
+        message = (
+            "Java runtime is not available on the server. "
+            f"Missing executables: {', '.join(missing)}. "
+            "Install a JDK (17+) and ensure JAVA_HOME or PATH is configured."
+        )
+        return subprocess.CompletedProcess(missing, 1, stdout="", stderr=message)
+
+    class_name, method_name, is_static = _detect_java_entrypoint(code)
+    prepared_code = _ensure_java_class_wrapper(code, class_name)
+    solution_filename = f"{class_name}.java"
+
+    formatted_args = _format_java_arguments(test_input or "")
+    invocation_target = f"{class_name}.{method_name}" if is_static else f"(new {class_name}()).{method_name}"
+    invocation_call = f"{invocation_target}({formatted_args})" if formatted_args else f"{invocation_target}()"
+
+    main_code = (
+        "public class Main {\n"
+        "    public static void main(String[] args) {\n"
+        "        try {\n"
+        f"            System.out.println({invocation_call});\n"
+        "        } catch (Exception e) {\n"
+        "            e.printStackTrace();\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        solution_path = os.path.join(temp_dir, solution_filename)
+        main_path = os.path.join(temp_dir, "Main.java")
+
+        with open(solution_path, "w", encoding="utf-8") as solution_file:
+            solution_file.write(prepared_code)
+
+        with open(main_path, "w", encoding="utf-8") as main_file:
+            main_file.write(main_code)
+
+        compile_result = run_subprocess_windows(
+            [javac_cmd, "Main.java", solution_filename], cwd=temp_dir
+        )
+
+        if compile_result.returncode != 0:
+            if not compile_result.stderr and compile_result.stdout:
+                compile_result.stderr = compile_result.stdout
             return compile_result
 
-        # Step 2: If compilation was successful, run the compiled code using the Java runtime (java).
-        # 'java' must also be in the system's PATH.
-        # The '-cp .' command tells Java to look for class files in the current directory.
-        run_result = run_subprocess_windows(['java', '-cp', '.', 'Main'], cwd=temp_dir)
-        
-        # Return the result of the execution (which will contain stdout or any runtime errors).
+        run_result = run_subprocess_windows([java_cmd, "-cp", ".", "Main"], cwd=temp_dir)
         return run_result
 
 def execute_php_windows(code, test_input):
@@ -2932,6 +3042,14 @@ def execute_sql_windows(code, test_input):
         return subprocess.CompletedProcess(None, 0, stdout=output_str, stderr=None)
     except Exception as e:
         return subprocess.CompletedProcess(None, 1, stdout=None, stderr=str(e))
+
+def execute_html_windows(code, test_input):
+    """
+    HTML doesn't need execution; evaluate by returning the provided markup.
+    Test cases simply compare the submitted HTML to the expected output.
+    """
+    normalized = code.strip()
+    return subprocess.CompletedProcess(None, 0, stdout=normalized, stderr=None)
     
 def run_test_suite(code, language, test_cases):
     """
@@ -2951,6 +3069,7 @@ def run_test_suite(code, language, test_cases):
         'PHP': execute_php_windows,
         'RUBY': execute_ruby_windows,
         'CSHARP': execute_csharp_windows,
+        'HTML': execute_html_windows,
         'SQL': execute_sql_windows,
     }
     

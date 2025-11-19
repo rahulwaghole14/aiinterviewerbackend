@@ -66,6 +66,13 @@ class InterviewQuestion(models.Model):
     filler_word_count = models.IntegerField(null=True, blank=True)
     response_time_seconds = models.FloatField(null=True, blank=True)
 
+    # --- NEW FIELDS: For conversation sequence tracking ---
+    # conversation_sequence: Sequential index for conversation flow (0, 1, 2, 3...)
+    # AI responses get odd sequences (1, 3, 5...), Interviewee responses get even sequences (2, 4, 6...)
+    conversation_sequence = models.PositiveIntegerField(null=True, blank=True, help_text="Sequential index for conversation flow")
+    # role: 'AI' for AI-generated content, 'INTERVIEWEE' for candidate responses
+    role = models.CharField(max_length=20, null=True, blank=True, help_text="Role: AI or INTERVIEWEE")
+
     # --- NEW FIELD: To specify the language for a coding question ---
     LANGUAGE_CHOICES = [
         ('PYTHON', 'Python'),

@@ -19,8 +19,15 @@ class DeepgramProxyConsumer(AsyncWebsocketConsumer):
         self.dg_task = None
         self.closed = False
 
-        # Hardcode Deepgram API key (same as in index.html)
-        api_key = os.getenv("DEEPGRAM_API_KEY", "6690abf90d1c62c6b70ed632900b2c093bc06d79")
+        # Get Deepgram API key from Django settings (preferred) or environment variable
+        try:
+            from django.conf import settings as django_settings
+            api_key = getattr(django_settings, 'DEEPGRAM_API_KEY', None)
+            if not api_key:
+                api_key = os.getenv("DEEPGRAM_API_KEY", "6690abf90d1c62c6b70ed632900b2c093bc06d79")
+        except Exception:
+            # Fallback if Django settings not available
+            api_key = os.getenv("DEEPGRAM_API_KEY", "6690abf90d1c62c6b70ed632900b2c093bc06d79")
         print(f"🔌 Deepgram WebSocket consumer connecting... API key present: {bool(api_key)}")
         
         if not api_key:

@@ -204,3 +204,11 @@ GEMINI_API_KEY = os.environ.get(
     os.environ.get("GOOGLE_API_KEY", ""),  # Empty string if not set - will fail gracefully
 )
 
+# Deepgram configuration
+# IMPORTANT: Set DEEPGRAM_API_KEY in your .env file for security
+# Fallback to hardcoded key only for development (remove in production)
+DEEPGRAM_API_KEY = os.environ.get(
+    "DEEPGRAM_API_KEY",
+    "6690abf90d1c62c6b70ed632900b2c093bc06d79"  # TODO: Remove hardcoded key in production
+)
+

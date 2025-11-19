@@ -27,6 +27,7 @@ from jobs.models import Job, Domain  # noqa: E402
 from candidates.models import Candidate  # noqa: E402
 from interviews.models import Interview, InterviewSlot, InterviewSchedule  # noqa: E402
 from notifications.services import NotificationService  # noqa: E402
+import pytz  # noqa: E402
 
 
 def get_next_occurrence(hhmm: str) -> date:
@@ -121,15 +122,79 @@ def main() -> None:
         slot.max_candidates = max(slot.max_candidates, 1)
         slot.save()
 
-    # Schedule
-    schedule, _ = InterviewSchedule.objects.get_or_create(
-        interview=interview,
-        slot=slot,
-        defaults={"status": InterviewSchedule.ScheduleStatus.PENDING, "booking_notes": "Auto-scheduled"},
-    )
+    # Schedule - Check if interview already has a schedule
+    existing_schedule = InterviewSchedule.objects.filter(interview=interview).first()
+    if existing_schedule:
+        # Unbook the old slot if it exists and is different
+        old_slot = existing_schedule.slot
+        if old_slot and old_slot != slot:
+            # Decrement bookings on old slot
+            old_slot.current_bookings = max(0, old_slot.current_bookings - 1)
+            if old_slot.current_bookings < old_slot.max_candidates:
+                old_slot.status = InterviewSlot.Status.AVAILABLE
+            old_slot.save()
+        
+        # Update existing schedule to point to new slot
+        existing_schedule.slot = slot
+        existing_schedule.status = InterviewSchedule.ScheduleStatus.PENDING
+        existing_schedule.booking_notes = "Auto-scheduled"
+        existing_schedule.save()
+        schedule = existing_schedule
+    else:
+        # Create new schedule
+        schedule, _ = InterviewSchedule.objects.get_or_create(
+            interview=interview,
+            slot=slot,
+            defaults={"status": InterviewSchedule.ScheduleStatus.PENDING, "booking_notes": "Auto-scheduled"},
+        )
 
     # Book the slot and persist
     slot.book_slot()
+
+    # IMPORTANT: ALWAYS update interview started_at and ended_at from slot date + time
+    # This ensures times match the slot even if interview was created with different times
+    # Combine slot.interview_date with slot.start_time and slot.end_time to create proper DateTime objects
+    # IMPORTANT: Interpret slot times in IST (Asia/Kolkata) since that's likely where users are
+    if slot.interview_date and slot.start_time and slot.end_time:
+        # Combine date and time - assume slot times are in IST (India Standard Time)
+        ist = pytz.timezone('Asia/Kolkata')
+        start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+        end_datetime_naive = datetime.combine(slot.interview_date, slot.end_time)
+        
+        # Localize to IST (treat slot times as IST)
+        start_datetime = ist.localize(start_datetime_naive)
+        end_datetime = ist.localize(end_datetime_naive)
+        
+        # Convert to UTC for storage (Django stores in UTC)
+        start_datetime_utc = start_datetime.astimezone(pytz.UTC)
+        end_datetime_utc = end_datetime.astimezone(pytz.UTC)
+        
+        # ALWAYS update interview times to match slot (stored in UTC) - overwrite any existing values
+        interview.started_at = start_datetime_utc
+        interview.ended_at = end_datetime_utc
+        interview.status = Interview.Status.SCHEDULED
+        
+        # Update link expiration to 2 hours after interview end time
+        interview.link_expires_at = end_datetime_utc + timedelta(hours=2)
+        
+        interview.save(update_fields=["started_at", "ended_at", "status", "link_expires_at"])
+        
+        # Regenerate interview link and session key to ensure they're valid
+        # This also creates/updates the InterviewSession
+        try:
+            interview.generate_interview_link()
+            # Update InterviewSession scheduled_at if it exists
+            from interview_app.models import InterviewSession
+            if interview.session_key:
+                try:
+                    session = InterviewSession.objects.get(session_key=interview.session_key)
+                    session.scheduled_at = start_datetime_utc
+                    session.status = "SCHEDULED"
+                    session.save(update_fields=["scheduled_at", "status"])
+                except InterviewSession.DoesNotExist:
+                    pass
+        except Exception as e:
+            print(f"Warning: Could not regenerate interview link: {e}")
 
     # Send email notification to candidate (generates link if needed)
     NotificationService.send_candidate_interview_scheduled_notification(interview)

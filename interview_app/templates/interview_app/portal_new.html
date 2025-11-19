@@ -501,10 +501,7 @@
     async function sendAudioToServer() {
         const box = document.getElementById('transcription-box');
         const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        if (blob.size < 1024) { box.innerHTML = "<i>No answer recorded.</i>"; startReviewTimer(); return; }
-        box.innerHTML = "<i>Processing...</i>";
         const fd = new FormData();
-        fd.append('audio_data', blob);
         fd.append('session_id', INTERVIEW_SESSION_ID);
         const currentQuestion = spokenQuestions[currentSpokenQuestionIndex];
         if (currentQuestion && currentQuestion.id) {
@@ -512,11 +509,21 @@
         }
         const responseTime = (new Date() - questionStartTime) / 1000;
         fd.append('response_time', responseTime);
+        let usedNoAudioFallback = false;
+        if (blob.size < 1024) {
+            fd.append('no_audio', '1');
+            usedNoAudioFallback = true;
+            box.innerHTML = "<i>No answer recorded.</i>";
+        } else {
+            fd.append('audio_data', blob);
+            box.innerHTML = "<i>Processing...</i>";
+        }
         try {
             const res = await fetch("{% url 'transcribe_audio' %}", { method: 'POST', body: fd });
             if (!res.ok) { const err = await res.json(); throw new Error(err.error || `Server Error ${res.status}`); }
             const result = await res.json();
-            box.innerHTML = `<strong>Your Answer:</strong> ${result.text || "No speech was detected."}`;
+            const answerText = result.text || (usedNoAudioFallback ? "No answer recorded." : "No speech was detected.");
+            box.innerHTML = `<strong>Your Answer:</strong> ${answerText}`;
             
             if (result.follow_up_question) {
                 spokenQuestions.splice(currentSpokenQuestionIndex + 1, 0, result.follow_up_question);

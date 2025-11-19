@@ -28,7 +28,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
         language_preference (str): Preferred programming language (default: 'PYTHON')
     """
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Validate and normalize language
         allowed_languages = {'PYTHON', 'JAVASCRIPT', 'JAVA', 'PHP', 'RUBY', 'CSHARP', 'SQL', 'C', 'CPP', 'GO', 'HTML'}
@@ -159,7 +159,7 @@ def generate_coding_questions_with_testcases(job_description: str, num_questions
         # Try again with simpler prompt
         try:
             print("🔄 Retrying with simplified prompt...")
-            model = genai.GenerativeModel('gemini-2.0-flash-exp')  # Same model, simpler prompt
+            model = genai.GenerativeModel('gemini-2.0-flash')  # Same model, simpler prompt
             
             simple_prompt = f"""
             Based on this job description, create {num_questions} {language_preference} coding problems.
@@ -314,7 +314,7 @@ def evaluate_code_with_gemini(code: str, question: str, test_results: list):
     Get AI feedback on code quality using Gemini
     """
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Prepare test results summary
         passed_tests = sum(1 for r in test_results if r['passed'])
@@ -401,7 +401,7 @@ def generate_comprehensive_feedback(qa_transcript: list, coding_results: list):
     Generate comprehensive interview feedback combining Q&A and coding
     """
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Prepare Q&A summary
         qa_summary = "\n".join([

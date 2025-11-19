@@ -18,13 +18,25 @@ import { useNotification } from "../hooks/useNotification";
 import { formatTimeTo12Hour } from "../utils/timeFormatting";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// Helper function to safely parse JSON fields
+// Helper function to safely parse JSON fields or bullet-pointed text
 const parseJsonField = (field) => {
   if (!field) return [];
   if (typeof field === 'string') {
     try {
-      return JSON.parse(field);
+      // First try to parse as JSON
+      const parsed = JSON.parse(field);
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
+      // If not JSON, try to parse as bullet-pointed text
+      const lines = field.split('\n').map(line => line.trim()).filter(line => line);
+      if (lines.length > 0) {
+        // Check if it's bullet-pointed (starts with -, •, *, etc.)
+        const items = lines.map(line => {
+          // Remove bullet markers
+          return line.replace(/^[-•*]\s*/, '').trim();
+        }).filter(item => item);
+        return items.length > 0 ? items : [];
+      }
       return [];
     }
   }
@@ -270,14 +282,18 @@ const CandidateDetails = () => {
         let aiResult = interview.ai_result;
         if (!aiResult && evaluation && evaluation.details && evaluation.details.ai_analysis) {
           const aiAnalysis = evaluation.details.ai_analysis;
+          const resolveScore = (score10, score100) =>
+            typeof score10 === "number"
+              ? score10
+              : (score100 || 0) / 10.0;
           // Transform ai_analysis to ai_result format
           aiResult = {
-            overall_score: (aiAnalysis.overall_score || 0) / 10.0,
-            total_score: (aiAnalysis.overall_score || 0) / 10.0,
-            technical_score: (aiAnalysis.technical_score || 0) / 10.0,
-            behavioral_score: (aiAnalysis.behavioral_score || 0) / 10.0,
-            coding_score: (aiAnalysis.coding_score || 0) / 10.0,
-            communication_score: (aiAnalysis.communication_score || 0) / 10.0,
+            overall_score: resolveScore(aiAnalysis.overall_score_10, aiAnalysis.overall_score),
+            total_score: resolveScore(aiAnalysis.overall_score_10, aiAnalysis.overall_score),
+            technical_score: resolveScore(aiAnalysis.technical_score_10, aiAnalysis.technical_score),
+            behavioral_score: resolveScore(aiAnalysis.behavioral_score_10, aiAnalysis.behavioral_score),
+            coding_score: resolveScore(aiAnalysis.coding_score_10, aiAnalysis.coding_score),
+            communication_score: resolveScore(aiAnalysis.communication_score_10, aiAnalysis.communication_score),
             strengths: aiAnalysis.strengths || '',
             weaknesses: aiAnalysis.weaknesses || '',
             technical_analysis: aiAnalysis.technical_analysis || '',
@@ -287,7 +303,8 @@ const CandidateDetails = () => {
             hiring_recommendation: aiAnalysis.hiring_recommendation || '',
             recommendation: aiAnalysis.recommendation || 'MAYBE',
             hire_recommendation: ['STRONG_HIRE', 'HIRE'].includes(aiAnalysis.recommendation),
-            confidence_level: (aiAnalysis.confidence_level || 0) / 10.0,
+            confidence_level: resolveScore(aiAnalysis.confidence_level_10, aiAnalysis.confidence_level),
+            problem_solving_score: resolveScore(aiAnalysis.problem_solving_score_10, aiAnalysis.problem_solving_score),
             proctoring_pdf_url: evaluation.details.proctoring_pdf_url || null,
             proctoring_warnings: evaluation.details.proctoring?.warnings || [],
           };
@@ -874,35 +891,75 @@ const CandidateDetails = () => {
                     const qaData = interview.questions_and_answers || [];
                     
                     // Separate technical and coding questions
-                    const technicalQuestions = qaData.filter(qa => 
-                      qa.question_type === 'TECHNICAL' || qa.question_type === 'BEHAVIORAL' || !qa.question_type
-                    );
-                    const codingQuestions = qaData.filter(qa => qa.question_type === 'CODING');
+                    // IMPORTANT: Sort by order field to maintain correct sequence
+                    const technicalQuestions = qaData
+                      .filter(qa => 
+                        qa.question_type === 'TECHNICAL' || 
+                        qa.question_type === 'BEHAVIORAL' || 
+                        qa.question_level === 'CANDIDATE_QUESTION' ||
+                        !qa.question_type
+                      )
+                      .sort((a, b) => {
+                        // Sort by order field (if available), then by index
+                        const orderA = a.order !== undefined && a.order !== null ? a.order : 9999;
+                        const orderB = b.order !== undefined && b.order !== null ? b.order : 9999;
+                        return orderA - orderB;
+                      });
+                    const codingQuestions = qaData
+                      .filter(qa => qa.question_type === 'CODING')
+                      .sort((a, b) => {
+                        // Sort by order field (if available), then by index
+                        const orderA = a.order !== undefined && a.order !== null ? a.order : 9999;
+                        const orderB = b.order !== undefined && b.order !== null ? b.order : 9999;
+                        return orderA - orderB;
+                      });
                     
-                    // Calculate TECHNICAL metrics only (for Interview Overview and Question Accuracy)
+                    // Calculate TECHNICAL metrics - use AI evaluation data (based on actual answer correctness analysis)
                     const technicalTotalQuestions = technicalQuestions.length || 0;
-                    const technicalCorrectAnswers = technicalQuestions.filter(qa => {
-                      // Estimate correctness from answer quality (simple heuristic)
-                      const answer = (qa.answer || '').toLowerCase();
-                      return answer && 
-                             answer !== 'no answer provided' && 
-                             answer !== "i don't know" && 
-                             answer !== 'no thank you' &&
-                             answer.length > 10;
-                    }).length;
-                    const technicalIncorrectAnswers = technicalTotalQuestions - technicalCorrectAnswers;
-                    const technicalAccuracy = technicalTotalQuestions > 0 
-                      ? (technicalCorrectAnswers / technicalTotalQuestions * 100) 
-                      : 0;
                     
-                    // Calculate CODING metrics
+                    // Use AI-provided correct/incorrect counts from AI analysis (not just answer presence)
+                    let technicalCorrectAnswers = 0;
+                    let technicalIncorrectAnswers = 0;
+                    let technicalAccuracy = 0;
+                    
+                    if (aiResult.questions_correct !== undefined && aiResult.questions_attempted !== undefined) {
+                      // Use AI evaluation data - these are based on actual answer correctness analysis
+                      // AI analyzes each answer and determines if it's correct or incorrect
+                      technicalCorrectAnswers = Math.round(aiResult.questions_correct || 0);
+                      const technicalAttempted = Math.round(aiResult.questions_attempted || technicalTotalQuestions);
+                      technicalIncorrectAnswers = Math.max(0, technicalAttempted - technicalCorrectAnswers);
+                      technicalAccuracy = technicalAttempted > 0 
+                        ? (technicalCorrectAnswers / technicalAttempted * 100) 
+                        : 0;
+                    } else if (aiResult.accuracy_percentage !== undefined && aiResult.questions_attempted !== undefined) {
+                      // Calculate from accuracy percentage if available
+                      const technicalAttempted = Math.round(aiResult.questions_attempted || technicalTotalQuestions);
+                      technicalAccuracy = aiResult.accuracy_percentage || 0;
+                      technicalCorrectAnswers = Math.round((technicalAccuracy / 100) * technicalAttempted);
+                      technicalIncorrectAnswers = Math.max(0, technicalAttempted - technicalCorrectAnswers);
+                    } else {
+                      // Fallback: count from technical_questions if they have is_correct flag from AI analysis
+                      const technicalWithCorrectness = technicalQuestions.filter(qa => qa.is_correct === true);
+                      technicalCorrectAnswers = technicalWithCorrectness.length;
+                      technicalIncorrectAnswers = technicalTotalQuestions - technicalCorrectAnswers;
+                      technicalAccuracy = technicalTotalQuestions > 0 
+                        ? (technicalCorrectAnswers / technicalTotalQuestions * 100) 
+                        : 0;
+                    }
+                    
+                    // Calculate CODING metrics - use test results if available
                     const codingTotalQuestions = codingQuestions.length || 0;
-                    const codingCorrectAnswers = codingQuestions.filter(qa => {
-                      const answer = (qa.answer || '').toLowerCase();
-                      return answer && answer !== 'no answer provided' && answer.length > 10;
+                    let codingCorrectAnswers = 0;
+                    let codingIncorrectAnswers = 0;
+                    let codingAccuracy = 0;
+                    
+                    // For coding questions, check if they passed tests (from is_correct flag or test results)
+                    codingCorrectAnswers = codingQuestions.filter(qa => {
+                      // Check if there's a code submission that passed tests
+                      return qa.is_correct === true || (qa.answer && qa.answer !== 'No code submitted' && qa.answer !== 'no answer provided');
                     }).length;
-                    const codingIncorrectAnswers = codingTotalQuestions - codingCorrectAnswers;
-                    const codingAccuracy = codingTotalQuestions > 0 
+                    codingIncorrectAnswers = codingTotalQuestions - codingCorrectAnswers;
+                    codingAccuracy = codingTotalQuestions > 0 
                       ? (codingCorrectAnswers / codingTotalQuestions * 100) 
                       : 0;
                     
@@ -913,19 +970,20 @@ const CandidateDetails = () => {
                     const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100) : 0;
                     const totalCompletionTime = aiResult.total_completion_time || 54.6;
                     
-                    // Section scores (0-10 scale, convert to percentage)
-                    const technicalScore = (aiResult.technical_score || 0) * 10;
-                    const behavioralScore = (aiResult.behavioral_score || 0) * 10;
-                    const codingScore = (aiResult.coding_score || 0) * 10;
-                    const communicationScore = (aiResult.communication_score || 0) * 10;
-                    const problemSolvingScore = (aiResult.problem_solving_score || 0) * 10;
+                    // Section scores (AI returns 0-100 scale, use directly as percentage)
+                    // Note: AI scores are already in 0-100 scale, so use them directly
+                    const technicalScore = aiResult.technical_score || 0;
+                    const behavioralScore = aiResult.behavioral_score || 0;
+                    const codingScore = aiResult.coding_score || 0;
+                    const communicationScore = aiResult.communication_score || 0;
+                    const problemSolvingScore = aiResult.problem_solving_score || 0;
                     
                     // Overall rating
                     const overallRating = aiResult.overall_rating || 'FAIR';
                     
-                    // Strengths and weaknesses
-                    const strengths = parseJsonField(aiResult.strengths);
-                    const weaknesses = parseJsonField(aiResult.weaknesses);
+                    // Strengths and weaknesses - try array fields first, then parse from string
+                    const strengths = aiResult.strengths_array || parseJsonField(aiResult.strengths || '');
+                    const weaknesses = aiResult.weaknesses_array || parseJsonField(aiResult.weaknesses || '');
                     
                     // Question accuracy chart data - TECHNICAL ONLY
                     const technicalAccuracyChartData = [
@@ -963,7 +1021,7 @@ const CandidateDetails = () => {
                                     <div className="circle-chart" style={{ 
                                       background: `conic-gradient(#2196F3 0% ${technicalTotalQuestions > 0 ? (technicalTotalQuestions/12)*100 : 0}%, #e0e0e0 ${technicalTotalQuestions > 0 ? (technicalTotalQuestions/12)*100 : 0}% 100%)`
                                     }}>
-                                      <span className="circle-value">{technicalTotalQuestions}</span>
+                                      <span className="circle-value">{aiResult.questions_attempted !== undefined ? Math.round(aiResult.questions_attempted) : technicalTotalQuestions}</span>
                                     </div>
                                     <div className="circle-label">Questions Attempted</div>
                                   </div>
@@ -1507,10 +1565,21 @@ const CandidateDetails = () => {
                   if (qaData.length === 0) return null;
                   
                   // Group questions by type
-                  const technicalQuestions = qaData.filter(qa => 
-                    qa.question_type === 'TECHNICAL' || qa.question_type === 'BEHAVIORAL' || !qa.question_type
-                  );
-                  const codingQuestions = qaData.filter(qa => qa.question_type === 'CODING');
+                  // IMPORTANT: Sort by order field to maintain correct sequence
+                  const codingQuestions = qaData
+                    .filter(qa => (qa.question_type || '').toUpperCase() === 'CODING')
+                    .sort((a, b) => {
+                      const orderA = a.order !== undefined && a.order !== null ? a.order : 9999;
+                      const orderB = b.order !== undefined && b.order !== null ? b.order : 9999;
+                      return orderA - orderB;
+                    });
+                  const technicalQuestions = qaData
+                    .filter(qa => !codingQuestions.includes(qa))
+                    .sort((a, b) => {
+                      const orderA = a.order !== undefined && a.order !== null ? a.order : 9999;
+                      const orderB = b.order !== undefined && b.order !== null ? b.order : 9999;
+                      return orderA - orderB;
+                    });
                   
                   return (
                     <div className="qa-section-below-interview">
@@ -1533,7 +1602,10 @@ const CandidateDetails = () => {
                                     <strong>Q:</strong> {qa.question_text}
                                   </div>
                                   <div className="qa-answer-section">
-                                    <strong>A:</strong> {qa.answer || 'No answer provided'}
+                                    <strong>A:</strong>
+                                    <div className="qa-answer-text">
+                                      {qa.answer || 'No answer provided'}
+                                    </div>
                                   </div>
                                   {qa.response_time > 0 && (
                                     <div className="qa-timestamp">
@@ -1572,7 +1644,14 @@ const CandidateDetails = () => {
                                     <strong>Q:</strong> {qa.question_text}
                                   </div>
                                   <div className="qa-answer-section">
-                                    <strong>A:</strong> {qa.answer || 'No answer provided'}
+                                    <strong>A:</strong>
+                                    {qa.answer && qa.answer !== 'No code submitted' ? (
+                                      <pre className="qa-code-block">
+                                        {qa.answer}
+                                      </pre>
+                                    ) : (
+                                      <span>{qa.answer || 'No code submitted'}</span>
+                                    )}
                                   </div>
                                   {qa.response_time > 0 && (
                                     <div className="qa-timestamp">

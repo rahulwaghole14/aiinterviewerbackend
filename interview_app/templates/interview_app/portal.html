@@ -145,6 +145,13 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
         }
         
+        /* Responsive design for instructions - single column on mobile */
+        @media (max-width: 768px) {
+            #instructions-screen .instructions-container ul {
+                grid-template-columns: 1fr !important;
+            }
+        }
+        
         #start-technical-interview-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(118, 185, 0, 0.4) !important;
@@ -443,27 +450,27 @@
                 </div>
             </div>
             <div id="instructions-screen" class="card" style="display: none;">
-                <div style="max-width: 900px; margin: 0 auto;">
-                    <h1 style="text-align: center; color: var(--primary-color); margin-bottom: 0.5rem;">📋 Interview Instructions</h1>
-                    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 3rem; font-size: 1.1rem;">Please read these instructions carefully before starting your interview</p>
+                <div style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
+                    <h1 style="text-align: center; color: var(--primary-color); margin-bottom: 0.3rem; font-size: 1.8rem;">📋 Interview Instructions</h1>
+                    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 1rem;">Please read these instructions carefully before starting your interview</p>
                     
-                    <div class="instructions-container" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 20px; padding: 1.5rem 2rem; margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                        <ul style="list-style: none; display: grid; gap: 0.75rem; margin: 0; padding: 0;">
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">⏹️</span>Wait for the question to finish before answering.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">👁️</span>Look at the camera while answering.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🤫</span>Keep movements minimal and stay centered.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🖥️</span>Do not switch tabs or minimize the window.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🗣️</span>Speak clearly and at a normal volume.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">📝</span>Do not read from notes or other screens.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">⏱️</span>If silent, say "Let me think" instead of pausing.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">🙂</span>Keep a calm, neutral expression.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">📷</span>Keep your full face visible at all times.</li>
-                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.9rem 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><span style="margin-right: 8px;">📵</span>Do not use phones or other devices.</li>
+                    <div class="instructions-container" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 20px; padding: 1.2rem 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                        <ul style="list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin: 0; padding: 0;">
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">⏹️</span>Wait for the question to finish before answering.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">👁️</span>Look at the camera while answering.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">🤫</span>Keep movements minimal and stay centered.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">🖥️</span>Do not switch tabs or minimize the window.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">🗣️</span>Speak clearly and at a normal volume.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">📝</span>Do not read from notes or other screens.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">👂</span>When 'Listening' appears, answer or respond to the question at that time.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">🙂</span>Keep a calm, neutral expression.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">📷</span>Keep your full face visible at all times.</li>
+                            <li class="instruction-item" style="background: white; border-radius: 10px; padding: 0.7rem 0.9rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-size: 0.95rem;"><span style="margin-right: 8px;">📵</span>Do not use phones or other devices.</li>
                         </ul>
                     </div>
                     
-                    <div style="text-align: center; margin-top: 2.5rem;">
-                        <button id="start-technical-interview-btn" class="btn submit-btn" style="padding: 16px 48px; font-size: 1.2rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 15px rgba(118, 185, 0, 0.3); transition: all 0.3s;">
+                    <div style="text-align: center; margin-top: 1.5rem;">
+                        <button id="start-technical-interview-btn" class="btn submit-btn" style="padding: 14px 40px; font-size: 1.1rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 15px rgba(118, 185, 0, 0.3); transition: all 0.3s;">
                             🎤 Start Technical Interview
                         </button>
                     </div>
@@ -574,6 +581,11 @@
     let isTerminationWarningVisible = false, terminationWarningInterval = null;
     let mediaRecorder, audioChunks = [], currentAudio = new Audio(), moveNextAudio = new Audio(MOVE_TO_NEXT_AUDIO_URL), audioContext, micSource, scriptProcessor;
     let silenceDetector = { counter: 0, threshold: 39 };
+    // Deepgram WebSocket variables
+    let deepgramWS = null;
+    let deepgramTranscript = '';
+    let deepgramPartialText = '';
+    const DEEPGRAM_API_KEY = '6690abf90d1c62c6b70ed632900b2c093bc06d79'; // Hardcoded API key
     // When true, keep proctoring ON but do not auto-start spoken Q&A (external chatbot in use)
     let PROCTOR_ONLY = false;
 
@@ -1270,6 +1282,8 @@
         document.getElementById('answering-timer').style.display = 'none';
         document.getElementById('done-btn').style.display = 'none';
         stopRecordingAndProcessing();
+        // Send transcript to server after stopping recording
+        sendAudioToServer();
     }
     
     function startReviewTimer() {
@@ -1287,17 +1301,26 @@
     async function startRecordingAndMonitoring() {
         if (interviewEnded) return;
         audioChunks = [];
+        deepgramTranscript = '';
+        deepgramPartialText = '';
+        
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop = sendAudioToServer;
-            mediaRecorder.start();
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    sampleRate: 16000,
+                    channelCount: 1
+                }
+            });
             
+            // Initialize audio context for volume monitoring
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             micSource = audioContext.createMediaStreamSource(stream);
             scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
             
+            // Volume monitoring for silence detection
             scriptProcessor.onaudioprocess = e => {
                 const input = e.inputBuffer.getChannelData(0);
                 let sum = 0.0;
@@ -1317,26 +1340,110 @@
                        silenceDetector.counter = 0;
                     }
                 }
+                
+                // Send audio to Deepgram WebSocket
+                if (deepgramWS && deepgramWS.readyState === WebSocket.OPEN) {
+                    // Convert Float32 to Int16
+                    const int16Buffer = new Int16Array(input.length);
+                    for (let i = 0; i < input.length; i++) {
+                        const s = Math.max(-1, Math.min(1, input[i]));
+                        int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
+                    deepgramWS.send(int16Buffer.buffer);
+                }
             };
             micSource.connect(scriptProcessor);
             scriptProcessor.connect(audioContext.destination);
+            
+            // Connect to Deepgram WebSocket
+            await connectDeepgram(stream);
+            
         } catch (err) {
+            console.error('Microphone error:', err);
             document.getElementById('transcription-box').innerHTML = `<span class="error">Microphone access denied.</span>`;
+        }
+    }
+    
+    async function connectDeepgram(stream) {
+        const sampleRate = audioContext.sampleRate || 16000;
+        // Deepgram WebSocket API - API key passed as token query parameter
+        const wsUrl = `wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=general&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&smart_format=false&punctuate=false`;
+        
+        return new Promise((resolve, reject) => {
+            deepgramWS = new WebSocket(wsUrl);
+            deepgramWS.binaryType = 'arraybuffer';
+            
+            deepgramWS.onopen = () => {
+                console.log('✅ Deepgram WebSocket connected');
+                resolve();
+            };
+            
+            deepgramWS.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'Results' && data.channel && data.channel.alternatives && data.channel.alternatives[0]) {
+                        const transcript = data.channel.alternatives[0].transcript || '';
+                        const isFinal = !!data.is_final;
+                        
+                        if (isFinal && transcript.trim()) {
+                            // Add to final transcript (no automatic sentence formatting - keep as is)
+                            deepgramTranscript += transcript.trim() + ' ';
+                            updateLiveTranscript();
+                        } else {
+                            // Update partial text
+                            deepgramPartialText = transcript.trim();
+                            updateLiveTranscript();
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error parsing Deepgram message:', err);
+                }
+            };
+            
+            deepgramWS.onerror = (error) => {
+                console.error('Deepgram WebSocket error:', error);
+                reject(error);
+            };
+            
+            deepgramWS.onclose = () => {
+                console.log('Deepgram WebSocket closed');
+            };
+        });
+    }
+    
+    function updateLiveTranscript() {
+        const box = document.getElementById('transcription-box');
+        const fullText = (deepgramTranscript + deepgramPartialText).trim();
+        if (fullText) {
+            box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> ${fullText}`;
         }
     }
 
     function stopRecordingAndProcessing() {
-        if (mediaRecorder && mediaRecorder.state === "recording") { mediaRecorder.stop(); }
-        if (audioContext) { audioContext.close().catch(e => {}); audioContext = null; }
+        // Close Deepgram WebSocket
+        if (deepgramWS && deepgramWS.readyState === WebSocket.OPEN) {
+            deepgramWS.close();
+            deepgramWS = null;
+        }
+        // Close audio context
+        if (audioContext) { 
+            audioContext.close().catch(e => {}); 
+            audioContext = null; 
+        }
+        // Stop script processor
+        if (scriptProcessor) {
+            scriptProcessor.disconnect();
+            scriptProcessor = null;
+        }
+        // Stop media stream tracks
+        if (micSource && micSource.mediaStream) {
+            micSource.mediaStream.getTracks().forEach(track => track.stop());
+        }
     }
 
     async function sendAudioToServer() {
         const box = document.getElementById('transcription-box');
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        if (blob.size < 1024) { box.innerHTML = "<i>No answer recorded.</i>"; startReviewTimer(); return; }
-        box.innerHTML = "<i>Processing...</i>";
         const fd = new FormData();
-        fd.append('audio_data', blob);
         fd.append('session_id', INTERVIEW_SESSION_ID);
         const currentQuestion = spokenQuestions[currentSpokenQuestionIndex];
         if (currentQuestion && currentQuestion.id) {
@@ -1344,17 +1451,34 @@
         }
         const responseTime = (new Date() - questionStartTime) / 1000;
         fd.append('response_time', responseTime);
+        
+        // Use Deepgram transcript (no automatic sentence formatting)
+        const answerText = deepgramTranscript.trim() || 'No speech was detected.';
+        
+        // Send transcript to server (simulating the old transcribe_audio endpoint)
+        fd.append('transcript', answerText);
+        fd.append('transcribed_answer', answerText);
+        
+        box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> ${answerText}`;
+        
         try {
-            const res = await fetch("{% url 'transcribe_audio' %}", { method: 'POST', body: fd });
-            if (!res.ok) { const err = await res.json(); throw new Error(err.error || `Server Error ${res.status}`); }
+            // Send transcript to server for saving
+            const res = await fetch("{% url 'transcribe_audio' %}", { 
+                method: 'POST', 
+                body: fd 
+            });
+            if (!res.ok) { 
+                const err = await res.json(); 
+                throw new Error(err.error || `Server Error ${res.status}`); 
+            }
             const result = await res.json();
-            box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> ${result.text || "No speech was detected."}`;
             
             if (result.follow_up_question) {
                 spokenQuestions.splice(currentSpokenQuestionIndex + 1, 0, result.follow_up_question);
             }
         } catch (err) {
-            box.innerHTML = `<span class='status-indicator status-error'></span><span style="color: var(--danger-color);"><strong>Transcription Error:</strong> ${err.message}</span>`;
+            console.error('Error sending transcript to server:', err);
+            // Still show the transcript even if server save fails
         } finally {
             startReviewTimer();
         }
@@ -1778,16 +1902,16 @@
                     console.log('Stopped media recorder');
                 }
                 
-                // Release backend camera resources
-                fetch('/interview_app/release_camera/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_key: SESSION_KEY })
-                }).then(() => {
-                    console.log('Backend camera resources released');
-                }).catch(err => {
-                    console.log('Error releasing backend camera:', err);
-                });
+        // Release backend camera resources
+        fetch("{% url 'release_camera' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_key: SESSION_KEY })
+        }).then(() => {
+            console.log('Backend camera resources released');
+        }).catch(err => {
+            console.log('Error releasing backend camera:', err);
+        });
                 
                 console.log('✅ Camera and microphone released after coding submission');
             } catch (error) {

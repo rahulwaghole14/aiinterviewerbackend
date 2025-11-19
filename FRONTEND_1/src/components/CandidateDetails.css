@@ -3463,6 +3463,33 @@ body[data-theme='light'] .qa-card-item {
   margin-right: 0.5rem;
 }
 
+.qa-answer-text {
+  display: block;
+  margin-top: 0.35rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qa-code-block {
+  margin-top: 0.35rem;
+  padding: 0.75rem;
+  background: rgba(15, 23, 42, 0.75);
+  color: var(--code-foreground, #f8fafc);
+  border-radius: var(--radius);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-family: 'Fira Code', 'Source Code Pro', 'Consolas', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+body[data-theme='light'] .qa-code-block {
+  background: rgba(15, 23, 42, 0.07);
+  color: #0f172a;
+  border-color: rgba(100, 116, 139, 0.2);
+}
+
 .qa-timestamp {
   font-size: 0.75rem;
   color: var(--color-text-tertiary);

@@ -32,12 +32,12 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 class InterviewSession:
     """Exact copy from app.py"""
-    def __init__(self, session_id, candidate_name, jd_text):
+    def __init__(self, session_id, candidate_name, jd_text, max_questions=4):
         self.session_id = session_id
         self.candidate_name = candidate_name
         self.conversation_history = []
         self.current_question_number = 0
-        self.max_questions = 4
+        self.max_questions = max_questions
         self.is_completed = False
         self.jd_text = jd_text
         self.asked_for_questions = False
@@ -71,9 +71,9 @@ sessions = {}
 
 
 def gemini_generate(prompt):
-    """Exact copy from app.py"""
+    """Use gemini-2.0-flash for interview questions"""
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        model = genai.GenerativeModel("gemini-2.0-flash")
         resp = model.generate_content(prompt)
         return resp.text if resp and resp.text else "Could not generate a response."
     except Exception as e:
@@ -166,11 +166,14 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         )
     elif question_type == "follow_up":
         prompt = (
-            "You are a professional interviewer conducting an interview. Ask only single-line questions.\n\n"
+            "You are a professional technical interviewer conducting a technical interview. Ask only single-line, direct questions.\n\n"
             f"Job Description Context: {jd_context}\n\n"
             "Interview so far:\n"
             f"{conversation_context}\n\n"
             "Based on the candidate's last answer, ask a relevant follow-up question grounded in the JD. "
+            "IMPORTANT: You may use a brief introductory phrase like 'That's okay' or 'I understand' ONCE, but DO NOT repeat it. "
+            "NEVER say phrases like 'That's okay, that's okay' or 'That's fine, that's fine' - this is repetitive and unprofessional. "
+            "If you use an introductory phrase, use it only ONCE, then immediately ask the question. "
             "If their answer was solid, probe for impact, metrics, trade-offs, or examples. "
             "If it was brief, ask for clarification or a concrete example. Keep it professional and JD-aligned."
         )
@@ -197,7 +200,7 @@ def _reset_question_timers(session):
     session.initial_silence_action_taken = False
 
 
-def start_interview(candidate_name: str, jd_text: str) -> Dict:
+def start_interview(candidate_name: str, jd_text: str, max_questions: int = 4) -> Dict:
     """Exact copy from app.py /start endpoint"""
     try:
         if not jd_text.strip():
@@ -205,7 +208,7 @@ def start_interview(candidate_name: str, jd_text: str) -> Dict:
         
         # Create new session
         session_id = str(uuid.uuid4())
-        session = InterviewSession(session_id, candidate_name, jd_text)
+        session = InterviewSession(session_id, candidate_name, jd_text, max_questions=max_questions)
         sessions[session_id] = session
         
         print(f"✅ Created session: {session_id}")

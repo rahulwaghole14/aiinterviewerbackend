@@ -101,8 +101,8 @@ def _gemini_generate(prompt: str) -> str:
     if not (genai and _GEMINI_KEY):
         return "Could not generate a response."
     try:
-        # Use gemini-2.5-flash as in original app.py
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        # Use gemini-2.0-flash for interview questions
+        model = genai.GenerativeModel("gemini-2.0-flash")
         resp = model.generate_content(prompt)
         return getattr(resp, "text", "") or "Could not generate a response."
     except Exception as e:
@@ -197,8 +197,11 @@ class ChatBotManager:
             )
         elif qtype == "follow_up":
             prompt = (
-                "You are a professional interviewer. Ask a concise, single-line follow-up question based on the answer.\n\n"
+                "You are a professional technical interviewer. Ask a concise, single-line, direct follow-up question based on the answer.\n\n"
                 f"Job Description Context: {jd_ctx}\n\nInterview so far:\n{conv}\n"
+                "IMPORTANT: You may use a brief introductory phrase like 'That's okay' or 'I understand' ONCE, but DO NOT repeat it. "
+                "NEVER say phrases like 'That's okay, that's okay' or 'That's fine, that's fine' - this is repetitive and unprofessional. "
+                "If you use an introductory phrase, use it only ONCE, then immediately ask the question."
             )
         else:
             prompt = (
@@ -211,12 +214,12 @@ class ChatBotManager:
         print(f"🔍 Gemini response: {text[:100]}...")
         return text or "Please describe a recent project you are proud of."
 
-    def start(self, candidate_name: str, jd_text: str) -> Dict[str, object]:
+    def start(self, candidate_name: str, jd_text: str, max_questions: int = 4) -> Dict[str, object]:
         if not jd_text.strip():
             return {"error": "Job description is required"}
         self.rag.process_jd(jd_text)
         sid = uuid.uuid4().hex
-        session = ChatSession(session_id=sid, candidate_name=candidate_name or "Candidate", jd_text=jd_text)
+        session = ChatSession(session_id=sid, candidate_name=candidate_name or "Candidate", jd_text=jd_text, max_questions=max_questions)
         self.sessions[sid] = session
 
         q = self._generate_question(session, qtype="introduction")
@@ -373,16 +376,47 @@ def ai_start_django(candidate_name: str, jd_text: str, session_key: str = None) 
     """Start AI interview, optionally getting data from database using session_key."""
     from .models import InterviewSession as DjangoInterviewSession
     
+    # Get question count from InterviewSlot.ai_configuration or default to 4
+    question_count = 4  # Default
+    
     # If session_key is provided, get data from database
     if session_key:
         try:
             django_session = DjangoInterviewSession.objects.get(session_key=session_key)
             candidate_name = django_session.candidate_name
             jd_text = django_session.job_description or ""
+            
+            # Get question count from InterviewSlot.ai_configuration
+            try:
+                from interviews.models import Interview
+                interview = Interview.objects.filter(session_key=session_key).first()
+                
+                # If not found via session_key, try via candidate email
+                if not interview and django_session.candidate_email:
+                    from candidates.models import Candidate
+                    try:
+                        candidate = Candidate.objects.get(email=django_session.candidate_email)
+                        interview = Interview.objects.filter(candidate=candidate).order_by('-created_at').first()
+                    except:
+                        pass
+                
+                if interview and interview.slot:
+                    slot = interview.slot
+                    if slot.ai_configuration and isinstance(slot.ai_configuration, dict):
+                        question_count = slot.ai_configuration.get('question_count', 4)
+                        try:
+                            question_count = int(question_count)
+                        except (ValueError, TypeError):
+                            question_count = 4
+                    elif hasattr(slot, 'question_count') and slot.question_count:
+                        question_count = int(slot.question_count)
+            except Exception:
+                # If there's any error getting question count, use default
+                pass
         except DjangoInterviewSession.DoesNotExist:
             return {"error": "Invalid session key"}
     
-    return chatbot_manager.start(candidate_name, jd_text)
+    return chatbot_manager.start(candidate_name, jd_text, max_questions=question_count)
 
 
 def ai_upload_answer_django(session_id: str, transcript: str, silence: bool, had_voice: bool) -> Dict[str, object]:

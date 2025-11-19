@@ -417,63 +417,67 @@ class BulkCandidateCreationView(APIView):
         if not job:
             job = Job.objects.filter(job_title=role_name).first()
         
-        # If still no job found, create a new one
+        # If no job exists, enforce explicit configuration before proceeding
         if not job:
-            # Get user email for required fields
-            user_email = request.user.email if hasattr(request.user, 'email') else 'admin@example.com'
-            job = Job.objects.create(
-                job_title=role_name,
-                domain=domain,
-                company_name=company_name,
-                spoc_email=user_email,  # Required field - use user's email
-                hiring_manager_email=user_email,  # Required field - use user's email
-                number_to_hire=1,  # Required field - default to 1
-                position_level=Job.PositionLevel.IC,  # Required field - default to Individual Contributor
+            return Response(
+                {
+                    "error": (
+                        f"Job '{role_name}' (company '{company_name}') does not exist. "
+                        "Please create the job via the Jobs module and select a coding language before scheduling interviews."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Require the job to have coding_language defined (no automatic fallback)
+        if not job.coding_language:
+            return Response(
+                {
+                    "error": (
+                        f"Job '{job.job_title}' is missing a coding language. "
+                        "Update the job in the Jobs module to set coding_language before scheduling interviews."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Update existing job if needed - ensure required fields (excluding coding_language) are set
+        update_fields = []
+        
+        current_company_name = job.company_name or ''
+        if not current_company_name.strip():
+            job.company_name = company_name
+            update_fields.append('company_name')
+        elif current_company_name != company_name:
+            job.company_name = company_name
+            update_fields.append('company_name')
+        
+        if job.domain != domain:
+            job.domain = domain
+            update_fields.append('domain')
+        
+        current_spoc_email = job.spoc_email or ''
+        if not current_spoc_email.strip():
+            job.spoc_email = request.user.email if hasattr(request.user, 'email') else 'admin@example.com'
+            update_fields.append('spoc_email')
+        
+        current_hiring_manager_email = job.hiring_manager_email or ''
+        if not current_hiring_manager_email.strip():
+            job.hiring_manager_email = request.user.email if hasattr(request.user, 'email') else 'admin@example.com'
+            update_fields.append('hiring_manager_email')
+        
+        if not job.number_to_hire:
+            job.number_to_hire = 1
+            update_fields.append('number_to_hire')
+        
+        if not job.position_level:
+            job.position_level = Job.PositionLevel.IC
+            update_fields.append('position_level')
+        
+        if update_fields:
+            job.save(update_fields=update_fields)
         else:
-            # Update existing job if needed - ensure all required fields are set
-            update_fields = []
-            
-            # Always ensure company_name is set (required field) - handle None case
-            current_company_name = job.company_name or ''
-            if not current_company_name.strip():
-                job.company_name = company_name
-                update_fields.append('company_name')
-            elif current_company_name != company_name:
-                job.company_name = company_name
-                update_fields.append('company_name')
-            
-            # Update domain if different
-            if job.domain != domain:
-                job.domain = domain
-                update_fields.append('domain')
-            
-            # Ensure required fields are set if missing - handle None cases
-            current_spoc_email = job.spoc_email or ''
-            if not current_spoc_email.strip():
-                job.spoc_email = request.user.email if hasattr(request.user, 'email') else 'admin@example.com'
-                update_fields.append('spoc_email')
-            
-            current_hiring_manager_email = job.hiring_manager_email or ''
-            if not current_hiring_manager_email.strip():
-                job.hiring_manager_email = request.user.email if hasattr(request.user, 'email') else 'admin@example.com'
-                update_fields.append('hiring_manager_email')
-            
-            if not job.number_to_hire:
-                job.number_to_hire = 1
-                update_fields.append('number_to_hire')
-            
-            if not job.position_level:
-                job.position_level = Job.PositionLevel.IC
-                update_fields.append('position_level')
-            
-            # Always save to ensure all required fields are persisted
-            # If no update_fields, save all fields to ensure data integrity
-            if update_fields:
-                job.save(update_fields=update_fields)
-            else:
-                # Save all fields to ensure required fields are set
-                job.save()
+            job.save()
         
         # Get recruiter (POC)
         recruiter = request.user

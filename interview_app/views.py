@@ -81,10 +81,16 @@ load_dotenv()
 try:
     from django.conf import settings as dj_settings
     active_key = getattr(dj_settings, 'GEMINI_API_KEY', '')
+    # Fallback to hardcoded key if env key is not available
+    if not active_key:
+        active_key = "AIzaSyBu5M6cEckMIRPdttrBTBcRJmTUi5MkpvE"
+        print("⚠️ WARNING: GEMINI_API_KEY not set in environment, using hardcoded key")
+    
     if active_key:
         genai.configure(api_key=active_key)
+        print("✅ Gemini API configured successfully in views.py")
     else:
-        print("⚠️ WARNING: GEMINI_API_KEY not set in environment. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
+        print("⚠️ WARNING: GEMINI_API_KEY not available")
 except Exception as e:
     print(f"⚠️ WARNING: Could not configure Gemini API: {e}")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -1243,7 +1249,7 @@ def interview_portal(request):
                 print(f"✅ Using hardcoded coding question in {requested_lang} for DEV MODE")
             else:
                 print("--- RUNNING IN PRODUCTION MODE: Calling Gemini API. ---")
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel('gemini-2.0-flash')
                 summary_prompt = f"Summarize key skills from the following resume:\n\n{session.resume_text}"
                 summary_response = model.generate_content(summary_prompt)
                 session.resume_summary = summary_response.text
@@ -1265,9 +1271,31 @@ def interview_portal(request):
                         except:
                             pass
                     
+                    slot = None
+                    
+                    # Method 1: Try to get slot from interview.slot (direct assignment)
                     if interview and interview.slot:
                         slot = interview.slot
-                        print(f"✅ Found Interview {interview.id} with Slot {slot.id}")
+                        print(f"✅ Found Interview {interview.id} with direct Slot {slot.id}")
+                    
+                    # Method 2: Try to get slot from interview.schedule.slot (via InterviewSchedule)
+                    elif interview:
+                        try:
+                            # Check if interview has a schedule
+                            if hasattr(interview, 'schedule') and interview.schedule:
+                                slot = interview.schedule.slot
+                                print(f"✅ Found Interview {interview.id} with Slot {slot.id} via InterviewSchedule")
+                            else:
+                                # Try to fetch schedule explicitly
+                                from interviews.models import InterviewSchedule
+                                schedule = InterviewSchedule.objects.filter(interview=interview).first()
+                                if schedule and schedule.slot:
+                                    slot = schedule.slot
+                                    print(f"✅ Found Interview {interview.id} with Slot {slot.id} via InterviewSchedule (fetched)")
+                        except Exception as e:
+                            print(f"⚠️ Error fetching schedule for interview: {e}")
+                    
+                    if slot:
                         print(f"   Slot AI Config: {slot.ai_configuration}")
                         
                         if slot.ai_configuration and isinstance(slot.ai_configuration, dict):
@@ -1289,7 +1317,16 @@ def interview_portal(request):
                         if not interview:
                             print(f"⚠️ No Interview found for session_key={session.session_key}, candidate_email={session.candidate_email}")
                         elif not interview.slot:
-                            print(f"⚠️ Interview {interview.id} has no slot assigned")
+                            # Check if interview has a schedule
+                            try:
+                                from interviews.models import InterviewSchedule
+                                schedule = InterviewSchedule.objects.filter(interview=interview).first()
+                                if schedule:
+                                    print(f"⚠️ Interview {interview.id} has no direct slot, but has schedule {schedule.id} with slot {schedule.slot.id if schedule.slot else 'None'}")
+                                else:
+                                    print(f"⚠️ Interview {interview.id} has no slot assigned and no schedule found")
+                            except Exception as e:
+                                print(f"⚠️ Interview {interview.id} has no slot assigned (error checking schedule: {e})")
                         print(f"⚠️ Using default question_count: 4")
                 except Exception as e:
                     print(f"⚠️ Error getting question count, using default 4: {e}")
@@ -1303,6 +1340,7 @@ def interview_portal(request):
                     "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
                     "Then, generate a mix of technical Questions. 70 percent from jd and 30 percent from resume"
                     "You MUST format the output as Markdown. "
+                    "do not ask question repeatlt only when candidate answer  then repherase with adding one line extra"
                     "You MUST include '## Technical Questions'. "
                     "Each question MUST start with a hyphen '-'. "
                     "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
@@ -1578,7 +1616,7 @@ def interview_report(request, session_id):
 
         if session.language_code == 'en' and not session.is_evaluated and (has_spoken_answers or has_code_submissions):
             print(f"--- Performing all first-time AI evaluations for session {session.id} with Gemini ---")
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             try:
                 print("--- Evaluating Resume vs. Job Description ---")
@@ -2083,20 +2121,81 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
         print("--- DEV MODE: Skipping AI follow-up question generation. ---")
         return None
 
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    # CRITICAL: Do NOT generate follow-ups for closing questions like "Do you have any questions"
+    closing_question_phrases = [
+        "do you have any question", "do you have any questions", 
+        "any questions for us", "any questions for me", "any other questions",
+        "questions for us", "questions for me", "before we wrap up"
+    ]
+    parent_q_lower = parent_question.question_text.lower()
+    if any(phrase in parent_q_lower for phrase in closing_question_phrases):
+        print(f"⚠️ Parent question is a closing question. Skipping follow-up generation.")
+        return None
+
+    # Check if we've already reached 30% follow-up ratio (maintain 70% main, 30% follow-up)
+    main_questions = session.questions.filter(question_level='MAIN', question_type__in=['TECHNICAL', 'BEHAVIORAL']).count()
+    follow_up_questions = session.questions.filter(question_level='FOLLOW_UP', question_type__in=['TECHNICAL', 'BEHAVIORAL']).count()
+    
+    # Calculate projected ratio if we add this follow-up
+    # We want to maintain approximately 70% main questions and 30% follow-ups
+    total_questions = main_questions + follow_up_questions
+    if total_questions > 0:
+        # Calculate what the ratio would be if we add this follow-up
+        projected_follow_ups = follow_up_questions + 1
+        projected_total = total_questions + 1
+        projected_ratio = projected_follow_ups / projected_total
+        
+        # If adding this follow-up would exceed 30%, don't generate it
+        if projected_ratio > 0.30:
+            current_ratio = follow_up_questions / total_questions
+            print(f"⚠️ Projected follow-up ratio would be {projected_ratio*100:.1f}% (current: {current_ratio*100:.1f}%, target: 30%, main: {main_questions}, follow-ups: {follow_up_questions}). Skipping follow-up generation to maintain ratio.")
+            return None
+    else:
+        # If no questions yet, allow first follow-up (will be checked after generation)
+        print(f"ℹ️ No questions yet. Will check ratio after generation.")
+
+    model = genai.GenerativeModel('gemini-2.0-flash')
     language_name = SUPPORTED_LANGUAGES.get(session.language_code, 'English')
+    
+    # Get job description context for matching
+    jd_context = session.job_description or ""
+    if len(jd_context) > 2000:
+        jd_context = jd_context[:2000]  # Limit context size
+    
     prompt = (
-        f"You are an expert, friendly interviewer conducting an interview in {language_name}. "
+        f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW in {language_name}. "
+        f"Act like a real technical interviewer - be direct, professional, and focused on TECHNICAL assessment.\n\n"
+        f"CRITICAL: This is a TECHNICAL INTERVIEW. You MUST ask ONLY technical questions related to the job description.\n"
+        "DO NOT ask:\n"
+        "- Personal questions (hobbies, family, personal background)\n"
+        "- Behavioral questions unrelated to technical skills\n"
+        "- General conversation topics\n"
+        "- Questions about salary, benefits, or company culture\n"
+        "- Any non-technical questions\n\n"
         f"The candidate was asked the following question:\n'{parent_question.question_text}'\n\n"
         f"The candidate gave this transcribed answer:\n'{transcribed_answer}'\n\n"
-        "Your task is to analyze the response and act as a conversational partner. Follow these rules strictly:\n"
-        "1. If the candidate explicitly states they are unsure, don't know, or only know the basics "
-        "(e.g., 'I am not sure', 'I only have basic knowledge of that...'), "
-        "then you MUST generate ONE single, simpler, follow-up question. Make it interactive by referencing their statement. "
-        "For example, if they say 'I only know the basics of Django ORM', your follow-up could be: "
-        "'That's perfectly fine. Could you then explain what you know about the basic 'filter' and 'get' methods?'\n"
-        "2. If the answer is confident, complete, or does not express uncertainty, you MUST respond with the exact text: NO_FOLLOW_UP\n"
-        "Do NOT add any other text, prefixes, or formatting. Your entire output must be either the conversational follow-up question itself or the text 'NO_FOLLOW_UP'."
+        f"Job Description Context:\n{jd_context}\n\n"
+        "Your task is to analyze the response and determine if a TECHNICAL follow-up question is needed. Follow these rules STRICTLY:\n"
+        "0. CRITICAL: If the parent question is a closing question like 'Do you have any questions for us?' or 'Before we wrap up, do you have any questions?', "
+        "you MUST respond with 'NO_FOLLOW_UP' immediately. Closing questions should NEVER have follow-ups - the interview should end after the candidate answers.\n"
+        "1. FIRST, check if the answer is BROAD or VAGUE (lacks specific technical details, examples, or depth). "
+        "Signs of a broad answer: short responses, generic statements, lack of technical details, no examples, or surface-level explanations.\n"
+        "2. SECOND, check if the answer topic MATCHES or RELATES to the TECHNICAL aspects of the Job Description context provided above. "
+        "The answer should be relevant to the TECHNICAL job requirements, skills, or responsibilities mentioned in the JD.\n"
+        "3. ONLY if BOTH conditions are met (answer is broad/vague AND matches TECHNICAL JD context), generate ONE single, TECHNICAL follow-up question. "
+        "IMPORTANT: You may use a brief introductory phrase like 'That's okay' or 'I understand' ONCE, but DO NOT repeat it. "
+        "NEVER say phrases like 'That's okay, that's okay' or 'That's fine, that's fine' - this is repetitive and unprofessional. "
+        "If you use an introductory phrase, use it only ONCE, then immediately ask the TECHNICAL question. "
+        "For example, if they give a vague answer about 'working with databases', your follow-up could be: "
+        "'That's okay. Can you walk me through a specific database optimization you've implemented?' "
+        "OR simply: 'Can you walk me through a specific database optimization you've implemented?' "
+        "But NEVER: 'That's okay, that's okay. Can you walk me through...' - this is repetitive.\n"
+        "4. If the answer is detailed, specific, complete, confident, OR does not relate to the JD context, "
+        "you MUST respond with the exact text: NO_FOLLOW_UP\n"
+        "5. CRITICAL: Your follow-up question must be a SINGLE question. If you use an introductory phrase, use it ONCE only. "
+        "Example: 'That's okay. What specific challenges did you face?' OR 'What specific challenges did you face?' "
+        "NOT: 'That's okay, that's okay. What specific challenges did you face?' - never repeat phrases.\n"
+        "Do NOT add any other text, prefixes, or formatting. Your entire output must be either the direct follow-up question itself or the text 'NO_FOLLOW_UP'."
     )
     try:
         response = model.generate_content(prompt)
@@ -2134,13 +2233,74 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
 
 @csrf_exempt
 def transcribe_audio(request):
-    if not whisper_model: return JsonResponse({'error': 'Whisper model not available.'}, status=500)
-    if request.method == 'POST' and request.FILES.get('audio_data'):
-        audio_file = request.FILES['audio_data']
+    if request.method == 'POST':
         session_id = request.POST.get('session_id')
         question_id = request.POST.get('question_id')
         response_time = request.POST.get('response_time')
+        no_audio_flag = str(request.POST.get('no_audio', '')).lower() in ('1', 'true', 'yes')
         
+        # Check if transcript is sent directly (from Deepgram WebSocket)
+        transcribed_text = request.POST.get('transcript') or request.POST.get('transcribed_answer')
+        
+        # If transcript is provided directly, use it (no need for Whisper)
+        if transcribed_text:
+            follow_up_data = None
+            if session_id and question_id:
+                try:
+                    question_to_update = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
+                    # Format answer with A: prefix if not already present
+                    answer_text = transcribed_text.strip()
+                    if not answer_text.startswith('A:'):
+                        answer_text = f'A: {answer_text}'
+                    
+                    question_to_update.transcribed_answer = answer_text
+                    fields_to_update = ['transcribed_answer']
+                    if response_time:
+                        try:
+                            question_to_update.response_time_seconds = float(response_time)
+                            fields_to_update.append('response_time_seconds')
+                        except ValueError:
+                            pass
+                    question_to_update.save(update_fields=fields_to_update)
+
+                    # Only generate a follow-up if the question just answered was a MAIN one
+                    if transcribed_text and transcribed_text.strip() and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
+                        follow_up_data = generate_and_save_follow_up(
+                            session=question_to_update.session,
+                            parent_question=question_to_update,
+                            transcribed_answer=transcribed_text
+                        )
+                except InterviewQuestion.DoesNotExist:
+                    print(f"Warning: Could not find question with ID {question_id} to save answer.")
+            return JsonResponse({'text': transcribed_text, 'follow_up_question': follow_up_data})
+
+        if no_audio_flag:
+            if not (session_id and question_id):
+                return JsonResponse({'error': 'Missing session_id or question_id for no-audio submission.'}, status=400)
+            try:
+                question_to_update = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
+                question_to_update.transcribed_answer = 'A: No answer provided'
+                fields_to_update = ['transcribed_answer']
+                if response_time:
+                    try:
+                        question_to_update.response_time_seconds = float(response_time)
+                        fields_to_update.append('response_time_seconds')
+                    except ValueError:
+                        pass
+                question_to_update.save(update_fields=fields_to_update)
+                return JsonResponse({'text': 'No answer provided', 'follow_up_question': None})
+            except InterviewQuestion.DoesNotExist:
+                print(f"Warning: Could not find question with ID {question_id} to save no-audio answer.")
+                return JsonResponse({'error': 'Question not found'}, status=404)
+
+        # Fallback to Whisper if no transcript provided (for backward compatibility)
+        if not whisper_model:
+            return JsonResponse({'error': 'Whisper model not available.'}, status=500)
+
+        audio_file = request.FILES.get('audio_data')
+        if not audio_file:
+            return JsonResponse({'error': 'No audio data or transcript provided'}, status=400)
+
         file_path = default_storage.save('temp_audio.webm', audio_file)
         full_path = os.path.join(settings.MEDIA_ROOT, file_path)
         try:
@@ -2151,14 +2311,23 @@ def transcribe_audio(request):
             if session_id and question_id:
                 try:
                     question_to_update = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
-                    
-                    question_to_update.transcribed_answer = transcribed_text
+                    # Format answer with A: prefix if not already present
+                    answer_text = transcribed_text.strip() if transcribed_text else 'No answer provided'
+                    if not answer_text.startswith('A:'):
+                        answer_text = f'A: {answer_text}'
+
+                    question_to_update.transcribed_answer = answer_text
+                    fields_to_update = ['transcribed_answer']
                     if response_time:
-                        question_to_update.response_time_seconds = float(response_time)
-                    question_to_update.save()
+                        try:
+                            question_to_update.response_time_seconds = float(response_time)
+                            fields_to_update.append('response_time_seconds')
+                        except ValueError:
+                            pass
+                    question_to_update.save(update_fields=fields_to_update)
 
                     # Only generate a follow-up if the question just answered was a MAIN one
-                    if transcribed_text and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
+                    if transcribed_text and transcribed_text.strip() and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
                         follow_up_data = generate_and_save_follow_up(
                             session=question_to_update.session,
                             parent_question=question_to_update,
@@ -2169,7 +2338,8 @@ def transcribe_audio(request):
             os.remove(full_path)
             return JsonResponse({'text': transcribed_text, 'follow_up_question': follow_up_data})
         except Exception as e:
-            if os.path.exists(full_path): os.remove(full_path)
+            if os.path.exists(full_path):
+                os.remove(full_path)
             return JsonResponse({'error': str(e)}, status=500)
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
@@ -2409,14 +2579,44 @@ def ai_start(request):
     print(f"\n{'='*60}")
     print(f"🎯 AI_START called (using complete_ai_bot)")
     print(f"{'='*60}")
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-        print(f"📦 Received JSON data: {data}")
-    except Exception as e:
-        print(f"⚠️ JSON parse failed: {e}, using POST data")
-        data = request.POST
     
-    session_key = data.get('session_key', '')
+    # Try to get data from JSON body first, then fallback to POST
+    data = {}
+    if request.body:
+        try:
+            import json
+            data = json.loads(request.body.decode('utf-8'))
+            print(f"📦 Received JSON data: {data}")
+        except Exception as e:
+            print(f"⚠️ JSON parse failed: {e}, trying POST data")
+            # If JSON parsing fails, try POST data
+            if hasattr(request, 'POST') and request.POST:
+                data = dict(request.POST)
+                print(f"📦 Using POST data: {data}")
+    elif hasattr(request, 'POST') and request.POST:
+        data = dict(request.POST)
+        print(f"📦 Using POST data (no body): {data}")
+    
+    # Also check query parameters as a fallback
+    session_key = data.get('session_key', '') or request.GET.get('session_key', '')
+    if not session_key:
+        # Try to get from request body directly if it's a string
+        try:
+            body_str = request.body.decode('utf-8') if request.body else ''
+            if 'session_key' in body_str:
+                import json
+                try:
+                    body_data = json.loads(body_str)
+                    session_key = body_data.get('session_key', '')
+                except:
+                    # Try to extract from string
+                    import re
+                    match = re.search(r'session_key["\']?\s*[:=]\s*["\']?([^"\',\s}]+)', body_str)
+                    if match:
+                        session_key = match.group(1)
+        except:
+            pass
+    
     print(f"🔑 Session Key: {session_key}")
     
     # Get candidate name and JD from database
@@ -2424,20 +2624,239 @@ def ai_start(request):
     jd_text = ''
     django_session = None
     
+    # Get question count from InterviewSlot.ai_configuration or default to 4
+    question_count = 4  # Default
+    
+    # If no session_key, try to get it from URL or other sources
+    if not session_key:
+        print(f"⚠️ No session_key found in request data, checking other sources...")
+        # Try to get from URL path if it's in the URL
+        if hasattr(request, 'path'):
+            import re
+            path_match = re.search(r'session[_-]?key[=:]?([a-f0-9]+)', request.path, re.IGNORECASE)
+            if path_match:
+                session_key = path_match.group(1)
+                print(f"✅ Found session_key in URL path: {session_key}")
+    
     if session_key:
         try:
             django_session = DjangoSession.objects.get(session_key=session_key)
             candidate_name = django_session.candidate_name
             jd_text = django_session.job_description or ''
+            
+            # Fetch Interview once to use for both job description and question count
+            interview = None
+            try:
+                from interviews.models import Interview
+                interview = Interview.objects.filter(session_key=session_key).first()
+                
+                # If not found via session_key, try via candidate email
+                if not interview and django_session.candidate_email:
+                    from candidates.models import Candidate
+                    try:
+                        candidate = Candidate.objects.get(email=django_session.candidate_email)
+                        interview = Interview.objects.filter(candidate=candidate).order_by('-created_at').first()
+                    except:
+                        pass
+            except Exception as e:
+                print(f"⚠️ Error fetching Interview: {e}")
+            
+            # If job_description is empty, try to build it from the Interview and Job
+            if not jd_text or not jd_text.strip():
+                print(f"⚠️ Job description is empty, trying to build from Interview/Job...")
+                try:
+                    if interview and interview.job:
+                        job = interview.job
+                        # Build job description from job fields
+                        jd_text = job.job_description or f"Job Title: {job.job_title}\nCompany: {job.company_name}"
+                        if job.domain:
+                            jd_text += f"\nDomain: {job.domain.name}"
+                        if hasattr(job, 'coding_language') and job.coding_language:
+                            jd_text += f"\nCoding Language: {job.coding_language}"
+                        print(f"✅ Built job description from Job: {job.id}")
+                    elif interview and not interview.job:
+                        print(f"⚠️ Interview {interview.id} has no job assigned")
+                        jd_text = "Technical Interview Position"
+                    else:
+                        print(f"⚠️ No Interview found for session_key={session_key}")
+                        jd_text = "Technical Interview Position"
+                except Exception as e:
+                    print(f"⚠️ Error building job description: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    jd_text = "Technical Interview Position"
+            
             print(f"✅ Retrieved from DB:")
             print(f"   Candidate: {candidate_name}")
             print(f"   JD length: {len(jd_text)}")
+            print(f"   JD preview: {jd_text[:100]}...")
+            
+            # Get question count from InterviewSlot.ai_configuration
+            # Reuse interview object we already fetched above
+            try:
+                slot = None
+                
+                # Method 1: Try to get slot from interview.slot (direct assignment)
+                if interview and interview.slot:
+                    slot = interview.slot
+                    print(f"✅ Found Interview {interview.id} with direct Slot {slot.id}")
+                
+                # Method 2: Try to get slot from interview.schedule.slot (via InterviewSchedule)
+                elif interview:
+                    try:
+                        # Check if interview has a schedule
+                        if hasattr(interview, 'schedule') and interview.schedule:
+                            slot = interview.schedule.slot
+                            print(f"✅ Found Interview {interview.id} with Slot {slot.id} via InterviewSchedule")
+                        else:
+                            # Try to fetch schedule explicitly
+                            from interviews.models import InterviewSchedule
+                            schedule = InterviewSchedule.objects.filter(interview=interview).first()
+                            if schedule and schedule.slot:
+                                slot = schedule.slot
+                                print(f"✅ Found Interview {interview.id} with Slot {slot.id} via InterviewSchedule (fetched)")
+                    except Exception as e:
+                        print(f"⚠️ Error fetching schedule for interview: {e}")
+                
+                if slot:
+                    print(f"   Slot AI Config: {slot.ai_configuration}")
+                    print(f"   Slot AI Config Type: {type(slot.ai_configuration)}")
+                    
+                    # IMPORTANT: Refresh slot from database to ensure we have latest data
+                    slot.refresh_from_db()
+                    print(f"   Slot AI Config (after refresh): {slot.ai_configuration}")
+                    
+                    # Try multiple ways to get question_count
+                    found_count = None
+                    
+                    # Method 1: Check if ai_configuration is a dict and has question_count
+                    if slot.ai_configuration and isinstance(slot.ai_configuration, dict):
+                        # Try different key variations
+                        possible_keys = ['question_count', 'questionCount', 'question-count', 'questions', 'num_questions']
+                        for key in possible_keys:
+                            if key in slot.ai_configuration:
+                                found_count = slot.ai_configuration[key]
+                                print(f"✅ Found question_count using key '{key}': {found_count} (type: {type(found_count)})")
+                                break
+                        
+                        # If not found, print all available keys for debugging
+                        if found_count is None:
+                            print(f"⚠️⚠️⚠️ question_count not found in ai_configuration")
+                            print(f"   Available keys: {list(slot.ai_configuration.keys()) if slot.ai_configuration else 'None'}")
+                            print(f"   Full ai_configuration: {slot.ai_configuration}")
+                            print(f"   Slot ID: {slot.id}")
+                            print(f"   Slot created_at: {slot.created_at}")
+                    
+                    # Method 2: Check if ai_configuration is a string (JSON string)
+                    elif slot.ai_configuration and isinstance(slot.ai_configuration, str):
+                        try:
+                            import json
+                            config_dict = json.loads(slot.ai_configuration)
+                            if isinstance(config_dict, dict):
+                                possible_keys = ['question_count', 'questionCount', 'question-count', 'questions', 'num_questions']
+                                for key in possible_keys:
+                                    if key in config_dict:
+                                        found_count = config_dict[key]
+                                        print(f"✅ Found question_count in JSON string using key '{key}': {found_count}")
+                                        break
+                        except Exception as e:
+                            print(f"⚠️ Error parsing ai_configuration as JSON: {e}")
+                    
+                    # Method 3: Check if question_count is a direct attribute
+                    if found_count is None and hasattr(slot, 'question_count') and slot.question_count:
+                        found_count = slot.question_count
+                        print(f"✅ Using question count from InterviewSlot.question_count attribute: {found_count}")
+                    
+                    # Convert to integer if found
+                    if found_count is not None:
+                        try:
+                            # Handle both string and number types
+                            if isinstance(found_count, str):
+                                question_count = int(found_count.strip())
+                            else:
+                                question_count = int(found_count)
+                            
+                            # Validate question_count is in valid range (1-20)
+                            if question_count >= 1 and question_count <= 20:
+                                print(f"✅✅✅ Using question count from InterviewSlot: {question_count}")
+                            else:
+                                print(f"⚠️ Invalid question_count ({question_count}) - must be between 1-20, using default 4")
+                                question_count = 4
+                        except (ValueError, TypeError) as e:
+                            print(f"⚠️ Error converting question_count to int: {e}, using default 4")
+                            print(f"   found_count value: {found_count}, type: {type(found_count)}")
+                            question_count = 4
+                    else:
+                        print(f"⚠️⚠️⚠️ No question_count found anywhere in slot.ai_configuration!")
+                        print(f"   Slot ID: {slot.id}")
+                        print(f"   Slot ai_configuration type: {type(slot.ai_configuration)}")
+                        print(f"   Slot ai_configuration value: {slot.ai_configuration}")
+                        if isinstance(slot.ai_configuration, dict):
+                            print(f"   Available keys in ai_configuration: {list(slot.ai_configuration.keys())}")
+                        print(f"⚠️ Using default question_count: 4")
+                        question_count = 4
+                else:
+                    if not interview:
+                        print(f"⚠️ No Interview found for session_key={session_key}, candidate_email={django_session.candidate_email if django_session else 'N/A'}")
+                    elif not interview.slot:
+                        # Check if interview has a schedule
+                        try:
+                            from interviews.models import InterviewSchedule
+                            schedule = InterviewSchedule.objects.filter(interview=interview).first()
+                            if schedule:
+                                print(f"⚠️ Interview {interview.id} has no direct slot, but has schedule {schedule.id} with slot {schedule.slot.id if schedule.slot else 'None'}")
+                            else:
+                                print(f"⚠️ Interview {interview.id} has no slot assigned and no schedule found")
+                        except Exception as e:
+                            print(f"⚠️ Interview {interview.id} has no slot assigned (error checking schedule: {e})")
+                    print(f"⚠️ Using default question_count: 4")
+            except Exception as e:
+                print(f"⚠️ Error getting question count, using default 4: {e}")
+                import traceback
+                traceback.print_exc()
         except DjangoSession.DoesNotExist:
-            print(f"❌ Session not found in DB")
-            return JsonResponse({"error": "Invalid session key"}, status=400)
+            print(f"❌ Session not found in DB for session_key: {session_key}")
+            # Don't return error immediately - try to build job description from other sources
+            if not jd_text or not jd_text.strip():
+                jd_text = "Technical Interview Position"
+                print(f"⚠️ Using fallback job description since session not found")
     
-    # Call AI bot to start interview
-    result = start_interview(candidate_name, jd_text)
+    # Final validation: Ensure we have a non-empty job description
+    if not jd_text or not jd_text.strip():
+        print(f"⚠️⚠️⚠️ CRITICAL: Job description is still empty after all attempts!")
+        print(f"   Session Key: {session_key}")
+        print(f"   Django Session: {django_session}")
+        
+        # Last resort: Use a default job description
+        jd_text = "Technical Interview Position - Software Development Role"
+        print(f"   Using fallback job description: {jd_text}")
+    
+    # Call AI bot to start interview with question count from scheduler
+    print(f"\n{'='*60}")
+    print(f"🎯🎯🎯 FINAL: Starting interview with question_count={question_count}")
+    print(f"   Candidate: {candidate_name}")
+    print(f"   JD length: {len(jd_text)}")
+    print(f"   JD preview: {jd_text[:200]}...")
+    print(f"{'='*60}\n")
+    
+    # Final check before calling start_interview
+    if not jd_text or not jd_text.strip():
+        error_msg = "Job description is required but could not be retrieved. Please ensure the interview session has a valid job description."
+        print(f"❌ {error_msg}")
+        return JsonResponse({"error": error_msg}, status=400)
+    
+    result = start_interview(candidate_name, jd_text, max_questions=question_count)
+    print(f"✅ Interview started, returned max_questions={result.get('max_questions', 'N/A')}")
+    
+    # Verify the session has the correct max_questions
+    if 'session_id' in result and result['session_id'] in sessions:
+        ai_session = sessions[result['session_id']]
+        print(f"✅ AI Session max_questions: {ai_session.max_questions}")
+        if ai_session.max_questions != question_count:
+            print(f"⚠️⚠️⚠️ CRITICAL WARNING: Session max_questions ({ai_session.max_questions}) != requested question_count ({question_count})")
+            print(f"   This means the interview will ask {ai_session.max_questions} questions instead of {question_count}!")
+        else:
+            print(f"✅✅✅ Verified: Session max_questions ({ai_session.max_questions}) matches requested question_count ({question_count})")
     
     # Link the AI session to Django session and create first question in database
     if 'error' not in result and django_session:
@@ -2451,17 +2870,59 @@ def ai_start(request):
             first_question_text = result.get('question', '')
             if first_question_text:
                 try:
-                    InterviewQuestion.objects.create(
+                    # Check if question already exists to avoid duplicates
+                    existing_first = InterviewQuestion.objects.filter(
                         session=django_session,
-                        question_text=first_question_text,
-                        question_type='TECHNICAL',
                         order=0,
-                        question_level='MAIN',
-                        audio_url=result.get('audio_url', '')
-                    )
-                    print(f"✅ Created first question in database")
+                        question_text=first_question_text
+                    ).first()
+                    
+                    if not existing_first:
+                        # First question should always be order 0
+                        # Check if any questions exist - if so, use max_order + 1, otherwise use 0
+                        from django.db.models import Max
+                        existing_count = InterviewQuestion.objects.filter(session=django_session).count()
+                        
+                        if existing_count == 0:
+                            # No questions exist - use order 0 for first question
+                            new_order = 0
+                        else:
+                            # Questions exist - use max_order + 1 to avoid conflicts
+                            max_order = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).aggregate(max_order=Max('order'))['max_order'] or -1
+                            new_order = max_order + 1
+                        
+                        # Format question text (remove Q: prefix for cleaner storage)
+                        question_text_formatted = first_question_text.strip()
+                        if question_text_formatted.startswith('Q:'):
+                            question_text_formatted = question_text_formatted.replace('Q:', '').strip()
+                        
+                        # Get the maximum conversation_sequence to ensure sequential indexing
+                        from django.db.models import Max
+                        max_seq_result = InterviewQuestion.objects.filter(
+                            session=django_session
+                        ).aggregate(max_seq=Max('conversation_sequence'))
+                        max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                        conversation_sequence = max_seq + 1  # Start with 1 for first AI question
+                        
+                        InterviewQuestion.objects.create(
+                            session=django_session,
+                            question_text=question_text_formatted,  # AI question text (without Q: prefix)
+                            question_type='TECHNICAL',
+                            order=new_order,
+                            question_level='MAIN',
+                            audio_url=result.get('audio_url', ''),
+                            role='AI',  # This is an AI-generated question
+                            conversation_sequence=conversation_sequence  # Sequential index: 1, 3, 5, 7...
+                        )
+                        print(f"✅ Created first AI question in database with order {new_order}, conversation_sequence {conversation_sequence}, role=AI")
+                    else:
+                        print(f"✅ First question already exists in database")
                 except Exception as e:
                     print(f"⚠️ Error creating question in database: {e}")
+                    import traceback
+                    traceback.print_exc()
     
     if 'error' in result:
         print(f"❌ Error in result: {result['error']}")
@@ -2509,7 +2970,8 @@ def ai_upload_answer(request):
                     print(f"⚠️ Django session not found for session_key: {ai_session.django_session_key}")
             
             # If we have a Django session, save the answer to InterviewQuestion
-            if django_session and transcript and transcript.strip() and not transcript.startswith("["):
+            # IMPORTANT: Also save "No answer provided" for closing questions
+            if django_session:
                 try:
                     # Find the current question for this session based on question number
                     current_q_num = ai_session.current_question_number
@@ -2521,31 +2983,190 @@ def ai_upload_answer(request):
                         session=django_session
                     ).order_by('order')
                     
+                    # Check if this is a pre-closing or closing question answer
+                    is_pre_closing_question = False
+                    is_closing_question = False
+                    
+                    # Check pre-closing question flag
+                    if hasattr(ai_session, 'asked_pre_closing_question') and ai_session.asked_pre_closing_question:
+                        # Check if we just answered the pre-closing question (before asked_for_questions is set)
+                        if hasattr(ai_session, 'asked_for_questions') and not ai_session.asked_for_questions:
+                            is_pre_closing_question = True
+                            print(f"📝 Detected pre-closing question answer")
+                    
+                    # Check if this is a closing question answer
+                    if hasattr(ai_session, 'last_active_question_text') and ai_session.last_active_question_text:
+                        closing_phrases = ["do you have any question", "any questions for", "before we wrap up"]
+                        is_closing_question = any(phrase in ai_session.last_active_question_text.lower() for phrase in closing_phrases)
+                        if is_closing_question:
+                            print(f"📝 Detected closing question answer")
+                    
+                    # Determine answer text:
+                    # - If transcript exists and is valid, use it (even if it's "no")
+                    # - If transcript is empty or invalid, use "No answer provided"
+                    if transcript and transcript.strip() and not transcript.startswith("[") and not transcript.startswith("[No speech"):
+                        answer_text = transcript.strip()
+                    else:
+                        answer_text = 'No answer provided'
+                    
+                    # IMPORTANT: Always save answers for pre-closing and closing questions
+                    is_special_question = is_pre_closing_question or is_closing_question
+                    
                     if questions.exists():
-                        # Get the question at the index we're answering
-                        if question_to_answer < questions.count():
+                        # Try to find the question by matching the last_active_question_text first (most reliable)
+                        question_obj = None
+                        if hasattr(ai_session, 'last_active_question_text') and ai_session.last_active_question_text:
+                            # Try exact text match first
+                            matching_question = questions.filter(
+                                question_text=ai_session.last_active_question_text
+                            ).first()
+                            if matching_question:
+                                question_obj = matching_question
+                                print(f"✅ Found question by exact text match: order {question_obj.order}")
+                            else:
+                                # Try partial match (in case of slight variations)
+                                for q in questions:
+                                    if ai_session.last_active_question_text.lower().strip() in q.question_text.lower() or q.question_text.lower() in ai_session.last_active_question_text.lower().strip():
+                                        question_obj = q
+                                        print(f"✅ Found question by partial text match: order {question_obj.order}")
+                                        break
+                        
+                        # If not found by text, try by order
+                        if not question_obj and question_to_answer < questions.count():
                             question_obj = questions[question_to_answer]
-                            question_obj.transcribed_answer = transcript
-                            # Calculate response time if available
-                            import time as time_module
-                            if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
-                                response_time = time_module.time() - ai_session.question_asked_at
+                            print(f"✅ Found question by order index: {question_to_answer}")
+                        
+                        # If still not found, try to find the last question without an answer (for pre-closing/closing)
+                        if not question_obj:
+                            unanswered_question = questions.filter(transcribed_answer__isnull=True).last()
+                            if unanswered_question:
+                                question_obj = unanswered_question
+                                print(f"✅ Found last unanswered question: order {question_obj.order}")
+                        
+                        # For pre-closing/closing questions, also try to find by checking if it's the second-to-last or last question
+                        if not question_obj and is_special_question:
+                            # Pre-closing and closing are usually the last or second-to-last questions
+                            if questions.count() >= 2:
+                                # Try second-to-last (might be pre-closing)
+                                question_obj = questions[questions.count() - 2]
+                                print(f"✅ Found question as second-to-last (pre-closing?): order {question_obj.order}")
+                            elif questions.count() >= 1:
+                                # Try last question (might be closing)
+                                question_obj = questions.last()
+                                print(f"✅ Found question as last (closing?): order {question_obj.order}")
+                        
+                        if question_obj:
+                            # Always save for pre-closing and closing questions, or if there's an actual answer
+                            if is_special_question or answer_text != 'No answer provided':
+                                # IMPORTANT: Save Interviewee answer as a SEPARATE record with role='INTERVIEWEE'
+                                # Get the maximum conversation_sequence to ensure sequential indexing
+                                from django.db.models import Max
+                                max_seq_result = InterviewQuestion.objects.filter(
+                                    session=django_session
+                                ).aggregate(max_seq=Max('conversation_sequence'))
+                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                
+                                # Interviewee answers get even sequence numbers (2, 4, 6, 8...)
+                                # If last sequence was odd (AI question), next is even (Interviewee answer)
+                                # If last sequence was even or null, calculate next even number
+                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
+                                    interviewee_sequence = max_seq + 1
+                                else:  # Last was Interviewee or no sequence, find next even
+                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
+                                
+                                # Format answer text (remove A: prefix for cleaner storage)
+                                answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
+                                if answer_text_formatted.startswith('A:'):
+                                    answer_text_formatted = answer_text_formatted.replace('A:', '').strip()
+                                
+                                # Calculate response time if available
+                                import time as time_module
+                                response_time = 0
+                                if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
+                                    response_time = time_module.time() - ai_session.question_asked_at
+                                
+                                # Create separate record for Interviewee answer
+                                interviewee_response = InterviewQuestion.objects.create(
+                                    session=django_session,
+                                    question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
+                                    question_type=question_obj.question_type,
+                                    order=question_obj.order,  # Same order as the question it answers
+                                    question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
+                                    transcribed_answer=answer_text_formatted,  # The actual answer text
+                                    response_time_seconds=response_time,
+                                    role='INTERVIEWEE',  # This is an Interviewee response
+                                    conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
+                                )
+                                print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
+                                
+                                # Also update the original question's transcribed_answer for backward compatibility
+                                original_order = question_obj.order  # Preserve order
+                                question_obj.transcribed_answer = f'A: {answer_text_formatted}'
                                 question_obj.response_time_seconds = response_time
-                            question_obj.save()
-                            print(f"✅ Saved answer to database for question {question_obj.order}: {transcript[:50]}...")
+                                question_obj.save(update_fields=['transcribed_answer', 'response_time_seconds'])
+                                print(f"✅ Updated original question record for backward compatibility: {answer_text[:50]}...")
+                            elif answer_text == 'No answer provided' and not is_special_question:
+                                # For non-special questions, only save if there's an actual answer
+                                pass
                         else:
-                            # Create a new question if it doesn't exist
-                            last_question = questions.last()
-                            new_order = last_question.order + 1 if last_question else 0
+                            print(f"⚠️ Could not find question to save answer. Creating new question...")
+                            # Create a new question if it doesn't exist (including pre-closing and closing questions)
+                            # Get the maximum order to ensure unique sequential ordering
+                            from django.db.models import Max
+                            max_order_result = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).aggregate(max_order=Max('order'))
+                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
+                            new_order = max_order + 1
+                            
+                            # Determine question level
+                            question_level = 'MAIN'
+                            if is_pre_closing_question:
+                                question_level = 'MAIN'  # Pre-closing is still MAIN level
+                            elif is_closing_question:
+                                question_level = 'MAIN'  # Closing is still MAIN level
+                            
+                            # Format question text with Q: prefix
+                            question_text_formatted = (ai_session.last_active_question_text or "Question").strip()
+                            if not question_text_formatted.startswith('Q:'):
+                                question_text_formatted = f'Q: {question_text_formatted}'
+                            
+                            # Format answer text with A: prefix
+                            answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
+                            if not answer_text_formatted.startswith('A:'):
+                                answer_text_formatted = f'A: {answer_text_formatted}'
+                            
                             question_obj = InterviewQuestion.objects.create(
                                 session=django_session,
-                                question_text=ai_session.last_active_question_text or "Question",
+                                question_text=question_text_formatted,
                                 question_type='TECHNICAL',
                                 order=new_order,
-                                question_level='MAIN',
-                                transcribed_answer=transcript
+                                question_level=question_level,
+                                transcribed_answer=answer_text_formatted  # Save the answer immediately with A: prefix
                             )
-                            print(f"✅ Created and saved answer to new question {new_order}")
+                            print(f"✅ Created and saved answer to new question {new_order} ({'pre-closing' if is_pre_closing_question else 'closing' if is_closing_question else 'regular'}): {answer_text[:50]}...")
+                    else:
+                        # No questions exist yet - create the question with answer
+                        # Use order 0 for the first question
+                        # Format question text with Q: prefix
+                        question_text_formatted = (ai_session.last_active_question_text or "Question").strip()
+                        if not question_text_formatted.startswith('Q:'):
+                            question_text_formatted = f'Q: {question_text_formatted}'
+                        
+                        # Format answer text with A: prefix
+                        answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
+                        if not answer_text_formatted.startswith('A:'):
+                            answer_text_formatted = f'A: {answer_text_formatted}'
+                        
+                        question_obj = InterviewQuestion.objects.create(
+                            session=django_session,
+                            question_text=question_text_formatted,
+                            question_type='TECHNICAL',
+                            order=0,  # First question gets order 0
+                            question_level='MAIN',
+                            transcribed_answer=answer_text_formatted
+                        )
+                        print(f"✅ Created first question with answer (order 0): {answer_text[:50]}...")
                 except Exception as e:
                     print(f"⚠️ Error saving answer to database: {e}")
                     import traceback
@@ -2553,14 +3174,171 @@ def ai_upload_answer(request):
         
         result = upload_answer(session_id, transcript)
         
-        # Create new question in database if a next question was generated
-        if 'error' not in result and not result.get('completed') and session_id and session_id in sessions:
+        # Handle candidate questions and AI answers - save them to database
+        if 'error' not in result and session_id and session_id in sessions:
             ai_session = sessions[session_id]
             if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
                 try:
                     django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
+                    
+                    # Check if this is a candidate question scenario (candidate asked a question, AI answered)
+                    interviewer_answer = result.get('interviewer_answer', '')
+                    if interviewer_answer:
+                        # This is a candidate question - save both the question and AI's answer
+                        from .complete_ai_bot import is_candidate_question
+                        if is_candidate_question(transcript):
+                            # Check if the last question is a closing question - if so, insert candidate question before it
+                            closing_phrases = ["do you have any question", "any questions for", "before we wrap up"]
+                            last_question = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).order_by('-order').first()
+                            
+                            if last_question and any(phrase in last_question.question_text.lower() for phrase in closing_phrases):
+                                # Last question is a closing question - insert candidate question before it
+                                candidate_order = last_question.order
+                                # Shift closing question and any questions after it by +1
+                                from django.db.models import F
+                                InterviewQuestion.objects.filter(
+                                    session=django_session,
+                                    order__gte=candidate_order
+                                ).update(order=F('order') + 1)
+                                
+                                # Format candidate's question with Q: prefix (candidate asked, so it's a question)
+                                candidate_q_formatted = transcript.strip()
+                                if not candidate_q_formatted.startswith('Q:'):
+                                    candidate_q_formatted = f'Q: {candidate_q_formatted}'
+                                
+                                # Format AI's answer with A: prefix
+                                ai_answer_formatted = interviewer_answer.strip() if interviewer_answer else 'No answer provided'
+                                if not ai_answer_formatted.startswith('A:'):
+                                    ai_answer_formatted = f'A: {ai_answer_formatted}'
+                                
+                                # Save candidate question with the order that was previously the closing question's order
+                                candidate_question_obj = InterviewQuestion.objects.create(
+                                    session=django_session,
+                                    question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                    question_type='TECHNICAL',
+                                    order=candidate_order,  # Insert before closing question
+                                    question_level='CANDIDATE_QUESTION',  # Special level to identify candidate questions
+                                    transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                )
+                                print(f"✅ Saved candidate question BEFORE closing question with order {candidate_order}: Q: {transcript[:50]}... | A: {interviewer_answer[:50]}...")
+                            else:
+                                # No closing question found, use normal max_order + 1
+                                existing_questions = InterviewQuestion.objects.filter(
+                                    session=django_session
+                                ).order_by('-order')
+                                max_order = existing_questions.first().order if existing_questions.exists() else -1
+                                
+                                # Format candidate's question with Q: prefix
+                                candidate_q_formatted = transcript.strip()
+                                if not candidate_q_formatted.startswith('Q:'):
+                                    candidate_q_formatted = f'Q: {candidate_q_formatted}'
+                                
+                                # Format AI's answer with A: prefix
+                                ai_answer_formatted = interviewer_answer.strip() if interviewer_answer else 'No answer provided'
+                                if not ai_answer_formatted.startswith('A:'):
+                                    ai_answer_formatted = f'A: {ai_answer_formatted}'
+                                
+                                # Save candidate's question as a question with question_level='CANDIDATE_QUESTION'
+                                candidate_question_obj = InterviewQuestion.objects.create(
+                                    session=django_session,
+                                    question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                    question_type='TECHNICAL',
+                                    order=max_order + 1,
+                                    question_level='CANDIDATE_QUESTION',  # Special level to identify candidate questions
+                                    transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                )
+                                print(f"✅ Saved candidate question and AI answer: Q: {transcript[:50]}... | A: {interviewer_answer[:50]}...")
+                    
+                    # Also check for candidate questions in closing phase (when AI answers candidate's question)
+                    # Check if the result contains a combined response (answer + "Do you have any other questions?")
                     next_question_text = result.get('next_question', '')
-                    if next_question_text and next_question_text.strip():
+                    if next_question_text and 'do you have any other question' in next_question_text.lower() and not interviewer_answer:
+                        # This might be after answering a candidate question - check if transcript is a question
+                        from .complete_ai_bot import is_candidate_question
+                        if is_candidate_question(transcript):
+                            # Check if we already saved this candidate question
+                            existing_candidate_q = InterviewQuestion.objects.filter(
+                                session=django_session,
+                                question_text=transcript,
+                                question_level='CANDIDATE_QUESTION'
+                            ).first()
+                            
+                            if not existing_candidate_q:
+                                # Check if the last question is a closing question - if so, insert candidate question before it
+                                closing_phrases = ["do you have any question", "any questions for", "before we wrap up"]
+                                last_question = InterviewQuestion.objects.filter(
+                                    session=django_session
+                                ).order_by('-order').first()
+                                
+                                # Extract AI's answer from the combined text (before "Do you have any other questions?")
+                                answer_parts = next_question_text.split('Do you have any other questions')
+                                ai_answer = answer_parts[0].strip() if answer_parts else next_question_text
+                                
+                                if last_question and any(phrase in last_question.question_text.lower() for phrase in closing_phrases):
+                                    # Last question is a closing question - insert candidate question before it
+                                    candidate_order = last_question.order
+                                    # Shift closing question and any questions after it by +1
+                                    from django.db.models import F
+                                    InterviewQuestion.objects.filter(
+                                        session=django_session,
+                                        order__gte=candidate_order
+                                    ).update(order=F('order') + 1)
+                                    
+                                    # Format candidate's question with Q: prefix
+                                    candidate_q_formatted = transcript.strip()
+                                    if not candidate_q_formatted.startswith('Q:'):
+                                        candidate_q_formatted = f'Q: {candidate_q_formatted}'
+                                    
+                                    # Format AI's answer with A: prefix
+                                    ai_answer_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
+                                    if not ai_answer_formatted.startswith('A:'):
+                                        ai_answer_formatted = f'A: {ai_answer_formatted}'
+                                    
+                                    # Save candidate question with the order that was previously the closing question's order
+                                    candidate_question_obj = InterviewQuestion.objects.create(
+                                        session=django_session,
+                                        question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                        question_type='TECHNICAL',
+                                        order=candidate_order,  # Insert before closing question
+                                        question_level='CANDIDATE_QUESTION',
+                                        transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                    )
+                                    print(f"✅ Saved candidate question BEFORE closing question (closing phase) with order {candidate_order}: Q: {transcript[:50]}... | A: {ai_answer[:50]}...")
+                                else:
+                                    # No closing question found, use normal max_order + 1
+                                    existing_questions = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).order_by('-order')
+                                    max_order = existing_questions.first().order if existing_questions.exists() else -1
+                                    
+                                    # Format candidate's question with Q: prefix
+                                    candidate_q_formatted = transcript.strip()
+                                    if not candidate_q_formatted.startswith('Q:'):
+                                        candidate_q_formatted = f'Q: {candidate_q_formatted}'
+                                    
+                                    # Format AI's answer with A: prefix
+                                    ai_answer_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
+                                    if not ai_answer_formatted.startswith('A:'):
+                                        ai_answer_formatted = f'A: {ai_answer_formatted}'
+                                    
+                                    # Save candidate's question and AI's answer
+                                    candidate_question_obj = InterviewQuestion.objects.create(
+                                        session=django_session,
+                                        question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                        question_type='TECHNICAL',
+                                        order=max_order + 1,
+                                        question_level='CANDIDATE_QUESTION',
+                                        transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                    )
+                                    print(f"✅ Saved candidate question from closing phase: Q: {transcript[:50]}... | A: {ai_answer[:50]}...")
+                    
+                    # Also check for closing question in final_message if interview is completed
+                    if not next_question_text and result.get('completed') and result.get('final_message'):
+                        # This is the final closing message, not a question
+                        pass
+                    elif next_question_text and next_question_text.strip():
                         # Check if this question already exists
                         existing_questions = InterviewQuestion.objects.filter(
                             session=django_session
@@ -2573,16 +3351,101 @@ def ai_upload_answer(request):
                         question_exists = existing_questions.filter(order=current_q_num - 1).exists()
                         
                         if not question_exists:
-                            # Create new question
-                            InterviewQuestion.objects.create(
+                            # Determine question type - check if it's a pre-closing or closing question
+                            is_closing_question = any(phrase in next_question_text.lower() for phrase in [
+                                "do you have any question", "any questions for", "before we wrap up"
+                            ])
+                            
+                            # Check if this is a pre-closing question
+                            is_pre_closing = False
+                            if hasattr(ai_session, 'asked_pre_closing_question') and ai_session.asked_pre_closing_question:
+                                if hasattr(ai_session, 'asked_for_questions') and not ai_session.asked_for_questions:
+                                    is_pre_closing = True
+                            
+                            # Get the maximum order to ensure unique sequential ordering
+                            from django.db.models import Max
+                            max_order_result = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).aggregate(max_order=Max('order'))
+                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
+                            new_order = max_order + 1
+                            
+                            # IMPORTANT: If this is a closing question, check if there's a candidate question that should come before it
+                            # Candidate questions should always come before closing questions
+                            if is_closing_question:
+                                # Check if there's a candidate question without a following closing question
+                                candidate_questions = InterviewQuestion.objects.filter(
+                                    session=django_session,
+                                    question_level='CANDIDATE_QUESTION'
+                                ).order_by('-order')
+                                
+                                if candidate_questions.exists():
+                                    last_candidate = candidate_questions.first()
+                                    # Check if there's already a closing question after this candidate question
+                                    closing_after_candidate = InterviewQuestion.objects.filter(
+                                        session=django_session,
+                                        order__gt=last_candidate.order
+                                    ).filter(
+                                        question_text__icontains='do you have any question'
+                                    ).exists()
+                                    
+                                    if not closing_after_candidate:
+                                        # No closing question after candidate - use candidate's order + 1
+                                        new_order = last_candidate.order + 1
+                                        print(f"✅ Adjusting closing question order to {new_order} (after candidate question at order {last_candidate.order})")
+                            
+                            # Format question text (remove Q: prefix for cleaner storage)
+                            question_text_formatted = next_question_text.strip()
+                            if question_text_formatted.startswith('Q:'):
+                                question_text_formatted = question_text_formatted.replace('Q:', '').strip()
+                            
+                            # Get the maximum conversation_sequence to ensure sequential indexing
+                            max_seq_result = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).aggregate(max_seq=Max('conversation_sequence'))
+                            max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                            
+                            # AI questions get odd sequence numbers (1, 3, 5, 7...)
+                            # If last sequence was even (Interviewee answer), next is AI (odd)
+                            # If last sequence was odd or null, calculate next odd number
+                            if max_seq % 2 == 0 and max_seq > 0:  # Last was Interviewee (even), next is AI (odd)
+                                ai_sequence = max_seq + 1
+                            else:  # Last was AI or no sequence, find next odd
+                                ai_sequence = ((max_seq // 2) + 1) * 2 + 1
+                            
+                            # Create new AI question with proper sequential order
+                            question_obj = InterviewQuestion.objects.create(
                                 session=django_session,
-                                question_text=next_question_text,
+                                question_text=question_text_formatted,  # AI question text (without Q: prefix)
                                 question_type='TECHNICAL',
-                                order=current_q_num - 1,
+                                order=new_order,  # Use calculated order (may be adjusted for closing questions)
                                 question_level='MAIN',
-                                audio_url=result.get('audio_url', '')
+                                audio_url=result.get('audio_url', ''),
+                                role='AI',  # This is an AI-generated question
+                                conversation_sequence=ai_sequence  # Sequential index: 1, 3, 5, 7...
                             )
-                            print(f"✅ Created new question {current_q_num - 1} in database")
+                            question_type_label = 'pre-closing' if is_pre_closing else 'closing' if is_closing_question else 'regular'
+                            print(f"✅ Created new AI {question_type_label} question: conversation_sequence {ai_sequence}, role=AI, order {new_order}: {next_question_text[:50]}...")
+                            
+                            # If interview is completed and we just created the closing question,
+                            # OR if this is a pre-closing/closing question, try to save the answer if transcript is available
+                            if result.get('completed') or is_closing_question or is_pre_closing:
+                                try:
+                                    # For pre-closing/closing questions, save actual transcript if available (even if it's "no")
+                                    # Only use "No answer provided" if transcript is truly empty
+                                    if transcript and transcript.strip() and not transcript.startswith("[") and not transcript.startswith("[No speech"):
+                                        answer_text = transcript.strip()
+                                        # Format answer with A: prefix
+                                        if not answer_text.startswith('A:'):
+                                            answer_text = f'A: {answer_text}'
+                                        question_obj.transcribed_answer = answer_text
+                                        question_obj.save()
+                                        print(f"✅ Saved answer to {question_type_label} question: {answer_text[:50]}...")
+                                    else:
+                                        # Don't save "No answer provided" yet - wait for the actual answer
+                                        print(f"⚠️ No transcript available yet for {question_type_label} question, will save when answer comes")
+                                except Exception as e:
+                                    print(f"⚠️ Error saving {question_type_label} question answer: {e}")
                 except Exception as e:
                     print(f"⚠️ Error creating question in database: {e}")
         
@@ -2714,7 +3577,7 @@ def verify_id(request):
             return JsonResponse({'status': 'error', 'message': message})
 
         try:
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             id_number, name = extract_id_data(tmp_path, model)
         except Exception as ai_error:
             print(f"AI OCR failed: {ai_error}")
@@ -2745,11 +3608,19 @@ def verify_id(request):
     pass
 
 # --- Multi-Language Code Execution Logic (Windows Compatible) ---
-def run_subprocess_windows(command, cwd=None, input_data=None):
+def run_subprocess_windows(command, cwd=None, input_data=None, env=None):
     try:
         # Reduced timeout to 5 seconds per test case for faster execution
         # Multiple test cases can accumulate, so keep individual timeouts very short
-        result = subprocess.run(command, capture_output=True, text=True, timeout=5, cwd=cwd, input=input_data)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=cwd,
+            input=input_data,
+            env=env,
+        )
         return result
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(command, 1, stdout=None, stderr="Execution timed out after 5 seconds. Code may be too slow or have infinite loops.")
@@ -2811,6 +3682,308 @@ def execute_python_windows(code, test_input):
 def execute_javascript_windows(code, test_input):
     full_script = f"{code}\nconsole.log(solve({test_input}));"
     return run_subprocess_windows(['node', '-e', full_script])
+
+def _extract_go_imports_and_body(code: str):
+    """
+    Separate Go imports from the rest of the source so we can rebuild a harness.
+    Returns (imports_set, body_string).
+    """
+    imports = []
+    body_lines = []
+    lines = code.splitlines()
+    i = 0
+
+    # Skip leading shebang/comments/blank lines but capture everything else
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.startswith("package "):
+            i += 1
+            break
+        if stripped:
+            break
+        i += 1
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith("import"):
+            if stripped.startswith("import (") or stripped == "import(":
+                i += 1
+                while i < len(lines):
+                    inner = lines[i].strip()
+                    if inner == ")":
+                        break
+                    if inner:
+                        pkg = inner.split("//")[0].strip().strip('"').strip('`')
+                        if pkg:
+                            imports.append(pkg)
+                    i += 1
+            else:
+                remainder = stripped[len("import"):].split("//")[0].strip()
+                if remainder:
+                    pkg = remainder.split()[-1].strip('"').strip('`')
+                    if pkg:
+                        imports.append(pkg)
+        else:
+            body_lines.extend(lines[i:])
+            break
+        i += 1
+
+    body = "\n".join(body_lines).strip()
+    return set(imports), body
+
+def _format_go_arguments(raw_input: str) -> str:
+    if not raw_input or raw_input.lower() == "n/a":
+        return ""
+    raw = raw_input.strip()
+    if raw.startswith("(") and raw.endswith(")"):
+        raw = raw[1:-1]
+
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    formatted = []
+    for part in parts:
+        lower = part.lower()
+        if re.fullmatch(r"-?\d+", part) or re.fullmatch(r"-?\d+\.\d+", part):
+            formatted.append(part)
+        elif lower in {"true", "false", "nil"}:
+            formatted.append(lower)
+        elif part.startswith('"') and part.endswith('"'):
+            formatted.append(part)
+        elif part.startswith("'") and part.endswith("'"):
+            inner = part[1:-1]
+            if len(inner) == 1:
+                formatted.append(f"'{inner}'")
+            else:
+                escaped = inner.replace('"', '\\"')
+                formatted.append(f"\"{escaped}\"")
+        else:
+            formatted.append(part)
+    return ", ".join(formatted)
+
+def _detect_go_entrypoint(code_body: str) -> str:
+    candidates = re.findall(r'^\s*func\s+(\w+)\s*\(', code_body, flags=re.MULTILINE)
+    for name in candidates:
+        if name and name != "main":
+            return name
+    return "solve"
+
+def execute_go_windows(code, test_input):
+    """
+    Compile and execute Go code by wrapping the submission with a harness
+    that calls the detected function using the provided test input.
+    """
+    go_cmd = shutil.which("go")
+    if not go_cmd:
+        message = (
+            "Go toolchain is not available on the server. "
+            "Install Go and ensure the 'go' binary is on PATH."
+        )
+        return subprocess.CompletedProcess(["go"], 1, stdout="", stderr=message)
+
+    imports, body = _extract_go_imports_and_body(code)
+    body = re.sub(r'func\s+main\s*\([^)]*\)\s*{[\s\S]*?}\s*', '', body)
+    imports.add("fmt")
+
+    function_name = _detect_go_entrypoint(body)
+    arg_expr = _format_go_arguments(test_input or "")
+    call_expr = f"{function_name}({arg_expr})" if arg_expr else f"{function_name}()"
+
+    if len(imports) == 1:
+        import_section = f'import "{next(iter(imports))}"\n'
+    else:
+        import_section = "import (\n"
+        for pkg in sorted(imports):
+            import_section += f'    "{pkg}"\n'
+        import_section += ")\n"
+
+    harness = (
+        "package main\n\n"
+        f"{import_section}\n"
+        f"{body}\n\n"
+        "func main() {\n"
+        f"    fmt.Println({call_expr})\n"
+        "}\n"
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        go_file_path = os.path.join(temp_dir, "main.go")
+        with open(go_file_path, "w", encoding="utf-8") as go_file:
+            go_file.write(harness)
+
+        run_result = run_subprocess_windows([go_cmd, "run", go_file_path], cwd=temp_dir)
+        return run_result
+
+def _resolve_php_binary():
+    php_cmd = shutil.which("php")
+    if php_cmd:
+        return php_cmd
+
+    configured = getattr(settings, "PHP_PATH", None) or os.environ.get("PHP_PATH")
+    if configured:
+        if os.path.isfile(configured):
+            return configured
+        possible = os.path.join(configured, "php.exe")
+        if os.path.isfile(possible):
+            return possible
+
+    common_candidates = [
+        r"C:\tools\php84\php.exe",
+        r"C:\tools\php\php.exe",
+        r"C:\Program Files\PHP\php.exe",
+        r"C:\Program Files\Php\php.exe",
+        r"C:\Program Files (x86)\PHP\php.exe",
+    ]
+    for candidate in common_candidates:
+        if os.path.isfile(candidate):
+            return candidate
+
+    return None
+
+def _detect_cpp_entrypoint(code: str) -> str:
+    pattern = re.compile(r'^\s*[^\s#][\w\s:<>,*&\[\]]+\s+([A-Za-z_]\w*)\s*\(', flags=re.MULTILINE)
+    for match in pattern.finditer(code):
+        name = match.group(1)
+        if name and name not in {"if", "for", "while", "switch", "return", "main"}:
+            return name
+    return "solve"
+
+def _format_cpp_arguments(raw_input: str) -> str:
+    if not raw_input or raw_input.lower() == "n/a":
+        return ""
+    raw = raw_input.strip()
+    if raw.startswith(("'", '"')) and raw.endswith(("'", '"')) and "," in raw:
+        raw = raw[1:-1]
+    if raw.startswith("(") and raw.endswith(")"):
+        raw = raw[1:-1]
+
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    formatted = []
+    for part in parts:
+        lower = part.lower()
+        if re.fullmatch(r"-?\d+", part) or re.fullmatch(r"-?\d+\.\d+", part):
+            formatted.append(part)
+        elif lower in {"true", "false", "nullptr", "null"}:
+            formatted.append(lower)
+        elif part.startswith('"') and part.endswith('"'):
+            inner = part[1:-1].replace('"', r'\"')
+            formatted.append(f"\"{inner}\"")
+        elif part.startswith("'") and part.endswith("'"):
+            inner = part[1:-1]
+            if len(inner) == 1:
+                formatted.append(f"'{inner}'")
+            else:
+                escaped = inner.replace('"', '\\"')
+                formatted.append(f"\"{escaped}\"")
+        else:
+            formatted.append(part)
+    return ", ".join(formatted)
+
+def _resolve_cpp_compiler():
+    configured = getattr(settings, "CPP_COMPILER", None) or os.environ.get("CPP_COMPILER")
+    if configured:
+        if os.path.isfile(configured):
+            return configured
+        possible = os.path.join(configured, "g++.exe")
+        if os.path.isfile(possible):
+            return possible
+
+    compiler = shutil.which("g++")
+    if compiler:
+        return compiler
+
+    candidates = [
+        r"C:\msys641\mingw64\bin\g++.exe",
+        r"C:\msys64\mingw64\bin\g++.exe",
+        r"C:\msys64\ucrt64\bin\g++.exe",
+        r"C:\mingw64\bin\g++.exe",
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+def execute_cpp_windows(code, test_input, treat_as_c=False):
+    compiler = _resolve_cpp_compiler()
+    if not compiler:
+        message = (
+            "C/C++ compiler not available on the server. "
+            "Install MinGW-w64 (g++) and ensure it is on PATH."
+        )
+        return subprocess.CompletedProcess(["g++"], 1, stdout="", stderr=message)
+
+    function_name = _detect_cpp_entrypoint(code)
+    arg_expr = _format_cpp_arguments(test_input or "")
+    call_expr = f"{function_name}({arg_expr})" if arg_expr else f"{function_name}()"
+
+    base_includes = [
+        "#include <bits/stdc++.h>",
+        "#include <type_traits>",
+        "#include <functional>",
+    ]
+
+    extra_includes = []
+    body_content = code
+    if treat_as_c:
+        user_lines = code.splitlines()
+        remaining_lines = []
+        for line in user_lines:
+            stripped = line.strip()
+            if stripped.startswith("#include"):
+                extra_includes.append(line)
+            else:
+                remaining_lines.append(line)
+        body_content = "\n".join(remaining_lines)
+
+    includes_block = "\n".join(base_includes + extra_includes) + "\n\n"
+    harness = includes_block
+    if treat_as_c:
+        harness += "#ifdef __cplusplus\nextern \"C\" {\n#endif\n"
+        harness += body_content + "\n"
+        harness += "#ifdef __cplusplus\n}\n#endif\n"
+    else:
+        harness += body_content + "\n"
+
+    harness += """
+template <typename Func, typename... Args>
+void invoke_and_print(Func&& func, Args&&... args) {
+    using Result = std::invoke_result_t<Func, Args...>;
+    if constexpr (std::is_void_v<Result>) {
+        std::invoke(std::forward<Func>(func), std::forward<Args>(args)...);
+    } else {
+        auto result = std::invoke(std::forward<Func>(func), std::forward<Args>(args)...);
+        std::cout << result;
+    }
+}
+
+int main() {
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(nullptr);
+"""
+    if arg_expr:
+        harness += f"    invoke_and_print({function_name}, {arg_expr});\n"
+    else:
+        harness += f"    invoke_and_print({function_name});\n"
+    harness += "    return 0;\n}\n"
+
+    compiler_dir = os.path.dirname(compiler)
+    env = os.environ.copy()
+    env["PATH"] = compiler_dir + os.pathsep + env.get("PATH", "")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source_path = os.path.join(temp_dir, "solution.cpp")
+        with open(source_path, "w", encoding="utf-8") as cpp_file:
+            cpp_file.write(harness)
+
+        executable_path = os.path.join(temp_dir, "solution.exe")
+        compile_result = run_subprocess_windows(
+            [compiler, "-std=c++17", source_path, "-o", executable_path],
+            env=env,
+        )
+        if compile_result.returncode != 0:
+            return compile_result
+
+        run_result = run_subprocess_windows([executable_path], cwd=temp_dir, env=env)
+        return run_result
 
 def _resolve_java_binary(binary_name: str):
     """
@@ -3012,11 +4185,25 @@ def execute_java_windows(code, test_input):
 
 def execute_php_windows(code, test_input):
     full_script = f"<?php {code} echo solve({test_input}); ?>"
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.php', delete=False) as temp_file:
+    php_cmd = _resolve_php_binary()
+    if not php_cmd:
+        message = (
+            "PHP runtime is not available on the server. "
+            "Install PHP and ensure the executable is on PATH or configure PHP_PATH."
+        )
+        return subprocess.CompletedProcess(["php"], 1, stdout="", stderr=message)
+
+    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.php', delete=False, encoding='utf-8')
+    try:
         temp_file.write(full_script)
         temp_file.flush()
-    result = run_subprocess_windows(['php', temp_file.name])
-    os.remove(temp_file.name)
+        temp_file.close()
+        result = run_subprocess_windows([php_cmd, temp_file.name])
+    finally:
+        try:
+            os.remove(temp_file.name)
+        except OSError:
+            pass
     return result
 
 def execute_ruby_windows(code, test_input):
@@ -3066,6 +4253,9 @@ def run_test_suite(code, language, test_cases):
         'PYTHON': execute_python_windows,
         'JAVASCRIPT': execute_javascript_windows,
         'JAVA': execute_java_windows,
+        'GO': execute_go_windows,
+        'C': lambda code, test_input: execute_cpp_windows(code, test_input, treat_as_c=True),
+        'CPP': execute_cpp_windows,
         'PHP': execute_php_windows,
         'RUBY': execute_ruby_windows,
         'CSHARP': execute_csharp_windows,
@@ -3288,7 +4478,7 @@ def submit_coding_challenge(request):
             })
         
         print(f"✅ Test Results: {passed_count}/{total_count} passed")
-        
+
         # Create detailed log (no Gemini evaluation)
         final_log = f"Test Results: {passed_count}/{total_count} passed\n\n"
         for result in test_results:
@@ -3302,8 +4492,8 @@ def submit_coding_challenge(request):
             final_log += "\n"
         
         
-        # Store submission without AI evaluation
-        CodeSubmission.objects.create(
+        # Store submission with AI evaluation feedback (if available)
+        code_submission = CodeSubmission.objects.create(
             session=session,
             question_id=str(question.id),
             submitted_code=submitted_code,
@@ -3312,20 +4502,40 @@ def submit_coding_challenge(request):
             output_log=final_log,
             gemini_evaluation=None
         )
+        
+        # Also update the InterviewQuestion with the actual submitted code
+        # This ensures the code is available even if CodeSubmission lookup fails
+        try:
+            # Save the actual code to transcribed_answer so it's always available
+            # Format: Store the code with a prefix indicating test results
+            code_with_results = f"Code submitted: {passed_count}/{total_count} test cases passed\n\nSubmitted Code:\n{submitted_code}"
+            question.transcribed_answer = code_with_results
+            question.save(update_fields=['transcribed_answer'])
+            print(f"✅ Updated InterviewQuestion {question.id} with code submission (code length: {len(submitted_code)} chars)")
+            print(f"   CodeSubmission saved with question_id: {str(question.id)}")
+        except Exception as e:
+            print(f"⚠️ Error updating InterviewQuestion: {e}")
+            import traceback
+            traceback.print_exc()
 
         session.status = 'COMPLETED'
         session.save()
         print(f"--- Session {session.session_key} with coding challenge marked as COMPLETED. ---")
         
-        # Trigger comprehensive evaluation
+        # Trigger comprehensive evaluation and persist detailed results
         try:
-            from interview_app_11.comprehensive_evaluation_service import comprehensive_evaluation_service
-            evaluation_results = comprehensive_evaluation_service.evaluate_complete_interview(session.session_key)
-            print(f"--- Comprehensive evaluation completed for session {session.session_key} ---")
-            print(f"Overall Score: {evaluation_results['overall_score']:.1f}/100")
-            print(f"Recommendation: {evaluation_results['recommendation']}")
+            from evaluation.services import create_evaluation_from_session
+            evaluation = create_evaluation_from_session(session.session_key)
+            if evaluation and evaluation.details:
+                ai_analysis = evaluation.details.get('ai_analysis', {})
+                overall = ai_analysis.get('overall_score_10') or (ai_analysis.get('overall_score', 0) / 10.0)
+                recommendation = ai_analysis.get('recommendation') or ai_analysis.get('hiring_recommendation')
+                print(f"--- Comprehensive evaluation stored for session {session.session_key} ---")
+                print(f"Overall Score (0-10): {overall:.2f}")
+                if recommendation:
+                    print(f"Recommendation: {recommendation}")
         except Exception as e:
-            print(f"--- Error in comprehensive evaluation: {e} ---")
+            print(f"--- Error creating stored evaluation: {e} ---")
         
         release_camera_for_session(session.session_key)
         return JsonResponse({"status": "ok", "message": "Submission successful."})

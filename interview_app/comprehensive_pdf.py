@@ -238,7 +238,7 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     genai.configure(api_key=api_key)
                 else:
                     raise ValueError("GEMINI_API_KEY not set in environment")
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                model = genai.GenerativeModel('gemini-2.0-flash')
                 
                 # Build conversation context
                 conversation_text = "\n".join([
@@ -292,7 +292,7 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 api_key = getattr(settings, 'GEMINI_API_KEY', '')
                 if api_key:
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                    model = genai.GenerativeModel('gemini-2.0-flash')
                 else:
                     raise ValueError("GEMINI_API_KEY not set in environment")
                 

@@ -89,3 +89,35 @@ The database doesn't have the `details` field yet. You MUST run the migration:
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

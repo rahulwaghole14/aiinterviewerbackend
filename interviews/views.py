@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
 
 from .models import (
     Interview,
@@ -22,6 +23,7 @@ from .models import (
     AIInterviewConfiguration,
     InterviewConflict,
 )
+from jobs.models import Job
 from .serializers import (
     InterviewSerializer,
     InterviewFeedbackSerializer,
@@ -38,6 +40,9 @@ from utils.logger import log_interview_schedule, log_permission_denied, ActionLo
 from notifications.services import NotificationService
 
 logger = logging.getLogger(__name__)
+
+CODING_LANGUAGE_CHOICES = Job._meta.get_field("coding_language").choices
+ALLOWED_CODING_LANGUAGES = {choice[0] for choice in CODING_LANGUAGE_CHOICES}
 
 
 # ──────────────────────────── Permissions ────────────────────────────────
@@ -482,6 +487,41 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 status="FAILED",
             )
             raise
+
+    def perform_create(self, serializer):
+        candidate = serializer.validated_data.get("candidate")
+        job = serializer.validated_data.get("job") or getattr(candidate, "job", None)
+
+        if not job:
+            raise ValidationError(
+                {"job": "A job with a configured coding language is required before scheduling an interview."}
+            )
+
+        if not job.coding_language:
+            raise ValidationError(
+                {"job": f"Job '{job.job_title}' is missing a coding language. Please update the job before scheduling."}
+            )
+
+        serializer.save(job=job)
+
+    def perform_update(self, serializer):
+        candidate = serializer.validated_data.get("candidate") or serializer.instance.candidate
+        job = serializer.validated_data.get("job")
+
+        if not job and candidate and getattr(candidate, "job", None):
+            job = candidate.job
+
+        if not job:
+            raise ValidationError(
+                {"job": "A job with a configured coding language is required before scheduling an interview."}
+            )
+
+        if not job.coding_language:
+            raise ValidationError(
+                {"job": f"Job '{job.job_title}' is missing a coding language. Please update the job before scheduling."}
+            )
+
+        serializer.save(job=job)
 
     def update(self, request, *args, **kwargs):
         """Log interview update"""
@@ -1043,6 +1083,43 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Ensure interview is linked to a job so we have a coding language source
+        if not interview.job:
+            job_source = None
+            if slot.job:
+                job_source = slot.job
+                print(f"DEBUG: Using job from slot {slot.id}: {slot.job.id}")
+            elif interview.candidate and getattr(interview.candidate, "job", None):
+                job_source = interview.candidate.job
+                print(f"DEBUG: Using job from candidate {interview.candidate.id}: {job_source.id}")
+
+            if job_source:
+                interview.job = job_source
+                interview.save(update_fields=["job"])
+                print(f"✅ Linked interview {interview.id} to job {job_source.id}")
+            else:
+                return Response(
+                    {
+                        "error": (
+                            "Coding language not configured: this interview is not linked to any job. "
+                            "Please assign a job with a coding language before scheduling."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if not interview.job.coding_language:
+            return Response(
+                {
+                    "error": (
+                        f"Job '{interview.job.job_title}' is missing a coding language. "
+                        "Update the job to set coding_language before scheduling."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
         # Check if interview already has a schedule for this slot
         existing_schedule = InterviewSchedule.objects.filter(
             interview=interview,
@@ -1162,10 +1239,12 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
             end_datetime_utc = end_datetime.astimezone(pytz.UTC)
             
             # ALWAYS update interview times to match slot (stored in UTC) - overwrite any existing values
+            # Also set interview.slot directly for easier access (in addition to InterviewSchedule)
             interview.started_at = start_datetime_utc
             interview.ended_at = end_datetime_utc
             interview.status = Interview.Status.SCHEDULED
-            interview.save(update_fields=["started_at", "ended_at", "status"])
+            interview.slot = slot  # Set slot directly for easier access
+            interview.save(update_fields=["started_at", "ended_at", "status", "slot"])
 
         # Auto-create InterviewSession from database and send email (if not exists)
         try:
@@ -1177,16 +1256,11 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 candidate = interview.candidate
                 job = interview.job
                 
-                # CRITICAL: Create InterviewSession even if job is None
-                # Job might be set later, but we need session_key for email
                 if candidate:
-                    # Get coding language from job (if available)
-                    if job:
-                        coding_language = getattr(job, 'coding_language', 'PYTHON')
-                    elif candidate.job:
-                        coding_language = getattr(candidate.job, 'coding_language', 'PYTHON')
+                    if job and getattr(job, 'coding_language', None):
+                        coding_language = str(job.coding_language).upper()
                     else:
-                        coding_language = 'PYTHON'
+                        raise ValueError("Interview job missing coding_language; cannot create coding session.")
                     
                     # Get scheduled time (already set above)
                     scheduled_at = interview.started_at
@@ -1237,13 +1311,6 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                         language_code='en-IN',
                         accent_tld='co.in'
                     )
-                    
-                    # Store coding language
-                    try:
-                        session.keyword_analysis = f"CODING_LANG={coding_language}"
-                        session.save()
-                    except Exception:
-                        pass
                     
                     # Update Interview with session_key
                     interview.session_key = session_key
@@ -1495,10 +1562,12 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
             end_datetime_utc = end_datetime.astimezone(pytz.UTC)
             
             # ALWAYS update interview times to match slot (stored in UTC) - overwrite any existing values
+            # Also set interview.slot directly for easier access (in addition to InterviewSchedule)
             interview.started_at = start_datetime_utc
             interview.ended_at = end_datetime_utc
             interview.status = Interview.Status.SCHEDULED
-            interview.save(update_fields=["started_at", "ended_at", "status"])
+            interview.slot = slot  # Set slot directly for easier access
+            interview.save(update_fields=["started_at", "ended_at", "status", "slot"])
         
         # Send notification to candidate when interview is scheduled
         try:
@@ -1581,13 +1650,6 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                         language_code='en-IN',
                         accent_tld='co.in'
                     )
-                    
-                    # Store coding language
-                    try:
-                        session.keyword_analysis = f"CODING_LANG={coding_language}"
-                        session.save()
-                    except Exception:
-                        pass
                     
                     # Update Interview with session_key
                     interview.session_key = session_key
@@ -1713,13 +1775,6 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 language_code='en-IN',
                 accent_tld='co.in'
             )
-            
-            # Store coding language in keyword_analysis field
-            try:
-                session.keyword_analysis = f"CODING_LANG={coding_language}"
-                session.save()
-            except Exception:
-                pass
             
             # Update Interview with session_key for reference
             interview.session_key = session_key

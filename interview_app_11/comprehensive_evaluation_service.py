@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 # Configure Gemini API
 from django.conf import settings
 _gemini_api_key = getattr(settings, 'GEMINI_API_KEY', '')
+# Fallback to hardcoded key if env key is not available
+if not _gemini_api_key:
+    _gemini_api_key = "AIzaSyBu5M6cEckMIRPdttrBTBcRJmTUi5MkpvE"
+    print("⚠️ GEMINI_API_KEY not set in Django settings, using hardcoded key")
+
 if _gemini_api_key:
     try:
         genai.configure(api_key=_gemini_api_key)
@@ -25,7 +30,7 @@ if _gemini_api_key:
     except Exception as e:
         print(f"⚠️ Error configuring Gemini API: {e}")
 else:
-    print("⚠️ GEMINI_API_KEY not set in Django settings")
+    print("⚠️ GEMINI_API_KEY not available")
 
 class ComprehensiveEvaluationService:
     """
@@ -33,10 +38,10 @@ class ComprehensiveEvaluationService:
     """
     
     def __init__(self):
-        # Try newer models first (gemini-2.5-flash, gemini-2.0-flash-exp)
-        # Then fallback to older models
+        # Use gemini-2.0-flash as primary model, then fallback to others
         model_priority = [
-            'gemini-2.0-flash-exp',  # Latest experimental
+            'gemini-2.0-flash',       # Primary model
+            'gemini-2.0-flash-exp',   # Latest experimental
             'gemini-2.5-flash',       # Latest stable
             'gemini-1.5-pro-latest',  # Latest of 1.5 series
             'models/gemini-pro',      # Try with models/ prefix
@@ -63,6 +68,8 @@ class ComprehensiveEvaluationService:
             self.api_key = _gemini_api_key
         else:
             self.use_rest_api = False
+            # Store API key for potential REST API fallback
+            self.api_key = _gemini_api_key
     
     def evaluate_complete_interview(self, session_key: str) -> Dict[str, Any]:
         """
@@ -237,10 +244,16 @@ class ComprehensiveEvaluationService:
             
             # Get Gemini evaluation with better error handling
             try:
+                print(f"🔑 API Key available: {bool(self.api_key)}")
+                print(f"🤖 Model available: {bool(self.model)}")
+                print(f"🌐 Use REST API: {hasattr(self, 'use_rest_api') and self.use_rest_api}")
+                
                 if hasattr(self, 'use_rest_api') and self.use_rest_api:
                     # Use REST API directly with v1 endpoint
+                    print("📡 Using REST API for evaluation...")
                     evaluation_text = self._call_gemini_rest_api(prompt)
                 elif self.model:
+                    print(f"🤖 Using SDK model: {self.model_name}")
                     response = self.model.generate_content(prompt)
                     evaluation_text = response.text
                 else:
@@ -251,12 +264,17 @@ class ComprehensiveEvaluationService:
                 if not evaluation_text:
                     print("⚠️ Gemini returned empty response, using fallback")
                     return self._create_fallback_evaluation(interview_data)
+                
+                print(f"✅ Received evaluation response ({len(evaluation_text)} characters)")
             except Exception as api_error:
                 logger.error(f"Error calling Gemini API: {api_error}")
+                import traceback
                 print(f"⚠️ Gemini API error: {api_error}")
+                print(f"⚠️ Error type: {type(api_error).__name__}")
+                traceback.print_exc()
                 # Check if it's a model not found error
                 error_str = str(api_error).lower()
-                if 'not found' in error_str or 'v1beta' in error_str:
+                if 'not found' in error_str or 'v1beta' in error_str or '404' in error_str:
                     print(f"⚠️ Model compatibility issue detected. Trying REST API fallback...")
                     # Try REST API as fallback
                     try:
@@ -264,12 +282,16 @@ class ComprehensiveEvaluationService:
                         if evaluation_text:
                             print("✅ REST API fallback succeeded")
                         else:
+                            print("⚠️ REST API returned empty response")
                             return self._create_fallback_evaluation(interview_data)
                     except Exception as rest_error:
                         print(f"⚠️ REST API fallback also failed: {rest_error}")
+                        import traceback
+                        traceback.print_exc()
                         return self._create_fallback_evaluation(interview_data)
                 else:
                     # Return fallback evaluation
+                    print(f"⚠️ Returning fallback evaluation due to API error")
                     return self._create_fallback_evaluation(interview_data)
             
             # Parse the response
@@ -299,12 +321,15 @@ class ComprehensiveEvaluationService:
         if not hasattr(self, 'api_key') or not self.api_key:
             from django.conf import settings
             self.api_key = getattr(settings, 'GEMINI_API_KEY', '')
+            # Fallback to hardcoded key if env key is not available
+            if not self.api_key:
+                self.api_key = "AIzaSyBu5M6cEckMIRPdttrBTBcRJmTUi5MkpvE"
         
         if not self.api_key:
             raise ValueError("API key not available for REST API call")
         
-        # Use v1 API endpoint (not v1beta)
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+        # Use v1 API endpoint with gemini-2.0-flash (not v1beta)
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={self.api_key}"
         
         headers = {
             'Content-Type': 'application/json',
@@ -319,8 +344,13 @@ class ComprehensiveEvaluationService:
         }
         
         try:
+            print(f"📡 Making REST API call to: {url[:80]}...")
             response = requests.post(url, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
+            print(f"📡 REST API response status: {response.status_code}")
+            
+            if response.status_code != 200:
+                print(f"⚠️ REST API error response: {response.text[:500]}")
+                response.raise_for_status()
             
             result = response.json()
             
@@ -330,8 +360,15 @@ class ComprehensiveEvaluationService:
                 if 'content' in candidate and 'parts' in candidate['content']:
                     parts = candidate['content']['parts']
                     if len(parts) > 0 and 'text' in parts[0]:
-                        return parts[0]['text']
+                        text = parts[0]['text']
+                        print(f"✅ REST API returned {len(text)} characters")
+                        return text
+                elif 'finishReason' in candidate:
+                    print(f"⚠️ Candidate finished with reason: {candidate.get('finishReason')}")
+                    if candidate.get('finishReason') == 'SAFETY':
+                        print(f"⚠️ Content blocked by safety filters")
             
+            print(f"⚠️ Unexpected response format: {list(result.keys())}")
             raise ValueError("Unexpected response format from Gemini REST API")
             
         except requests.exceptions.RequestException as e:
@@ -360,12 +397,24 @@ class ComprehensiveEvaluationService:
         
         # Build coding section with full context
         coding_section = ""
+        all_tests_passed = True
+        any_tests_passed = False
         for i, submission in enumerate(interview_data['coding_submissions'], 1):
+            passed_tests = submission.get('passed_tests', False)
+            if not passed_tests:
+                all_tests_passed = False
+            else:
+                any_tests_passed = True
+            
             coding_section += f"Coding Challenge {i}:\n"
             coding_section += f"Question: {submission.get('question_text', 'Coding Challenge')}\n"
             coding_section += f"Language: {submission['language']}\n"
             coding_section += f"Submitted Code:\n{submission['submitted_code']}\n"
-            coding_section += f"Tests Passed: {submission['passed_tests']}\n"
+            coding_section += f"Tests Passed: {passed_tests}\n"
+            if passed_tests:
+                coding_section += f"✅ ALL TEST CASES PASSED - This is a successful submission!\n"
+            else:
+                coding_section += f"❌ TEST CASES FAILED - Code did not pass all tests\n"
             
             # Include test cases if available
             if submission.get('test_cases'):
@@ -374,6 +423,18 @@ class ComprehensiveEvaluationService:
                     coding_section += f"  Test {j}: Input={tc.get('input', 'N/A')}, Expected={tc.get('expected_output', 'N/A')}\n"
             
             coding_section += f"Output/Results: {submission['output_log'][:500] if submission.get('output_log') else 'No output'}\n\n"
+        
+        # Add summary at the end
+        if interview_data['coding_submissions']:
+            if all_tests_passed:
+                coding_section += f"\n=== SUMMARY: ALL CODING CHALLENGES PASSED ALL TESTS ===\n"
+                coding_section += f"The candidate successfully passed all test cases. CODING_SCORE must be 80-100.\n"
+            elif any_tests_passed:
+                coding_section += f"\n=== SUMMARY: SOME CODING CHALLENGES PASSED TESTS ===\n"
+                coding_section += f"Some test cases passed. CODING_SCORE should be 40-79 based on percentage passed.\n"
+            else:
+                coding_section += f"\n=== SUMMARY: NO CODING CHALLENGES PASSED TESTS ===\n"
+                coding_section += f"No test cases passed. CODING_SCORE should be 0-39.\n"
         
         # Build comprehensive prompt with all context
         job_desc = interview_data['job_description'] or 'Not provided'
@@ -404,10 +465,38 @@ CODING ROUND - CHALLENGES AND SUBMISSIONS:
 
 Please provide a comprehensive evaluation analyzing:
 1. Technical interview performance (quality of answers, depth of knowledge, clarity, relevance to job requirements)
+   - TECHNICAL_SCORE should be based on the quality and correctness of answers to technical interview questions
+   - For EACH question, evaluate if the answer is CORRECT, PARTIALLY_CORRECT, or INCORRECT based on:
+     * Technical accuracy and correctness
+     * Relevance to the question asked
+     * Depth of understanding demonstrated
+     * Completeness of the answer
+   - Count only answers that are CORRECT or PARTIALLY_CORRECT (with partial credit) as correct
+   - Do NOT count answers that are vague, incorrect, or show lack of knowledge as correct
+   - TECHNICAL_SCORE calculation:
+     * Base score on percentage of correct answers (QUESTIONS_CORRECT / QUESTIONS_ATTEMPTED)
+     * Adjust for answer quality: detailed, accurate answers get higher scores
+     * Range: 0-100 (where 100 = all answers correct and excellent quality)
 2. Coding round performance (code quality, test case passing, problem-solving approach, code efficiency)
+   - CRITICAL: CODING_SCORE MUST be based on actual test results shown in the coding section:
+     * If the coding section shows "✅ ALL TEST CASES PASSED" or "Tests Passed: True": 
+       CODING_SCORE MUST be 80-100 (preferably 85-100 for good code quality, 100 for perfect code)
+       DO NOT give a low score if all tests passed - this is incorrect evaluation!
+     * If the coding section shows "❌ TEST CASES FAILED" or "Tests Passed: False" for some challenges:
+       CODING_SCORE should be 40-79 (partial credit based on percentage of challenges that passed)
+     * If ALL coding challenges show "Tests Passed: False": 
+       CODING_SCORE should be 0-39 (low score, but may give credit for attempt/approach if code shows effort)
+   - Also consider code quality, efficiency, and problem-solving approach in the score
+   - The score MUST reflect the actual test results: passing all tests = high score (80-100), NOT a low score
+   - If you see "ALL CODING CHALLENGES PASSED ALL TESTS" in the summary, CODING_SCORE MUST be at least 80
 3. Overall communication skills and behavioral traits
 4. Strengths and specific areas for improvement
 5. Overall fit for the role based on both technical and coding performance
+
+IMPORTANT: When counting QUESTIONS_CORRECT, evaluate each answer individually:
+- CORRECT: Answer is technically accurate, relevant, and demonstrates good understanding
+- PARTIALLY_CORRECT: Answer shows some understanding but incomplete or partially accurate (count as 0.5 correct)
+- INCORRECT: Answer is wrong, vague, shows lack of knowledge, or doesn't address the question
 
 Provide the evaluation in the following format. IMPORTANT: Include ALL metrics needed for data visualization graphs:
 
@@ -417,9 +506,9 @@ BEHAVIORAL_SCORE: [0-100]
 CODING_SCORE: [0-100]
 COMMUNICATION_SCORE: [0-100]
 PROBLEM_SOLVING_SCORE: [0-100] (average of technical and coding scores)
-QUESTIONS_ATTEMPTED: [number of questions answered]
-QUESTIONS_CORRECT: [number of correct answers]
-ACCURACY_PERCENTAGE: [0-100] (percentage of correct answers)
+QUESTIONS_ATTEMPTED: [number of questions that have answers provided, even if incorrect]
+QUESTIONS_CORRECT: [number of questions with CORRECT or PARTIALLY_CORRECT answers - round partial credits to nearest integer]
+ACCURACY_PERCENTAGE: [0-100] (percentage of correct answers: QUESTIONS_CORRECT / QUESTIONS_ATTEMPTED * 100)
 
 STRENGTHS:
 - [List key strengths]
@@ -479,13 +568,17 @@ HIRING_RECOMMENDATION:
             problem_solving_score = (technical_score + coding_score) / 2
         
         # Extract text sections
-        strengths = self._extract_section(response_text, "STRENGTHS")
-        weaknesses = self._extract_section(response_text, "WEAKNESSES")
+        strengths_text = self._extract_section(response_text, "STRENGTHS")
+        weaknesses_text = self._extract_section(response_text, "WEAKNESSES")
         technical_analysis = self._extract_section(response_text, "TECHNICAL_ANALYSIS")
         behavioral_analysis = self._extract_section(response_text, "BEHAVIORAL_ANALYSIS")
         coding_analysis = self._extract_section(response_text, "CODING_ANALYSIS")
         detailed_feedback = self._extract_section(response_text, "DETAILED_FEEDBACK")
         hiring_recommendation = self._extract_section(response_text, "HIRING_RECOMMENDATION")
+        
+        # Parse strengths and weaknesses from bullet-pointed text to array
+        strengths = self._parse_bullet_list(strengths_text)
+        weaknesses = self._parse_bullet_list(weaknesses_text)
         
         # Extract recommendation
         recommendation_match = re.search(r"RECOMMENDATION:\s*(\w+)", response_text)
@@ -527,6 +620,40 @@ HIRING_RECOMMENDATION:
         match = re.search(pattern, text, re.DOTALL)
         return match.group(1).strip() if match else ""
     
+    def _parse_bullet_list(self, text: str) -> list:
+        """
+        Parse bullet-pointed text into an array of items.
+        Handles formats like:
+        - Item 1
+        - Item 2
+        or
+        • Item 1
+        • Item 2
+        or plain text (returns as single item)
+        """
+        if not text or not text.strip():
+            return []
+        
+        # Split by lines and filter out empty lines
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        if not lines:
+            return []
+        
+        # Check if it's a bullet-pointed list
+        items = []
+        for line in lines:
+            # Remove bullet markers (-, •, *, etc.)
+            cleaned = line.lstrip('-•*').strip()
+            if cleaned:
+                items.append(cleaned)
+        
+        # If no items were extracted (shouldn't happen), return the original text as single item
+        if not items:
+            return [text.strip()] if text.strip() else []
+        
+        return items
+    
     def _create_fallback_evaluation(self, interview_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create fallback evaluation when Gemini API fails
@@ -546,9 +673,19 @@ HIRING_RECOMMENDATION:
         total_questions = len(spoken_questions)
         question_score = (answered_questions / max(total_questions, 1)) * 100
         
-        passed_coding = len([s for s in coding_submissions if s['passed_tests']])
+        passed_coding = len([s for s in coding_submissions if s.get('passed_tests', False)])
         total_coding = len(coding_submissions)
-        coding_score = (passed_coding / max(total_coding, 1)) * 100 if total_coding > 0 else 0
+        # If all tests passed, give high score (80-100), not just percentage
+        if total_coding > 0 and passed_coding == total_coding:
+            # All tests passed - give high score (85-100 based on code quality)
+            coding_score = 90  # Default high score for all tests passing
+        elif total_coding > 0 and passed_coding > 0:
+            # Some tests passed - give partial credit (40-79)
+            percentage_passed = (passed_coding / total_coding) * 100
+            coding_score = 40 + (percentage_passed * 0.39)  # Scale to 40-79 range
+        else:
+            # No tests passed - low score (0-39)
+            coding_score = 20  # Default low score, but give some credit for attempt
         
         overall_score = (question_score + coding_score) / 2
         problem_solving_score = (question_score + coding_score) / 2

@@ -164,6 +164,7 @@ def create_evaluation_from_session(session_key: str):
                 'technical_score': 0,
                 'behavioral_score': 0,
                 'coding_score': 0,
+                'communication_score': 0,
                 'strengths': 'Limited evaluation data available',
                 'weaknesses': 'Limited evaluation data available',
                 'technical_analysis': 'Basic technical assessment based on question responses',
@@ -173,6 +174,10 @@ def create_evaluation_from_session(session_key: str):
                 'hiring_recommendation': 'Consider for further evaluation',
                 'recommendation': 'MAYBE'
             }
+            technical_score = ai_evaluation_result.get('technical_score', 0)
+            behavioral_score = ai_evaluation_result.get('behavioral_score', 0)
+            coding_score = ai_evaluation_result.get('coding_score', 0)
+            communication_score = ai_evaluation_result.get('communication_score', 0)
         
         # Extract questions and answers for metrics calculation
         questions = InterviewQuestion.objects.filter(session=session).order_by('order')
@@ -271,8 +276,12 @@ def create_evaluation_from_session(session_key: str):
                 'communication_score': ai_evaluation_result.get('communication_score', 0),
                 'problem_solving_score': problem_solving_score,
                 'confidence_level': ai_evaluation_result.get('confidence_level', 0),
-                'strengths': ai_evaluation_result.get('strengths', '') or '',
-                'weaknesses': ai_evaluation_result.get('weaknesses', '') or '',
+                # Store strengths and weaknesses - handle both array and string formats
+                'strengths': ai_evaluation_result.get('strengths', []),
+                'weaknesses': ai_evaluation_result.get('weaknesses', []),
+                # Also store as arrays for frontend (convert string to array if needed)
+                'strengths_array': ai_evaluation_result.get('strengths', []) if isinstance(ai_evaluation_result.get('strengths'), list) else ([line.lstrip('-•*').strip() for line in ai_evaluation_result.get('strengths', '').split('\n') if line.strip()] if isinstance(ai_evaluation_result.get('strengths'), str) else []),
+                'weaknesses_array': ai_evaluation_result.get('weaknesses', []) if isinstance(ai_evaluation_result.get('weaknesses'), list) else ([line.lstrip('-•*').strip() for line in ai_evaluation_result.get('weaknesses', '').split('\n') if line.strip()] if isinstance(ai_evaluation_result.get('weaknesses'), str) else []),
                 'technical_analysis': ai_evaluation_result.get('technical_analysis', '') or '',
                 'behavioral_analysis': ai_evaluation_result.get('behavioral_analysis', '') or '',
                 'coding_analysis': ai_evaluation_result.get('coding_analysis', '') or '',
@@ -300,6 +309,15 @@ def create_evaluation_from_session(session_key: str):
                 'warning_types': list(set([w['warning_type'] for w in proctoring_warnings])) if proctoring_warnings else [],
             }
         }
+        # Add normalized (0-10) scores for UI consumption
+        ai_analysis = details['ai_analysis']
+        ai_analysis['overall_score_10'] = round((ai_analysis.get('overall_score', 0) or 0) / 10.0, 2)
+        ai_analysis['technical_score_10'] = round((ai_analysis.get('technical_score', 0) or 0) / 10.0, 2)
+        ai_analysis['behavioral_score_10'] = round((ai_analysis.get('behavioral_score', 0) or 0) / 10.0, 2)
+        ai_analysis['coding_score_10'] = round((ai_analysis.get('coding_score', 0) or 0) / 10.0, 2)
+        ai_analysis['communication_score_10'] = round((ai_analysis.get('communication_score', 0) or 0) / 10.0, 2)
+        ai_analysis['problem_solving_score_10'] = round((ai_analysis.get('problem_solving_score', 0) or 0) / 10.0, 2)
+        ai_analysis['confidence_level_10'] = round((ai_analysis.get('confidence_level', 0) or 0) / 10.0, 2)
         
         # Generate proctoring PDF if warnings exist
         proctoring_pdf_path = None

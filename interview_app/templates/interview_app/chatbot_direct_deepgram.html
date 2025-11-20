@@ -12,6 +12,28 @@ body{font-family:'Segoe UI',Tahoma,Arial;margin:0;padding:16px;background:#f5f5f
 .progress{width:100%;height:20px;background:#e9ecef;border-radius:10px;overflow:hidden;margin:15px 0;}
 .progress-fill{height:100%;background:#007bff;transition:width 0.3s ease;}
 audio{width:100%;margin:10px 0;}
+
+/* Audio Visualizer Styles */
+.audio-visualizer-container {
+  width: 100%;
+  max-width: 100%;
+  height: 120px;
+  margin: 15px 0;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.audio-visualizer-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 </style>
 </head>
 <body>
@@ -22,6 +44,12 @@ audio{width:100%;margin:10px 0;}
   <div class='status' id='st'>Initializing interview...</div>
   <div class='question' id='q'></div>
   <audio id='qa' controls style='display:none'></audio>
+  
+  <!-- Audio Visualizer - Only shown during recording -->
+  <div id='audio-visualizer-container' class='audio-visualizer-container' style='display:none;'>
+    <canvas id='audio-visualizer' class='audio-visualizer-canvas'></canvas>
+  </div>
+  
   <div class='transcript' id='live'><strong>Live transcription:</strong> <span style='color:#999;'>Listening for speech...</span></div>
 </div>
 
@@ -34,6 +62,13 @@ let ws=null,audioContext=null,processor=null,source=null,streamRef=null;
 let transcripts=[],currentInterim='';
 let recordingStartMs=0,lastSpeechMs=0;
 const INITIAL_SILENCE_MS=5000,SPEECH_INACTIVITY_MS=5000;
+
+// Audio Visualizer variables
+let audioAnalyser=null;
+let visualizerCanvas=null;
+let visualizerCtx=null;
+let visualizerDataArray=null;
+let visualizerAnimationId=null;
 
 async function api(url,body){
   const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -154,16 +189,103 @@ async function beginRecord(){
     console.log('♻️ Reusing media stream source');
   }
   
-  // Connect to Deepgram DIRECTLY - MATCH ORIGINAL index.html
+  // Create analyser node for audio visualizer
+  if(!audioAnalyser){
+    audioAnalyser=audioContext.createAnalyser();
+    audioAnalyser.fftSize=256; // Number of frequency bins
+    audioAnalyser.smoothingTimeConstant=0.8; // Smoothing factor
+    source.connect(audioAnalyser);
+    console.log('✅ Audio analyser created for visualizer');
+  }
+  
+  // Connect to Deepgram DIRECTLY - USING SAME SETTINGS AS portal.html
   const sampleRate=audioContext.sampleRate;
-  const deepgramUrl=`wss://api.deepgram.com/v1/listen?model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false`;
+  // ✅ OPTIMIZED SETTINGS FOR CONTINUOUS SPEECH (matching portal.html)
+  const deepgramUrl=`wss://api.deepgram.com/v1/listen?` + new URLSearchParams({
+    token: DEEPGRAM_API_KEY,
+    model: 'nova-2',              // Better accuracy than 'general' or 'nova-3'
+    tier: 'enhanced',             // Enhanced tier for better accuracy
+    encoding: 'linear16',
+    sample_rate: sampleRate,
+    channels: '1',
+    
+    // 🔑 KEY SETTINGS
+    interim_results: 'true',      // Real-time partial transcripts
+    filler_words: 'true',         // Capture "um", "uh", etc.
+    speech_final: 'true',         // Send final speech results
+    
+    // 🎯 CRITICAL: Prevent premature finalization during continuous speech
+    endpointing: '10000',          // 10 seconds - allows long continuous speech without premature finalization
+    utterance_end_ms: '10000',    // 10 seconds - matches endpointing for consistency
+    utterance_silence_threshold_ms: '5000',  // 5 seconds - silence threshold for utterance boundaries
+    vad_turnoff: '5000',          // 5 seconds VAD delay - prevents aggressive cutoffs during pauses
+    vad_threshold: '0.5',         // VAD sensitivity threshold (0.0-1.0) - 0.5 is balanced
+    vad_sensitivity: '0.2',       // VAD sensitivity (0.0-1.0) - 0.2 is more sensitive to detect speech
+    
+    // 📊 Output formatting
+    smart_format: 'false',
+    punctuate: 'false',
+    diarize: 'false',
+    
+    // ⚡ Performance
+    no_delay: 'true'              // Real-time streaming
+  }).toString();
   
-  console.log('🔗 Connecting directly to Deepgram (nova-3, en-IN)...');
-  ws=new WebSocket(deepgramUrl,['token',DEEPGRAM_API_KEY]);
-  ws.binaryType='arraybuffer';
+  // Validate API key before attempting connection
+  if(!DEEPGRAM_API_KEY || DEEPGRAM_API_KEY.trim() === ''){
+    console.error('❌ Deepgram API key is missing or empty');
+    document.getElementById('st').innerText='❌ Error: Deepgram API key is missing. Please configure the API key.';
+    listening=false;
+    return;
+  }
   
-  ws.onopen=()=>{
+  // Validate API key format (Deepgram API keys are typically 40+ characters)
+  if(DEEPGRAM_API_KEY.length < 20){
+    console.warn('⚠️ Deepgram API key seems too short. Expected 40+ characters.');
+  }
+  
+  console.log('🔗 Connecting directly to Deepgram (nova-2, enhanced tier, optimized for continuous speech)...');
+  console.log('🔗 Sample Rate:', sampleRate);
+  console.log('🔗 API Key length:', DEEPGRAM_API_KEY.length);
+  console.log('🔗 API Key format valid:', /^[a-zA-Z0-9]+$/.test(DEEPGRAM_API_KEY));
+  
+  // Declare ws variable first
+  let ws;
+  let connectionTimeout;
+  
+  try{
+    // Create WebSocket connection
+    console.log('🔗 Creating WebSocket connection...');
+    ws=new WebSocket(deepgramUrl);
+    ws.binaryType='arraybuffer';
+    console.log('🔗 WebSocket object created, initial state:', ws.readyState);
+    console.log('🔗 WebSocket URL length:', deepgramUrl.length);
+    
+    // Set connection timeout (10 seconds) after ws is created
+    connectionTimeout = setTimeout(() => {
+      if(ws && ws.readyState === WebSocket.CONNECTING){
+        console.error('❌ WebSocket connection timeout after 10 seconds');
+        console.error('   Final state:', ws.readyState);
+        ws.close();
+        document.getElementById('st').innerText='❌ Connection timeout. Please check your internet connection and Deepgram API key.';
+        listening=false;
+      }
+    }, 10000);
+  }catch(error){
+    console.error('❌ Failed to create WebSocket:', error);
+    console.error('   Error name:', error.name);
+    console.error('   Error message:', error.message);
+    document.getElementById('st').innerText='Error: Failed to create WebSocket connection. ' + error.message;
+    listening=false;
+    return;
+  }
+  
+  ws.onopen=(ev)=>{
     console.log('✅ Connected to Deepgram!');
+    console.log('   Protocol:', ws.protocol);
+    console.log('   Extensions:', ws.extensions);
+    clearTimeout(connectionTimeout); // Clear timeout on successful connection
+    document.getElementById('st').innerText='🎤 Listening...';
     
     // Create gain node to amplify audio
     const gainNode=audioContext.createGain();
@@ -272,17 +394,82 @@ async function beginRecord(){
   };
   
   ws.onclose=(ev)=>{
-    console.log('🔌 Deepgram closed:', ev.code);
+    clearTimeout(connectionTimeout); // Clear timeout on close
+    console.log('🔌 Deepgram WebSocket closed');
+    console.log('   Code:', ev.code);
+    console.log('   Reason:', ev.reason || 'No reason provided');
+    console.log('   Was Clean:', ev.wasClean);
+    
+    // Show user-friendly error message
+    if(ev.code !== 1000 && listening){ // 1000 = normal closure
+      let errorMsg = 'Connection closed';
+      if(ev.code === 1006){
+        errorMsg = 'Connection failed. Please check your internet connection or Deepgram API key.';
+      }else if(ev.code === 1002){
+        errorMsg = 'Protocol error. Please refresh the page.';
+      }else if(ev.code === 1003){
+        errorMsg = 'Invalid data. Please try again.';
+      }else if(ev.code === 1008){
+        errorMsg = 'Policy violation. Please check Deepgram API key validity.';
+      }else if(ev.code === 1011){
+        errorMsg = 'Server error. Please try again later.';
+      }else if(ev.code === 4000){
+        errorMsg = 'Authentication failed. Please check Deepgram API key.';
+      }
+      document.getElementById('st').innerText = `❌ ${errorMsg} (Code: ${ev.code})`;
+    }
+    
+    // Reset listening state if not clean close
+    if(!ev.wasClean){
+      listening=false;
+    }
   };
   
   ws.onerror=(ev)=>{
-    console.error('❌ Deepgram error:', ev);
+    clearTimeout(connectionTimeout); // Clear timeout on error
+    console.error('❌ Deepgram WebSocket error:', ev);
+    console.error('   Error type:', ev.type);
+    console.error('   Target readyState:', ev.target?.readyState);
+    console.error('   Target URL (first 100 chars):', ev.target?.url?.substring(0, 100) || 'No URL');
+    console.error('   Error details:', ev.message || 'No message provided');
+    
+    // Check readyState to determine error type
+    const readyState = ev.target?.readyState;
+    let errorMsg = 'Connection error. ';
+    
+    if(readyState === WebSocket.CONNECTING){
+      errorMsg += 'Failed to connect. ';
+      errorMsg += 'Please verify your Deepgram API key is valid and has proper permissions.';
+    }else if(readyState === WebSocket.CLOSING || readyState === WebSocket.CLOSED){
+      errorMsg += 'Connection closed unexpectedly. ';
+      errorMsg += 'This usually indicates an authentication failure. ';
+      errorMsg += 'Please check that your Deepgram API key is valid and not expired.';
+    }else{
+      errorMsg += 'Please check your internet connection and Deepgram API key.';
+    }
+    
+    document.getElementById('st').innerText = `❌ ${errorMsg}`;
+    listening=false;
+    
+    // Additional debugging
+    console.error('   Full error context:', {
+      type: ev.type,
+      readyState: readyState,
+      readyStateName: readyState === 0 ? 'CONNECTING' : readyState === 1 ? 'OPEN' : readyState === 2 ? 'CLOSING' : readyState === 3 ? 'CLOSED' : 'UNKNOWN',
+      hasTarget: !!ev.target,
+      urlLength: ev.target?.url?.length || 0
+    });
   };
   
-  // Start inactivity timer
+  // REMOVED: Auto-finalize functionality - no longer automatically processes answers
+  // Users must explicitly click to finish/submit their answer
+  console.log('✅ Recording started - waiting for explicit submission...');
   recordingStartMs=Date.now();
   lastSpeechMs=recordingStartMs;
-  tickInactive();
+  // tickInactive(); // DISABLED: No auto-finalize - user must submit manually
+  
+  // Start audio visualizer
+  startAudioVisualizer();
 }
 
 function updateLive(){
@@ -303,28 +490,137 @@ function updateLive(){
   document.getElementById('live').innerHTML=html;
 }
 
+// DISABLED: Auto-finalize functionality - removed to prevent processing answers within 2-3 seconds
+// Users must explicitly submit their answers
 function tickInactive(){
-  if(!listening)return;
-  const now=Date.now();
-  const noSpeechDuration=now-lastSpeechMs;
-  const initialSilenceDuration=now-recordingStartMs;
+  // REMOVED: All auto-finalize logic
+  // This function is kept for compatibility but does nothing
+  // Users must manually click to finish/submit their answer
+  return;
   
-  // Auto-finalize if: 5s initial silence OR 5s after last speech
-  if(transcripts.length===0 && initialSilenceDuration>=INITIAL_SILENCE_MS){
-    console.log('⏰ Initial silence timeout (5s) - finalizing...');
-    finalize();
+  // OLD CODE (DISABLED):
+  // if(!listening)return;
+  // const now=Date.now();
+  // const noSpeechDuration=now-lastSpeechMs;
+  // const initialSilenceDuration=now-recordingStartMs;
+  // 
+  // // Auto-finalize if: 5s initial silence OR 5s after last speech
+  // if(transcripts.length===0 && initialSilenceDuration>=INITIAL_SILENCE_MS){
+  //   console.log('⏰ Initial silence timeout (5s) - finalizing...');
+  //   finalize();
+  //   return;
+  // }
+  // 
+  // if(transcripts.length>0 && noSpeechDuration>=SPEECH_INACTIVITY_MS){
+  //   console.log('⏰ Speech inactivity timeout (5s) - finalizing...');
+  //   console.log(`   Last speech: ${Math.floor(noSpeechDuration/1000)}s ago`);
+  //   finalize();
+  //   return;
+  // }
+  // 
+  // // Check again in 500ms
+  // setTimeout(tickInactive,500);
+}
+
+// Audio Visualizer Functions
+function startAudioVisualizer(){
+  if(!audioAnalyser || !audioContext){
+    console.log('⚠️ Audio analyser not available for visualizer');
     return;
   }
   
-  if(transcripts.length>0 && noSpeechDuration>=SPEECH_INACTIVITY_MS){
-    console.log('⏰ Speech inactivity timeout (5s) - finalizing...');
-    console.log(`   Last speech: ${Math.floor(noSpeechDuration/1000)}s ago`);
-    finalize();
+  // Get canvas element
+  visualizerCanvas=document.getElementById('audio-visualizer');
+  if(!visualizerCanvas){
+    console.log('⚠️ Audio visualizer canvas not found');
     return;
   }
   
-  // Check again in 500ms
-  setTimeout(tickInactive,500);
+  visualizerCtx=visualizerCanvas.getContext('2d');
+  visualizerCanvas.width=visualizerCanvas.offsetWidth;
+  visualizerCanvas.height=visualizerCanvas.offsetHeight;
+  
+  // Create data array for frequency analysis
+  const bufferLength=audioAnalyser.frequencyBinCount;
+  visualizerDataArray=new Uint8Array(bufferLength);
+  
+  // Show visualizer container
+  const visualizerContainer=document.getElementById('audio-visualizer-container');
+  if(visualizerContainer){
+    visualizerContainer.style.display='block';
+  }
+  
+  // Start animation loop
+  drawAudioVisualizer();
+}
+
+function drawAudioVisualizer(){
+  if(!visualizerCanvas || !visualizerCtx || !audioAnalyser || !visualizerDataArray){
+    return;
+  }
+  
+  // Only continue if visualizer is visible and listening
+  if(!listening){
+    stopAudioVisualizer();
+    return;
+  }
+  
+  // Get frequency data
+  audioAnalyser.getByteFrequencyData(visualizerDataArray);
+  
+  // Clear canvas
+  visualizerCtx.fillStyle='#f8f9fa';
+  visualizerCtx.fillRect(0,0,visualizerCanvas.width,visualizerCanvas.height);
+  
+  // Draw bars
+  const barCount=60; // Number of bars to display
+  const barWidth=visualizerCanvas.width/barCount;
+  const barSpacing=2;
+  const maxBarHeight=visualizerCanvas.height-20;
+  
+  for(let i=0;i<barCount;i++){
+    // Map frequency data to bars (use multiple bins per bar for smoother visualization)
+    const dataIndex=Math.floor((i/barCount)*visualizerDataArray.length);
+    const barHeight=(visualizerDataArray[dataIndex]/255)*maxBarHeight;
+    
+    // Create gradient for bars
+    const gradient=visualizerCtx.createLinearGradient(0,visualizerCanvas.height,0,visualizerCanvas.height-barHeight);
+    gradient.addColorStop(0,'#4CAF50'); // Green at bottom
+    gradient.addColorStop(0.5,'#FFC107'); // Yellow in middle
+    gradient.addColorStop(1,'#FF5722'); // Red at top
+    
+    // Draw bar
+    const x=i*(barWidth+barSpacing);
+    visualizerCtx.fillStyle=gradient;
+    visualizerCtx.fillRect(x,visualizerCanvas.height-barHeight,barWidth-barSpacing,barHeight);
+  }
+  
+  // Continue animation
+  visualizerAnimationId=requestAnimationFrame(drawAudioVisualizer);
+}
+
+function stopAudioVisualizer(){
+  // Stop animation
+  if(visualizerAnimationId){
+    cancelAnimationFrame(visualizerAnimationId);
+    visualizerAnimationId=null;
+  }
+  
+  // Hide visualizer container
+  const visualizerContainer=document.getElementById('audio-visualizer-container');
+  if(visualizerContainer){
+    visualizerContainer.style.display='none';
+  }
+  
+  // Clear canvas
+  if(visualizerCanvas && visualizerCtx){
+    visualizerCtx.clearRect(0,0,visualizerCanvas.width,visualizerCanvas.height);
+  }
+  
+  // Clean up variables
+  visualizerCanvas=null;
+  visualizerCtx=null;
+  visualizerDataArray=null;
 }
 
 async function finalize(){
@@ -333,6 +629,9 @@ async function finalize(){
   listening=false;
   console.log('🎬 Finalizing...');
   document.getElementById('st').innerText='Processing your answer...';
+  
+  // Stop audio visualizer
+  stopAudioVisualizer();
   
   // Stop processor
   if(processor){

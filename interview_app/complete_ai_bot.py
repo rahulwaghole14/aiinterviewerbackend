@@ -6,6 +6,7 @@ import os
 import re
 import uuid
 import time
+import threading
 from typing import Dict, List
 import google.generativeai as genai
 from django.conf import settings
@@ -183,15 +184,68 @@ def _count_words(text: str) -> int:
 
 
 # ------------------ Gemini helper (from app.py lines 394-401) ------------------
-def gemini_generate(prompt):
-    """Use gemini-2.0-flash for interview questions"""
-    try:
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        resp = model.generate_content(prompt)
-        return resp.text if resp and resp.text else "Could not generate a response."
-    except Exception as e:
-        print(f"❌ Gemini error: {e}")
-        return f"[Gemini error: {str(e)}]"
+# Track last API call time to implement rate limiting
+# Use a lock to ensure only one API call happens at a time globally
+_gemini_api_lock = threading.Lock()
+_last_gemini_call_time = 0
+_min_delay_between_calls = 5.0  # Increased to 5 seconds between API calls to prevent rate limits
+
+def gemini_generate(prompt, max_retries=5, initial_delay=5):
+    """
+    Use gemini-2.0-flash for interview questions with retry logic for rate limits.
+    Uses a global lock to ensure only one API call happens at a time.
+    
+    Args:
+        prompt: The prompt to send to Gemini
+        max_retries: Maximum number of retry attempts (default: 5, increased from 3)
+        initial_delay: Initial delay in seconds before retry (default: 5, increased from 2)
+    
+    Returns:
+        Generated text or error message
+    """
+    global _last_gemini_call_time
+    
+    # Acquire lock to ensure only one API call at a time globally
+    with _gemini_api_lock:
+        # Rate limiting: Ensure minimum delay between API calls
+        current_time = time.time()
+        time_since_last_call = current_time - _last_gemini_call_time
+        if time_since_last_call < _min_delay_between_calls:
+            sleep_time = _min_delay_between_calls - time_since_last_call
+            print(f"⏱️ Rate limiting: Waiting {sleep_time:.2f} seconds before next API call...")
+            time.sleep(sleep_time)
+        
+        for attempt in range(max_retries):
+            try:
+                model = genai.GenerativeModel("gemini-2.0-flash")
+                resp = model.generate_content(prompt)
+                _last_gemini_call_time = time.time()  # Update last call time on success
+                print(f"✅ Gemini API call successful (attempt {attempt + 1})")
+                return resp.text if resp and resp.text else "Could not generate a response."
+            except Exception as e:
+                error_str = str(e).lower()
+                is_rate_limit = '429' in error_str or 'resource exhausted' in error_str or 'quota' in error_str
+                
+                if is_rate_limit and attempt < max_retries - 1:
+                    # Calculate exponential backoff delay: 5s, 10s, 20s, 40s, 80s
+                    delay = initial_delay * (2 ** attempt)
+                    print(f"⚠️ Gemini rate limit (429) detected. Retrying in {delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                    print(f"   Error details: {str(e)[:200]}")
+                    print(f"   This is a rate limit error. Waiting longer to avoid hitting quota limits...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    # For non-rate-limit errors or final attempt, return error
+                    print(f"❌ Gemini error: {e}")
+                    if is_rate_limit:
+                        # If rate limit persists after all retries, suggest waiting longer
+                        wait_time = initial_delay * (2 ** (max_retries - 1))
+                        return f"[Gemini error: 429 Resource exhausted after {max_retries} attempts. The API quota may be temporarily exhausted. Please wait {wait_time} seconds and try again, or check your Gemini API quota limits.]"
+                    return f"[Gemini error: {str(e)}]"
+        
+        # If all retries exhausted
+        wait_time = initial_delay * (2 ** (max_retries - 1))
+        return f"[Gemini error: Failed after {max_retries} attempts due to rate limiting. Please wait {wait_time} seconds before trying again or check your API quota.]"
 
 
 # ------------------ Helper functions (from app.py lines 403-786) ------------------
@@ -422,15 +476,93 @@ def is_elaboration_request(text: str) -> bool:
     return any(cue in t_lower for cue in cues)
 
 
-def is_repeat_request(text: str) -> bool:
-    if not text:
+def is_repeat_request_via_llm(session, candidate_response: str, last_question: str) -> bool:
+    """Use LLM to determine if the candidate is requesting to repeat the question"""
+    if not candidate_response or not candidate_response.strip():
         return False
-    t_lower = (text or "").strip().lower()
-    cues = [
-        "repeat", "again", "can you repeat", "please repeat", "ask again",
-        "repeat the question", "ask that question again", "say it again"
-    ]
-    return any(cue in t_lower for cue in cues)
+    
+    if not last_question:
+        return False
+    
+    try:
+        prompt = (
+            f"You are analyzing a candidate's response during a technical interview.\n\n"
+            f"Last question asked: {last_question}\n\n"
+            f"Candidate's response: {candidate_response}\n\n"
+            f"Determine if the candidate is asking to repeat the previous question or asking to hear the question again.\n"
+            f"Look for phrases like:\n"
+            f"- 'repeat the question'\n"
+            f"- 'repeat the previous question'\n"
+            f"- 'ask again'\n"
+            f"- 'ask previous question'\n"
+            f"- 'can you repeat'\n"
+            f"- 'say that again'\n"
+            f"- 'what was the question'\n"
+            f"- 'i didn't hear'\n"
+            f"- 'pardon'\n"
+            f"- 'sorry what'\n\n"
+            f"IMPORTANT: \n"
+            f"- If the candidate is explicitly asking to repeat or hear the question again, return the EXACT words/phrases from their response that indicate this (copy their words as-is).\n"
+            f"- If the candidate is providing an answer (even if unclear), return 'NO'.\n"
+            f"- If the candidate is asking a different question, return 'NO'.\n"
+            f"- If the candidate is asking for clarification or elaboration, return 'NO'.\n\n"
+            f"Examples:\n"
+            f"- If candidate says 'Can you repeat the question?', return: 'Can you repeat the question?'\n"
+            f"- If candidate says 'Sorry, what was the question?', return: 'Sorry, what was the question?'\n"
+            f"- If candidate says 'I didn't hear that', return: 'I didn't hear that'\n"
+            f"- If candidate says 'The answer is Python', return: 'NO'\n"
+            f"- If candidate says 'What is the salary?', return: 'NO'\n\n"
+            f"Return the candidate's exact words if it's a repeat request, or 'NO' if it's not."
+        )
+        
+        response = gemini_generate(prompt, max_retries=3)
+        if response:
+            response_clean = response.strip()
+            # Check if LLM returned 'NO' (not a repeat request)
+            if response_clean.upper() == "NO":
+                print(f"❌ LLM did not detect repeat request: '{candidate_response[:100]}...'")
+                return False
+            else:
+                # LLM returned the candidate's words indicating a repeat request
+                print(f"✅ LLM detected repeat request with words: '{response_clean}' from candidate response: '{candidate_response[:100]}...'")
+                return True
+        
+        print(f"❌ LLM did not detect repeat request: '{candidate_response[:100]}...'")
+        return False
+    except Exception as e:
+        print(f"⚠️ Error checking repeat request via LLM: {e}")
+        return False
+
+
+def generate_repeat_question_response(session, original_question: str) -> str:
+    """Generate a response using LLM to repeat the question naturally"""
+    try:
+        conversation_context = session.get_conversation_context()
+        
+        prompt = (
+            f"You are a professional technical interviewer. The candidate has asked you to repeat the question.\n\n"
+            f"Original question that was asked: {original_question}\n\n"
+            f"Interview context so far:\n{conversation_context}\n\n"
+            f"Generate a natural, professional response that repeats the question. "
+            f"Your response should:\n"
+            f"1. Briefly acknowledge the request (e.g., 'Of course', 'Sure', 'No problem')\n"
+            f"2. Repeat the exact same question clearly\n"
+            f"3. Keep it concise and professional\n"
+            f"4. Do NOT add any new information or change the question\n"
+            f"5. Do NOT ask follow-up questions - just repeat the original question\n\n"
+            f"Generate ONLY the response text, nothing else. Keep it to 1-2 sentences maximum."
+        )
+        
+        response = gemini_generate(prompt, max_retries=3)
+        if response and not response.startswith("[Gemini error"):
+            return response.strip()
+        else:
+            # Fallback: Simple repeat with acknowledgment
+            return f"Of course. {original_question}"
+    except Exception as e:
+        print(f"Error generating repeat question response: {e}")
+        # Fallback: Simple repeat with acknowledgment
+        return f"Of course. {original_question}"
 
 
 def is_proceed_prompt_text(text: str) -> bool:
@@ -951,13 +1083,13 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 "message": "Interview completed. Thank you for your time!"
             }
         
-        # Prefer transcript sent from UI
+        # Prefer transcript sent from UI - keep as-is from Deepgram (empty if no speech)
         transcript = (transcript or "").strip()
         print(f"🗒️ /upload_answer: session={session_id}, transcript_len={len(transcript)}")
-
-        if not transcript:
-            transcript = "[No speech detected]"
-        session.add_candidate_message(transcript)
+        
+        # Keep empty transcript as empty string (don't convert to "[No speech detected]")
+        # This will be sent to LLM to generate appropriate response
+        session.add_candidate_message(transcript if transcript else "")
         print(f"💾 Saved candidate message: '{(transcript[:120] + ('...' if len(transcript) > 120 else ''))}'")
         
         # If we received content, we are no longer awaiting an answer
@@ -975,28 +1107,8 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             if session.first_voice_at is None and current_word_count > 0:
                 session.first_voice_at = now_ts
 
-        # If no transcript yet and 4s passed since question asked, auto-advance
-        if session.awaiting_answer and not session.initial_silence_action_taken and session.first_voice_at is None:
-            if session.question_asked_at and (now_ts - session.question_asked_at) >= 4.0:
-                session.initial_silence_action_taken = True
-                # For silence, default to regular question (no answer to evaluate for follow-up)
-                next_question = generate_question(session, "regular", last_answer_text=transcript)
-                session.regular_questions_count += 1
-                session.add_interviewer_message(next_question)
-                session.current_question_number += 1
-                session.awaiting_answer = True
-                session.last_active_question_text = next_question
-                audio_url = text_to_speech(next_question, f"q{session.current_question_number}.mp3")
-                _reset_question_timers(session)
-                return {
-                    "transcript": transcript or "[No speech detected]",
-                    "completed": False,
-                    "next_question": next_question,
-                    "audio_url": audio_url,
-                    "question_number": session.current_question_number,
-                    "max_questions": session.max_questions,
-                    "continuous": True
-                }
+        # REMOVED: Auto-advance functionality - no longer automatically moves to next question
+        # Users must explicitly submit their answer or click "Done" to proceed
         
         # If in closing Q&A phase
         if session.asked_for_questions and not session.is_completed:
@@ -1176,8 +1288,32 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                         "continuous": True
                     }
 
-        # Repeat command removed - candidates cannot request question repetition
-
+        # Check if candidate is requesting to repeat the question using LLM
+        # Send candidate response to LLM to determine if it's a repeat request
+        last_question = get_last_strict_question(session)
+        if last_question:
+            # Use LLM to analyze if candidate is asking to repeat the question
+            is_repeat = is_repeat_request_via_llm(session, transcript, last_question)
+            
+            if is_repeat:
+                # Candidate is asking to repeat - use LLM to generate a natural response that repeats the question
+                repeat_response = generate_repeat_question_response(session, last_question)
+                session.add_interviewer_message(repeat_response)
+                session.awaiting_answer = True
+                session.last_active_question_text = last_question  # Keep original question as active
+                repeat_audio_url = text_to_speech(repeat_response, f"q{session.current_question_number}_repeat.mp3")
+                _reset_question_timers(session)
+                print(f"🔄 LLM detected repeat request. Generated repeat response: {repeat_response[:100]}...")
+                return {
+                    "transcript": transcript,
+                    "completed": False,
+                    "next_question": repeat_response,
+                    "audio_url": repeat_audio_url,
+                    "question_number": session.current_question_number,  # Don't increment - same question
+                    "max_questions": session.max_questions,
+                    "continuous": True
+                }
+        
         # Regular skip command handling (for skips like "skip", "next question", "move on")
         if any(phrase in transcript_lower for phrase in ["skip", "next question", "move on"]):
             # For skip commands, default to regular question (no meaningful answer to evaluate)
@@ -1201,31 +1337,88 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 "continuous": True
             }
         
-        # Check if transcript is just noise or empty
-        if not transcript.strip() or transcript.startswith("[Speech detected") or transcript.startswith("[No speech detected"):
-            if silence_flag and not had_voice_flag:
-                proceed_text = generate_proceed_prompt(session)
-                audio_url = text_to_speech(proceed_text, f"proceed_{uuid.uuid4().hex}.mp3")
-                session.add_interviewer_message(proceed_text)
+        # Check if transcript is empty (as-is from Deepgram API) - send to LLM to generate next context
+        is_empty_transcript = not transcript.strip() or transcript.startswith("[Speech detected") or transcript.startswith("[No speech detected")
+        
+        if is_empty_transcript:
+            # Send empty transcript (as-is from Deepgram) to LLM to generate appropriate response
+            # LLM will decide: ask again, move to next question, or provide encouragement
+            llm_prompt = (
+                f"You are a professional technical interviewer conducting a technical interview. "
+                f"The candidate's response was empty or not detected (transcript from Deepgram API is empty: '{transcript}'). "
+                f"\n\n"
+                f"Current interview context:\n"
+                f"- Question number: {session.current_question_number} of {session.max_questions}\n"
+                f"- Last question asked: {session.last_active_question_text[:200] if session.last_active_question_text else 'N/A'}\n"
+                f"- Interview progress: {session.current_question_number}/{session.max_questions} questions completed\n"
+                f"\n"
+                f"Generate a brief, professional response (1-2 sentences) that:\n"
+                f"1. Acknowledges the situation naturally\n"
+                f"2. Either asks them to try again OR moves to the next question (your judgment)\n"
+                f"3. Keeps the conversation flowing smoothly\n"
+                f"4. Is encouraging and professional\n"
+                f"\n"
+                f"IMPORTANT:\n"
+                f"- If this is early in the interview (question 1-2), ask them to try again\n"
+                f"- If this is later (question 3+), you may move to the next question\n"
+                f"- Be natural and conversational, NOT robotic\n"
+                f"- Do NOT use phrases like 'I didn't catch that' - be more professional\n"
+                f"\n"
+                f"Generate ONLY the response text (no explanations, no quotes):"
+            )
+            
+            llm_response = gemini_generate(llm_prompt, max_retries=3)
+            
+            if not llm_response or llm_response.startswith("[Gemini error"):
+                # Fallback response
+                if session.current_question_number <= 2:
+                    llm_response = "I didn't catch your response. Could you please try again?"
+                else:
+                    llm_response = "Let's move on to the next question."
+            
+            # Check if LLM response indicates moving to next question
+            move_to_next = any(phrase in llm_response.lower() for phrase in [
+                "next question", "move on", "let's continue", "proceed", "move forward"
+            ])
+            
+            if move_to_next:
+                # LLM decided to move to next question
+                session.add_interviewer_message(llm_response)
+                next_question = generate_question(session, "regular", last_answer_text="")
+                session.regular_questions_count += 1
+                session.add_interviewer_message(next_question)
+                session.current_question_number += 1
+                session.awaiting_answer = True
+                session.last_active_question_text = next_question
+                
+                # Combine LLM response with next question
+                combined_response = f"{llm_response} {next_question}".strip()
+                audio_url = text_to_speech(combined_response, f"q{session.current_question_number}.mp3")
                 _reset_question_timers(session)
                 return {
-                    "transcript": transcript,
+                    "transcript": transcript if transcript else "",
                     "completed": False,
-                    "next_question": proceed_text,
+                    "next_question": combined_response,
                     "audio_url": audio_url,
                     "question_number": session.current_question_number,
                     "max_questions": session.max_questions,
                     "continuous": True
                 }
-            return {
-                "transcript": transcript,
-                "completed": False,
-                "acknowledge": True,
-                "message": "I didn't catch that. Please try again.",
-                "question_number": session.current_question_number,
-                "max_questions": session.max_questions,
-                "continuous": True
-            }
+            else:
+                # LLM decided to ask again
+                session.add_interviewer_message(llm_response)
+                acknowledge_audio = text_to_speech(llm_response, f"acknowledge_{uuid.uuid4().hex}.mp3")
+                _reset_question_timers(session)
+                return {
+                    "transcript": transcript if transcript else "",
+                    "completed": False,
+                    "acknowledge": True,
+                    "message": llm_response,
+                    "audio_url": acknowledge_audio,
+                    "question_number": session.current_question_number,
+                    "max_questions": session.max_questions,
+                    "continuous": True
+                }
 
         # Handle unrelated answers
         try:

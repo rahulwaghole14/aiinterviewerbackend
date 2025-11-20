@@ -290,7 +290,52 @@
             border: 2px solid var(--border-color);
             min-height: 100px;
             font-style: italic;
-            color: var(--text-secondary);
+            color: var(--text-primary); /* Changed to primary text color for consistency */
+        }
+        
+        .transcription-box strong {
+            color: var(--text-primary); /* Ensure strong text is consistent */
+        }
+        
+        .transcription-box * {
+            color: inherit; /* All child elements inherit the same color */
+        }
+        
+        /* CRITICAL: Prevent browser from auto-styling URLs/links as blue */
+        /* Browsers automatically detect URL patterns (like "www.example.com", "http://", "https://", 
+           email addresses like "user@domain.com") and wrap them in <a> tags with blue color.
+           This happens when innerHTML is set, causing new text to appear blue while old text stays black.
+           Solution: Explicitly override link colors to match text color */
+        .transcription-box a,
+        .transcription-box a:link,
+        .transcription-box a:visited,
+        .transcription-box a:hover,
+        .transcription-box a:active {
+            color: var(--text-primary) !important; /* Force all links to use text color */
+            text-decoration: none !important; /* Remove underline */
+            cursor: text !important; /* Remove pointer cursor */
+        }
+        
+        /* Audio Visualizer Styles - Only for Technical Interview */
+        .audio-visualizer-container {
+            width: 100%;
+            max-width: 100%;
+            height: 120px;
+            margin: 1rem 0;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .audio-visualizer-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
         }
         
         .coding-container {
@@ -487,6 +532,10 @@
                 <div id="answering-timer" class="timer-display" style="display:none;"></div>
                 <div id="review-timer-display" class="timer-display" style="display:none;"></div>
                 <button id="done-btn" class="btn done-btn" style="display:none;">✅ I'm Done Answering</button>
+                <!-- Audio Visualizer - Only shown during technical interview answering phase -->
+                <div id="audio-visualizer-container" class="audio-visualizer-container" style="display:none;">
+                    <canvas id="audio-visualizer" class="audio-visualizer-canvas"></canvas>
+                </div>
                 <div id="transcription-box" class="transcription-box"></div>
                 <div style="margin-top:1rem; display:flex; gap:10px; flex-wrap:wrap;">
                     <button id="finish-chatbot-btn" class="btn" style="display:none;">✅ I've finished the technical Q&A</button>
@@ -581,11 +630,137 @@
     let isTerminationWarningVisible = false, terminationWarningInterval = null;
     let mediaRecorder, audioChunks = [], currentAudio = new Audio(), moveNextAudio = new Audio(MOVE_TO_NEXT_AUDIO_URL), audioContext, micSource, scriptProcessor;
     let silenceDetector = { counter: 0, threshold: 39 };
+    
+    // Audio Visualizer variables - Only for Technical Interview
+    let audioAnalyser = null;
+    let visualizerAnimationId = null;
+    let visualizerCanvas = null;
+    let visualizerCtx = null;
+    let visualizerDataArray = null;
     // Deepgram WebSocket variables
+    // SIMPLIFIED STATE MANAGEMENT - Never clears text during recording
     let deepgramWS = null;
-    let deepgramTranscript = '';
-    let deepgramPartialText = '';
+    
+    // ✅ SIMPLIFIED STATE: Single source of truth
+    let accumulatedTranscript = '';  // All text received (never cleared during recording)
+    let lastUpdateTime = Date.now();
+    const SILENCE_THRESHOLD = 5000;  // 5 seconds of actual silence
+    
+    // Legacy variable names (kept for compatibility, will be synced)
+    let deepgramPartialText = ''; // Synced with: accumulatedTranscript
+    let accumulatedFinalText = ''; // Synced with: accumulatedTranscript
+    let lastKnownTranscript = ''; // Synced with: accumulatedTranscript
+    let completeTranscript = ''; // Synced with: accumulatedTranscript
+    let currentUtterance = ''; // Current interim (for display only)
+    let lastReceivedText = ''; // Synced with: accumulatedTranscript
+    
     const DEEPGRAM_API_KEY = '6690abf90d1c62c6b70ed632900b2c093bc06d79'; // Hardcoded API key
+    
+    // ✅ MONITOR SILENCE INDEPENDENTLY (don't rely on Deepgram)
+    let silenceCheckInterval = null;
+    let isRecordingActive = false; // Track if recording is active
+    let hasEverReceivedText = false; // Track if we've ever received any transcript
+    let answeringPhaseStartTime = null; // Track when answering phase started
+    const MAX_ANSWERING_TIME = 10000; // 10 seconds maximum total time
+    const SILENCE_FOR_AUTO_SUBMIT = 5000; // 5 seconds of silence to auto-submit
+    const MIN_RECORDING_TIME = 8000; // Minimum 2 seconds before auto-submit can trigger
+    
+    // Function to start silence monitoring
+    function startSilenceMonitoring() {
+        if (silenceCheckInterval) return;
+        
+        // Record when answering phase started
+        answeringPhaseStartTime = Date.now();
+        
+        silenceCheckInterval = setInterval(() => {
+            if (!isRecordingActive) {
+                clearInterval(silenceCheckInterval);
+                silenceCheckInterval = null;
+                answeringPhaseStartTime = null;
+                return;
+            }
+            
+            const now = Date.now();
+            const silenceDuration = now - lastUpdateTime;
+            const totalRecordingTime = now - answeringPhaseStartTime;
+            
+            // Only show "No voice" if:
+            // 1. No text ever received AND
+            // 2. 5+ seconds of silence
+            if (!hasEverReceivedText && silenceDuration > SILENCE_THRESHOLD) {
+                const box = document.getElementById('transcription-box');
+                if (box) {
+                    box.innerHTML = `<span class='status-indicator status-waiting'></span><strong>No speech detected. Please speak clearly into your microphone.</strong>`;
+                }
+            }
+            
+            // ✅ AUTO-SUBMIT LOGIC:
+            // 1. Must have received at least some text (hasEverReceivedText = true)
+            // 2. Must have been recording for at least MIN_RECORDING_TIME (2 seconds)
+            // 3. Must have 5 seconds of silence after last transcript
+            // 4. Maximum 10 seconds total recording time
+            if (hasEverReceivedText && 
+                totalRecordingTime >= MIN_RECORDING_TIME && 
+                silenceDuration >= SILENCE_FOR_AUTO_SUBMIT) {
+                console.log('✅ Auto-submitting: 5 seconds of silence detected after transcript');
+                console.log(`   Total recording time: ${totalRecordingTime}ms`);
+                console.log(`   Silence duration: ${silenceDuration}ms`);
+                stopSilenceMonitoring();
+                moveToReviewPhase();
+                return;
+            }
+            
+            // ✅ MAX TIME REACHED: Auto-submit after 10 seconds total
+            if (totalRecordingTime >= MAX_ANSWERING_TIME) {
+                console.log('✅ Auto-submitting: Maximum 10 seconds reached');
+                console.log(`   Total recording time: ${totalRecordingTime}ms`);
+                stopSilenceMonitoring();
+                moveToReviewPhase();
+                return;
+            }
+        }, 1000); // Check every 1 second
+    }
+    
+    // Function to stop silence monitoring
+    function stopSilenceMonitoring() {
+        if (silenceCheckInterval) {
+            clearInterval(silenceCheckInterval);
+            silenceCheckInterval = null;
+        }
+        answeringPhaseStartTime = null; // Reset start time
+    }
+    
+    // NEW FUNCTION: Reset transcript ONLY when starting a brand new question
+    // Call this when starting a new question session, NOT during recording
+    function resetTranscript() {
+        console.log('🔄 Resetting transcript for new question');
+        accumulatedTranscript = '';
+        deepgramPartialText = '';
+        accumulatedFinalText = '';
+        lastKnownTranscript = '';
+        completeTranscript = '';
+        currentUtterance = '';
+        lastReceivedText = '';
+        hasEverReceivedText = false;
+        lastUpdateTime = Date.now();
+        // DO NOT clear isRecordingActive here - that's managed separately
+    }
+    
+    // NEW FUNCTION: Get full transcript for submission
+    // ✅ Always return accumulated (never empty unless truly no speech)
+    function getFullTranscript() {
+        return accumulatedTranscript.trim() || '';
+    }
+    
+    // NEW FUNCTION: Sync legacy variables with new state
+    function syncTranscriptVariables() {
+        // Sync all legacy variables with accumulatedTranscript
+        deepgramPartialText = accumulatedTranscript;
+        accumulatedFinalText = accumulatedTranscript;
+        lastKnownTranscript = accumulatedTranscript;
+        completeTranscript = accumulatedTranscript;
+        lastReceivedText = accumulatedTranscript;
+    }
     // When true, keep proctoring ON but do not auto-start spoken Q&A (external chatbot in use)
     let PROCTOR_ONLY = false;
 
@@ -1160,6 +1335,10 @@
         clearTimeout(noAnswerTimeout);
         clearInterval(thinkingTimer); clearInterval(answeringTimer); clearInterval(reviewInterval);
         
+        // CRITICAL: Reset transcript when starting a NEW question
+        // This is the ONLY place where transcript should be cleared
+        resetTranscript();
+        
         hasStartedSpeaking = false;
         silenceDetector.counter = 0;
 
@@ -1261,18 +1440,142 @@
         hasStartedSpeaking = true;
         clearInterval(thinkingTimer);
         document.getElementById('thinking-timer').style.display = 'none';
-        document.getElementById('transcription-box').innerHTML = "<span class='status-indicator status-loading'></span><i>Recording...</i>";
-        let timeLeft = ANSWERING_TIME;
+        
+        // Initialize transcript timeout tracking for "No speech detected" message
+        lastUpdateTime = Date.now();
+        
+        // CRITICAL: Don't overwrite transcription box if there's already a transcript
+        // This prevents erasing early transcripts when user starts speaking continuously
+        // Only show "Recording..." if there's no transcript yet
+        const box = document.getElementById('transcription-box');
+        const hasExistingTranscript = accumulatedTranscript.trim().length > 0;
+        if (!hasExistingTranscript) {
+            box.innerHTML = "<span class='status-indicator status-loading'></span><i>Recording...</i>";
+        } else {
+            // Update with existing transcript instead of overwriting
+            updateDisplay(accumulatedTranscript);
+        }
+        
+        // Start silence monitoring (separate from Deepgram)
+        startSilenceMonitoring();
+        
+        // Show and start audio visualizer (only for technical interview)
+        startAudioVisualizer();
+        
+        // Show timer with 10 seconds maximum (matching MAX_ANSWERING_TIME)
         const timer = document.getElementById('answering-timer');
         timer.style.display = 'block';
         document.getElementById('done-btn').style.display = 'block';
         answeringTimer = setInterval(() => {
-            timer.innerText = `Time to answer: ${formatTime(timeLeft)}`;
-            timeLeft--;
-            if (timeLeft < 0) {
+            if (!answeringPhaseStartTime) {
+                answeringPhaseStartTime = Date.now(); // Fallback if not set
+            }
+            const elapsed = Date.now() - answeringPhaseStartTime;
+            const remaining = Math.max(0, Math.floor((MAX_ANSWERING_TIME - elapsed) / 1000));
+            timer.innerText = `Time remaining: ${formatTime(remaining)}`;
+            
+            // Auto-submit if max time reached
+            if (elapsed >= MAX_ANSWERING_TIME) {
+                clearInterval(answeringTimer);
                 moveToReviewPhase();
             }
-        }, 1000);
+        }, 100); // Update every 100ms for smoother countdown
+    }
+    
+    function startAudioVisualizer() {
+        // Only show visualizer during technical interview answering phase
+        if (!audioAnalyser || !audioContext) {
+            console.log('⚠️ Audio analyser not available for visualizer');
+            return;
+        }
+        
+        // Get canvas element
+        visualizerCanvas = document.getElementById('audio-visualizer');
+        if (!visualizerCanvas) {
+            console.log('⚠️ Audio visualizer canvas not found');
+            return;
+        }
+        
+        visualizerCtx = visualizerCanvas.getContext('2d');
+        visualizerCanvas.width = visualizerCanvas.offsetWidth;
+        visualizerCanvas.height = visualizerCanvas.offsetHeight;
+        
+        // Create data array for frequency analysis
+        const bufferLength = audioAnalyser.frequencyBinCount;
+        visualizerDataArray = new Uint8Array(bufferLength);
+        
+        // Show visualizer container
+        const visualizerContainer = document.getElementById('audio-visualizer-container');
+        if (visualizerContainer) {
+            visualizerContainer.style.display = 'block';
+        }
+        
+        // Start animation loop
+        drawAudioVisualizer();
+    }
+    
+    function drawAudioVisualizer() {
+        if (!visualizerCanvas || !visualizerCtx || !audioAnalyser || !visualizerDataArray) {
+            return;
+        }
+        
+        // Only continue if visualizer is visible (answering phase)
+        const visualizerContainer = document.getElementById('audio-visualizer-container');
+        if (!visualizerContainer || visualizerContainer.style.display === 'none') {
+            return;
+        }
+        
+        // Get frequency data
+        audioAnalyser.getByteFrequencyData(visualizerDataArray);
+        
+        // Clear canvas
+        visualizerCtx.fillStyle = 'var(--card-bg)';
+        visualizerCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+        
+        // Draw bars
+        const barCount = 60; // Number of bars to display
+        const barWidth = visualizerCanvas.width / barCount;
+        const barSpacing = 2;
+        const maxBarHeight = visualizerCanvas.height - 20;
+        
+        for (let i = 0; i < barCount; i++) {
+            // Map frequency data to bars (use multiple bins per bar for smoother visualization)
+            const dataIndex = Math.floor((i / barCount) * visualizerDataArray.length);
+            const barHeight = (visualizerDataArray[dataIndex] / 255) * maxBarHeight;
+            
+            // Create gradient for bars
+            const gradient = visualizerCtx.createLinearGradient(0, visualizerCanvas.height, 0, visualizerCanvas.height - barHeight);
+            gradient.addColorStop(0, '#4CAF50'); // Green at bottom
+            gradient.addColorStop(0.5, '#FFC107'); // Yellow in middle
+            gradient.addColorStop(1, '#FF5722'); // Red at top
+            
+            // Draw bar
+            const x = i * (barWidth + barSpacing);
+            visualizerCtx.fillStyle = gradient;
+            visualizerCtx.fillRect(x, visualizerCanvas.height - barHeight, barWidth - barSpacing, barHeight);
+        }
+        
+        // Continue animation
+        visualizerAnimationId = requestAnimationFrame(drawAudioVisualizer);
+    }
+    
+    function stopAudioVisualizer() {
+        // Stop animation
+        if (visualizerAnimationId) {
+            cancelAnimationFrame(visualizerAnimationId);
+            visualizerAnimationId = null;
+        }
+        
+        // Hide visualizer container
+        const visualizerContainer = document.getElementById('audio-visualizer-container');
+        if (visualizerContainer) {
+            visualizerContainer.style.display = 'none';
+        }
+        
+        // Clear canvas
+        if (visualizerCanvas && visualizerCtx) {
+            visualizerCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+        }
     }
 
     function moveToReviewPhase() {
@@ -1281,6 +1584,34 @@
         clearTimeout(noAnswerTimeout);
         document.getElementById('answering-timer').style.display = 'none';
         document.getElementById('done-btn').style.display = 'none';
+        
+        // Stop audio visualizer (only for technical interview)
+        stopAudioVisualizer();
+        
+        // ✅ Check if we have transcript before stopping
+        const currentTranscript = getFullTranscript();
+        
+        if (!currentTranscript && isRecordingActive) {
+            // No transcript yet but recording is active - wait for Deepgram to send final transcript
+            console.log('⏳ Waiting for Deepgram to finalize transcript (1 second)...');
+            setTimeout(() => {
+                // Check again after delay
+                const finalTranscript = getFullTranscript();
+                if (!finalTranscript) {
+                    console.log('⚠️ Still no transcript after wait - Deepgram may not have detected speech');
+                    console.log('   Possible reasons:');
+                    console.log('   - Audio quality too poor');
+                    console.log('   - Microphone not capturing properly');
+                    console.log('   - Deepgram connection issues');
+                } else {
+                    console.log('✅ Transcript received after wait:', finalTranscript.substring(0, 50) + '...');
+                }
+                stopRecordingAndProcessing();
+                sendAudioToServer();
+            }, 1000); // Wait 1 second for Deepgram to send final transcript
+            return; // Exit early, will continue in setTimeout
+        }
+        
         stopRecordingAndProcessing();
         // Send transcript to server after stopping recording
         sendAudioToServer();
@@ -1301,8 +1632,14 @@
     async function startRecordingAndMonitoring() {
         if (interviewEnded) return;
         audioChunks = [];
-        deepgramTranscript = '';
-        deepgramPartialText = '';
+        deepgramPartialText = ''; // Clear transcript when starting NEW recording session
+        accumulatedFinalText = ''; // Clear accumulated final text for new session
+        lastProcessedTranscript = ''; // Reset tracking
+        lastKnownTranscript = ''; // Clear backup transcript for new session
+        isRecordingActive = true; // Mark recording as active
+        
+        // Clear any existing transcript timeout
+        clearTranscriptTimeout();
         
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -1318,6 +1655,13 @@
             // Initialize audio context for volume monitoring
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             micSource = audioContext.createMediaStreamSource(stream);
+            
+            // Create analyser node for audio visualizer (only for technical interview)
+            audioAnalyser = audioContext.createAnalyser();
+            audioAnalyser.fftSize = 256; // Number of frequency bins
+            audioAnalyser.smoothingTimeConstant = 0.8; // Smoothing factor
+            micSource.connect(audioAnalyser);
+            
             scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
             
             // Volume monitoring for silence detection
@@ -1334,12 +1678,19 @@
                     if (hasStartedSpeaking) silenceDetector.counter++;
                 }
 
-                if (silenceDetector.counter > silenceDetector.threshold) {
-                    if (!interviewEnded) {
-                       moveToReviewPhase();
-                       silenceDetector.counter = 0;
-                    }
-                }
+                // CRITICAL: DO NOT automatically move to review phase on silence
+                // Users need to be able to pause while speaking without losing their transcript
+                // Only move to review phase when:
+                // 1. User explicitly clicks "Done" button
+                // 2. Time limit is reached
+                // 3. NOT on silence detection (removed automatic trigger)
+                // This prevents transcript erasure when user pauses mid-sentence
+                // if (silenceDetector.counter > silenceDetector.threshold) {
+                //     if (!interviewEnded) {
+                //        moveToReviewPhase();
+                //        silenceDetector.counter = 0;
+                //     }
+                // }
                 
                 // Send audio to Deepgram WebSocket
                 if (deepgramWS && deepgramWS.readyState === WebSocket.OPEN) {
@@ -1367,7 +1718,78 @@
     async function connectDeepgram(stream) {
         const sampleRate = audioContext.sampleRate || 16000;
         // Deepgram WebSocket API - API key passed as token query parameter
-        const wsUrl = `wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=general&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&smart_format=false&punctuate=false`;
+        // Using raw transcript mode: no smart_format, no punctuate, no sentence transformation
+        // Takes words as-is from speech-to-text
+        //
+        // CRITICAL CONFIGURATION FOR CONTINUOUS SPEECH CAPTURE:
+        //
+        // filler_words=true: Captures hesitation words ("um", "uh", "ah", "hmm", etc.)
+        // Without this, Deepgram filters out these words by default
+        //
+        // REDUCED endpointing=2000: Waits 2 seconds of silence before finalizing an utterance
+        // Reduced from 10s to 2s for better responsiveness while still preventing premature cuts
+        //
+        // utterance_end_ms=2000: Waits 2 seconds of silence before considering utterance complete
+        // Matches endpointing for consistency
+        //
+        // vad_turnoff=1000: Voice Activity Detection turn-off delay of 1 second
+        // Reduced to 1s to prevent aggressive VAD while maintaining responsiveness
+        // This prevents VAD from cutting off speech during brief pauses
+        //
+        // interim_results=true: Enables real-time partial transcripts
+        // Essential for showing live transcription as user speaks
+        //
+        // filler_words=true: Captures hesitation words ("um", "uh", "ah", "hmm", etc.)
+        //
+        // no_delay=false: Allows Deepgram to buffer and process audio properly
+        //
+        // diarize=false: Disables speaker diarization (not needed for single speaker)
+        // smart_format=false: Disables automatic formatting (we want raw text)
+        // punctuate=false: Disables automatic punctuation (we want raw text)
+        // ✅ OPTIMIZED SETTINGS FOR CONTINUOUS SPEECH
+        const wsUrl = `wss://api.deepgram.com/v1/listen?` + new URLSearchParams({
+            token: DEEPGRAM_API_KEY,
+            model: 'nova-2',              // Better accuracy than 'general'
+            tier: 'enhanced',             // Enhanced tier for better accuracy
+            encoding: 'linear16',
+            sample_rate: sampleRate,
+            channels: '1',
+            
+            // 🔑 KEY SETTINGS
+            interim_results: 'true',      // Real-time partial transcripts
+            filler_words: 'true',         // Capture "um", "uh", etc.
+            speech_final: 'true',         // Send final speech results
+            
+            // 🎯 CRITICAL: Prevent premature finalization during continuous speech
+            endpointing: '10000',          // 10 seconds - allows long continuous speech without premature finalization
+            utterance_end_ms: '10000',    // 10 seconds - matches endpointing for consistency
+            utterance_silence_threshold_ms: '5000',  // 5 seconds - silence threshold for utterance boundaries
+            vad_turnoff: '5000',          // 5 seconds VAD delay - prevents aggressive cutoffs during pauses
+            vad_threshold: '0.5',         // VAD sensitivity threshold (0.0-1.0) - 0.5 is balanced
+            vad_sensitivity: '0.2',       // VAD sensitivity (0.0-1.0) - 0.2 is more sensitive to detect speech
+            
+            // 📊 Output formatting
+            smart_format: 'false',
+            punctuate: 'false',
+            diarize: 'false',
+            
+            // ⚡ Performance
+            no_delay: 'true'              // Real-time streaming
+        }).toString();
+        
+        console.log('🔧 Deepgram configured for continuous speech:');
+        console.log('   - model: nova-2 (better accuracy)');
+        console.log('   - tier: enhanced (enhanced accuracy)');
+        console.log('   - endpointing: 10000ms (10 seconds - prevents premature finalization)');
+        console.log('   - utterance_end_ms: 10000ms (10 seconds - allows long continuous speech)');
+        console.log('   - utterance_silence_threshold_ms: 5000ms (5 seconds - silence threshold for utterances)');
+        console.log('   - vad_turnoff: 5000ms (5 seconds - prevents aggressive cutoffs)');
+        console.log('   - vad_threshold: 0.5 (balanced sensitivity)');
+        console.log('   - vad_sensitivity: 0.2 (more sensitive to detect speech)');
+        console.log('   - filler_words: enabled');
+        console.log('   - interim_results: enabled');
+        console.log('   - speech_final: enabled');
+        console.log('   - no_delay: true (real-time streaming)');
         
         return new Promise((resolve, reject) => {
             deepgramWS = new WebSocket(wsUrl);
@@ -1379,25 +1801,7 @@
             };
             
             deepgramWS.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'Results' && data.channel && data.channel.alternatives && data.channel.alternatives[0]) {
-                        const transcript = data.channel.alternatives[0].transcript || '';
-                        const isFinal = !!data.is_final;
-                        
-                        if (isFinal && transcript.trim()) {
-                            // Add to final transcript (no automatic sentence formatting - keep as is)
-                            deepgramTranscript += transcript.trim() + ' ';
-                            updateLiveTranscript();
-                        } else {
-                            // Update partial text
-                            deepgramPartialText = transcript.trim();
-                            updateLiveTranscript();
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error parsing Deepgram message:', err);
-                }
+                handleDeepgramMessage(event);
             };
             
             deepgramWS.onerror = (error) => {
@@ -1411,15 +1815,126 @@
         });
     }
     
-    function updateLiveTranscript() {
+    // ✅ FIXED TRANSCRIPT HANDLING: Simplified state with single source of truth
+    function handleDeepgramMessage(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'Results' && 
+                data.channel?.alternatives?.[0]) {
+                
+                const result = data.channel.alternatives[0];
+                const transcript = result.transcript || '';
+                const isFinal = !!data.is_final;
+                
+                if (transcript.trim()) {
+                    lastUpdateTime = Date.now();
+                    hasEverReceivedText = true;
+                    
+                    // CRITICAL: Ensure hasStartedSpeaking is set when we receive first transcript
+                    // This prevents "no voice detected" message at the start
+                    if (!hasStartedSpeaking && transcript.trim().length > 0) {
+                        startAnsweringPhase();
+                    }
+                    
+                    if (isFinal) {
+                        // ✅ FINAL: Append to accumulated (never replace)
+                        console.log(`✅ FINAL: "${transcript}"`);
+                        
+                        if (!accumulatedTranscript.includes(transcript)) {
+                            accumulatedTranscript = accumulatedTranscript 
+                                ? `${accumulatedTranscript} ${transcript}`.trim()
+                                : transcript;
+                        }
+                        
+                        // Sync legacy variables
+                        syncTranscriptVariables();
+                        
+                        // Update display
+                        updateDisplay(accumulatedTranscript);
+                    } else {
+                        // ✅ INTERIM: Show combined (accumulated + current interim)
+                        console.log(`📝 INTERIM: "${transcript}"`);
+                        
+                        // Deepgram interims are cumulative for current utterance
+                        // Display: accumulated + new interim (without duplicating)
+                        const displayText = accumulatedTranscript
+                            ? `${accumulatedTranscript} ${transcript}`.trim()
+                            : transcript;
+                        
+                        // Store current interim for display
+                        currentUtterance = transcript;
+                        
+                        // Sync legacy variables
+                        syncTranscriptVariables();
+                        
+                        // Update display with combined text
+                        updateDisplay(displayText);
+                        return; // Don't update accumulated yet (wait for final)
+                    }
+                }
+                // ✅ CRITICAL: Empty transcript = do nothing (preserve existing)
+            }
+        } catch (err) {
+            console.error('❌ Parse error:', err);
+        }
+    }
+    
+    // ✅ FIXED DISPLAY UPDATES: Proper HTML escaping and state handling
+    function updateDisplay(text) {
         const box = document.getElementById('transcription-box');
-        const fullText = (deepgramTranscript + deepgramPartialText).trim();
+        if (!box) return;
+        
+        // ✅ ESCAPE HTML (prevent URL auto-styling)
+        const safeText = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        
+        if (safeText.trim()) {
+            box.innerHTML = `
+                <span class='status-indicator status-success'></span>
+                <strong>Your Answer:</strong> 
+                <span style="color: var(--text-primary) !important;">
+                    ${safeText}
+                </span>
+            `;
+        } else if (isRecordingActive) {
+            // Show "Listening..." only if no text yet
+            box.innerHTML = `
+                <span class='status-indicator status-waiting'></span>
+                <strong>Listening...</strong>
+            `;
+        }
+    }
+    
+    // Legacy function name for compatibility
+    function updateLiveTranscript() {
+        const fullText = getFullTranscript();
         if (fullText) {
-            box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> ${fullText}`;
+            updateDisplay(fullText);
+        } else {
+            // Show current interim if available
+            const displayText = accumulatedTranscript
+                ? `${accumulatedTranscript} ${currentUtterance}`.trim()
+                : currentUtterance;
+            updateDisplay(displayText);
         }
     }
 
     function stopRecordingAndProcessing() {
+        // Mark recording as inactive
+        isRecordingActive = false;
+        
+        // Stop silence monitoring
+        stopSilenceMonitoring();
+        
+        // NOTE: We keep the transcript (accumulatedTranscript) so it can be submitted
+        // Only clear when starting a new recording session
+        
+        // Stop audio visualizer (only for technical interview)
+        stopAudioVisualizer();
+        
         // Close Deepgram WebSocket
         if (deepgramWS && deepgramWS.readyState === WebSocket.OPEN) {
             deepgramWS.close();
@@ -1439,6 +1954,12 @@
         if (micSource && micSource.mediaStream) {
             micSource.mediaStream.getTracks().forEach(track => track.stop());
         }
+        
+        // Clean up visualizer variables
+        audioAnalyser = null;
+        visualizerCanvas = null;
+        visualizerCtx = null;
+        visualizerDataArray = null;
     }
 
     async function sendAudioToServer() {
@@ -1452,18 +1973,41 @@
         const responseTime = (new Date() - questionStartTime) / 1000;
         fd.append('response_time', responseTime);
         
-        // Use Deepgram transcript (no automatic sentence formatting)
-        const answerText = deepgramTranscript.trim() || 'No speech was detected.';
+        // ✅ Wait briefly for final results from Deepgram
+        let answerText = getFullTranscript();
+        
+        if (!answerText.trim()) {
+            console.log('⏳ Waiting for final transcript...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            answerText = getFullTranscript();
+        }
+        
+        // ✅ Always return accumulated (never empty unless truly no speech)
+        if (!answerText.trim()) {
+            answerText = 'No speech was detected.';
+            console.log('⚠️ No transcript available after wait - showing "No speech was detected"');
+            console.log('   This may occur if:');
+            console.log('   1. Microphone not capturing audio');
+            console.log('   2. Audio quality too poor for Deepgram to process');
+            console.log('   3. Deepgram WebSocket connection issues');
+        }
         
         // Send transcript to server (simulating the old transcribe_audio endpoint)
         fd.append('transcript', answerText);
         fd.append('transcribed_answer', answerText);
         
-        box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> ${answerText}`;
+        // Display transcript with proper HTML escaping
+        const transcriptText = answerText
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/&/g, '&amp;');
+        box.innerHTML = `<span class='status-indicator status-success'></span><strong>Your Answer:</strong> <span style="color: var(--text-primary) !important;">${transcriptText}</span>`;
         
+        let result = null; // Declare outside try block for access in finally
         try {
-            // Send transcript to server for saving
-            const res = await fetch("{% url 'transcribe_audio' %}", { 
+            // Send transcript to AI bot endpoint for processing (handles empty transcripts via LLM)
+            // This endpoint processes the answer and generates next question using AI
+            const res = await fetch("{% url 'ai_upload_answer' %}", { 
                 method: 'POST', 
                 body: fd 
             });
@@ -1471,16 +2015,90 @@
                 const err = await res.json(); 
                 throw new Error(err.error || `Server Error ${res.status}`); 
             }
-            const result = await res.json();
+            result = await res.json();
             
-            if (result.follow_up_question) {
-                spokenQuestions.splice(currentSpokenQuestionIndex + 1, 0, result.follow_up_question);
+            console.log('📥 Backend response:', result);
+            
+            // Handle acknowledgment response (for empty transcripts)
+            // When backend returns acknowledge=true, it means empty transcript was detected
+            // and LLM decided to ask again (not move to next question)
+            // This will restart recording for the SAME question
+            if (result.acknowledge && result.message) {
+                console.log('⚠️ Acknowledgment response - empty transcript detected');
+                console.log('   Message:', result.message);
+                
+                // Play acknowledgment audio if available
+                if (result.audio_url) {
+                    const acknowledgeAudio = new Audio(result.audio_url);
+                    acknowledgeAudio.onended = () => {
+                        // After acknowledgment, restart recording for same question
+                        // Reset transcript for new attempt
+                        resetTranscript();
+                        hasStartedSpeaking = false;
+                        // Restart answering phase
+                        startAnsweringPhase();
+                    };
+                    acknowledgeAudio.play().catch(e => {
+                        console.error('Error playing acknowledgment audio:', e);
+                        // Fallback: restart recording after 2 seconds
+                        setTimeout(() => {
+                            resetTranscript();
+                            hasStartedSpeaking = false;
+                            startAnsweringPhase();
+                        }, 2000);
+                    });
+                } else {
+                    // No audio URL - just restart recording after showing message
+                    setTimeout(() => {
+                        resetTranscript();
+                        hasStartedSpeaking = false;
+                        startAnsweringPhase();
+                    }, 2000);
+                }
+                
+                // Show acknowledgment message in UI
+                box.innerHTML = `<span class='status-indicator status-waiting'></span><strong>${result.message}</strong>`;
+                return; // Don't start review timer - waiting for user to try again
+            }
+            
+            // Handle completion response
+            if (result.completed) {
+                console.log('✅ Interview completed');
+                interviewEnded = true;
+                stopRecordingAndProcessing();
+                // Handle interview completion (redirect or show completion screen)
+                return;
+            }
+            
+            // Handle next question response
+            if (result.next_question) {
+                console.log('📝 Next question received');
+                
+                // Add next question to spoken questions list
+                const nextQuestion = {
+                    id: result.question_id || null,
+                    text: result.next_question,
+                    type: result.question_type || 'TECHNICAL',
+                    audio_url: result.audio_url || null
+                };
+                
+                // Insert next question after current question
+                spokenQuestions.splice(currentSpokenQuestionIndex + 1, 0, nextQuestion);
+                
+                // Also save follow-up question if provided
+                if (result.follow_up_question) {
+                    spokenQuestions.splice(currentSpokenQuestionIndex + 2, 0, result.follow_up_question);
+                }
             }
         } catch (err) {
             console.error('Error sending transcript to server:', err);
             // Still show the transcript even if server save fails
         } finally {
-            startReviewTimer();
+            // Only start review timer if NOT an acknowledgment response
+            // Acknowledgment responses restart recording immediately
+            if (!result || !result.acknowledge) {
+                startReviewTimer();
+            }
         }
     }
 

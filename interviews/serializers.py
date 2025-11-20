@@ -602,28 +602,34 @@ class InterviewSerializer(serializers.ModelSerializer):
             from interview_app.models import CodeSubmission
             
             qa_list = []
-            # Group questions by order to pair AI questions with Interviewee answers
+            # Process questions sequentially (already sorted by conversation_sequence, order, id)
             # IMPORTANT: For CODING questions, we need to handle them separately since answers come from CodeSubmission
-            questions_by_order = {}
-            coding_questions_list = []  # Track coding questions separately to avoid order conflicts
+            coding_questions_list = []  # Track coding questions separately
+            questions_by_order = {}  # Group non-coding questions by order for pairing AI with Interviewee
             
+            # First pass: Separate CODING questions and group non-coding questions
             for q in questions:
-                order_key = q.order
                 question_type = (q.question_type or '').upper()
                 
-                # For CODING questions, track them separately to avoid overwriting with TECHNICAL questions at same order
-                # Handle both 'CODING' and 'CODING CHALLENGE' types
+                # For CODING questions, track them separately
                 if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
                     if q.question_text and q.question_text.strip():
-                        # This is a CODING question - store it separately
                         coding_questions_list.append(q)
-                        print(f"✅ Added CODING question to separate list: Order {order_key}, ID {q.id}, Type: {q.question_type}, Question: {q.question_text[:50]}...")
-                    # Continue to next question (don't process as regular question)
+                        print(f"✅ Added CODING question to separate list: ConvSeq {q.conversation_sequence}, Order {q.order}, ID {q.id}, Type: {q.question_type}, Question: {q.question_text[:50]}...")
                     continue
                 
-                # For non-coding questions, group by order
+                # For non-coding questions, group by order (they may share same order if AI and Interviewee)
+                order_key = q.order
                 if order_key not in questions_by_order:
-                    questions_by_order[order_key] = {'ai': None, 'interviewee': None}
+                    questions_by_order[order_key] = {'ai': None, 'interviewee': None, 'conversation_sequence': None, 'order': order_key}
+                
+                # Update conversation_sequence if available (use the AI question's sequence)
+                if q.conversation_sequence is not None:
+                    if questions_by_order[order_key]['conversation_sequence'] is None:
+                        questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
+                    elif q.role and q.role.upper() == 'AI':
+                        # Prefer AI question's conversation_sequence for ordering
+                        questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
                 
                 # Check if this is an AI question or Interviewee answer
                 has_role = q.role is not None and q.role.strip()
@@ -634,11 +640,15 @@ class InterviewSerializer(serializers.ModelSerializer):
                         questions_by_order[order_key]['interviewee'] = q
                 elif q.question_text and q.question_text.strip():
                     # Old format: question_text exists, treat as AI question
-                    # Only overwrite if it's not already a CODING question
                     questions_by_order[order_key]['ai'] = q
             
-            # Now create Q&A pairs from grouped questions
-            for order_key in sorted(questions_by_order.keys()):
+            # Now create Q&A pairs from grouped questions - sort by conversation_sequence first, then order
+            sorted_order_keys = sorted(questions_by_order.keys(), key=lambda k: (
+                questions_by_order[k].get('conversation_sequence') if questions_by_order[k].get('conversation_sequence') is not None else 999999,
+                questions_by_order[k].get('order', 0)
+            ))
+            
+            for order_key in sorted_order_keys:
                 q_pair = questions_by_order[order_key]
                 ai_q = q_pair['ai']
                 interviewee_a = q_pair['interviewee']
@@ -782,9 +792,14 @@ class InterviewSerializer(serializers.ModelSerializer):
                 # IMPORTANT: Preserve the original question_type from database (not the uppercased version)
                 original_question_type = ai_q.question_type or 'TECHNICAL'
                 
+                # Get conversation_sequence and order for proper ordering
+                conversation_seq = ai_q.conversation_sequence if hasattr(ai_q, 'conversation_sequence') and ai_q.conversation_sequence is not None else None
+                order_value = ai_q.order if hasattr(ai_q, 'order') else group_key
+                
                 qa_item = {
                     'id': str(ai_q.id),
-                    'order': order_key,
+                    'order': order_value,
+                    'conversation_sequence': conversation_seq,  # Add conversation_sequence for proper ordering
                     'question_text': question_text,
                     'question_type': original_question_type,  # Use original case from database
                     'answer': answer_text,
@@ -918,9 +933,13 @@ class InterviewSerializer(serializers.ModelSerializer):
                     created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
                 
                 # Create Q&A item for CODING question
+                # Get conversation_sequence for proper ordering
+                conversation_seq = coding_q.conversation_sequence if hasattr(coding_q, 'conversation_sequence') and coding_q.conversation_sequence is not None else None
+                
                 qa_item = {
                     'id': str(coding_q.id),
                     'order': order_key,
+                    'conversation_sequence': conversation_seq,  # Add conversation_sequence for proper ordering
                     'question_text': question_text,
                     'question_type': original_question_type,
                     'answer': answer_text,
@@ -947,11 +966,16 @@ class InterviewSerializer(serializers.ModelSerializer):
                 qa_list.append(qa_item)
                 print(f"✅ Added CODING Q&A item to list: Order {order_key}, ID {coding_q.id}, Has Answer: {bool(answer_text and answer_text != 'No code submitted')}")
             
-            # Sort by order to maintain sequence
-            qa_list.sort(key=lambda x: (x.get('order', 0), x.get('id', '')))
+            # Sort by conversation_sequence first (if available), then by order, then by id
+            # This ensures proper sequential ordering of questions
+            qa_list.sort(key=lambda x: (
+                x.get('conversation_sequence') if x.get('conversation_sequence') is not None else 999999,  # Use conversation_sequence if available
+                x.get('order', 0),  # Fallback to order
+                x.get('id', '')  # Final fallback to id
+            ))
             
             print(f"✅ Returning {len(qa_list)} Q&A items for interview {obj.id} in sequential order")
-            # Debug: Print final Q&A list
+            # Debug: Print final Q&A list with conversation_sequence for ordering verification
             coding_count = 0
             technical_count = 0
             for idx, qa in enumerate(qa_list):
@@ -959,7 +983,8 @@ class InterviewSerializer(serializers.ModelSerializer):
                 a_preview = qa.get('answer', '')[:50] if qa.get('answer') else 'None'
                 q_type = qa.get('question_type', 'UNKNOWN')
                 order = qa.get('order', 'N/A')
-                print(f"   [{idx+1}] Order {order}: Type={q_type}, Q: {q_preview}... | A: {a_preview}...")
+                conv_seq = qa.get('conversation_sequence', 'N/A')
+                print(f"   [{idx+1}] ConvSeq={conv_seq}, Order={order}: Type={q_type}, Q: {q_preview}... | A: {a_preview}...")
                 if (q_type or '').upper() == 'CODING':
                     coding_count += 1
                     print(f"      ⭐ CODING question found! ID: {qa.get('id')}, Has Answer: {bool(qa.get('answer') and qa.get('answer') != 'No code submitted')}")

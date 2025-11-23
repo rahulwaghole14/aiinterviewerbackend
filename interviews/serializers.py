@@ -37,6 +37,9 @@ class InterviewSerializer(serializers.ModelSerializer):
     
     # Questions and Answers for evaluation display
     questions_and_answers = serializers.SerializerMethodField()
+    
+    # Verification ID Image
+    verification_id_image = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -61,6 +64,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             "booking_notes",
             "ai_result",
             "questions_and_answers",
+            "verification_id_image",
         ]
         read_only_fields = [
             "created_at",
@@ -1006,6 +1010,67 @@ class InterviewSerializer(serializers.ModelSerializer):
             import traceback
             traceback.print_exc()
             return []
+    
+    def get_verification_id_image(self, obj):
+        """Get verification ID image URL from InterviewSession if verification was successful"""
+        try:
+            from interview_app.models import InterviewSession
+            from django.conf import settings
+            
+            # Find the session for this interview using session_key
+            session = None
+            if obj.session_key:
+                try:
+                    session = InterviewSession.objects.get(session_key=obj.session_key)
+                except InterviewSession.DoesNotExist:
+                    pass
+            
+            # If not found by session_key, try to find by candidate and recent date
+            if not session and obj.candidate:
+                try:
+                    sessions = InterviewSession.objects.filter(
+                        candidate_email=obj.candidate.email
+                    ).order_by('-created_at')
+                    
+                    # If interview has a created_at, try to match by date proximity
+                    if obj.created_at:
+                        from datetime import timedelta
+                        time_window_start = obj.created_at - timedelta(hours=1)
+                        time_window_end = obj.created_at + timedelta(hours=1)
+                        sessions = sessions.filter(
+                            created_at__gte=time_window_start,
+                            created_at__lte=time_window_end
+                        )
+                    
+                    session = sessions.first()
+                except Exception:
+                    pass
+            
+            # If still not found, try to find by interview round and candidate
+            if not session and obj.candidate and obj.interview_round:
+                try:
+                    session = InterviewSession.objects.filter(
+                        candidate_email=obj.candidate.email
+                    ).order_by('-created_at').first()
+                except Exception:
+                    pass
+            
+            # Return image URL if session exists, has id_card_image, and verification was successful
+            if session and session.id_card_image and session.id_verification_status == 'Verified':
+                if session.id_card_image:
+                    request = self.context.get('request')
+                    if request:
+                        return request.build_absolute_uri(session.id_card_image.url)
+                    else:
+                        # Fallback: construct URL manually
+                        media_url = settings.MEDIA_URL.rstrip('/')
+                        image_url = session.id_card_image.url.lstrip('/')
+                        return f"{media_url}/{image_url}"
+            
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting verification ID image for interview {obj.id}: {e}")
+            return None
 
 
 class InterviewFeedbackSerializer(serializers.ModelSerializer):

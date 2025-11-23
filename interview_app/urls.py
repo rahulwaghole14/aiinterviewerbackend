@@ -40,6 +40,7 @@ urlpatterns = [
     path('ai/upload_answer', views.ai_upload_answer, name='ai_upload_answer'),
     path('ai/repeat', views.ai_repeat, name='ai_repeat'),
     path('ai/transcript_pdf', views.ai_transcript_pdf, name='ai_transcript_pdf'),
+    
 
     # Auth endpoints namespace
     path('api/auth/', include('authapp.urls')),

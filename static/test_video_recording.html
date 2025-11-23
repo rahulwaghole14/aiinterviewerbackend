@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Video Recording</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .button {
+            padding: 15px 30px;
+            font-size: 16px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            color: white;
+        }
+        .start-btn { background: #28a745; }
+        .stop-btn { background: #dc3545; }
+        .test-btn { background: #007bff; }
+        video {
+            width: 100%;
+            max-width: 640px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        #status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+        .success { background: #d4edda !important; color: #155724; }
+        .error { background: #f8d7da !important; color: #721c24; }
+        .warning { background: #fff3cd !important; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🎥 Video Recording Test</h1>
+    
+    <div id="status">Status: Ready</div>
+    
+    <div>
+        <button class="button test-btn" onclick="testPermissions()">1. Test Camera Permissions</button>
+        <button class="button start-btn" onclick="startRecording()">2. Start Recording</button>
+        <button class="button stop-btn" onclick="stopRecording()">3. Stop Recording</button>
+    </div>
+    
+    <h3>Preview:</h3>
+    <video id="preview" autoplay muted></video>
+    
+    <h3>Console Output:</h3>
+    <div id="console" style="background: #000; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; max-height: 300px; overflow-y: auto;"></div>
+    
+    <script>
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let videoStream = null;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const consoleDiv = document.getElementById('console');
+            const color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#fff';
+            consoleDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(message, type = '') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = type;
+        }
+        
+        async function testPermissions() {
+            log('🔍 Testing camera and microphone permissions...');
+            updateStatus('Testing permissions...', 'warning');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                
+                log('✅ Camera permission: GRANTED', 'success');
+                log('✅ Microphone permission: GRANTED', 'success');
+                updateStatus('✅ Permissions granted! Ready to record.', 'success');
+                
+                // Show preview
+                document.getElementById('preview').srcObject = stream;
+                
+                // Stop tracks after test
+                setTimeout(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                    log('🛑 Test stream stopped');
+                }, 3000);
+                
+            } catch (error) {
+                log('❌ Permission error: ' + error.message, 'error');
+                updateStatus('❌ Permission denied: ' + error.message, 'error');
+            }
+        }
+        
+        async function startRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                log('⚠️ Already recording', 'error');
+                return;
+            }
+            
+            try {
+                log('🎥 Starting video recording...');
+                updateStatus('Starting recording...', 'warning');
+                
+                // Get video and audio stream
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                // Show preview
+                document.getElementById('preview').srcObject = videoStream;
+                
+                // Create media recorder
+                const options = {
+                    mimeType: 'video/webm;codecs=vp9,opus',
+                    videoBitsPerSecond: 2500000,
+                    audioBitsPerSecond: 128000
+                };
+                
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options.mimeType = 'video/webm;codecs=vp8,opus';
+                    log('⚠️ VP9 not supported, using VP8', 'warning');
+                }
+                
+                mediaRecorder = new MediaRecorder(videoStream, options);
+                recordedChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                        log(`📹 Chunk recorded: ${event.data.size} bytes (total: ${recordedChunks.length})`, 'success');
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    log('🛑 Recording stopped');
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    log(`✅ Recording complete! Size: ${(blob.size / 1024 / 1024).toFixed(2)} MB`, 'success');
+                    log(`🎬 You can download the recording or upload it to server`, 'success');
+                    updateStatus('✅ Recording saved! Check console for details.', 'success');
+                    
+                    // Create download link
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'test-recording.webm';
+                    a.textContent = 'Download Recording';
+                    a.style = 'display: block; margin: 20px 0; padding: 10px; background: #007bff; color: white; text-align: center; text-decoration: none; border-radius: 5px;';
+                    document.body.appendChild(a);
+                };
+                
+                mediaRecorder.onerror = (event) => {
+                    log('❌ MediaRecorder error: ' + event.error, 'error');
+                    updateStatus('❌ Recording error', 'error');
+                };
+                
+                // Start recording
+                mediaRecorder.start(1000); // 1 second chunks
+                
+                log('✅ Recording started successfully!', 'success');
+                updateStatus('🔴 Recording in progress... (Speak now!)', 'success');
+                
+            } catch (error) {
+                log('❌ Error starting recording: ' + error.message, 'error');
+                updateStatus('❌ Failed to start recording', 'error');
+            }
+        }
+        
+        function stopRecording() {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                log('⚠️ No recording in progress', 'error');
+                return;
+            }
+            
+            log('🛑 Stopping recording...');
+            updateStatus('Stopping recording...', 'warning');
+            
+            mediaRecorder.stop();
+            
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                document.getElementById('preview').srcObject = null;
+            }
+        }
+        
+        // Initial log
+        log('📹 Video Recording Test Page Loaded');
+        log('👉 Click "Test Camera Permissions" first!');
+    </script>
+</body>
+</html>
+

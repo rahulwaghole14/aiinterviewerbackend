@@ -600,6 +600,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs/loader.min.js"></script>
+
 <script>
     const SESSION_KEY = "{{ session_key|default:''|escapejs }}";
     const MOVE_TO_NEXT_AUDIO_URL = "{{ move_to_next_audio_url }}";
@@ -627,6 +628,8 @@
     let thinkingTimer, answeringTimer, reviewInterval, proctoringInterval, noAnswerTimeout;
     const THINKING_TIME = 20, ANSWERING_TIME = 60, REVIEW_TIME = 10, TERMINATION_TIME = 60;
     let hasStartedSpeaking = false;
+    
+    // Video recording functionality removed
     let isTerminationWarningVisible = false, terminationWarningInterval = null;
     let mediaRecorder, audioChunks = [], currentAudio = new Audio(), moveNextAudio = new Audio(MOVE_TO_NEXT_AUDIO_URL), audioContext, micSource, scriptProcessor;
     let silenceDetector = { counter: 0, threshold: 39 };
@@ -1314,10 +1317,14 @@
         startProctoringMonitors();
     }
 
+    // Video recording functions removed
+
     function startFirstSpokenQuestion() {
         console.log("Starting first spoken question...");
         console.log("Spoken questions count:", spokenQuestions.length);
         console.log("Coding questions count:", codingQuestions.length);
+        
+        // Video recording removed
         
         if (spokenQuestions.length > 0) {
             console.log("Starting spoken questions phase");
@@ -1717,20 +1724,9 @@
     
     async function connectDeepgram(stream) {
         const sampleRate = audioContext.sampleRate || 16000;
-        // Deepgram WebSocket API - API key passed as token query parameter
-        // Using raw transcript mode: no smart_format, no punctuate, no sentence transformation
+        // ✅ Simplified Deepgram WebSocket URL with only specified parameters
+        // Using raw transcript mode: no smart_format, no punctuate
         // Takes words as-is from speech-to-text
-        //
-        // CRITICAL CONFIGURATION FOR CONTINUOUS SPEECH CAPTURE:
-        //
-        // filler_words=true: Captures hesitation words ("um", "uh", "ah", "hmm", etc.)
-        // Without this, Deepgram filters out these words by default
-        //
-        // REDUCED endpointing=2000: Waits 2 seconds of silence before finalizing an utterance
-        // Reduced from 10s to 2s for better responsiveness while still preventing premature cuts
-        //
-        // utterance_end_ms=2000: Waits 2 seconds of silence before considering utterance complete
-        // Matches endpointing for consistency
         //
         // vad_turnoff=1000: Voice Activity Detection turn-off delay of 1 second
         // Reduced to 1s to prevent aggressive VAD while maintaining responsiveness
@@ -1743,53 +1739,18 @@
         //
         // no_delay=false: Allows Deepgram to buffer and process audio properly
         //
-        // diarize=false: Disables speaker diarization (not needed for single speaker)
-        // smart_format=false: Disables automatic formatting (we want raw text)
-        // punctuate=false: Disables automatic punctuation (we want raw text)
-        // ✅ OPTIMIZED SETTINGS FOR CONTINUOUS SPEECH
-        const wsUrl = `wss://api.deepgram.com/v1/listen?` + new URLSearchParams({
-            token: DEEPGRAM_API_KEY,
-            model: 'nova-2',              // Better accuracy than 'general'
-            tier: 'enhanced',             // Enhanced tier for better accuracy
-            encoding: 'linear16',
-            sample_rate: sampleRate,
-            channels: '1',
-            
-            // 🔑 KEY SETTINGS
-            interim_results: 'true',      // Real-time partial transcripts
-            filler_words: 'true',         // Capture "um", "uh", etc.
-            speech_final: 'true',         // Send final speech results
-            
-            // 🎯 CRITICAL: Prevent premature finalization during continuous speech
-            endpointing: '10000',          // 10 seconds - allows long continuous speech without premature finalization
-            utterance_end_ms: '10000',    // 10 seconds - matches endpointing for consistency
-            utterance_silence_threshold_ms: '5000',  // 5 seconds - silence threshold for utterance boundaries
-            vad_turnoff: '5000',          // 5 seconds VAD delay - prevents aggressive cutoffs during pauses
-            vad_threshold: '0.5',         // VAD sensitivity threshold (0.0-1.0) - 0.5 is balanced
-            vad_sensitivity: '0.2',       // VAD sensitivity (0.0-1.0) - 0.2 is more sensitive to detect speech
-            
-            // 📊 Output formatting
-            smart_format: 'false',
-            punctuate: 'false',
-            diarize: 'false',
-            
-            // ⚡ Performance
-            no_delay: 'true'              // Real-time streaming
-        }).toString();
+        // Connect to Deepgram DIRECTLY - MATCH ORIGINAL index.html
+        const wsUrl = `wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false`;
         
-        console.log('🔧 Deepgram configured for continuous speech:');
-        console.log('   - model: nova-2 (better accuracy)');
-        console.log('   - tier: enhanced (enhanced accuracy)');
-        console.log('   - endpointing: 10000ms (10 seconds - prevents premature finalization)');
-        console.log('   - utterance_end_ms: 10000ms (10 seconds - allows long continuous speech)');
-        console.log('   - utterance_silence_threshold_ms: 5000ms (5 seconds - silence threshold for utterances)');
-        console.log('   - vad_turnoff: 5000ms (5 seconds - prevents aggressive cutoffs)');
-        console.log('   - vad_threshold: 0.5 (balanced sensitivity)');
-        console.log('   - vad_sensitivity: 0.2 (more sensitive to detect speech)');
-        console.log('   - filler_words: enabled');
-        console.log('   - interim_results: enabled');
-        console.log('   - speech_final: enabled');
-        console.log('   - no_delay: true (real-time streaming)');
+        console.log('🔧 Deepgram configured with simplified settings:');
+        console.log('   - model: general');
+        console.log('   - encoding: linear16');
+        console.log('   - sample_rate:', sampleRate);
+        console.log('   - channels: 1');
+        console.log('   - interim_results: true');
+        console.log('   - smart_format: false');
+        console.log('   - punctuate: false');
+        console.log('   - endpointing: 5000ms');
         
         return new Promise((resolve, reject) => {
             deepgramWS = new WebSocket(wsUrl);
@@ -2104,6 +2065,9 @@
 
     function startCodingPhase() {
         console.log("Transitioning to coding phase...");
+        
+        // Video recording removed
+        
         stopRecordingAndProcessing();
         clearTimeout(noAnswerTimeout);
         clearInterval(thinkingTimer); clearInterval(answeringTimer); clearInterval(reviewInterval);
@@ -2247,6 +2211,7 @@
 
         if (currentCodingQuestionIndex >= codingQuestions.length) {
             console.log("All coding challenges completed.");
+            
             window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
             return;
         }
@@ -2540,6 +2505,7 @@
             setTimeout(() => {
                 if (isFinalSubmission) {
                     releaseMediaResources();
+                    
                     window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
                 } else {
                     nextCodingQuestion();

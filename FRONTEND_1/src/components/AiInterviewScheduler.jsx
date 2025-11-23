@@ -160,7 +160,7 @@ const AiInterviewScheduler = ({
   const [slotForm, setSlotForm] = useState(() => ({
     ai_interview_type: "technical",
     difficulty_level: "intermediate",
-    question_count: "10",
+    question_count: 10, // Use number instead of string
     time_limit: "10", // Default to 10 minutes for 10-minute slots
     topics: "",
     max_candidates: "1",
@@ -175,7 +175,7 @@ const AiInterviewScheduler = ({
     setSlotForm({
       ai_interview_type: "technical",
       difficulty_level: "intermediate",
-      question_count: "10",
+      question_count: 10, // Use number instead of string
       time_limit: "10", // Default to 10 minutes for 10-minute slots
       topics: "",
       max_candidates: "1",
@@ -510,6 +510,18 @@ const AiInterviewScheduler = ({
             return time;
           };
 
+          // Ensure question_count is a valid number
+          const questionCount = slotForm.question_count 
+            ? (typeof slotForm.question_count === 'number' 
+                ? slotForm.question_count 
+                : parseInt(slotForm.question_count, 10))
+            : 10;
+          
+          // Validate question_count is between 1 and 20
+          const validQuestionCount = (questionCount >= 1 && questionCount <= 20) 
+            ? questionCount 
+            : 10;
+
           const slotData = {
             interview_date: formattedDate,
             start_time: formatTimeWithSeconds(overallStartTime),
@@ -517,7 +529,7 @@ const AiInterviewScheduler = ({
             ai_interview_type: slotForm.ai_interview_type || "technical",
             ai_configuration: {
               difficulty_level: slotForm.difficulty_level || "intermediate",
-              question_count: parseInt(slotForm.question_count) || 10,
+              question_count: validQuestionCount,
               time_limit: parseInt(slotForm.time_limit) || 10, // Default to 10 minutes for 10-minute slots
               topics: slotForm.topics ? slotForm.topics.split(",").map((t) => t.trim()) : ["algorithms", "data_structures"],
             },
@@ -527,6 +539,8 @@ const AiInterviewScheduler = ({
             company: selectedCompanyId || null,
           };
 
+          console.log('📊 Question Count being sent:', validQuestionCount);
+          console.log('📊 Full ai_configuration:', slotData.ai_configuration);
           console.log('🚀 Sending slot data:', slotData);
 
           const response = await fetch(`${baseURL}/api/interviews/slots/`, {
@@ -887,12 +901,34 @@ const AiInterviewScheduler = ({
                 max="20"
                 value={slotForm.question_count}
                 placeholder="Enter number of questions (1-20)"
-                onChange={(e) =>
-                  setSlotForm((prev) => ({
-                    ...prev,
-                    question_count: parseInt(e.target.value) || 0,
-                  }))
-                }
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Allow empty string while typing, but convert to number when valid
+                  if (value === '') {
+                    setSlotForm((prev) => ({
+                      ...prev,
+                      question_count: '',
+                    }));
+                  } else {
+                    const numValue = parseInt(value, 10);
+                    if (!isNaN(numValue) && numValue >= 1 && numValue <= 20) {
+                      setSlotForm((prev) => ({
+                        ...prev,
+                        question_count: numValue,
+                      }));
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  // Ensure we have a valid value when field loses focus
+                  const value = e.target.value;
+                  if (value === '' || isNaN(parseInt(value, 10)) || parseInt(value, 10) < 1) {
+                    setSlotForm((prev) => ({
+                      ...prev,
+                      question_count: 10, // Default to 10 if invalid
+                    }));
+                  }
+                }}
               />
             </div>
 

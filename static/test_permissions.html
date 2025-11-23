@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera/Mic Permission Test</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+        button { padding: 15px 30px; font-size: 16px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        video { width: 100%; max-width: 640px; border: 2px solid #333; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Camera/Microphone Permission Test</h1>
+    <p>This will test if your browser has camera and microphone access.</p>
+    
+    <button onclick="testPermissions()">Test Permissions</button>
+    
+    <div id="result"></div>
+    <video id="preview" autoplay muted style="display:none;"></video>
+    
+    <script>
+        async function testPermissions() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>⏳ Testing camera and microphone access...</p>';
+            
+            try {
+                console.log('🔍 Requesting camera and microphone...');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                
+                console.log('✅ Permissions granted!');
+                console.log('📹 Stream:', stream);
+                console.log('📹 Video tracks:', stream.getVideoTracks());
+                console.log('🎤 Audio tracks:', stream.getAudioTracks());
+                
+                // Show preview
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('preview').srcObject = stream;
+                
+                resultDiv.className = 'success';
+                resultDiv.innerHTML = `
+                    <h2>✅ SUCCESS!</h2>
+                    <p><strong>Camera:</strong> ${stream.getVideoTracks()[0]?.label || 'Unknown'}</p>
+                    <p><strong>Microphone:</strong> ${stream.getAudioTracks()[0]?.label || 'Unknown'}</p>
+                    <p><strong>Video enabled:</strong> ${stream.getVideoTracks()[0]?.enabled}</p>
+                    <p><strong>Audio enabled:</strong> ${stream.getAudioTracks()[0]?.enabled}</p>
+                    <hr>
+                    <p style="color: #28a745; font-weight: bold;">
+                        ✅ Your camera and microphone are working!<br>
+                        ✅ Recording should work in the interview portal.
+                    </p>
+                `;
+                
+                // Stop after 5 seconds
+                setTimeout(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                    document.getElementById('preview').srcObject = null;
+                    console.log('🛑 Test stream stopped');
+                }, 5000);
+                
+            } catch (error) {
+                console.error('❌ Permission error:', error);
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                
+                resultDiv.className = 'error';
+                
+                if (error.name === 'NotAllowedError') {
+                    resultDiv.innerHTML = `
+                        <h2>❌ PERMISSION DENIED</h2>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <hr>
+                        <h3>How to Fix:</h3>
+                        <ol>
+                            <li>Look for the camera icon in your browser's address bar (next to the URL)</li>
+                            <li>Click on it</li>
+                            <li>Change both Camera and Microphone to "Allow"</li>
+                            <li>Refresh this page and try again</li>
+                        </ol>
+                        <h3>Or go to Chrome Settings:</h3>
+                        <ol>
+                            <li>Open: <code>chrome://settings/content/camera</code></li>
+                            <li>Make sure camera is not blocked for this site</li>
+                            <li>Open: <code>chrome://settings/content/microphone</code></li>
+                            <li>Make sure microphone is not blocked for this site</li>
+                        </ol>
+                    `;
+                } else if (error.name === 'NotFoundError') {
+                    resultDiv.innerHTML = `
+                        <h2>❌ NO CAMERA/MICROPHONE FOUND</h2>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Your computer doesn't have a camera or microphone, or they're disabled.</p>
+                        <h3>Check:</h3>
+                        <ul>
+                            <li>Is your camera physically connected?</li>
+                            <li>Is it enabled in Device Manager (Windows)?</li>
+                            <li>Try a different USB port if using external camera</li>
+                        </ul>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h2>❌ ERROR</h2>
+                        <p><strong>Error Name:</strong> ${error.name}</p>
+                        <p><strong>Error Message:</strong> ${error.message}</p>
+                        <p>Please check your camera and microphone settings.</p>
+                    `;
+                }
+            }
+        }
+        
+        // Auto-run on load
+        console.log('📄 Permission test page loaded');
+        console.log('👉 Click the button to test permissions');
+    </script>
+</body>
+</html>
+
+

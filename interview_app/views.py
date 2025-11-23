@@ -1339,8 +1339,9 @@ def interview_portal(request):
                     "starting from introduction question .Please base the questions on the provided job description and candidate's resume. "
                     "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
                     "Then, generate a mix of technical Questions. 70 percent from jd and 30 percent from resume"
+                    "dont add words in question like we taking reference according jd only question according to jd but dont need to explain we taking reference from jd"
                     "You MUST format the output as Markdown. "
-                    "do not ask question repeatlt only when candidate answer  then repherase with adding one line extra"
+                    "do not ask question repeatlt only when candidate answer then repherase with adding one line extra"
                     "You MUST include '## Technical Questions'. "
                     "Each question MUST start with a hyphen '-'. "
                     "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
@@ -2165,7 +2166,14 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
     prompt = (
         f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW in {language_name}. "
         f"Act like a real technical interviewer - be direct, professional, and focused on TECHNICAL assessment.\n\n"
+        f"starting from introduction question .Please base the questions on the provided job description "
+        f"generate a mix of technical Questions. 70 percent from jd and 30 percent from given answer"
+        f"Do not ask two question in single question only ask single question at each time"
         f"CRITICAL: This is a TECHNICAL INTERVIEW. You MUST ask ONLY technical questions related to the job description.\n"
+        f"dont add words in question like we taking reference according jd only question according to jd but dont need to explain we taking from jd.\n"
+        f"do not ask question repeat only when candidate answer like repeate the question or related to that then only repeat that asked previousquestion.\n"
+        f"if candidate response or answer elaborate or that type of response for ask the question in detail then add 1-2 line extra and ask again same question.\n"
+        f"if candidate ask outer side question other then technical interview then say dont ask the question other then interview focus on the interview and ask the next que.\n"
         "DO NOT ask:\n"
         "- Personal questions (hobbies, family, personal background)\n"
         "- Behavioral questions unrelated to technical skills\n"
@@ -2565,9 +2573,11 @@ def extract_id_data(image_path, model):
 
 def chatbot_standalone(request):
     """Render standalone chatbot template with direct Deepgram connection"""
+    from django.conf import settings
     session_key = request.GET.get('session_key', '')
     return render(request, 'interview_app/chatbot_direct_deepgram.html', {
-        'session_key': session_key
+        'session_key': session_key,
+        'deepgram_api_key': getattr(settings, 'DEEPGRAM_API_KEY', '')
     })
 
 @csrf_exempt
@@ -4882,3 +4892,6 @@ class InterviewAnalyticsAPIView(APIView):
             return Response({
                 'error': f'Error retrieving analytics: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Video recording functionality removed

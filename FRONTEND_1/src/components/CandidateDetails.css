@@ -2077,9 +2077,20 @@ body[data-theme='light'] .update-status-card:hover {
   display: inline-block;
 }
 
+.hire-recommendation-card .recommendation.strong-recommended {
+  background-color: #10b981;
+  color: #ffffff;
+  font-weight: 700;
+}
+
 .hire-recommendation-card .recommendation.recommended {
   background-color: #d1fae5;
   color: #065f46;
+}
+
+.hire-recommendation-card .recommendation.maybe {
+  background-color: #fef3c7;
+  color: #92400e;
 }
 
 .hire-recommendation-card .recommendation.not-recommended {
@@ -2315,9 +2326,20 @@ body[data-theme='light'] .update-status-card:hover {
   letter-spacing: 0.5px;
 }
 
+.hire-status-row .recommendation.strong-recommended {
+  background-color: #10b981;
+  color: #ffffff;
+  font-weight: 700;
+}
+
 .hire-status-row .recommendation.recommended {
   background-color: #d1fae5;
   color: #065f46;
+}
+
+.hire-status-row .recommendation.maybe {
+  background-color: #fef3c7;
+  color: #92400e;
 }
 
 .hire-status-row .recommendation.not-recommended {
@@ -2351,9 +2373,20 @@ body[data-theme='light'] .update-status-card:hover {
   display: inline-block;
 }
 
+.hire-recommendation-section .recommendation.strong-recommended {
+  background-color: #10b981;
+  color: #ffffff;
+  font-weight: 700;
+}
+
 .hire-recommendation-section .recommendation.recommended {
   background-color: #d1fae5;
   color: #065f46;
+}
+
+.hire-recommendation-section .recommendation.maybe {
+  background-color: #fef3c7;
+  color: #92400e;
 }
 
 .hire-recommendation-section .recommendation.not-recommended {
@@ -3261,6 +3294,55 @@ body[data-theme='light'] .evaluation-card {
 /* Summary Card */
 .summary-card {
   grid-column: span 2;
+  min-height: auto;
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.summary-points-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-point {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  padding-left: 1.2rem;
+  position: relative;
+}
+
+.summary-point::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+  font-weight: bold;
+  font-size: 1.2rem;
 }
 
 .summary-text {
@@ -3441,6 +3523,62 @@ body[data-theme='light'] .qa-card-item {
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: capitalize;
+}
+
+/* Conversation Format Styles */
+.conversation-item {
+  margin-bottom: 1rem;
+}
+
+.conversation-item.ai-message {
+  border-left: 4px solid #4CAF50;
+  background: rgba(76, 175, 80, 0.05);
+}
+
+.conversation-item.interviewee-message {
+  border-left: 4px solid #2196F3;
+  background: rgba(33, 150, 243, 0.05);
+}
+
+.qa-role-badge {
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qa-role-badge.ai-badge {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.qa-role-badge.interviewee-badge {
+  background-color: #2196F3;
+  color: white;
+}
+
+.qa-message-section {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  padding: 0.75rem;
+  border-radius: var(--radius-small);
+  margin-top: 0.5rem;
+}
+
+.ai-message-content {
+  background: rgba(76, 175, 80, 0.08);
+  border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.interviewee-message-content {
+  background: rgba(33, 150, 243, 0.08);
+  border: 1px solid rgba(33, 150, 243, 0.2);
 }
 
 .qa-content {

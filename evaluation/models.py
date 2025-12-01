@@ -5,13 +5,20 @@ from candidates.models import Candidate
 
 class Evaluation(models.Model):
     interview = models.OneToOneField(
-        Interview, on_delete=models.CASCADE, related_name="evaluation"
+        Interview, on_delete=models.CASCADE, related_name="evaluation", db_index=True
     )
-    overall_score = models.FloatField()
+    overall_score = models.FloatField(db_index=True)
     traits = models.TextField(blank=True, null=True)
     suggestions = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     details = models.JSONField(blank=True, null=True, default=dict, help_text="Extended AI evaluation details, proctoring warnings, and statistics.")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['interview', 'created_at']),
+            models.Index(fields=['overall_score', 'created_at']),
+        ]
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"Evaluation for {self.interview.candidate.full_name}"

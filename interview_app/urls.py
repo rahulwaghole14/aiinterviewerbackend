@@ -34,13 +34,22 @@ urlpatterns = [
     path('api/results/', views.InterviewResultsListAPIView.as_view(), name='interview_results_list_api'),
     path('api/analytics/<uuid:session_id>/', views.InterviewAnalyticsAPIView.as_view(), name='interview_analytics_api'),
 
+    # --- VIDEO RECORDING ENDPOINTS ---
+    path('ai/recording/upload_video/', views.upload_interview_video, name='upload_interview_video'),
+    path('ai/recording/upload_audio/', views.upload_interview_audio, name='upload_interview_audio'),
+    
+    # Video serving endpoint with proper headers (supports both old and new folder structure)
+    path('media/interview_videos/<path:video_path>', views.serve_interview_video, name='serve_interview_video'),
+    path('media/interview_videos_merged/<path:video_path>', views.serve_interview_video, name='serve_interview_video_merged'),
+    path('media/interview_videos_raw/<path:video_path>', views.serve_interview_video, name='serve_interview_video_raw'),
+
     # AI Chatbot endpoints
     path('chatbot/', views.chatbot_standalone, name='chatbot_standalone'),
     path('ai/start', views.ai_start, name='ai_start'),
     path('ai/upload_answer', views.ai_upload_answer, name='ai_upload_answer'),
     path('ai/repeat', views.ai_repeat, name='ai_repeat'),
     path('ai/transcript_pdf', views.ai_transcript_pdf, name='ai_transcript_pdf'),
-    
+
 
     # Auth endpoints namespace
     path('api/auth/', include('authapp.urls')),

@@ -387,7 +387,12 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
     - candidate: Filter by candidate ID (alternative)
     """
 
-    queryset = Interview.objects.select_related("candidate", "job", "evaluation")
+    queryset = Interview.objects.select_related(
+        "candidate", 
+        "job", 
+        "evaluation",  # OneToOne relationship - select_related is sufficient
+        "candidate__recruiter"
+    )
     serializer_class = InterviewSerializer
     permission_classes = [InterviewHierarchyPermission]
 

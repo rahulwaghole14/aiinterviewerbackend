@@ -7,8 +7,10 @@
 body{font-family:'Segoe UI',Tahoma,Arial;margin:0;padding:16px;background:#f5f5f5;} 
 .container{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:20px;max-width:800px;margin:0 auto;}
 .status{padding:15px;border-radius:8px;background:#e7f3ff;color:#0c5460;margin:15px 0;text-align:center;font-weight:600;}
-.question{font-size:18px;font-weight:600;margin:20px 0;padding:15px;background:#f8f9fa;border-radius:8px;border-left:4px solid #007bff;}
-.transcript{background:#f8f9fa;padding:15px;border-radius:8px;margin:15px 0;border-left:3px solid #28a745;min-height:60px;}
+.question{font-size:18px;font-weight:600;margin:20px 0;padding:15px;background:#f8f9fa;border-radius:8px;border-left:4px solid #007bff;white-space:pre-wrap;line-height:1.6;}
+.status{white-space:pre-wrap;line-height:1.6;}
+.bot-reply{background:#fff4e5;border-left:4px solid #ff9800;padding:12px 15px;border-radius:8px;margin:10px 0;display:none;white-space:pre-wrap;line-height:1.5;color:#8a4b00;font-weight:500;}
+.transcript{background:#f8f9fa;padding:15px;border-radius:8px;margin:15px 0;border-left:3px solid #28a745;min-height:60px;white-space:pre-wrap;line-height:1.5;}
 .progress{width:100%;height:20px;background:#e9ecef;border-radius:10px;overflow:hidden;margin:15px 0;}
 .progress-fill{height:100%;background:#007bff;transition:width 0.3s ease;}
 .mic-status{display:inline-block;width:20px;height:20px;border-radius:50%;margin-right:10px;background:#dc3545;animation:pulse 1s infinite;}
@@ -23,6 +25,7 @@ audio{width:100%;margin:10px 0;}
   <div class='progress'><div class='progress-fill' id='progressFill' style='width:0%'></div></div>
   <div style='text-align:center;margin-bottom:20px;'><span id='progressText'>Question 1 of 4</span></div>
   <div class='status' id='st'>Initializing interview...</div>
+  <div id='botReply' class='bot-reply'></div>
   <div class='question' id='q'></div>
   <audio id='qa' controls style='display:none'></audio>
   <div style='text-align:center;margin:15px 0;'>
@@ -56,6 +59,7 @@ async function api(url,body){
 async function start(){
   console.log('🚀 Starting chatbot...');
   document.getElementById('st').innerText='Starting...';
+  clearBotReply();
   const data=await api('/ai/start',{session_key:SESSION_KEY});
   console.log('✅ Response from /ai/start:',data);
   console.log('🎵 Audio URL:', data.audio_url);
@@ -70,6 +74,27 @@ async function start(){
   document.getElementById('st').innerText='Question asked. Speak your answer...';
   document.getElementById('progressText').innerText='Question '+data.question_number+' of '+data.max_questions;
   document.getElementById('progressFill').style.width=((data.question_number/data.max_questions)*100)+'%';
+  
+  // Notify parent window that interview has started (for video recording)
+  try{
+    if(window.parent && window.parent !== window && window.parent.postMessage){
+      window.parent.postMessage({type:'interview_started', session_key:SESSION_KEY},'*');
+      console.log('📤 Notified parent window: interview_started', {session_key:SESSION_KEY});
+      // Also try direct call if parent is accessible
+      if(window.parent.startVideoRecording && typeof window.parent.startVideoRecording === 'function'){
+        console.log('📤 Calling parent startVideoRecording directly...');
+        window.parent.startVideoRecording();
+      }
+    }else{
+      console.warn('⚠️ Cannot access parent window:', {
+        hasParent: !!window.parent,
+        isSameWindow: window.parent === window,
+        hasPostMessage: !!(window.parent && window.parent.postMessage)
+      });
+    }
+  }catch(e){
+    console.warn('⚠️ Could not notify parent window:', e);
+  }
   
   if(data.audio_url && data.audio_url.trim()){
     const qa=document.getElementById('qa');
@@ -401,8 +426,42 @@ async function finalize(){
     }
     if(data.completed){
       document.getElementById('st').innerText=data.message||'Completed';
+      clearBotReply();
+      const finishInterview=()=>{
       if(window.parent&&window.parent.postMessage){
         window.parent.postMessage({type:'qa_completed'},'*');
+        }
+      };
+      if(data.final_audio_url){
+        const qa=document.getElementById('qa');
+        qa.style.display='block';
+        qa.src=data.final_audio_url;
+        qa.onended=finishInterview;
+        qa.play().catch(finishInterview);
+      }else{
+        finishInterview();
+      }
+      return;
+    }
+
+    if(data.follow_up_answer){
+      document.getElementById('st').innerText='Answering your question...';
+      showBotReply(data.follow_up_answer);
+      if(data.repeat_question){
+        document.getElementById('q').innerText=data.repeat_question;
+      }
+      const resumeRecording=()=>{
+        isFinalizing=false;
+        setTimeout(beginRecord,800);
+      };
+      if(data.follow_up_audio_url){
+        const qa=document.getElementById('qa');
+        qa.style.display='block';
+        qa.src=data.follow_up_audio_url;
+        qa.onended=resumeRecording;
+        qa.play().catch(resumeRecording);
+      }else{
+        resumeRecording();
       }
       return;
     }
@@ -417,6 +476,7 @@ async function finalize(){
       return;
     }
     // Next question
+    clearBotReply();
     document.getElementById('q').innerText=data.next_question||'';
     document.getElementById('st').innerText='Question asked. Speak your answer...';
     document.getElementById('progressText').innerText='Question '+data.question_number+' of '+data.max_questions;
@@ -455,6 +515,20 @@ setTimeout(()=>{
   console.log('🚀 Auto-starting interview...');
   start();
 },500);
+
+function showBotReply(text){
+  const el=document.getElementById('botReply');
+  if(!el)return;
+  el.style.display='block';
+  el.textContent=text;
+}
+
+function clearBotReply(){
+  const el=document.getElementById('botReply');
+  if(!el)return;
+  el.style.display='none';
+  el.textContent='';
+}
 </script>
 </body>
 </html>

@@ -175,6 +175,59 @@ class ChatBotManager:
     def __init__(self) -> None:
         self.sessions: Dict[str, ChatSession] = {}
         self.rag = RAGSystem()
+        self._question_hints = (
+            "can you", "could you", "would you", "what is", "what's",
+            "why", "how", "where", "when", "help me", "explain", "clarify",
+            "tell me", "show me", "walk me", "give me", "answer", "do you"
+        )
+
+    def _shape_question(self, text: str, ensure_intro: bool = False) -> str:
+        """Ensure a single, concise question with a trailing question mark."""
+        fallback_intro = ("To get started, could you briefly introduce yourself "
+                          "and highlight one experience you are proud of?")
+        fallback_regular = ("Could you describe a recent project where you solved a "
+                            "challenging technical problem?")
+        cleaned = (text or "").strip()
+        cleaned = " ".join(cleaned.split())
+        if not cleaned:
+            cleaned = fallback_intro if ensure_intro else fallback_regular
+
+        # Keep only the first question if multiple are present
+        if "?" in cleaned:
+            cleaned = cleaned.split("?")[0].strip() + "?"
+        else:
+            # Convert statements into a question
+            cleaned = cleaned.rstrip(".")
+            if not cleaned.lower().startswith(("what", "how", "why", "can", "could", "would", "tell", "describe", "share", "walk", "give")):
+                cleaned = "Can you " + cleaned[0].lower() + cleaned[1:] if len(cleaned) > 1 else f"Can you {cleaned}"
+            if not cleaned.endswith("?"):
+                cleaned = cleaned + "?"
+
+        if ensure_intro:
+            intro_keywords = ("introduce yourself", "introduction", "background", "yourself")
+            if not any(kw in cleaned.lower() for kw in intro_keywords):
+                cleaned = fallback_intro
+
+        return cleaned
+
+    def _generate_candidate_response(self, session: ChatSession, candidate_question: str) -> str:
+        """Provide clarifying response while refusing to reveal answers outright."""
+        prompt = (
+            "You are a professional AI interviewer. A candidate asked a clarification question "
+            "during a technical interview.\n\n"
+            f"Interview so far:\n{session.context_text()}\n\n"
+            f"Candidate question:\n\"{candidate_question.strip()}\"\n\n"
+            "Respond in 2-3 sentences. Provide helpful clarification if the question is about the "
+            "problem statement, expectations, or requirements. If the candidate explicitly asks for "
+            "the exact solution or the correct answer to the interview question, politely refuse and "
+            "remind them to explain their own approach instead. Always end by inviting them to continue "
+            "their answer."
+        )
+        response = _gemini_generate(prompt).strip()
+        if not response:
+            response = ("Thanks for the question. I can clarify the requirements, but I'll need you to "
+                        "walk me through your own approach. Please go ahead with your answer when ready.")
+        return response
 
     def _generate_question(self, session: ChatSession, qtype: str = "regular", last_answer: Optional[str] = None) -> str:
         print(f"🔍 Generating {qtype} question for candidate: {session.candidate_name}")
@@ -193,7 +246,7 @@ class ChatBotManager:
             prompt = (
                 f"You are a professional interviewer. The candidate is {session.candidate_name}.\n\n"
                 f"Job Description Context: {jd_ctx}\n\n"
-                "Ask a warm, single-line introduction question to start."
+                "Ask a warm, single-line introduction question to start.like introduce yourself in question form"
             )
         elif qtype == "follow_up":
             prompt = (
@@ -211,6 +264,8 @@ class ChatBotManager:
 
         print(f"🔍 Sending prompt to Gemini (length: {len(prompt)})")
         text = _gemini_generate(prompt).strip()
+        ensure_intro = qtype == "introduction"
+        text = self._shape_question(text, ensure_intro=ensure_intro)
         print(f"🔍 Gemini response: {text[:100]}...")
         return text or "Please describe a recent project you are proud of."
 
@@ -222,7 +277,22 @@ class ChatBotManager:
         session = ChatSession(session_id=sid, candidate_name=candidate_name or "Candidate", jd_text=jd_text, max_questions=max_questions)
         self.sessions[sid] = session
 
+        intro_fallback = (
+            f"Hi {session.candidate_name or 'there'}, before we dive into the technical portion I'd love to hear "
+            "a quick introduction from you. Could you tell me about yourself, your current role, and what excites "
+            "you about this opportunity?"
+        )
+
         q = self._generate_question(session, qtype="introduction")
+        if not q or "introduc" not in q.lower():
+            print(f"⚠️ Generated introduction question did not look like an intro. Using fallback prompt.")
+            q = intro_fallback
+        else:
+            q = q.strip()
+            if not q.lower().startswith("hi") and "introduc" not in q.lower():
+                # Make sure it clearly asks for an introduction
+                q = intro_fallback
+
         session.add_interviewer(q)
         session.current_question_number = 1
         session.last_active_question_text = q
@@ -272,13 +342,32 @@ class ChatBotManager:
         # End when reaching max_questions; otherwise continue
         if session.current_question_number >= session.max_questions:
             session.is_completed = True
-            closing = "Interview completed. Thank you for your time!"
+            closing = "Thank you for giving this interview today. I appreciate your time and wish you the best of luck!"
             audio_url = _text_to_speech(closing, f"final_{uuid.uuid4().hex}.mp3")
             return {
                 "transcript": transcript,
                 "completed": True,
                 "message": closing,
                 "final_audio_url": audio_url,
+            }
+
+        # Detect candidate clarification questions before moving on
+        lower_transcript = transcript.lower()
+        asked_question = "?" in transcript and any(hint in lower_transcript for hint in self._question_hints)
+        if asked_question:
+            clarification = self._generate_candidate_response(session, transcript)
+            session.add_interviewer(clarification)
+            audio_url = _text_to_speech(clarification, f"clarify_{uuid.uuid4().hex}.mp3")
+            session.last_active_question_text = session.last_active_question_text or session.last_interviewer_question()
+            session.question_asked_at = time.time()
+            return {
+                "transcript": transcript,
+                "completed": False,
+                "follow_up_answer": clarification,
+                "follow_up_audio_url": audio_url,
+                "repeat_question": session.last_active_question_text,
+                "question_number": session.current_question_number,
+                "max_questions": session.max_questions,
             }
 
         qtype = "follow_up" if session.current_question_number == 1 else "regular"

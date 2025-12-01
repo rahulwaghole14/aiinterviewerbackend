@@ -84,15 +84,16 @@ class DeepgramProxyConsumer(AsyncWebsocketConsumer):
             pass
 
     async def _open_deepgram(self, sample_rate: int, model: str):
-        # Use v1 API which is more stable
+        # Connect to Deepgram DIRECTLY - MATCH ORIGINAL index.html
         qs = urlencode({
-            "model": model,
+            "model": "nova-3",
+            "language": "en-IN",
             "encoding": "linear16",
             "sample_rate": str(sample_rate),
             "channels": "1",
             "interim_results": "true",
-            "smart_format": "true",
-            "punctuate": "true",
+            "punctuate": "false",
+            "smart_format": "false",
         })
         url = f"wss://api.deepgram.com/v1/listen?{qs}"
 

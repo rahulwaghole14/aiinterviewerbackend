@@ -13,7 +13,7 @@ from django.conf import settings
 import numpy as np
 
 # Configure Gemini - Using 2.5-flash as per your app.py
-GEMINI_API_KEY = "AIzaSyBu5M6cEckMIRPdttrBTBcRJmTUi5MkpvE"
+GEMINI_API_KEY = "AIzaSyA4DMuYRFP9-oxfQAJIMyZjabE5LA8YbyI"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Google Cloud TTS setup (exactly like app.py)
@@ -829,6 +829,44 @@ def is_question_similar(new_question: str, existing_questions: list, threshold: 
     return False
 
 
+def _shape_question(text: str, ensure_intro: bool = False) -> str:
+    """Ensure a single, concise question with a trailing question mark.
+    CRITICAL: Extract only the FIRST question if multiple questions are present.
+    """
+    if not text:
+        return "Could you describe a recent project where you solved a challenging technical problem?"
+    
+    cleaned = text.strip()
+    # Normalize whitespace
+    cleaned = " ".join(cleaned.split())
+    
+    # CRITICAL: If multiple questions are present (multiple "?"), keep ONLY the first one
+    if cleaned.count("?") > 1:
+        # Split by "?" and take only the first question
+        first_question = cleaned.split("?")[0].strip() + "?"
+        print(f"⚠️ Multiple questions detected! Extracting only first question:")
+        print(f"   Original: {cleaned[:150]}...")
+        print(f"   Extracted: {first_question}")
+        cleaned = first_question
+    elif "?" in cleaned:
+        # Single question - ensure it ends with "?"
+        cleaned = cleaned.split("?")[0].strip() + "?"
+    else:
+        # No question mark - convert statement to question
+        cleaned = cleaned.rstrip(".")
+        if not cleaned.lower().startswith(("what", "how", "why", "can", "could", "would", "tell", "describe", "share", "walk", "give", "do", "did", "have", "is", "are", "will")):
+            cleaned = "Can you " + cleaned[0].lower() + cleaned[1:] if len(cleaned) > 1 else f"Can you {cleaned}"
+        if not cleaned.endswith("?"):
+            cleaned = cleaned + "?"
+    
+    if ensure_intro:
+        intro_keywords = ("introduce yourself", "introduction", "background", "yourself", "tell me about yourself")
+        if not any(kw in cleaned.lower() for kw in intro_keywords):
+            cleaned = "To get started, could you briefly introduce yourself and highlight one experience you are proud of?"
+    
+    return cleaned
+
+
 def generate_question(session, question_type="introduction", last_answer_text=None, allow_elaboration=False):
     """Generate the next interview question using JD + latest transcript context.
     
@@ -921,7 +959,8 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "7. If it was brief, ask for clarification on a COMPLETELY DIFFERENT TECHNICAL point or a concrete technical example of something NEW.\n"
             "8. Keep it professional, TECHNICAL, JD-aligned, and ensure it's a COMPLETELY NEW TECHNICAL question.\n"
             "9. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
-            "10. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions."
+            "10. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
+            "11. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used."
         )
     
     elif question_type == "closing":
@@ -970,13 +1009,19 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "9. Keep it precise, professional, TECHNICAL, and directly tied to the JD's technical requirements, but ensure it's COMPLETELY NEW.\n"
             "10. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
             "11. If you're unsure, choose a DIFFERENT TECHNICAL topic from the job description that hasn't been covered yet.\n"
-            "12. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions."
+            "12. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
+            "13. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used."
         )
     
     # Generate question with retry logic to avoid duplicates
     max_retries = 5  # Increased retries for better duplicate prevention
     for attempt in range(max_retries):
         generated_question = gemini_generate(prompt).strip()
+        
+        # CRITICAL: Shape the question to ensure only ONE question is returned
+        # This is especially important when candidate's answer is "No answer provided"
+        ensure_intro = (question_type == "introduction")
+        generated_question = _shape_question(generated_question, ensure_intro=ensure_intro)
         
         # Check if this question is similar to previously asked questions (only if not allowing elaboration)
         if not allow_elaboration and session.asked_questions:
@@ -1584,13 +1629,22 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     "max_questions": session.max_questions,  # Total questions including pre-closing and closing
                     "continuous": True
                 }
-            # Already in closing phase
+            # Already in closing phase - generate final closing statement
+            final_closing = generate_final_closing(session)
+            session.add_interviewer_message(final_closing)
+            print(f"🎬 Final closing statement: {final_closing}")
+            
+            # Generate audio for closing statement
+            closing_audio = text_to_speech(final_closing, f"final_closing_{uuid.uuid4().hex}.mp3")
+            
             session.completed_at = time.time()
             session.is_completed = True
             return {
                 "transcript": transcript,
                 "completed": True,
-                "message": "Interview completed. Thank you for your time!"
+                "message": final_closing,  # Use the generated closing message
+                "audio_url": closing_audio,  # Include audio for the closing statement
+                "next_question": final_closing  # Also include as next_question for display
             }
         
         # Gate moving to next question until 5s of no new words after first voice

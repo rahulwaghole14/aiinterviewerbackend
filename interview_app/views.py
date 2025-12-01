@@ -43,7 +43,8 @@ from datetime import datetime, timedelta
 import urllib.parse
 
 
-from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
+from django.http import JsonResponse, StreamingHttpResponse, HttpResponse, FileResponse
+from django.views.decorators.cache import never_cache
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template import loader
 from django.core.files.storage import default_storage
@@ -83,7 +84,7 @@ try:
     active_key = getattr(dj_settings, 'GEMINI_API_KEY', '')
     # Fallback to hardcoded key if env key is not available
     if not active_key:
-        active_key = "AIzaSyBu5M6cEckMIRPdttrBTBcRJmTUi5MkpvE"
+        active_key = "AIzaSyA4DMuYRFP9-oxfQAJIMyZjabE5LA8YbyI"
         print("⚠️ WARNING: GEMINI_API_KEY not set in environment, using hardcoded key")
     
     if active_key:
@@ -134,11 +135,44 @@ def get_camera_for_session(session_key):
             traceback.print_exc()
             return None
 
-def release_camera_for_session(session_key):
+def release_camera_for_session(session_key, audio_file_path=None):
+    """Release camera and save video recording to InterviewSession. Optionally merge with audio."""
     with camera_lock:
         if session_key in CAMERAS:
             print(f"--- Releasing camera for session {session_key} ---")
-            CAMERAS[session_key].cleanup()
+            camera = CAMERAS[session_key]
+            
+            # Convert audio path to absolute if provided
+            audio_full_path = None
+            if audio_file_path:
+                if not os.path.isabs(audio_file_path):
+                    audio_full_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+                else:
+                    audio_full_path = audio_file_path
+                if not os.path.exists(audio_full_path):
+                    print(f"⚠️ Audio file not found for merging: {audio_full_path}")
+                    audio_full_path = None
+            
+            video_path = camera.cleanup()
+            
+            # If cleanup returns video path and we have audio, merge them
+            if video_path and audio_full_path and hasattr(camera, 'stop_video_recording'):
+                try:
+                    # Stop recording with audio merge
+                    video_path = camera.stop_video_recording(audio_file_path=audio_full_path)
+                except:
+                    pass
+            
+            # Save video path to InterviewSession if recording was active
+            if video_path:
+                try:
+                    session = InterviewSession.objects.get(session_key=session_key)
+                    session.interview_video = video_path
+                    session.save()
+                    print(f"✅ Video path saved to InterviewSession: {video_path}")
+                except Exception as e:
+                    print(f"❌ Error saving video path to InterviewSession: {e}")
+            
             del CAMERAS[session_key]
 
 SUPPORTED_LANGUAGES = {'en': 'English'}
@@ -2042,18 +2076,360 @@ def end_interview_session(request):
     try:
         data = json.loads(request.body)
         session_key = data.get('session_key')
+        audio_file_path = data.get('audio_file_path')  # Optional: path to uploaded audio file
+        
+        print(f"🔍 end_interview_session called:")
+        print(f"   session_key: {session_key}")
+        print(f"   audio_file_path (from request): {audio_file_path}")
+        print(f"   MEDIA_ROOT: {settings.MEDIA_ROOT}")
+        
         if not session_key:
             return JsonResponse({"status": "error", "message": "Session key required."}, status=400)
+        
+        # Stop video recording and merge with audio if provided
+        video_path = None
+        try:
+            # First, try to get the video path from InterviewSession if camera doesn't have it
+            video_path_from_db = None
+            try:
+                from interview_app.models import InterviewSession
+                session = InterviewSession.objects.get(session_key=session_key)
+                session_id_uuid = session.id  # Get the UUID for file system search
+                
+                if session.interview_video:
+                    video_path_from_db = os.path.join(settings.MEDIA_ROOT, str(session.interview_video))
+                    # If it's a converted video, try to find the original
+                    if '_converted' in str(session.interview_video) and os.path.exists(video_path_from_db):
+                        # Look for original video (without _converted)
+                        original_name = str(session.interview_video).replace('_converted', '')
+                        original_path = os.path.join(settings.MEDIA_ROOT, original_name)
+                        if os.path.exists(original_path):
+                            video_path_from_db = original_path
+                            print(f"✅ Found original video for merging: {video_path_from_db}")
+                        else:
+                            print(f"⚠️ Original video not found, will use converted: {video_path_from_db}")
+                    elif os.path.exists(video_path_from_db):
+                        print(f"✅ Found video from InterviewSession: {video_path_from_db}")
+                    else:
+                        print(f"⚠️ Video path from InterviewSession doesn't exist: {video_path_from_db}")
+                        video_path_from_db = None
+                
+                # If no video in DB, search filesystem by session_id (UUID)
+                if not video_path_from_db:
+                    print(f"🔍 Video not in database, searching filesystem by session_id: {session_id_uuid}")
+                    search_dirs = [
+                        os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw'),
+                        os.path.join(settings.MEDIA_ROOT, 'interview_videos'),  # Old folder
+                    ]
+                    session_id_str = str(session_id_uuid)
+                    for search_dir in search_dirs:
+                        if not os.path.exists(search_dir):
+                            continue
+                        try:
+                            for filename in os.listdir(search_dir):
+                                if filename.startswith(session_id_str) and filename.endswith('.mp4'):
+                                    if '_with_audio' not in filename:  # Don't use already merged
+                                        candidate = os.path.join(search_dir, filename)
+                                        if os.path.exists(candidate):
+                                            video_path_from_db = candidate
+                                            print(f"✅ Found video in filesystem: {video_path_from_db}")
+                                            break
+                            if video_path_from_db:
+                                break
+                        except Exception as e:
+                            print(f"⚠️ Error searching {search_dir}: {e}")
+            except Exception as e:
+                print(f"⚠️ Error looking up video from InterviewSession: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            camera = get_camera_for_session(session_key)
+            if camera and hasattr(camera, 'stop_video_recording'):
+                # If camera doesn't have video path but we found it in DB, set it
+                if video_path_from_db:
+                    if not hasattr(camera, '_video_file_path') or not camera._video_file_path or not os.path.exists(getattr(camera, '_video_file_path', '')):
+                        camera._video_file_path = video_path_from_db
+                        print(f"✅ Set video path in camera object from database: {video_path_from_db}")
+                    else:
+                        print(f"✅ Camera already has video path: {camera._video_file_path}")
+                
+                # Pass audio file path if provided for merging
+                audio_full_path = None
+                audio_start_ts = None
+                video_start_ts = None
+                
+                # CRITICAL: Get video start timestamp from camera for synchronization
+                if hasattr(camera, '_recording_start_timestamp') and camera._recording_start_timestamp:
+                    video_start_ts = camera._recording_start_timestamp
+                    print(f"🕐 Video start timestamp from camera: {video_start_ts}")
+                
+                # CRITICAL: If audio_file_path is not provided, try to find it from uploaded audio
+                if not audio_file_path:
+                    print(f"🔍 Audio file path not provided, searching for uploaded audio file...")
+                    # Try to find audio file in interview_audio directory
+                    audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
+                    if os.path.exists(audio_dir):
+                        # Search for audio file by session_key
+                        session_id_str = str(session_id_uuid)
+                        for filename in os.listdir(audio_dir):
+                            # Check if filename contains session_key or session_id
+                            if (session_key in filename or session_id_str in filename) and (filename.endswith('.webm') or filename.endswith('.wav') or filename.endswith('.mp3')):
+                                potential_audio = os.path.join(audio_dir, filename)
+                                if os.path.exists(potential_audio) and os.path.getsize(potential_audio) > 0:
+                                    audio_file_path = os.path.relpath(potential_audio, settings.MEDIA_ROOT).replace('\\', '/')
+                                    print(f"✅ Found audio file: {audio_file_path} ({os.path.getsize(potential_audio) / 1024 / 1024:.2f} MB)")
+                                    break
+                    
+                    # If still not found, try searching with different patterns
+                    if not audio_file_path and os.path.exists(audio_dir):
+                        # Try searching for any file with "interview_audio" in name
+                        for filename in os.listdir(audio_dir):
+                            if 'interview_audio' in filename.lower() and (filename.endswith('.webm') or filename.endswith('.wav')):
+                                potential_audio = os.path.join(audio_dir, filename)
+                                if os.path.exists(potential_audio) and os.path.getsize(potential_audio) > 0:
+                                    # Check if it's recent (within last hour)
+                                    import time
+                                    file_age = time.time() - os.path.getmtime(potential_audio)
+                                    if file_age < 3600:  # Within last hour
+                                        audio_file_path = os.path.relpath(potential_audio, settings.MEDIA_ROOT).replace('\\', '/')
+                                        print(f"✅ Found recent audio file: {audio_file_path}")
+                                        break
+                
+                if audio_file_path:
+                    # Convert relative path to absolute path
+                    # Normalize path separators (handle both / and \)
+                    audio_file_path = audio_file_path.replace('/', os.sep).replace('\\', os.sep)
+                    if not os.path.isabs(audio_file_path):
+                        audio_full_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+                    else:
+                        audio_full_path = audio_file_path
+                    # Normalize the final path
+                    audio_full_path = os.path.normpath(audio_full_path)
+                    if os.path.exists(audio_full_path):
+                        file_size = os.path.getsize(audio_full_path)
+                        print(f"✅ Audio file found for merging: {audio_full_path} ({file_size / 1024 / 1024:.2f} MB)")
+                    else:
+                        print(f"⚠️ Audio file not found: {audio_full_path}")
+                        # Try to find it in interview_audio directory
+                        audio_filename = os.path.basename(audio_file_path)
+                        alt_path = os.path.join(settings.MEDIA_ROOT, 'interview_audio', audio_filename)
+                        if os.path.exists(alt_path):
+                            audio_full_path = alt_path
+                            print(f"✅ Audio file found at alternate location: {audio_full_path}")
+                        else:
+                            audio_full_path = None
+                    
+                    # Get timestamps from request or from cache for synchronization
+                    audio_start_ts = data.get('audio_start_timestamp')
+                    video_start_ts = data.get('video_start_timestamp')
+                    
+                    # If not in request, try to get from upload_interview_audio timestamp cache
+                    if not audio_start_ts or not video_start_ts:
+                        try:
+                            # Use the function reference directly (avoid circular import)
+                            upload_func = globals().get('upload_interview_audio')
+                            if upload_func and hasattr(upload_func, '_timestamp_cache') and session_key in upload_func._timestamp_cache:
+                                cached_ts = upload_func._timestamp_cache[session_key]
+                                if not audio_start_ts:
+                                    audio_start_ts = cached_ts.get('audio_start_timestamp')
+                                if not video_start_ts:
+                                    video_start_ts = cached_ts.get('video_start_timestamp')
+                                print(f"📥 Retrieved timestamps from cache: audio={audio_start_ts}, video={video_start_ts}")
+                        except Exception as e:
+                            print(f"⚠️ Error retrieving timestamps from cache: {e}")
+                    
+                    if audio_start_ts:
+                        try:
+                            audio_start_ts = float(audio_start_ts)
+                            print(f"📥 Audio start timestamp: {audio_start_ts}")
+                        except (ValueError, TypeError):
+                            audio_start_ts = None
+                    if video_start_ts:
+                        try:
+                            video_start_ts = float(video_start_ts)
+                            print(f"📥 Video start timestamp: {video_start_ts}")
+                        except (ValueError, TypeError):
+                            video_start_ts = None
+                else:
+                    print("⚠️ No audio file path found - video will be saved without audio")
+                    print(f"   Request data keys: {list(data.keys())}")
+                    print(f"   audio_file_path value: {audio_file_path}")
+                    print(f"   Searched in: {os.path.join(settings.MEDIA_ROOT, 'interview_audio')}")
+                    
+                    # Last resort: try to find ANY audio file in interview_audio directory
+                    audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
+                    if os.path.exists(audio_dir):
+                        # Get the most recent audio file
+                        audio_files = []
+                        for filename in os.listdir(audio_dir):
+                            if filename.endswith(('.webm', '.wav', '.mp3')):
+                                file_path = os.path.join(audio_dir, filename)
+                                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                                    audio_files.append((file_path, os.path.getmtime(file_path)))
+                        
+                        if audio_files:
+                            # Sort by modification time (most recent first)
+                            audio_files.sort(key=lambda x: x[1], reverse=True)
+                            most_recent_audio = audio_files[0][0]
+                            audio_file_path = os.path.relpath(most_recent_audio, settings.MEDIA_ROOT).replace('\\', '/')
+                            audio_full_path = most_recent_audio
+                            print(f"✅ Found most recent audio file as fallback: {audio_file_path}")
+                            # Get timestamps from cache if available
+                            try:
+                                # Use the function reference directly (avoid circular import)
+                                upload_func = globals().get('upload_interview_audio')
+                                if upload_func and hasattr(upload_func, '_timestamp_cache') and session_key in upload_func._timestamp_cache:
+                                    cached_ts = upload_func._timestamp_cache[session_key]
+                                    audio_start_ts = cached_ts.get('audio_start_timestamp')
+                                    video_start_ts = cached_ts.get('video_start_timestamp')
+                                    print(f"📥 Using cached timestamps: audio={audio_start_ts}, video={video_start_ts}")
+                            except Exception as e:
+                                print(f"⚠️ Could not get cached timestamps: {e}")
+                
+                # CRITICAL: Stop video and merge with audio in one call
+                # The merge function will use video duration as authoritative reference
+                # Video duration will be used to trim audio to match exactly
+                print(f"🔍 Stopping video recording and merging with audio...")
+                print(f"   Audio start timestamp: {audio_start_ts}, Video start timestamp: {video_start_ts}")
+                print(f"   Audio file path: {audio_full_path}")
+                video_path = camera.stop_video_recording(
+                    audio_file_path=audio_full_path,
+                    audio_start_timestamp=audio_start_ts,
+                    video_start_timestamp=video_start_ts
+                )
+                if video_path:
+                    print(f"✅ Video recording stopped and saved: {video_path}")
+                    
+                    # Note: Videos merged with audio are already H.264 encoded, so no need to convert again
+                    # Only convert if it's a raw video without audio and not already converted
+                    try:
+                        video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
+                        if os.path.exists(video_full_path):
+                            # Check if file needs conversion (not already converted and not merged with audio)
+                            # Merged videos (_with_audio) are already H.264 encoded during merge
+                            if '_converted' not in video_path and '_with_audio' not in video_path:
+                                print(f"🔄 Ensuring video is browser-compatible (H.264)...")
+                                converted_path = camera.ensure_browser_compatible_video(video_full_path)
+                                if converted_path:
+                                    # Update video_path to converted version
+                                    video_path = os.path.relpath(converted_path, settings.MEDIA_ROOT).replace('\\', '/')
+                                    print(f"✅ Video converted, new path: {video_path}")
+                            elif '_with_audio' in video_path:
+                                print(f"✅ Video already merged with audio and H.264 encoded: {video_path}")
+                    except Exception as e:
+                        print(f"⚠️ Error ensuring video compatibility: {e}")
+                        import traceback
+                        traceback.print_exc()
+        except Exception as e:
+            print(f"⚠️ Error stopping video recording: {e}")
+            import traceback
+            traceback.print_exc()
+            # Even if there was an error, try to find the video file
+            if not video_path:
+                print(f"🔄 Video path is None after error, attempting to find video file...")
+                try:
+                    # Try to find video in merged folder
+                    merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
+                    if os.path.exists(merged_video_dir):
+                        # Search for video by session_key
+                        session_id_str = str(session_key)
+                        for filename in os.listdir(merged_video_dir):
+                            if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
+                                found_video = os.path.join(merged_video_dir, filename)
+                                if os.path.exists(found_video):
+                                    video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
+                                    print(f"✅ Found merged video after error: {video_path}")
+                                    break
+                except Exception as find_error:
+                    print(f"⚠️ Error finding video file: {find_error}")
         
         session = InterviewSession.objects.get(session_key=session_key)
         if session.status == 'SCHEDULED':
             session.status = 'COMPLETED'
+            # Save video path if recording was active
+            if video_path:
+                # CRITICAL: Verify it's a merged video before saving
+                if '_with_audio' in video_path or 'interview_videos_merged' in video_path:
+                    session.interview_video = video_path
+                    session.save()
+                    print(f"✅ Merged video path saved to InterviewSession: {video_path}")
+                else:
+                    print(f"⚠️ WARNING: Video path is not merged: {video_path}")
+                    # Try to find merged version
+                    try:
+                        merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
+                        video_basename = os.path.basename(video_path)
+                        base_name = os.path.splitext(video_basename)[0]
+                        if '_converted' in base_name:
+                            base_name = base_name.replace('_converted', '')
+                        merged_filename = f"{base_name}_with_audio.mp4"
+                        merged_path = os.path.join(merged_video_dir, merged_filename)
+                        if os.path.exists(merged_path):
+                            merged_relative = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
+                            session.interview_video = merged_relative
+                            session.save()
+                            print(f"✅ Found and saved merged video: {merged_relative}")
+                        else:
+                            print(f"❌ Merged video not found, NOT saving unmerged video to database")
+                    except Exception as e:
+                        print(f"❌ Error finding merged video: {e}")
+            else:
+                print(f"⚠️ WARNING: video_path is None - video was NOT saved to database!")
+                print(f"   This means the merge likely failed or video file was not found")
+                # Try to find video file manually as last resort
+                try:
+                    merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
+                    raw_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw')
+                    session_id_str = str(session_key)
+                    
+                    # Search merged folder first
+                    found_video = None
+                    if os.path.exists(merged_video_dir):
+                        for filename in os.listdir(merged_video_dir):
+                            if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
+                                found_video = os.path.join(merged_video_dir, filename)
+                                if os.path.exists(found_video):
+                                    video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
+                                    session.interview_video = video_path
+                                    session.save()
+                                    print(f"✅ Found merged video manually and saved: {video_path}")
+                                    break
+                    
+                    # If not found in merged, check raw folder (but don't save raw videos)
+                    if not found_video and os.path.exists(raw_video_dir):
+                        for filename in os.listdir(raw_video_dir):
+                            if session_id_str in filename and filename.endswith('.mp4'):
+                                raw_video = os.path.join(raw_video_dir, filename)
+                                print(f"⚠️ Found raw video (not merged): {raw_video}")
+                                print(f"   This video does NOT have audio - merge may have failed")
+                                break
+                except Exception as e:
+                    print(f"⚠️ Error in manual video search: {e}")
             session.save()
+            
+            # FINAL CHECK: Verify merged video was saved
+            if session.interview_video:
+                video_path_str = str(session.interview_video)
+                is_merged = '_with_audio' in video_path_str or 'interview_videos_merged' in video_path_str
+                if is_merged:
+                    print(f"✅ VERIFIED: Merged video saved to database: {video_path_str}")
+                else:
+                    print(f"⚠️ WARNING: Video saved but NOT merged: {video_path_str}")
+                    print(f"   This should not happen - video should have _with_audio suffix")
+            else:
+                print(f"❌ CRITICAL: No video path saved to database for session {session_key}")
+                print(f"   Possible causes:")
+                print(f"   1. FFmpeg merge failed")
+                print(f"   2. Video file not found")
+                print(f"   3. Audio file not found")
+                print(f"   4. Exception during merge process")
+                print(f"   Check server logs for detailed error messages")
+            
             print(f"--- Spoken-only session {session_key} marked as COMPLETED. ---")
             
             # Trigger comprehensive evaluation for spoken-only interviews
             try:
-                from interview_app_11.comprehensive_evaluation_service import comprehensive_evaluation_service
+                from interview_app.comprehensive_evaluation_service import comprehensive_evaluation_service
                 evaluation_results = comprehensive_evaluation_service.evaluate_complete_interview(session_key)
                 print(f"--- Comprehensive evaluation completed for session {session_key} ---")
                 print(f"Overall Score: {evaluation_results['overall_score']:.1f}/100")
@@ -2061,12 +2437,28 @@ def end_interview_session(request):
             except Exception as e:
                 print(f"--- Error in comprehensive evaluation: {e} ---")
             
-            # Create Evaluation after interview completion
+            # Create Evaluation after interview completion - SYNCHRONOUSLY for immediate availability
             try:
                 from evaluation.services import create_evaluation_from_session
+                print(f"🔄 Creating evaluation synchronously for session {session_key}...")
                 evaluation = create_evaluation_from_session(session_key)
                 if evaluation:
-                    print(f"✅ Evaluation created for session {session_key}")
+                    print(f"✅ Evaluation created and saved to database for session {session_key}")
+                    try:
+                        # Get interview from evaluation relationship
+                        interview_id = evaluation.interview.id if evaluation.interview else 'N/A'
+                        print(f"   Evaluation ID: {evaluation.id}, Interview ID: {interview_id}")
+                    except Exception:
+                        print(f"   Evaluation ID: {evaluation.id}, Interview ID: N/A")
+                    # Verify it's accessible immediately
+                    from evaluation.models import Evaluation
+                    try:
+                        verify_eval = Evaluation.objects.get(id=evaluation.id)
+                        print(f"   ✅ Verification: Evaluation {verify_eval.id} is accessible in database")
+                    except Evaluation.DoesNotExist:
+                        print(f"   ⚠️ WARNING: Evaluation not found immediately after creation")
+                else:
+                    print(f"⚠️ Evaluation creation returned None for session {session_key}")
             except Exception as e:
                 print(f"⚠️ Error creating evaluation: {e}")
                 import traceback
@@ -2483,7 +2875,7 @@ def check_camera(request):
 @csrf_exempt
 @require_POST
 def activate_proctoring_camera(request):
-    """Explicitly activate YOLO model and proctoring warnings when technical interview starts"""
+    """Explicitly activate YOLO model, proctoring warnings, and video recording when technical interview starts"""
     try:
         data = json.loads(request.body)
         session_key = data.get('session_key')
@@ -2508,6 +2900,32 @@ def activate_proctoring_camera(request):
                 print(f"⚠️ Camera doesn't have activate_yolo_proctoring method, using fallback")
                 yolo_activated = True
             
+            # Start video recording for the entire interview (both technical and coding phases)
+            # Get the exact start timestamp for audio synchronization
+            video_start_timestamp = None
+            if hasattr(camera, 'start_video_recording'):
+                try:
+                    # CRITICAL: start_video_recording() now returns the timestamp IMMEDIATELY
+                    # The timestamp is recorded when the function is called, not when first frame is written
+                    # This ensures audio can start at the exact same moment for perfect synchronization
+                    video_start_timestamp = camera.start_video_recording()  # Returns timestamp immediately
+                    print(f"✅ Video recording started for session {session_key}")
+                    print(f"🕐 Video start timestamp (recorded immediately): {video_start_timestamp}")
+                    
+                    if not video_start_timestamp:
+                        # Fallback: use current time if timestamp not returned
+                        import time
+                        video_start_timestamp = time.time()
+                        print(f"⚠️ Video recording started but no timestamp returned, using current time: {video_start_timestamp}")
+                    
+                    print(f"✅ Video recording active for session {session_key} (will continue through technical and coding phases)")
+                except Exception as e:
+                    print(f"⚠️ Error starting video recording: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"⚠️ Camera doesn't have start_video_recording method")
+            
             # Ensure detection loop is running
             if not camera._running:
                 # Restart detection loop if it stopped
@@ -2530,7 +2948,8 @@ def activate_proctoring_camera(request):
                 'camera_active': True,
                 'yolo_loaded': yolo_activated,
                 'proctoring_active': getattr(camera, '_proctoring_active', False),
-                'detection_running': camera._running if hasattr(camera, '_running') else False
+                'detection_running': camera._running if hasattr(camera, '_running') else False,
+                'video_start_timestamp': video_start_timestamp  # Return timestamp for audio sync
             })
         else:
             return JsonResponse({'status': 'error', 'message': 'Camera not opened'}, status=500)
@@ -3116,8 +3535,38 @@ def ai_upload_answer(request):
                                 question_obj.save(update_fields=['transcribed_answer', 'response_time_seconds'])
                                 print(f"✅ Updated original question record for backward compatibility: {answer_text[:50]}...")
                             elif answer_text == 'No answer provided' and not is_special_question:
-                                # For non-special questions, only save if there's an actual answer
-                                pass
+                                # IMPORTANT: Still save "No answer provided" so it appears in candidate details
+                                # This ensures all questions have corresponding answers, even if empty
+                                from django.db.models import Max
+                                max_seq_result = InterviewQuestion.objects.filter(
+                                    session=django_session
+                                ).aggregate(max_seq=Max('conversation_sequence'))
+                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                
+                                # Calculate interviewee sequence (even number)
+                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
+                                    interviewee_sequence = max_seq + 1
+                                else:  # Last was Interviewee or no sequence, find next even
+                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
+                                
+                                # Save "No answer provided" as a separate record
+                                interviewee_response = InterviewQuestion.objects.create(
+                                    session=django_session,
+                                    question_text='',  # Empty for Interviewee responses
+                                    question_type=question_obj.question_type,
+                                    order=question_obj.order,  # Same order as the question
+                                    question_level='INTERVIEWEE_RESPONSE',
+                                    transcribed_answer='No answer provided',  # Explicitly save this
+                                    response_time_seconds=response_time if 'response_time' in locals() else 0,
+                                    role='INTERVIEWEE',
+                                    conversation_sequence=interviewee_sequence
+                                )
+                                print(f"✅ Saved 'No answer provided' as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}")
+                                
+                                # Also update the original question's transcribed_answer for backward compatibility
+                                question_obj.transcribed_answer = 'A: No answer provided'
+                                question_obj.save(update_fields=['transcribed_answer'])
+                                print(f"✅ Updated original question record with 'No answer provided'")
                         else:
                             print(f"⚠️ Could not find question to save answer. Creating new question...")
                             # Create a new question if it doesn't exist (including pre-closing and closing questions)
@@ -3197,69 +3646,88 @@ def ai_upload_answer(request):
                         # This is a candidate question - save both the question and AI's answer
                         from .complete_ai_bot import is_candidate_question
                         if is_candidate_question(transcript):
-                            # Check if the last question is a closing question - if so, insert candidate question before it
-                            closing_phrases = ["do you have any question", "any questions for", "before we wrap up"]
-                            last_question = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).order_by('-order').first()
+                            # IMPORTANT: When candidate asks a question:
+                            # 1. Save candidate's question with role='INTERVIEWEE' in transcribed_answer
+                            # 2. Save AI's response with role='AI' in question_text
                             
-                            if last_question and any(phrase in last_question.question_text.lower() for phrase in closing_phrases):
-                                # Last question is a closing question - insert candidate question before it
-                                candidate_order = last_question.order
-                                # Shift closing question and any questions after it by +1
-                                from django.db.models import F
-                                InterviewQuestion.objects.filter(
+                            print(f"📝 Detected candidate question: {transcript[:100]}...")
+                            
+                            # Get the AI's response to the candidate's question from the result
+                            interviewer_answer = result.get('next_question', '') or result.get('message', '')
+                            if not interviewer_answer and hasattr(ai_session, 'conversation_history'):
+                                # Try to get the last interviewer message
+                                for msg in reversed(ai_session.conversation_history):
+                                    if msg.get('role') == 'interviewer':
+                                        interviewer_answer = msg.get('text', '')
+                                        break
+                            
+                            # Get maximum order and sequence
+                            from django.db.models import Max
+                            max_order_result = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).aggregate(max_order=Max('order'))
+                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
+                            new_order = max_order + 1
+                            
+                            max_seq_result = InterviewQuestion.objects.filter(
+                                session=django_session
+                            ).aggregate(max_seq=Max('conversation_sequence'))
+                            max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                            
+                            # Step 1: Save candidate's question with role='INTERVIEWEE'
+                            # Candidate questions get even sequence numbers (2, 4, 6, 8...)
+                            if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
+                                candidate_sequence = max_seq + 1
+                            else:  # Last was Interviewee or no sequence, find next even
+                                candidate_sequence = ((max_seq // 2) + 1) * 2
+                            
+                            # Format candidate's question (remove any Q: prefix, it's going in transcribed_answer)
+                            candidate_q_formatted = transcript.strip()
+                            if candidate_q_formatted.startswith('Q:'):
+                                candidate_q_formatted = candidate_q_formatted.replace('Q:', '').strip()
+                            
+                            # Create record for candidate's question
+                            candidate_question_record = InterviewQuestion.objects.create(
+                                session=django_session,
+                                question_text='',  # Empty - candidate question goes in transcribed_answer
+                                question_type='TECHNICAL',
+                                order=new_order,
+                                question_level='CANDIDATE_QUESTION',  # Special level to identify candidate questions
+                                transcribed_answer=candidate_q_formatted,  # Candidate's question text
+                                role='INTERVIEWEE',  # This is from the candidate
+                                conversation_sequence=candidate_sequence  # Even sequence: 2, 4, 6, 8...
+                            )
+                            print(f"✅ Saved candidate question: conversation_sequence {candidate_sequence}, role=INTERVIEWEE, order {new_order}: {candidate_q_formatted[:50]}...")
+                            
+                            # Step 2: Save AI's response with role='AI'
+                            if interviewer_answer:
+                                # AI response gets odd sequence number (1, 3, 5, 7...)
+                                ai_sequence = candidate_sequence + 1
+                                
+                                # Format AI's response (remove any A: prefix, it's going in question_text)
+                                ai_response_formatted = interviewer_answer.strip()
+                                if ai_response_formatted.startswith('A:'):
+                                    ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
+                                
+                                # Create record for AI's response
+                                ai_response_record = InterviewQuestion.objects.create(
                                     session=django_session,
-                                    order__gte=candidate_order
-                                ).update(order=F('order') + 1)
-                                
-                                # Format candidate's question with Q: prefix (candidate asked, so it's a question)
-                                candidate_q_formatted = transcript.strip()
-                                if not candidate_q_formatted.startswith('Q:'):
-                                    candidate_q_formatted = f'Q: {candidate_q_formatted}'
-                                
-                                # Format AI's answer with A: prefix
-                                ai_answer_formatted = interviewer_answer.strip() if interviewer_answer else 'No answer provided'
-                                if not ai_answer_formatted.startswith('A:'):
-                                    ai_answer_formatted = f'A: {ai_answer_formatted}'
-                                
-                                # Save candidate question with the order that was previously the closing question's order
-                                candidate_question_obj = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                    question_text=ai_response_formatted,  # AI's response text
                                     question_type='TECHNICAL',
-                                    order=candidate_order,  # Insert before closing question
-                                    question_level='CANDIDATE_QUESTION',  # Special level to identify candidate questions
-                                    transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                    order=new_order + 1,  # Next order after candidate question
+                                    question_level='AI_RESPONSE',  # Special level to identify AI responses to candidate
+                                    transcribed_answer='',  # Empty - AI response goes in question_text
+                                    role='AI',  # This is from the AI
+                                    conversation_sequence=ai_sequence,  # Odd sequence: 1, 3, 5, 7...
+                                    audio_url=result.get('audio_url', '')  # Audio for AI's response
                                 )
-                                print(f"✅ Saved candidate question BEFORE closing question with order {candidate_order}: Q: {transcript[:50]}... | A: {interviewer_answer[:50]}...")
+                                print(f"✅ Saved AI response to candidate question: conversation_sequence {ai_sequence}, role=AI, order {new_order + 1}: {ai_response_formatted[:50]}...")
                             else:
-                                # No closing question found, use normal max_order + 1
-                                existing_questions = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).order_by('-order')
-                                max_order = existing_questions.first().order if existing_questions.exists() else -1
-                                
-                                # Format candidate's question with Q: prefix
-                                candidate_q_formatted = transcript.strip()
-                                if not candidate_q_formatted.startswith('Q:'):
-                                    candidate_q_formatted = f'Q: {candidate_q_formatted}'
-                                
-                                # Format AI's answer with A: prefix
-                                ai_answer_formatted = interviewer_answer.strip() if interviewer_answer else 'No answer provided'
-                                if not ai_answer_formatted.startswith('A:'):
-                                    ai_answer_formatted = f'A: {ai_answer_formatted}'
-                                
-                                # Save candidate's question as a question with question_level='CANDIDATE_QUESTION'
-                                candidate_question_obj = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
-                                    question_type='TECHNICAL',
-                                    order=max_order + 1,
-                                    question_level='CANDIDATE_QUESTION',  # Special level to identify candidate questions
-                                    transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
-                                )
-                                print(f"✅ Saved candidate question and AI answer: Q: {transcript[:50]}... | A: {interviewer_answer[:50]}...")
+                                print(f"⚠️ No AI response found for candidate question")
+                            
+                            # Skip the normal answer saving logic for candidate questions
+                            # The candidate question and AI response have been saved above
+                            # Continue with normal flow to return the result
                     
                     # Also check for candidate questions in closing phase (when AI answers candidate's question)
                     # Check if the result contains a combined response (answer + "Do you have any other questions?")
@@ -3296,26 +3764,55 @@ def ai_upload_answer(request):
                                         order__gte=candidate_order
                                     ).update(order=F('order') + 1)
                                     
-                                    # Format candidate's question with Q: prefix
+                                    # Format candidate's question (remove Q: prefix, it goes in transcribed_answer)
                                     candidate_q_formatted = transcript.strip()
-                                    if not candidate_q_formatted.startswith('Q:'):
-                                        candidate_q_formatted = f'Q: {candidate_q_formatted}'
+                                    if candidate_q_formatted.startswith('Q:'):
+                                        candidate_q_formatted = candidate_q_formatted.replace('Q:', '').strip()
                                     
-                                    # Format AI's answer with A: prefix
-                                    ai_answer_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
-                                    if not ai_answer_formatted.startswith('A:'):
-                                        ai_answer_formatted = f'A: {ai_answer_formatted}'
+                                    # Format AI's response (remove A: prefix, it goes in question_text of AI record)
+                                    ai_response_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
+                                    if ai_response_formatted.startswith('A:'):
+                                        ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
                                     
-                                    # Save candidate question with the order that was previously the closing question's order
+                                    # Get max order and sequence
+                                    from django.db.models import Max
+                                    max_seq_result = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).aggregate(max_seq=Max('conversation_sequence'))
+                                    max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                    
+                                    # Step 1: Save candidate question with role='INTERVIEWEE' in transcribed_answer
+                                    if max_seq % 2 == 1:
+                                        candidate_sequence = max_seq + 1
+                                    else:
+                                        candidate_sequence = ((max_seq // 2) + 1) * 2
+                                    
                                     candidate_question_obj = InterviewQuestion.objects.create(
                                         session=django_session,
-                                        question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                        question_text='',  # Empty - candidate question goes in transcribed_answer
                                         question_type='TECHNICAL',
                                         order=candidate_order,  # Insert before closing question
                                         question_level='CANDIDATE_QUESTION',
-                                        transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                        transcribed_answer=candidate_q_formatted,  # Candidate's question text
+                                        role='INTERVIEWEE',
+                                        conversation_sequence=candidate_sequence
                                     )
-                                    print(f"✅ Saved candidate question BEFORE closing question (closing phase) with order {candidate_order}: Q: {transcript[:50]}... | A: {ai_answer[:50]}...")
+                                    print(f"✅ Saved candidate question (closing phase): conversation_sequence {candidate_sequence}, role=INTERVIEWEE, order {candidate_order}: {candidate_q_formatted[:50]}...")
+                                    
+                                    # Step 2: Save AI response with role='AI' in question_text
+                                    if ai_response_formatted and ai_response_formatted != 'No answer provided':
+                                        ai_sequence = candidate_sequence + 1
+                                        ai_response_obj = InterviewQuestion.objects.create(
+                                            session=django_session,
+                                            question_text=ai_response_formatted,  # AI's response text
+                                            question_type='TECHNICAL',
+                                            order=candidate_order + 1,
+                                            question_level='AI_RESPONSE',
+                                            transcribed_answer='',  # Empty - AI response goes in question_text
+                                            role='AI',
+                                            conversation_sequence=ai_sequence
+                                        )
+                                        print(f"✅ Saved AI response (closing phase): conversation_sequence {ai_sequence}, role=AI, order {candidate_order + 1}: {ai_response_formatted[:50]}...")
                                 else:
                                     # No closing question found, use normal max_order + 1
                                     existing_questions = InterviewQuestion.objects.filter(
@@ -3323,26 +3820,55 @@ def ai_upload_answer(request):
                                     ).order_by('-order')
                                     max_order = existing_questions.first().order if existing_questions.exists() else -1
                                     
-                                    # Format candidate's question with Q: prefix
+                                    # Format candidate's question (remove Q: prefix, it goes in transcribed_answer)
                                     candidate_q_formatted = transcript.strip()
-                                    if not candidate_q_formatted.startswith('Q:'):
-                                        candidate_q_formatted = f'Q: {candidate_q_formatted}'
+                                    if candidate_q_formatted.startswith('Q:'):
+                                        candidate_q_formatted = candidate_q_formatted.replace('Q:', '').strip()
                                     
-                                    # Format AI's answer with A: prefix
-                                    ai_answer_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
-                                    if not ai_answer_formatted.startswith('A:'):
-                                        ai_answer_formatted = f'A: {ai_answer_formatted}'
+                                    # Format AI's response (remove A: prefix, it goes in question_text of AI record)
+                                    ai_response_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
+                                    if ai_response_formatted.startswith('A:'):
+                                        ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
                                     
-                                    # Save candidate's question and AI's answer
+                                    # Get max order and sequence
+                                    from django.db.models import Max
+                                    max_seq_result = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).aggregate(max_seq=Max('conversation_sequence'))
+                                    max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                    
+                                    # Step 1: Save candidate question with role='INTERVIEWEE' in transcribed_answer
+                                    if max_seq % 2 == 1:
+                                        candidate_sequence = max_seq + 1
+                                    else:
+                                        candidate_sequence = ((max_seq // 2) + 1) * 2
+                                    
                                     candidate_question_obj = InterviewQuestion.objects.create(
                                         session=django_session,
-                                        question_text=candidate_q_formatted,  # Candidate's question with Q: prefix
+                                        question_text='',  # Empty - candidate question goes in transcribed_answer
                                         question_type='TECHNICAL',
                                         order=max_order + 1,
                                         question_level='CANDIDATE_QUESTION',
-                                        transcribed_answer=ai_answer_formatted  # AI's answer to candidate's question with A: prefix
+                                        transcribed_answer=candidate_q_formatted,  # Candidate's question text
+                                        role='INTERVIEWEE',
+                                        conversation_sequence=candidate_sequence
                                     )
-                                    print(f"✅ Saved candidate question from closing phase: Q: {transcript[:50]}... | A: {ai_answer[:50]}...")
+                                    print(f"✅ Saved candidate question (closing phase): conversation_sequence {candidate_sequence}, role=INTERVIEWEE, order {max_order + 1}: {candidate_q_formatted[:50]}...")
+                                    
+                                    # Step 2: Save AI response with role='AI' in question_text
+                                    if ai_response_formatted and ai_response_formatted != 'No answer provided':
+                                        ai_sequence = candidate_sequence + 1
+                                        ai_response_obj = InterviewQuestion.objects.create(
+                                            session=django_session,
+                                            question_text=ai_response_formatted,  # AI's response text
+                                            question_type='TECHNICAL',
+                                            order=max_order + 2,
+                                            question_level='AI_RESPONSE',
+                                            transcribed_answer='',  # Empty - AI response goes in question_text
+                                            role='AI',
+                                            conversation_sequence=ai_sequence
+                                        )
+                                        print(f"✅ Saved AI response (closing phase): conversation_sequence {ai_sequence}, role=AI, order {max_order + 2}: {ai_response_formatted[:50]}...")
                     
                     # Also check for closing question in final_message if interview is completed
                     if not next_question_text and result.get('completed') and result.get('final_message'):
@@ -4892,6 +5418,308 @@ class InterviewAnalyticsAPIView(APIView):
             return Response({
                 'error': f'Error retrieving analytics: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@never_cache
+def serve_interview_video(request, video_path):
+    """Serve interview video files with proper MIME type and headers for browser playback.
+    Prioritizes merged videos from interview_videos_merged/ folder."""
+    import os
+    from django.conf import settings
+    from django.http import Http404
+    
+    try:
+        # Normalize path to prevent directory traversal
+        video_path = video_path.replace('\\', '/')  # Normalize separators
+        if video_path.startswith('/'):
+            video_path = video_path[1:]  # Remove leading slash
+        
+        # Remove /media/ prefix if present
+        if video_path.startswith('media/'):
+            video_path = video_path[6:]
+        
+        # CRITICAL: Prioritize merged videos from interview_videos_merged/
+        # Check merged folder first
+        merged_path = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged', video_path)
+        merged_path = os.path.normpath(merged_path)
+        
+        # Also check if video_path already contains the folder name
+        if 'interview_videos_merged' in video_path:
+            full_path = os.path.join(settings.MEDIA_ROOT, video_path)
+            full_path = os.path.normpath(full_path)
+        elif 'interview_videos_raw' in video_path:
+            # Don't serve raw videos - only merged videos
+            print(f"❌ Attempted to serve raw video (not allowed): {video_path}")
+            raise Http404("Only merged videos are available. Raw videos are not served.")
+        else:
+            # Try merged folder first, then old folder as fallback
+            if os.path.exists(merged_path):
+                full_path = merged_path
+                print(f"✅ Serving merged video from interview_videos_merged/: {full_path}")
+            else:
+                # Fallback to old folder (for backward compatibility)
+                full_path = os.path.join(settings.MEDIA_ROOT, 'interview_videos', video_path)
+                full_path = os.path.normpath(full_path)
+                # Only serve if it's a merged video (has _with_audio suffix)
+                if '_with_audio' not in video_path and not os.path.exists(full_path):
+                    # Try to find merged version
+                    video_basename = os.path.basename(video_path)
+                    base_name = os.path.splitext(video_basename)[0]
+                    if '_converted' in base_name:
+                        base_name = base_name.replace('_converted', '')
+                    merged_filename = f"{base_name}_with_audio.mp4"
+                    merged_full_path = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged', merged_filename)
+                    merged_full_path = os.path.normpath(merged_full_path)
+                    if os.path.exists(merged_full_path):
+                        full_path = merged_full_path
+                        print(f"✅ Found and serving merged video: {full_path}")
+                    else:
+                        print(f"❌ Video file not found (raw videos not served): {video_path}")
+                        raise Http404("Only merged videos are available. Video not found.")
+                elif '_with_audio' not in video_path:
+                    print(f"⚠️ Attempting to serve non-merged video, checking for merged version...")
+                    # Try to find merged version
+                    video_basename = os.path.basename(video_path)
+                    base_name = os.path.splitext(video_basename)[0]
+                    if '_converted' in base_name:
+                        base_name = base_name.replace('_converted', '')
+                    merged_filename = f"{base_name}_with_audio.mp4"
+                    merged_full_path = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged', merged_filename)
+                    merged_full_path = os.path.normpath(merged_full_path)
+                    if os.path.exists(merged_full_path):
+                        full_path = merged_full_path
+                        print(f"✅ Redirecting to merged video: {full_path}")
+                    else:
+                        print(f"❌ No merged video found for: {video_path}")
+                        raise Http404("Only merged videos are available. Merged version not found.")
+        
+        media_root = os.path.normpath(settings.MEDIA_ROOT)
+        
+        # Security check: ensure file is within MEDIA_ROOT
+        if not full_path.startswith(media_root):
+            raise Http404("Invalid video path")
+        
+        # Check if file exists
+        if not os.path.exists(full_path):
+            print(f"❌ Video file not found: {full_path}")
+            raise Http404("Video file not found")
+        
+        # Check file size
+        file_size = os.path.getsize(full_path)
+        if file_size == 0:
+            print(f"❌ Video file is empty: {full_path}")
+            raise Http404("Video file is empty")
+        
+        print(f"✅ Serving video file: {full_path} ({file_size / 1024 / 1024:.2f} MB)")
+        
+        # Determine content type based on file extension
+        content_type = 'video/mp4'
+        if full_path.endswith('.webm'):
+            content_type = 'video/webm'
+        elif full_path.endswith('.mov') or full_path.endswith('.qt'):
+            content_type = 'video/quicktime'
+        
+        # Serve file with proper headers
+        response = FileResponse(
+            open(full_path, 'rb'),
+            content_type=content_type
+        )
+        response['Content-Length'] = file_size
+        response['Accept-Ranges'] = 'bytes'
+        response['Cache-Control'] = 'public, max-age=3600'
+        
+        return response
+    except FileNotFoundError:
+        raise Http404("Video file not found")
+    except Exception as e:
+        print(f"❌ Error serving video: {e}")
+        import traceback
+        traceback.print_exc()
+        raise Http404(f"Error serving video: {str(e)}")
+
+
+@csrf_exempt
+@require_POST
+def upload_interview_audio(request):
+    """Upload interview audio (microphone + TTS) to be merged with backend video recording."""
+    try:
+        session_key = request.POST.get('session_key')
+        audio_file = request.FILES.get('audio_file')
+        
+        # CRITICAL: Get timestamps for audio-video synchronization
+        audio_start_timestamp = request.POST.get('audio_start_timestamp')
+        video_start_timestamp = request.POST.get('video_start_timestamp')
+        
+        if not session_key or not audio_file:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Missing required data: session_key and audio_file'
+            }, status=400)
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(session_key=session_key)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Session not found'
+            }, status=404)
+        
+        # Store timestamps in session metadata (using JSONField if available, or store in a separate way)
+        # Note: InterviewSession model doesn't have timestamp fields, so we'll store them in a way that can be retrieved later
+        # For now, we'll just log them and pass them directly to the merge function
+        if audio_start_timestamp:
+            try:
+                audio_ts = float(audio_start_timestamp)
+                print(f"📥 Received audio start timestamp: {audio_ts}")
+            except (ValueError, TypeError):
+                print(f"⚠️ Invalid audio_start_timestamp: {audio_start_timestamp}")
+                audio_ts = None
+        else:
+            audio_ts = None
+            
+        if video_start_timestamp:
+            try:
+                video_ts = float(video_start_timestamp)
+                print(f"📥 Received video start timestamp: {video_ts}")
+            except (ValueError, TypeError):
+                print(f"⚠️ Invalid video_start_timestamp: {video_start_timestamp}")
+                video_ts = None
+        else:
+            video_ts = None
+        
+        # Store timestamps in a way that can be retrieved later (we'll use session metadata or pass directly)
+        # For now, we'll store them in a simple cache/dict that can be retrieved by session_key
+        if not hasattr(upload_interview_audio, '_timestamp_cache'):
+            upload_interview_audio._timestamp_cache = {}
+        
+        if audio_ts or video_ts:
+            upload_interview_audio._timestamp_cache[session_key] = {
+                'audio_start_timestamp': audio_ts,
+                'video_start_timestamp': video_ts
+            }
+            print(f"✅ Stored timestamps in cache for session {session_key}")
+        
+        # Save audio file
+        audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
+        os.makedirs(audio_dir, exist_ok=True)
+        
+        # Get file extension from uploaded file
+        original_filename = audio_file.name
+        file_ext = os.path.splitext(original_filename)[1] or '.webm'
+        audio_filename = f"{session_key}_interview_audio{file_ext}"
+        audio_path = os.path.join(audio_dir, audio_filename)
+        
+        # Save audio file
+        with open(audio_path, 'wb+') as destination:
+            for chunk in audio_file.chunks():
+                destination.write(chunk)
+        
+        print(f"✅ Interview audio saved: {audio_path} ({audio_file.size / 1024 / 1024:.2f} MB)")
+        
+        # Process and convert audio to WAV for better compatibility with FFmpeg
+        try:
+            from interview_app.audio_processor import process_uploaded_audio, verify_audio_file
+            
+            # Verify audio file first
+            if not verify_audio_file(audio_path):
+                print(f"⚠️ Audio file verification failed, but continuing...")
+            
+            # Process and convert to WAV for better compatibility
+            processed_audio_path = process_uploaded_audio(audio_path, convert_to_wav=True)
+            
+            if processed_audio_path and os.path.exists(processed_audio_path):
+                # Use processed audio path (converted WAV if conversion succeeded)
+                final_audio_path = processed_audio_path
+                print(f"✅ Audio processed successfully: {final_audio_path}")
+            else:
+                # Fallback to original if processing failed
+                final_audio_path = audio_path
+                print(f"⚠️ Audio processing failed, using original: {final_audio_path}")
+        except Exception as e:
+            print(f"⚠️ Error processing audio: {e}")
+            import traceback
+            traceback.print_exc()
+            # Use original audio file if processing fails
+            final_audio_path = audio_path
+        
+        # Get relative path for merging (use processed audio if available)
+        relative_audio_path = os.path.relpath(final_audio_path, settings.MEDIA_ROOT).replace('\\', '/')
+        
+        print(f"✅ Final audio path for merging: {relative_audio_path}")
+        
+        # Return both audio_path and audio_file_path for compatibility
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Audio uploaded and processed successfully',
+            'audio_path': relative_audio_path,
+            'audio_file_path': relative_audio_path,  # Also return as audio_file_path for frontend compatibility
+            'audio_size_mb': round(os.path.getsize(final_audio_path) / 1024 / 1024, 2),
+            'audio_format': os.path.splitext(final_audio_path)[1].lower()
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error uploading audio: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@require_POST
+def upload_interview_video(request):
+    """Upload complete interview video (camera + microphone + TTS audio)"""
+    try:
+        session_key = request.POST.get('session_key')
+        video_file = request.FILES.get('video')
+        question_timestamps = request.POST.get('question_timestamps', '[]')
+        duration = request.POST.get('duration', '0')
+        
+        if not session_key or not video_file:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Missing required data: session_key and video file'
+            }, status=400)
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(session_key=session_key)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Session not found'
+            }, status=404)
+        
+        # Save video file
+        video_filename = f"interview_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.webm"
+        session.interview_video.save(video_filename, video_file, save=True)
+        
+        # Parse and store question timestamps if provided
+        try:
+            timestamps = json.loads(question_timestamps) if question_timestamps else []
+            if timestamps:
+                # Store timestamps in session metadata (could use a JSONField if available)
+                print(f"📝 Stored {len(timestamps)} question timestamps for video")
+        except Exception as e:
+            print(f"⚠️ Could not parse question timestamps: {e}")
+        
+        print(f"✅ Interview video saved: {session.interview_video.name} ({video_file.size / 1024 / 1024:.2f} MB)")
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Video uploaded successfully',
+            'video_url': session.interview_video.url if session.interview_video else None,
+            'video_size_mb': round(video_file.size / 1024 / 1024, 2)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error uploading video: {str(e)}'
+        }, status=500)
 
 
 # Video recording functionality removed

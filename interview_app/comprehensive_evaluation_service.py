@@ -1,0 +1,524 @@
+"""
+Comprehensive Evaluation Service
+Provides detailed AI-powered evaluation of complete interviews using Gemini
+"""
+import re
+import google.generativeai as genai
+from django.conf import settings
+from interview_app.models import InterviewSession, InterviewQuestion, CodeSubmission
+
+# Configure Gemini
+api_key = getattr(settings, 'GEMINI_API_KEY', None) or getattr(settings, 'GOOGLE_API_KEY', None)
+if api_key:
+    genai.configure(api_key=api_key)
+else:
+    print("⚠️ WARNING: GEMINI_API_KEY not set. Comprehensive evaluation may fail.")
+
+
+class ComprehensiveEvaluationService:
+    """
+    Service for comprehensive AI evaluation of interview sessions
+    """
+    
+    def __init__(self):
+        self.model = genai.GenerativeModel('gemini-2.0-flash') if api_key else None
+    
+    def evaluate_complete_interview(self, session_key: str) -> dict:
+        """
+        Evaluate a complete interview session comprehensively
+        
+        Args:
+            session_key (str): The interview session key
+            
+        Returns:
+            dict: Comprehensive evaluation results with scores, analysis, and recommendations
+        """
+        try:
+            # Get the session
+            session = InterviewSession.objects.get(session_key=session_key)
+            
+            # Collect all questions and answers
+            all_questions = InterviewQuestion.objects.filter(session=session).order_by('conversation_sequence', 'order')
+            
+            # Separate technical, behavioral, and coding questions
+            technical_qa = []
+            behavioral_qa = []
+            coding_submissions = []
+            
+            # Build a map of question_id -> question_text for AI questions
+            ai_questions_map = {}
+            for q in all_questions:
+                # AI questions have role='AI' and question_text
+                if (q.role == 'AI' or (not q.role and q.question_text)) and q.question_text:
+                    ai_questions_map[q.id] = {
+                        'text': q.question_text,
+                        'type': q.question_type,
+                        'order': q.order
+                    }
+            
+            # Process interviewee answers and match with AI questions
+            for q in all_questions:
+                # Interviewee answers have role='INTERVIEWEE' and transcribed_answer
+                if q.role == 'INTERVIEWEE' and q.transcribed_answer:
+                    # Find the corresponding AI question
+                    # Try to find by order (answer usually has same order as question)
+                    corresponding_question = None
+                    for ai_q in all_questions:
+                        if (ai_q.role == 'AI' or (not ai_q.role and ai_q.question_text)) and ai_q.order == q.order:
+                            corresponding_question = ai_q.question_text
+                            break
+                    
+                    # If not found by order, try to find by conversation_sequence (answer is usually sequence-1)
+                    if not corresponding_question and q.conversation_sequence:
+                        prev_seq = q.conversation_sequence - 1
+                        for ai_q in all_questions:
+                            if ai_q.conversation_sequence == prev_seq and ai_q.question_text:
+                                corresponding_question = ai_q.question_text
+                                break
+                    
+                    question_text = corresponding_question or 'Question not available'
+                    
+                    if q.question_type == 'TECHNICAL':
+                        technical_qa.append({
+                            'question': question_text,
+                            'answer': q.transcribed_answer
+                        })
+                    elif q.question_type == 'BEHAVIORAL':
+                        behavioral_qa.append({
+                            'question': question_text,
+                            'answer': q.transcribed_answer
+                        })
+            
+            # Process coding questions
+            for q in all_questions:
+                if q.question_type == 'CODING' and q.question_text:
+                    # Get coding submission if exists
+                    try:
+                        code_submission = CodeSubmission.objects.filter(
+                            session=session,
+                            question_id=str(q.id)
+                        ).order_by('-created_at').first()
+                        
+                        if code_submission:
+                            coding_submissions.append({
+                                'question': q.question_text,
+                                'code': code_submission.submitted_code,
+                                'language': code_submission.language,
+                                'test_results': code_submission.output_log or 'No test results',
+                                'passed_tests': code_submission.passed_count or 0,
+                                'total_tests': code_submission.total_count or 0
+                            })
+                    except Exception as e:
+                        print(f"⚠️ Error fetching code submission for question {q.id}: {e}")
+            
+            # Fallback: If no interviewee answers found, try to get from questions with transcribed_answer
+            if not technical_qa and not behavioral_qa:
+                for q in all_questions:
+                    if q.transcribed_answer and q.transcribed_answer.strip() and q.transcribed_answer != 'No answer provided':
+                        question_text = q.question_text if q.question_text else 'Question not available'
+                        if q.question_type == 'TECHNICAL':
+                            technical_qa.append({
+                                'question': question_text,
+                                'answer': q.transcribed_answer
+                            })
+                        elif q.question_type == 'BEHAVIORAL':
+                            behavioral_qa.append({
+                                'question': question_text,
+                                'answer': q.transcribed_answer
+                            })
+            
+            # If no data available, return minimal evaluation
+            if not technical_qa and not behavioral_qa and not coding_submissions:
+                print(f"⚠️ No interview data found for session {session_key}, returning minimal evaluation")
+                return {
+                    'overall_score': 0.0,
+                    'technical_score': 0,
+                    'behavioral_score': 0,
+                    'coding_score': 0,
+                    'communication_score': 0,
+                    'confidence_level': 0,
+                    'strengths': ['Interview completed but no answers were provided'],
+                    'weaknesses': ['No interview responses available for evaluation'],
+                    'technical_analysis': 'No technical questions were answered during the interview.',
+                    'behavioral_analysis': 'No behavioral questions were answered during the interview.',
+                    'coding_analysis': 'No coding challenges were part of this interview.',
+                    'detailed_feedback': 'The interview session was completed but no candidate responses were recorded for evaluation.',
+                    'hiring_recommendation': 'Unable to provide recommendation due to lack of interview data.',
+                    'recommendation': 'MAYBE',
+                    'questions_attempted': 0,
+                    'questions_correct': 0,
+                    'accuracy_percentage': 0
+                }
+            
+            # Build comprehensive evaluation prompt
+            evaluation_prompt = self._build_evaluation_prompt(
+                session=session,
+                technical_qa=technical_qa,
+                behavioral_qa=behavioral_qa,
+                coding_submissions=coding_submissions
+            )
+            
+            # Get AI evaluation
+            if not self.model:
+                raise Exception("Gemini model not configured. Please set GEMINI_API_KEY.")
+            
+            print(f"🔄 Requesting comprehensive evaluation from Gemini...")
+            response = self.model.generate_content(evaluation_prompt)
+            evaluation_text = response.text
+            
+            # Parse the response
+            result = self._parse_evaluation_response(evaluation_text, technical_qa, behavioral_qa, coding_submissions)
+            
+            # Calculate accuracy metrics - separate for technical and overall
+            technical_attempted = len(technical_qa)
+            behavioral_attempted = len(behavioral_qa)
+            coding_attempted = len(coding_submissions)
+            total_questions = technical_attempted + behavioral_attempted + coding_attempted
+            
+            # Get correctness counts from parsed result
+            technical_correct = result.get('technical_correct', 0)
+            behavioral_correct = result.get('behavioral_correct', 0)
+            coding_correct = result.get('coding_correct', 0)
+            total_correct = technical_correct + behavioral_correct + coding_correct
+            
+            # Calculate accuracy percentages
+            technical_accuracy = (technical_correct / technical_attempted * 100) if technical_attempted > 0 else 0
+            behavioral_accuracy = (behavioral_correct / behavioral_attempted * 100) if behavioral_attempted > 0 else 0
+            coding_accuracy = (coding_correct / coding_attempted * 100) if coding_attempted > 0 else 0
+            overall_accuracy = (total_correct / total_questions * 100) if total_questions > 0 else 0
+            
+            # Add metrics to result - use technical counts for backward compatibility
+            # Frontend expects questions_attempted and questions_correct for TECHNICAL questions
+            result['questions_attempted'] = technical_attempted
+            result['questions_correct'] = technical_correct
+            result['accuracy_percentage'] = technical_accuracy
+            
+            # Also include separate counts for all question types
+            result['technical_questions_attempted'] = technical_attempted
+            result['technical_questions_correct'] = technical_correct
+            result['technical_accuracy_percentage'] = technical_accuracy
+            
+            result['behavioral_questions_attempted'] = behavioral_attempted
+            result['behavioral_questions_correct'] = behavioral_correct
+            result['behavioral_accuracy_percentage'] = behavioral_accuracy
+            
+            result['coding_questions_attempted'] = coding_attempted
+            result['coding_questions_correct'] = coding_correct
+            result['coding_accuracy_percentage'] = coding_accuracy
+            
+            result['total_questions'] = total_questions
+            result['total_correct'] = total_correct
+            result['overall_accuracy_percentage'] = overall_accuracy
+            
+            print(f"✅ Comprehensive evaluation completed")
+            print(f"   Overall Score: {result.get('overall_score', 0):.1f}/100")
+            print(f"   Technical Score: {result.get('technical_score', 0):.1f}/100")
+            print(f"   Coding Score: {result.get('coding_score', 0):.1f}/100")
+            
+            return result
+            
+        except InterviewSession.DoesNotExist:
+            print(f"❌ Session {session_key} not found")
+            raise Exception(f"Interview session {session_key} not found")
+        except Exception as e:
+            print(f"❌ Error in comprehensive evaluation: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    def _build_evaluation_prompt(self, session, technical_qa, behavioral_qa, coding_submissions) -> str:
+        """Build the comprehensive evaluation prompt"""
+        
+        # Build Q&A transcript
+        qa_transcript = ""
+        if technical_qa:
+            qa_transcript += "\n=== TECHNICAL QUESTIONS & ANSWERS ===\n"
+            for i, qa in enumerate(technical_qa, 1):
+                qa_transcript += f"\nQ{i}: {qa['question']}\nA{i}: {qa['answer']}\n"
+        
+        if behavioral_qa:
+            qa_transcript += "\n=== BEHAVIORAL QUESTIONS & ANSWERS ===\n"
+            for i, qa in enumerate(behavioral_qa, 1):
+                qa_transcript += f"\nQ{i}: {qa['question']}\nA{i}: {qa['answer']}\n"
+        
+        # Build coding submissions
+        coding_text = ""
+        if coding_submissions:
+            coding_text += "\n=== CODING CHALLENGES ===\n"
+            for i, sub in enumerate(coding_submissions, 1):
+                coding_text += f"\nChallenge {i}:\n"
+                coding_text += f"Problem: {sub['question']}\n"
+                coding_text += f"Language: {sub['language']}\n"
+                coding_text += f"Tests Passed: {sub['passed_tests']}/{sub['total_tests']}\n"
+                coding_text += f"Test Results: {sub['test_results']}\n"
+                coding_text += f"Submitted Code:\n```\n{sub['code']}\n```\n\n"
+        
+        # Job description context
+        job_context = session.job_description or "No job description provided"
+        
+        prompt = f"""You are an expert technical hiring manager conducting a comprehensive interview evaluation.
+
+JOB DESCRIPTION:
+{job_context[:2000]}
+
+INTERVIEW TRANSCRIPT:
+{qa_transcript or 'No spoken questions and answers provided.'}
+
+CODING SUBMISSIONS:
+{coding_text or 'No coding challenges were part of this interview.'}
+
+EVALUATION TASK:
+Provide a comprehensive evaluation of this candidate's interview performance. Analyze:
+1. Technical knowledge and problem-solving ability
+2. Coding skills and code quality (if applicable)
+3. Communication and clarity of expression
+4. Behavioral responses and cultural fit
+5. Overall performance and potential
+
+Provide your evaluation in this EXACT format (use the exact section headers):
+
+=== OVERALL SCORE ===
+[Provide a score from 0-100 based on overall performance]
+
+=== TECHNICAL SCORE ===
+[Provide a score from 0-100 for technical knowledge and problem-solving]
+
+=== BEHAVIORAL SCORE ===
+[Provide a score from 0-100 for behavioral responses and communication]
+
+=== CODING SCORE ===
+[Provide a score from 0-100 for coding skills. If no coding challenges, use 0]
+
+=== COMMUNICATION SCORE ===
+[Provide a score from 0-100 for communication clarity, grammar, and articulation]
+
+=== CONFIDENCE LEVEL ===
+[Provide a score from 0-100 indicating confidence in this evaluation]
+
+=== STRENGTHS ===
+- [Specific strength 1]
+- [Specific strength 2]
+- [Specific strength 3]
+
+=== WEAKNESSES ===
+- [Specific weakness 1]
+- [Specific weakness 2]
+- [Specific weakness 3]
+
+=== TECHNICAL ANALYSIS ===
+[2-3 sentences analyzing technical knowledge, problem-solving approach, and depth of understanding]
+
+=== BEHAVIORAL ANALYSIS ===
+[2-3 sentences analyzing communication skills, clarity, professionalism, and behavioral responses]
+
+=== CODING ANALYSIS ===
+[2-3 sentences analyzing coding skills, code quality, and problem-solving approach. If no coding challenges, state "No coding challenges were part of this interview."]
+
+=== DETAILED FEEDBACK ===
+[3-4 sentences providing comprehensive feedback on overall performance, highlighting key observations and areas for development]
+
+=== HIRING RECOMMENDATION ===
+[2-3 sentences providing a clear hiring recommendation with justification]
+
+=== RECOMMENDATION ===
+[One of: STRONG_HIRE, HIRE, MAYBE, NO_HIRE]
+
+=== QUESTION CORRECTNESS ANALYSIS ===
+For each question, evaluate if the answer is CORRECT, PARTIALLY_CORRECT, or INCORRECT.
+Format: Q1: CORRECT/PARTIALLY_CORRECT/INCORRECT
+Q2: CORRECT/PARTIALLY_CORRECT/INCORRECT
+... (one line per question in order)
+
+For coding challenges, mark as CORRECT only if all test cases passed. Otherwise mark as PARTIALLY_CORRECT or INCORRECT.
+
+Be specific, constructive, and professional. Base your scores on the actual content provided.
+"""
+        return prompt
+    
+    def _parse_evaluation_response(self, response_text: str, technical_qa: list, behavioral_qa: list, coding_submissions: list) -> dict:
+        """Parse the AI evaluation response into structured data"""
+        
+        result = {
+            'overall_score': 50.0,
+            'technical_score': 0,
+            'behavioral_score': 0,
+            'coding_score': 0,
+            'communication_score': 0,
+            'confidence_level': 0,
+            'strengths': [],
+            'weaknesses': [],
+            'technical_analysis': '',
+            'behavioral_analysis': '',
+            'coding_analysis': '',
+            'detailed_feedback': '',
+            'hiring_recommendation': '',
+            'recommendation': 'MAYBE',
+            'technical_correct': 0,
+            'behavioral_correct': 0,
+            'coding_correct': 0
+        }
+        
+        try:
+            # Extract scores
+            score_patterns = {
+                'overall_score': r'=== OVERALL SCORE ===\s*(\d+(?:\.\d+)?)',
+                'technical_score': r'=== TECHNICAL SCORE ===\s*(\d+(?:\.\d+)?)',
+                'behavioral_score': r'=== BEHAVIORAL SCORE ===\s*(\d+(?:\.\d+)?)',
+                'coding_score': r'=== CODING SCORE ===\s*(\d+(?:\.\d+)?)',
+                'communication_score': r'=== COMMUNICATION SCORE ===\s*(\d+(?:\.\d+)?)',
+                'confidence_level': r'=== CONFIDENCE LEVEL ===\s*(\d+(?:\.\d+)?)',
+            }
+            
+            for key, pattern in score_patterns.items():
+                match = re.search(pattern, response_text, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    result[key] = float(match.group(1))
+            
+            # Extract strengths (list items)
+            strengths_match = re.search(r'=== STRENGTHS ===(.*?)(?=== WEAKNESSES ===|===)', response_text, re.DOTALL | re.IGNORECASE)
+            if strengths_match:
+                strengths_text = strengths_match.group(1).strip()
+                # Extract bullet points
+                strengths = [line.strip().lstrip('-•*').strip() for line in strengths_text.split('\n') if line.strip() and line.strip().startswith(('-', '•', '*'))]
+                result['strengths'] = strengths if strengths else [strengths_text[:200]]
+            
+            # Extract weaknesses (list items)
+            weaknesses_match = re.search(r'=== WEAKNESSES ===(.*?)(?=== TECHNICAL ANALYSIS ===|===)', response_text, re.DOTALL | re.IGNORECASE)
+            if weaknesses_match:
+                weaknesses_text = weaknesses_match.group(1).strip()
+                # Extract bullet points
+                weaknesses = [line.strip().lstrip('-•*').strip() for line in weaknesses_text.split('\n') if line.strip() and line.strip().startswith(('-', '•', '*'))]
+                result['weaknesses'] = weaknesses if weaknesses else [weaknesses_text[:200]]
+            
+            # Extract analysis sections
+            analysis_patterns = {
+                'technical_analysis': r'=== TECHNICAL ANALYSIS ===(.*?)(?=== BEHAVIORAL ANALYSIS ===|===)', 
+                'behavioral_analysis': r'=== BEHAVIORAL ANALYSIS ===(.*?)(?=== CODING ANALYSIS ===|===)',
+                'coding_analysis': r'=== CODING ANALYSIS ===(.*?)(?=== DETAILED FEEDBACK ===|===)',
+                'detailed_feedback': r'=== DETAILED FEEDBACK ===(.*?)(?=== HIRING RECOMMENDATION ===|===)',
+                'hiring_recommendation': r'=== HIRING RECOMMENDATION ===(.*?)(?=== RECOMMENDATION ===|$)',
+            }
+            
+            for key, pattern in analysis_patterns.items():
+                match = re.search(pattern, response_text, re.DOTALL | re.IGNORECASE)
+                if match:
+                    result[key] = match.group(1).strip()
+            
+            # Extract recommendation
+            recommendation_match = re.search(r'=== RECOMMENDATION ===\s*(STRONG_HIRE|HIRE|MAYBE|NO_HIRE)', response_text, re.IGNORECASE)
+            if recommendation_match:
+                result['recommendation'] = recommendation_match.group(1).upper()
+            
+            # Parse question correctness analysis
+            correctness_section = re.search(r'=== QUESTION CORRECTNESS ANALYSIS ===(.*?)(?===|$)', response_text, re.DOTALL | re.IGNORECASE)
+            if correctness_section:
+                correctness_text = correctness_section.group(1).strip()
+                # Parse each line: Q1: CORRECT, Q2: INCORRECT, etc.
+                correctness_lines = [line.strip() for line in correctness_text.split('\n') if line.strip() and ':' in line]
+                
+                # Count correct answers by category
+                technical_correct = 0
+                behavioral_correct = 0
+                coding_correct = 0
+                
+                # Map question indices to categories
+                question_index = 0
+                
+                # Technical questions
+                for i in range(len(technical_qa)):
+                    question_index += 1
+                    # Look for Q{question_index}: CORRECT or PARTIALLY_CORRECT
+                    pattern = rf'Q{question_index}:\s*(CORRECT|PARTIALLY_CORRECT|INCORRECT)'
+                    match = re.search(pattern, correctness_text, re.IGNORECASE)
+                    if match:
+                        status = match.group(1).upper()
+                        # Count CORRECT and PARTIALLY_CORRECT as correct (you can adjust this)
+                        if status in ['CORRECT', 'PARTIALLY_CORRECT']:
+                            technical_correct += 1
+                
+                # Behavioral questions (continue numbering)
+                for i in range(len(behavioral_qa)):
+                    question_index += 1
+                    pattern = rf'Q{question_index}:\s*(CORRECT|PARTIALLY_CORRECT|INCORRECT)'
+                    match = re.search(pattern, correctness_text, re.IGNORECASE)
+                    if match:
+                        status = match.group(1).upper()
+                        if status in ['CORRECT', 'PARTIALLY_CORRECT']:
+                            behavioral_correct += 1
+                
+                # Coding challenges (continue numbering)
+                for i in range(len(coding_submissions)):
+                    question_index += 1
+                    pattern = rf'Q{question_index}:\s*(CORRECT|PARTIALLY_CORRECT|INCORRECT)'
+                    match = re.search(pattern, correctness_text, re.IGNORECASE)
+                    if match:
+                        status = match.group(1).upper()
+                        # For coding, only count CORRECT (all tests passed)
+                        if status == 'CORRECT':
+                            coding_correct += 1
+                    else:
+                        # Fallback: check if all tests passed from submission data
+                        if coding_submissions[i].get('passed_tests', 0) == coding_submissions[i].get('total_tests', 0) and coding_submissions[i].get('total_tests', 0) > 0:
+                            coding_correct += 1
+                
+                result['technical_correct'] = technical_correct
+                result['behavioral_correct'] = behavioral_correct
+                result['coding_correct'] = coding_correct
+                
+                print(f"   Parsed correctness: Technical {technical_correct}/{len(technical_qa)}, Behavioral {behavioral_correct}/{len(behavioral_qa)}, Coding {coding_correct}/{len(coding_submissions)}")
+            else:
+                # Fallback: estimate from scores if correctness analysis not found
+                print(f"   ⚠️ Question correctness analysis not found, estimating from scores...")
+                technical_correct = self._estimate_correct_answers(result, len(technical_qa), result.get('technical_score', 0))
+                behavioral_correct = self._estimate_correct_answers(result, len(behavioral_qa), result.get('behavioral_score', 0))
+                coding_correct = self._estimate_correct_answers(result, len(coding_submissions), result.get('coding_score', 0))
+                
+                result['technical_correct'] = technical_correct
+                result['behavioral_correct'] = behavioral_correct
+                result['coding_correct'] = coding_correct
+            
+            # Fallback: if parsing failed, try to extract from unstructured text
+            if result['overall_score'] == 50.0 and not result['technical_analysis']:
+                # Try to find scores in any format
+                overall_match = re.search(r'(?:overall|total).*?score.*?(\d+(?:\.\d+)?)', response_text, re.IGNORECASE)
+                if overall_match:
+                    result['overall_score'] = float(overall_match.group(1))
+                
+                # Use the full response as detailed feedback if parsing failed
+                if len(response_text) > 100:
+                    result['detailed_feedback'] = response_text[:500]
+                    result['technical_analysis'] = response_text[:200]
+            
+        except Exception as e:
+            print(f"⚠️ Error parsing evaluation response: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return default structure with response text as feedback
+            result['detailed_feedback'] = response_text[:500] if response_text else 'Evaluation completed but parsing failed.'
+            # Estimate correctness from scores as fallback
+            result['technical_correct'] = self._estimate_correct_answers(result, len(technical_qa), result.get('technical_score', 0))
+            result['behavioral_correct'] = self._estimate_correct_answers(result, len(behavioral_qa), result.get('behavioral_score', 0))
+            result['coding_correct'] = self._estimate_correct_answers(result, len(coding_submissions), result.get('coding_score', 0))
+        
+        return result
+    
+    def _estimate_correct_answers(self, result: dict, total_questions: int, category_score: float = None) -> int:
+        """Estimate number of correct answers based on scores"""
+        if total_questions == 0:
+            return 0
+        
+        # Use category-specific score if provided, otherwise use overall score
+        if category_score is not None and category_score > 0:
+            score_ratio = category_score / 100.0
+        else:
+            overall_score = result.get('overall_score', 50.0)
+            score_ratio = overall_score / 100.0
+        
+        correct_count = int(score_ratio * total_questions)
+        
+        return max(0, min(correct_count, total_questions))
+
+
+# Create a singleton instance for backward compatibility
+comprehensive_evaluation_service = ComprehensiveEvaluationService()
+

@@ -27,6 +27,7 @@ class InterviewSession(models.Model):
     id_verification_status = models.CharField(max_length=50, default='Pending')
     id_card_image = models.ImageField(upload_to='id_cards/', null=True, blank=True)
     extracted_id_details = models.TextField(null=True, blank=True)
+    interview_video = models.FileField(upload_to='interview_videos/', null=True, blank=True, help_text="Complete interview video with camera, TTS questions, and candidate speech")
 
     def save(self, *args, **kwargs):
         if not self.session_key:

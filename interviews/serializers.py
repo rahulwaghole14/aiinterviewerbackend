@@ -1,4 +1,5 @@
 # interviews/serializers.py
+import os
 from datetime import time, datetime, timedelta
 from django.utils import timezone
 from rest_framework import serializers
@@ -40,6 +41,9 @@ class InterviewSerializer(serializers.ModelSerializer):
     
     # Verification ID Image
     verification_id_image = serializers.SerializerMethodField()
+    
+    # Interview Video
+    interview_video = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -65,6 +69,8 @@ class InterviewSerializer(serializers.ModelSerializer):
             "ai_result",
             "questions_and_answers",
             "verification_id_image",
+            "interview_video",
+            "session_key",
         ]
         read_only_fields = [
             "created_at",
@@ -172,6 +178,21 @@ class InterviewSerializer(serializers.ModelSerializer):
                 evaluation = obj.evaluation
             except Exception:
                 evaluation = None
+            
+            # If evaluation doesn't exist but interview is completed, try to create it
+            if not evaluation and obj.status == Interview.Status.COMPLETED and obj.session_key:
+                try:
+                    from evaluation.services import create_evaluation_from_session
+                    print(f"🔄 Evaluation missing for completed interview {obj.id}, creating now...")
+                    evaluation = create_evaluation_from_session(obj.session_key)
+                    if evaluation:
+                        # Refresh obj to get the new evaluation
+                        obj.refresh_from_db()
+                        evaluation = obj.evaluation
+                        print(f"✅ Created missing evaluation for interview {obj.id}")
+                except Exception as e:
+                    print(f"⚠️ Could not create missing evaluation for interview {obj.id}: {e}")
+                    evaluation = None
             
             if evaluation:
                 print(f"🔍 Found evaluation for interview {obj.id}")
@@ -635,16 +656,53 @@ class InterviewSerializer(serializers.ModelSerializer):
                         # Prefer AI question's conversation_sequence for ordering
                         questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
                 
-                # Check if this is an AI question or Interviewee answer
+                # Check if this is an AI question/response or Interviewee answer/question
                 has_role = q.role is not None and q.role.strip()
                 if has_role:
                     if q.role.upper() == 'AI' and q.question_text:
-                        questions_by_order[order_key]['ai'] = q
-                    elif q.role.upper() == 'INTERVIEWEE' and q.transcribed_answer:
-                        questions_by_order[order_key]['interviewee'] = q
+                        # AI question or AI response to candidate question
+                        # IMPORTANT: Only add if it's not a candidate question incorrectly saved
+                        if q.question_level != 'CANDIDATE_QUESTION':
+                            questions_by_order[order_key]['ai'] = q
+                        else:
+                            # This shouldn't happen, but if AI record has CANDIDATE_QUESTION level, skip it
+                            print(f"⚠️ Skipping AI record with CANDIDATE_QUESTION level: {q.id}")
+                    elif q.role.upper() == 'INTERVIEWEE':
+                        if q.question_level == 'CANDIDATE_QUESTION':
+                            # Candidate asked a question - this should be shown in answer section
+                            # The AI's response (if exists) should be in question section
+                            # IMPORTANT: Candidate questions should have empty question_text and text in transcribed_answer
+                            if not q.question_text or not q.question_text.strip():
+                                questions_by_order[order_key]['interviewee'] = q
+                            else:
+                                # Candidate question incorrectly has question_text - move it to transcribed_answer
+                                print(f"⚠️ Candidate question {q.id} has question_text, should be in transcribed_answer")
+                                if not q.transcribed_answer:
+                                    q.transcribed_answer = q.question_text
+                                    q.question_text = ''
+                                    q.save(update_fields=['question_text', 'transcribed_answer'])
+                                questions_by_order[order_key]['interviewee'] = q
+                        elif q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE':
+                            # Regular candidate answer (including "No answer provided")
+                            # IMPORTANT: Include all INTERVIEWEE_RESPONSE records, even if transcribed_answer is empty
+                            # This ensures all questions have corresponding answers displayed
+                            if not questions_by_order[order_key]['interviewee']:
+                                questions_by_order[order_key]['interviewee'] = q
+                            else:
+                                # If there's already an interviewee record, prefer the one with transcribed_answer
+                                if q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
+                                    questions_by_order[order_key]['interviewee'] = q
                 elif q.question_text and q.question_text.strip():
                     # Old format: question_text exists, treat as AI question
-                    questions_by_order[order_key]['ai'] = q
+                    # But check role first - if role is INTERVIEWEE, it's a candidate question
+                    if q.role and q.role.upper() == 'INTERVIEWEE':
+                        # This is a candidate question in old format - move to interviewee
+                        if q.question_level == 'CANDIDATE_QUESTION':
+                            questions_by_order[order_key]['interviewee'] = q
+                        else:
+                            questions_by_order[order_key]['ai'] = q
+                    else:
+                        questions_by_order[order_key]['ai'] = q
             
             # Now create Q&A pairs from grouped questions - sort by conversation_sequence first, then order
             sorted_order_keys = sorted(questions_by_order.keys(), key=lambda k: (
@@ -652,13 +710,53 @@ class InterviewSerializer(serializers.ModelSerializer):
                 questions_by_order[k].get('order', 0)
             ))
             
+            # Before processing, check for any AI questions without interviewee answers
+            # and try to find their corresponding interviewee responses
+            for order_key in sorted_order_keys:
+                q_pair = questions_by_order[order_key]
+                if q_pair['ai'] and not q_pair['interviewee']:
+                    # Try to find interviewee response for this order
+                    try:
+                        missed_interviewee = InterviewQuestion.objects.filter(
+                            session=session,
+                            order=order_key,
+                            role='INTERVIEWEE',
+                            question_level='INTERVIEWEE_RESPONSE'
+                        ).first()
+                        if missed_interviewee:
+                            q_pair['interviewee'] = missed_interviewee
+                            print(f"✅ Found missed interviewee response for order {order_key} during pairing: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
+                    except Exception as e:
+                        print(f"⚠️ Error finding missed interviewee response for order {order_key}: {e}")
+            
             for order_key in sorted_order_keys:
                 q_pair = questions_by_order[order_key]
                 ai_q = q_pair['ai']
                 interviewee_a = q_pair['interviewee']
                 
-                # Skip if no AI question
+                # Handle candidate questions: if no AI question but there's an interviewee with CANDIDATE_QUESTION
+                if not ai_q and interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
+                    # Candidate asked a question - look for AI response in next order
+                    next_order = order_key + 1
+                    if next_order in questions_by_order and questions_by_order[next_order]['ai']:
+                        ai_response = questions_by_order[next_order]['ai']
+                        if ai_response.question_level == 'AI_RESPONSE':
+                            # Use AI response as question, candidate question as answer
+                            ai_q = ai_response
+                            # Don't process the AI response again when we get to its order
+                            questions_by_order[next_order]['processed'] = True
+                            print(f"✅ Paired candidate question (order {order_key}) with AI response (order {next_order})")
+                    else:
+                        # No AI response found yet - skip this for now, it will be processed when AI response is created
+                        print(f"⚠️ Candidate question at order {order_key} has no AI response yet, skipping")
+                        continue
+                
+                # Skip if no AI question (after trying to find AI response for candidate questions)
                 if not ai_q:
+                    continue
+                
+                # Skip if already processed (as part of candidate question handling)
+                if questions_by_order[order_key].get('processed'):
                     continue
                 
                 # Determine question type (case-insensitive)
@@ -666,10 +764,31 @@ class InterviewSerializer(serializers.ModelSerializer):
                 original_question_type = ai_q.question_type or 'TECHNICAL'
                 question_type = original_question_type.upper()
                 
-                # Get question text
+                # Get question text - always from AI (role='AI', question_text field)
                 question_text = ai_q.question_text or ''
                 if question_text.strip().startswith('Q:'):
                     question_text = question_text.replace('Q:', '').strip()
+                
+                # Special handling: If AI response is to a candidate question, get candidate question as answer
+                # IMPORTANT: For candidate questions, the question_text should be AI's response, 
+                # and the answer should be the candidate's question
+                if ai_q.question_level == 'AI_RESPONSE':
+                    # This is AI responding to a candidate question
+                    # Question section: AI's response (already in question_text from ai_q.question_text)
+                    # Answer section: Need to find the candidate's question
+                    # Look for interviewee record with CANDIDATE_QUESTION at current or previous order
+                    if not interviewee_a or interviewee_a.question_level != 'CANDIDATE_QUESTION':
+                        # Try to find candidate question at previous order
+                        prev_order = order_key - 1
+                        if prev_order in questions_by_order:
+                            prev_pair = questions_by_order[prev_order]
+                            if prev_pair.get('interviewee') and prev_pair['interviewee'].question_level == 'CANDIDATE_QUESTION':
+                                interviewee_a = prev_pair['interviewee']
+                                print(f"✅ Found candidate question at previous order {prev_order}")
+                elif interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
+                    # Candidate question is at same order as AI response
+                    # This is correct - will be handled in answer section below
+                    pass
                 
                 # Get answer based on question type
                 # Handle both 'CODING' and 'CODING CHALLENGE' types
@@ -769,20 +888,49 @@ class InterviewSerializer(serializers.ModelSerializer):
                         answer_text = interviewee_a.transcribed_answer or ''
                         if answer_text.strip().startswith('A:'):
                             answer_text = answer_text.replace('A:', '').strip()
+                        
+                        # IMPORTANT: If this is a candidate question (question_level='CANDIDATE_QUESTION'),
+                        # the transcribed_answer contains the candidate's question, which should be shown in answer section
+                        if interviewee_a.question_level == 'CANDIDATE_QUESTION':
+                            # Candidate asked a question - show it in answer section
+                            # The answer_text already contains the candidate's question from transcribed_answer
+                            answer_text = answer_text.strip() if answer_text else 'No question provided'
+                            print(f"✅ Using candidate question as answer: {answer_text[:50]}...")
+                        
                         created_at = interviewee_a.session.created_at if hasattr(interviewee_a.session, 'created_at') else None
                         response_time = interviewee_a.response_time_seconds or 0
                     else:
-                        # Fallback to old format: use transcribed_answer from the question record
-                        if ai_q.transcribed_answer is not None:
-                            answer_text = ai_q.transcribed_answer
-                            if answer_text.strip().startswith('A:'):
-                                answer_text = answer_text.replace('A:', '').strip()
-                            if answer_text == "None":
-                                answer_text = "None"
-                        else:
-                            answer_text = None
-                        created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                        response_time = ai_q.response_time_seconds or 0
+                        # Fallback: Try to find interviewee response by order and role
+                        if not answer_text:
+                            try:
+                                missed_interviewee = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    order=ai_q.order,
+                                    role='INTERVIEWEE',
+                                    question_level='INTERVIEWEE_RESPONSE'
+                                ).first()
+                                if missed_interviewee:
+                                    answer_text = missed_interviewee.transcribed_answer or ''
+                                    if answer_text.strip().startswith('A:'):
+                                        answer_text = answer_text.replace('A:', '').strip()
+                                    created_at = missed_interviewee.session.created_at if hasattr(missed_interviewee.session, 'created_at') else None
+                                    response_time = missed_interviewee.response_time_seconds or 0
+                                    print(f"✅ Found missed interviewee response for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
+                            except Exception as e:
+                                print(f"⚠️ Error looking for missed interviewee response: {e}")
+                        
+                        # Final fallback: use transcribed_answer from the question record
+                        if not answer_text:
+                            if ai_q.transcribed_answer is not None:
+                                answer_text = ai_q.transcribed_answer
+                                if answer_text.strip().startswith('A:'):
+                                    answer_text = answer_text.replace('A:', '').strip()
+                                if answer_text == "None":
+                                    answer_text = "None"
+                            else:
+                                answer_text = None
+                            created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
+                            response_time = ai_q.response_time_seconds or 0
                     
                     # Format the answer
                     if answer_text is None:
@@ -798,7 +946,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                 
                 # Get conversation_sequence and order for proper ordering
                 conversation_seq = ai_q.conversation_sequence if hasattr(ai_q, 'conversation_sequence') and ai_q.conversation_sequence is not None else None
-                order_value = ai_q.order if hasattr(ai_q, 'order') else group_key
+                order_value = ai_q.order if hasattr(ai_q, 'order') else order_key
                 
                 qa_item = {
                     'id': str(ai_q.id),
@@ -810,6 +958,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                     'response_time': response_time if (question_type != 'CODING' and question_type != 'CODING CHALLENGE') else (interviewee_a.response_time_seconds if interviewee_a else 0),
                     'answered_at': created_at,
                     'question_level': ai_q.question_level or 'MAIN',
+                    # Add role information for sequential display (like PDF)
+                    'role': 'interviewer',  # AI questions are from interviewer
+                    'text': question_text,  # For sequential format compatibility
                 }
                 
                 # For CODING questions, also include code submission metadata
@@ -978,7 +1129,94 @@ class InterviewSerializer(serializers.ModelSerializer):
                 x.get('id', '')  # Final fallback to id
             ))
             
+            # CRITICAL: Also create a sequential conversation format (like PDF) for proper script display
+            # This ensures all conversation turns are shown in order, matching the PDF format
+            sequential_conversation = []
+            
+            # Get all questions in sequential order (by conversation_sequence)
+            all_sequential_questions = InterviewQuestion.objects.filter(
+                session=session
+            ).exclude(
+                # Exclude CODING questions from sequential conversation (they're handled separately)
+                question_type='CODING'
+            ).order_by(
+                'conversation_sequence',
+                'order',
+                'id'
+            )
+            
+            # Build sequential conversation list
+            for q in all_sequential_questions:
+                # Skip empty records
+                if not q.question_text and not q.transcribed_answer:
+                    continue
+                
+                # Determine role based on question record
+                if q.role and q.role.upper() == 'AI':
+                    # AI/Interviewer message
+                    text = q.question_text or ''
+                    if text.strip():
+                        sequential_conversation.append({
+                            'role': 'interviewer',
+                            'text': text,
+                            'conversation_sequence': q.conversation_sequence,
+                            'order': q.order,
+                            'question_level': q.question_level or 'MAIN',
+                            'question_type': q.question_type or 'TECHNICAL'
+                        })
+                
+                if q.role and q.role.upper() == 'INTERVIEWEE':
+                    # Candidate message
+                    text = q.transcribed_answer or ''
+                    if text.strip():
+                        # Remove A: prefix if present
+                        if text.strip().startswith('A:'):
+                            text = text.replace('A:', '').strip()
+                        if text.strip():
+                            sequential_conversation.append({
+                                'role': 'candidate',
+                                'text': text,
+                                'conversation_sequence': q.conversation_sequence,
+                                'order': q.order,
+                                'question_level': q.question_level or 'INTERVIEWEE_RESPONSE',
+                                'question_type': q.question_type or 'TECHNICAL'
+                            })
+                elif not q.role and q.question_text:
+                    # Old format - question_text exists, treat as AI
+                    text = q.question_text or ''
+                    if text.strip():
+                        sequential_conversation.append({
+                            'role': 'interviewer',
+                            'text': text,
+                            'conversation_sequence': q.conversation_sequence,
+                            'order': q.order,
+                            'question_level': q.question_level or 'MAIN',
+                            'question_type': q.question_type or 'TECHNICAL'
+                        })
+                    # Also add answer if exists
+                    if q.transcribed_answer:
+                        text = q.transcribed_answer
+                        if text.strip().startswith('A:'):
+                            text = text.replace('A:', '').strip()
+                        if text.strip():
+                            sequential_conversation.append({
+                                'role': 'candidate',
+                                'text': text,
+                                'conversation_sequence': (q.conversation_sequence or 0) + 1,  # Candidate comes after AI
+                                'order': q.order,
+                                'question_level': 'INTERVIEWEE_RESPONSE',
+                                'question_type': q.question_type or 'TECHNICAL'
+                            })
+            
+            # Sort sequential conversation by conversation_sequence
+            sequential_conversation.sort(key=lambda x: (
+                x.get('conversation_sequence') if x.get('conversation_sequence') is not None else 999999,
+                x.get('order', 0),
+            ))
+            
             print(f"✅ Returning {len(qa_list)} Q&A items for interview {obj.id} in sequential order")
+            print(f"✅ Also created {len(sequential_conversation)} sequential conversation items (like PDF format)")
+            
             # Debug: Print final Q&A list with conversation_sequence for ordering verification
             coding_count = 0
             technical_count = 0
@@ -995,6 +1233,13 @@ class InterviewSerializer(serializers.ModelSerializer):
                 else:
                     technical_count += 1
             print(f"📊 Summary: {coding_count} CODING questions, {technical_count} TECHNICAL/BEHAVIORAL questions")
+            
+            # Store sequential_conversation separately for frontend use
+            # This allows frontend to display the complete conversation script like PDF
+            # We'll add it as metadata to the first item for easy access
+            if qa_list:
+                qa_list[0]['_sequential_conversation'] = sequential_conversation
+            
             if coding_count == 0:
                 print(f"⚠️ WARNING: No CODING questions found in Q&A list! Check if coding questions exist in database.")
                 # Debug: Check if any coding questions exist in the database
@@ -1070,6 +1315,142 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
         except Exception as e:
             print(f"⚠️ Error getting verification ID image for interview {obj.id}: {e}")
+            return None
+    
+    def get_interview_video(self, obj):
+        """Get interview video URL from InterviewSession if available"""
+        try:
+            from interview_app.models import InterviewSession
+            from django.conf import settings
+            
+            # Find the session for this interview using session_key
+            session = None
+            if obj.session_key:
+                try:
+                    session = InterviewSession.objects.get(session_key=obj.session_key)
+                except InterviewSession.DoesNotExist:
+                    pass
+            
+            # If not found by session_key, try to find by candidate and recent date
+            if not session and obj.candidate:
+                try:
+                    sessions = InterviewSession.objects.filter(
+                        candidate_email=obj.candidate.email
+                    ).order_by('-created_at')
+                    
+                    if obj.created_at:
+                        from datetime import timedelta
+                        time_window_start = obj.created_at - timedelta(hours=1)
+                        time_window_end = obj.created_at + timedelta(hours=1)
+                        sessions = sessions.filter(
+                            created_at__gte=time_window_start,
+                            created_at__lte=time_window_end
+                        )
+                    
+                    session = sessions.first()
+                except Exception:
+                    pass
+            
+            # Return video URL if session exists and has video
+            if session and session.interview_video:
+                # Verify the video file actually exists and is a merged video
+                try:
+                    video_file_path = session.interview_video.path
+                    video_path_str = str(session.interview_video)
+                    
+                    # CRITICAL: Only return merged videos (from interview_videos_merged/ or with _with_audio suffix)
+                    is_merged = 'interview_videos_merged' in video_path_str or '_with_audio' in video_path_str
+                    
+                    if not is_merged:
+                        print(f"⚠️ Video in database is not merged: {video_path_str}")
+                        print(f"   Searching for merged version in interview_videos_merged/...")
+                        
+                        # Try to find merged version in interview_videos_merged/ folder
+                        merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
+                        if os.path.exists(merged_video_dir):
+                            # Extract base filename from video path
+                            video_basename = os.path.basename(video_file_path)
+                            base_name = os.path.splitext(video_basename)[0]
+                            # Remove any suffixes like _converted
+                            if '_converted' in base_name:
+                                base_name = base_name.replace('_converted', '')
+                            
+                            # Look for merged video
+                            merged_filename = f"{base_name}_with_audio.mp4"
+                            merged_path = os.path.join(merged_video_dir, merged_filename)
+                            
+                            if os.path.exists(merged_path):
+                                print(f"✅ Found merged video: {merged_path}")
+                                video_file_path = merged_path
+                                # Update the path string for URL construction
+                                video_path_str = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
+                                is_merged = True
+                            else:
+                                # Try to find any video with session_id in merged folder
+                                session_id_str = str(session.id)
+                                for filename in os.listdir(merged_video_dir):
+                                    if filename.startswith(session_id_str) and filename.endswith('.mp4'):
+                                        if '_with_audio' in filename or 'interview_videos_merged' in filename:
+                                            merged_path = os.path.join(merged_video_dir, filename)
+                                            if os.path.exists(merged_path):
+                                                print(f"✅ Found merged video by session_id: {merged_path}")
+                                                video_file_path = merged_path
+                                                video_path_str = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
+                                                is_merged = True
+                                                break
+                    
+                    if not is_merged:
+                        print(f"❌ No merged video found for session {session.id}")
+                        print(f"   Only merged videos (from interview_videos_merged/) should be shown in candidate details")
+                        return None
+                    
+                    if not os.path.exists(video_file_path):
+                        print(f"⚠️ Merged video file does not exist at path: {video_file_path}")
+                        return None
+                    if os.path.getsize(video_file_path) == 0:
+                        print(f"⚠️ Merged video file is empty: {video_file_path}")
+                        return None
+                    
+                    print(f"✅ Verified merged video exists: {video_file_path}")
+                    print(f"   File size: {os.path.getsize(video_file_path) / 1024 / 1024:.2f} MB")
+                    
+                except Exception as e:
+                    print(f"⚠️ Error checking merged video file: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return None
+                
+                # Construct URL for merged video
+                request = self.context.get('request')
+                if request:
+                    # Build URL from the merged video path
+                    if video_path_str.startswith('interview_videos_merged/'):
+                        video_url = f"/media/{video_path_str}"
+                    elif video_path_str.startswith('/media/'):
+                        video_url = video_path_str
+                    else:
+                        video_url = f"/media/{video_path_str}"
+                    
+                    absolute_url = request.build_absolute_uri(video_url)
+                    print(f"✅ Returning merged video URL: {absolute_url}")
+                    print(f"   Video file path: {video_file_path}")
+                    return absolute_url
+                else:
+                    # Fallback: return relative URL that frontend can handle
+                    if video_path_str.startswith('interview_videos_merged/'):
+                        video_url = f"/media/{video_path_str}"
+                    elif video_path_str.startswith('/media/'):
+                        video_url = video_path_str
+                    else:
+                        video_url = f"/media/{video_path_str}"
+                    
+                    print(f"✅ Returning merged video URL (fallback, relative): {video_url}")
+                    print(f"   Video file path: {video_file_path}")
+                    return video_url
+            
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting interview video for interview {obj.id}: {e}")
             return None
 
 

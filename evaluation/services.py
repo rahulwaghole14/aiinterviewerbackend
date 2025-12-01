@@ -97,7 +97,7 @@ def create_evaluation_from_session(session_key: str):
         
         # Use comprehensive evaluation service for proper AI analysis
         try:
-            from interview_app_11.comprehensive_evaluation_service import ComprehensiveEvaluationService
+            from interview_app.comprehensive_evaluation_service import ComprehensiveEvaluationService
             comprehensive_service = ComprehensiveEvaluationService()
             print(f"🔄 Running comprehensive AI evaluation for session {session_key}")
             ai_evaluation_result = comprehensive_service.evaluate_complete_interview(session_key)
@@ -190,44 +190,76 @@ def create_evaluation_from_session(session_key: str):
         average_response_time = sum(response_times) / len(response_times) if response_times else 0
         total_completion_time = sum(response_times) / 60.0 if response_times else 0  # Convert to minutes
         
-        # Calculate accuracy - estimate from overall score if not available
-        # If we have question-level correctness data, use it; otherwise estimate from score
+        # Use accurate question counts from comprehensive evaluation
+        # The comprehensive evaluation service now provides separate counts for technical, behavioral, and coding
         questions_correct = 0
         accuracy_percentage = 0
         
-        # Try to get correctness from evaluation result or estimate from score
-        if 'questions_correct' in ai_evaluation_result and ai_evaluation_result['questions_correct'] > 0:
-            questions_correct = ai_evaluation_result['questions_correct']
+        # Priority: Use technical question counts from AI evaluation (for Technical Performance Metrics)
+        if 'technical_questions_correct' in ai_evaluation_result and 'technical_questions_attempted' in ai_evaluation_result:
+            questions_correct = ai_evaluation_result.get('technical_questions_correct', 0)
+            questions_attempted = ai_evaluation_result.get('technical_questions_attempted', questions_attempted)
+            accuracy_percentage = ai_evaluation_result.get('technical_accuracy_percentage', 0)
+            if accuracy_percentage == 0 and questions_attempted > 0:
+                accuracy_percentage = (questions_correct / questions_attempted * 100)
+        # Fallback: Use overall questions_correct and questions_attempted (for backward compatibility)
+        elif 'questions_correct' in ai_evaluation_result and ai_evaluation_result['questions_correct'] >= 0:
+            questions_correct = ai_evaluation_result.get('questions_correct', 0)
+            if 'questions_attempted' in ai_evaluation_result and ai_evaluation_result['questions_attempted'] > 0:
+                questions_attempted = ai_evaluation_result['questions_attempted']
+            if 'accuracy_percentage' in ai_evaluation_result and ai_evaluation_result['accuracy_percentage'] > 0:
+                accuracy_percentage = ai_evaluation_result['accuracy_percentage']
+            else:
+                accuracy_percentage = (questions_correct / questions_attempted * 100) if questions_attempted > 0 else 0
+        # Fallback: Estimate from accuracy percentage
         elif 'accuracy_percentage' in ai_evaluation_result and ai_evaluation_result['accuracy_percentage'] > 0:
             accuracy_percentage = ai_evaluation_result['accuracy_percentage']
+            if 'questions_attempted' in ai_evaluation_result and ai_evaluation_result['questions_attempted'] > 0:
+                questions_attempted = ai_evaluation_result['questions_attempted']
             questions_correct = int((accuracy_percentage / 100) * questions_attempted) if questions_attempted > 0 else 0
-        elif 'questions_attempted' in ai_evaluation_result and ai_evaluation_result['questions_attempted'] > 0:
-            # Use the questions_attempted from AI evaluation if available
-            questions_attempted = ai_evaluation_result['questions_attempted']
-            if 'accuracy_percentage' in ai_evaluation_result:
-                accuracy_percentage = ai_evaluation_result['accuracy_percentage']
-                questions_correct = int((accuracy_percentage / 100) * questions_attempted) if questions_attempted > 0 else 0
-            else:
-                # Estimate from overall score (assuming 10/10 = 100% correct)
-                score_ratio = overall_score / 100.0
-                questions_correct = int(score_ratio * questions_attempted) if questions_attempted > 0 else 0
-                accuracy_percentage = (questions_correct / questions_attempted * 100) if questions_attempted > 0 else 0
+        # Final fallback: Estimate from overall score
         else:
-            # Estimate from overall score (assuming 10/10 = 100% correct)
             score_ratio = overall_score / 100.0
             questions_correct = int(score_ratio * questions_attempted) if questions_attempted > 0 else 0
             accuracy_percentage = (questions_correct / questions_attempted * 100) if questions_attempted > 0 else 0
         
         # Build technical_questions array with all question data for graphs
+        # First, try to get per-question correctness from AI evaluation if available
+        ai_correctness_map = {}
+        if 'question_correctness' in ai_evaluation_result:
+            # If AI provided per-question correctness, use it
+            ai_correctness_map = ai_evaluation_result.get('question_correctness', {})
+        
         technical_questions = []
+        technical_question_index = 0  # Track index for technical questions only
         for q in questions:
-            # Determine if answer is correct (estimate from score if not explicitly marked)
+            # Determine if answer is correct
             is_correct = False
-            if questions_attempted > 0:
-                # Simple heuristic: distribute correct answers proportionally
-                question_index = len(technical_questions)
-                if question_index < questions_correct:
-                    is_correct = True
+            
+            # For technical questions, use the accurate count from AI evaluation
+            if q.question_type in ['TECHNICAL', 'BEHAVIORAL']:
+                # Check if we have per-question correctness from AI
+                if q.id in ai_correctness_map:
+                    is_correct = ai_correctness_map[q.id]
+                elif questions_attempted > 0 and questions_correct > 0:
+                    # Distribute correct answers proportionally among technical questions
+                    # This is a fallback if per-question data isn't available
+                    if technical_question_index < questions_correct:
+                        is_correct = True
+                    technical_question_index += 1
+            elif q.question_type == 'CODING':
+                # For coding questions, check if all tests passed
+                try:
+                    code_submission = CodeSubmission.objects.filter(
+                        session=session,
+                        question_id=str(q.id)
+                    ).order_by('-created_at').first()
+                    if code_submission:
+                        # Mark as correct only if all tests passed
+                        is_correct = (code_submission.passed_count == code_submission.total_count and 
+                                    code_submission.total_count > 0)
+                except:
+                    is_correct = False
             
             # For CODING questions, get answer from CodeSubmission, not transcribed_answer
             answer_text = 'No answer provided'
@@ -289,10 +321,24 @@ def create_evaluation_from_session(session_key: str):
                 'hiring_recommendation': ai_evaluation_result.get('hiring_recommendation', '') or '',
                 'recommendation': ai_evaluation_result.get('recommendation', 'MAYBE') or 'MAYBE',
                 # Graph data metrics - use AI evaluation data if available, otherwise use calculated
-                'questions_attempted': ai_evaluation_result.get('questions_attempted', questions_attempted),
-                'questions_correct': questions_correct,
+                # Use technical question counts for backward compatibility (frontend expects these for Technical Performance Metrics)
+                'questions_attempted': ai_evaluation_result.get('technical_questions_attempted', ai_evaluation_result.get('questions_attempted', questions_attempted)),
+                'questions_correct': ai_evaluation_result.get('technical_questions_correct', ai_evaluation_result.get('questions_correct', questions_correct)),
                 'total_questions': total_questions,
-                'accuracy_percentage': ai_evaluation_result.get('accuracy_percentage', accuracy_percentage),
+                'accuracy_percentage': ai_evaluation_result.get('technical_accuracy_percentage', ai_evaluation_result.get('accuracy_percentage', accuracy_percentage)),
+                # Also include separate counts for all question types
+                'technical_questions_attempted': ai_evaluation_result.get('technical_questions_attempted', 0),
+                'technical_questions_correct': ai_evaluation_result.get('technical_questions_correct', 0),
+                'technical_accuracy_percentage': ai_evaluation_result.get('technical_accuracy_percentage', 0),
+                'behavioral_questions_attempted': ai_evaluation_result.get('behavioral_questions_attempted', 0),
+                'behavioral_questions_correct': ai_evaluation_result.get('behavioral_questions_correct', 0),
+                'behavioral_accuracy_percentage': ai_evaluation_result.get('behavioral_accuracy_percentage', 0),
+                'coding_questions_attempted': ai_evaluation_result.get('coding_questions_attempted', 0),
+                'coding_questions_correct': ai_evaluation_result.get('coding_questions_correct', 0),
+                'coding_accuracy_percentage': ai_evaluation_result.get('coding_accuracy_percentage', 0),
+                'total_questions_all_types': ai_evaluation_result.get('total_questions', total_questions),
+                'total_correct_all_types': ai_evaluation_result.get('total_correct', questions_correct),
+                'overall_accuracy_percentage': ai_evaluation_result.get('overall_accuracy_percentage', accuracy_percentage),
                 'average_response_time': average_response_time,
                 'total_completion_time': total_completion_time,
                 # Legacy fields for backward compatibility
@@ -361,33 +407,37 @@ def create_evaluation_from_session(session_key: str):
         if 'proctoring' not in details:
             details['proctoring'] = {'total_warnings': 0, 'warnings': [], 'warning_types': []}
         
-        # Create or update Evaluation object
-        if existing_evaluation:
-            # Update existing evaluation
-            existing_evaluation.overall_score = overall_score / 10.0
-            existing_evaluation.traits = '\n\n'.join(traits) if traits else existing_evaluation.traits or "Interview completed successfully."
-            existing_evaluation.suggestions = '\n\n'.join(suggestions) if suggestions else existing_evaluation.suggestions or "Continue building on your technical skills."
-            existing_evaluation.details = details
-            existing_evaluation.save()
-            evaluation = existing_evaluation
-            print(f"✅ Updated existing evaluation for interview {interview.id}")
-        else:
-            # Create new evaluation
-            evaluation = Evaluation.objects.create(
-                interview=interview,
-                overall_score=overall_score / 10.0,  # Convert to 0-10 scale for model
-                traits='\n\n'.join(traits) if traits else "Interview completed successfully.",
-                suggestions='\n\n'.join(suggestions) if suggestions else "Continue building on your technical skills.",
-                details=details
-            )
-            print(f"✅ Created new evaluation for interview {interview.id}")
+        # Create or update Evaluation object with database transaction for consistency
+        from django.db import transaction
         
-        # Verify details were saved correctly
+        with transaction.atomic():
+            if existing_evaluation:
+                # Update existing evaluation
+                existing_evaluation.overall_score = overall_score / 10.0
+                existing_evaluation.traits = '\n\n'.join(traits) if traits else existing_evaluation.traits or "Interview completed successfully."
+                existing_evaluation.suggestions = '\n\n'.join(suggestions) if suggestions else existing_evaluation.suggestions or "Continue building on your technical skills."
+                existing_evaluation.details = details
+                existing_evaluation.save()
+                evaluation = existing_evaluation
+                print(f"✅ Updated existing evaluation for interview {interview.id}")
+            else:
+                # Create new evaluation
+                evaluation = Evaluation.objects.create(
+                    interview=interview,
+                    overall_score=overall_score / 10.0,  # Convert to 0-10 scale for model
+                    traits='\n\n'.join(traits) if traits else "Interview completed successfully.",
+                    suggestions='\n\n'.join(suggestions) if suggestions else "Continue building on your technical skills.",
+                    details=details
+                )
+                print(f"✅ Created new evaluation for interview {interview.id}")
+        
+        # Verify details were saved correctly - refresh from database
         evaluation.refresh_from_db()
         if not evaluation.details or not isinstance(evaluation.details, dict):
             print(f"⚠️ WARNING: Evaluation details not saved correctly, updating...")
-            evaluation.details = details
-            evaluation.save(update_fields=['details'])
+            with transaction.atomic():
+                evaluation.details = details
+                evaluation.save(update_fields=['details'])
         else:
             # Verify required keys exist
             saved_details = evaluation.details
@@ -400,8 +450,25 @@ def create_evaluation_from_session(session_key: str):
                 needs_update = True
             if needs_update:
                 print(f"⚠️ WARNING: Missing keys in saved details, updating...")
-                evaluation.details = saved_details
+                with transaction.atomic():
+                    evaluation.details = saved_details
+                    evaluation.save(update_fields=['details'])
+        
+        # Final verification - ensure evaluation is accessible
+        try:
+            evaluation.refresh_from_db()
+            assert evaluation.details is not None, "Evaluation details is None"
+            assert isinstance(evaluation.details, dict), f"Evaluation details is not a dict: {type(evaluation.details)}"
+            assert 'ai_analysis' in evaluation.details, "ai_analysis key missing from evaluation details"
+            print(f"✅ Verification passed: Evaluation {evaluation.id} saved successfully with all required data")
+        except AssertionError as e:
+            print(f"❌ CRITICAL: Evaluation verification failed: {e}")
+            # Force save one more time
+            with transaction.atomic():
+                evaluation.details = details
                 evaluation.save(update_fields=['details'])
+                evaluation.refresh_from_db()
+                print(f"🔄 Force-saved evaluation {evaluation.id} again")
         
         # Update Interview status to 'completed' if not already set
         if interview.status != Interview.Status.COMPLETED:

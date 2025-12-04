@@ -5,7 +5,6 @@
 The system uses **timestamps** and **durations** to determine exactly where extra audio is located (at the start or end) and how to match it with video.
 
 ## Step-by-Step Process
-
 ### 1. **Get Timestamps** (When recordings started)
 - **Video timestamp**: Recorded when `start_video_recording()` is called
 - **Audio timestamp**: Recorded when `startRecording()` is called (uses video timestamp if provided)

@@ -2408,9 +2408,26 @@ def end_interview_session(request):
             if video_path:
                 # CRITICAL: Verify it's a merged video before saving
                 if '_with_audio' in video_path or 'interview_videos_merged' in video_path:
-                    session.interview_video = video_path
-                    session.save()
-                    print(f"✅ Merged video path saved to InterviewSession: {video_path}")
+                    # Use proper FileField.save() method to ensure file is stored in database
+                    try:
+                        video_full_path = os.path.join(settings.MEDIA_ROOT, video_path) if not os.path.isabs(video_path) else video_path
+                        if os.path.exists(video_full_path):
+                            with open(video_full_path, 'rb') as video_file:
+                                from django.core.files.base import ContentFile
+                                video_content = ContentFile(video_file.read(), name=os.path.basename(video_path))
+                                session.interview_video.save(os.path.basename(video_path), video_content, save=True)
+                                print(f"✅ Merged video saved to InterviewSession database field: {session.interview_video.name}")
+                        else:
+                            # Fallback: assign path string if file doesn't exist (shouldn't happen)
+                            session.interview_video = video_path
+                            session.save()
+                            print(f"⚠️ Video file not found, saved path only: {video_path}")
+                    except Exception as save_error:
+                        print(f"⚠️ Error saving video file to database: {save_error}")
+                        # Fallback: assign path string
+                        session.interview_video = video_path
+                        session.save()
+                        print(f"✅ Merged video path saved to InterviewSession (fallback): {video_path}")
                 else:
                     print(f"⚠️ WARNING: Video path is not merged: {video_path}")
                     # Try to find merged version
@@ -2424,9 +2441,19 @@ def end_interview_session(request):
                         merged_path = os.path.join(merged_video_dir, merged_filename)
                         if os.path.exists(merged_path):
                             merged_relative = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
-                            session.interview_video = merged_relative
-                            session.save()
-                            print(f"✅ Found and saved merged video: {merged_relative}")
+                            # Use proper FileField.save() method to ensure file is stored in database
+                            try:
+                                with open(merged_path, 'rb') as video_file:
+                                    from django.core.files.base import ContentFile
+                                    video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
+                                    session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
+                                    print(f"✅ Found and saved merged video to database: {session.interview_video.name}")
+                            except Exception as save_error:
+                                print(f"⚠️ Error saving merged video to database: {save_error}")
+                                # Fallback: assign path string
+                                session.interview_video = merged_relative
+                                session.save()
+                                print(f"✅ Found and saved merged video (fallback): {merged_relative}")
                         else:
                             print(f"❌ Merged video not found, NOT saving unmerged video to database")
                     except Exception as e:
@@ -2446,12 +2473,22 @@ def end_interview_session(request):
                             if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
                                 candidate = os.path.join(merged_video_dir, filename)
                                 if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
-                                    found_video = candidate
-                                    video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
-                                    session.interview_video = video_path
-                                    session.save()
-                                    print(f"✅ Found merged video manually and saved: {video_path}")
-                                    break
+                                        found_video = candidate
+                                        video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
+                                        # Use proper FileField.save() method to ensure file is stored in database
+                                        try:
+                                            with open(found_video, 'rb') as video_file:
+                                                from django.core.files.base import ContentFile
+                                                video_content = ContentFile(video_file.read(), name=os.path.basename(found_video))
+                                                session.interview_video.save(os.path.basename(found_video), video_content, save=True)
+                                                print(f"✅ Found merged video manually and saved to database: {session.interview_video.name}")
+                                        except Exception as save_error:
+                                            print(f"⚠️ Error saving video to database: {save_error}")
+                                            # Fallback: assign path string
+                                            session.interview_video = video_path
+                                            session.save()
+                                            print(f"✅ Found merged video manually and saved (fallback): {video_path}")
+                                        break
                     
                     # If not found in merged, try to merge raw video with audio
                     if not found_video and audio_full_path and os.path.exists(audio_full_path):
@@ -2478,9 +2515,19 @@ def end_interview_session(request):
                                                 merged_path = os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4")
                                                 if os.path.exists(merged_path):
                                                     video_path = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
-                                                    session.interview_video = video_path
-                                                    session.save()
-                                                    print(f"✅ Merged and saved video: {video_path}")
+                                                    # Use proper FileField.save() method to ensure file is stored in database
+                                                    try:
+                                                        with open(merged_path, 'rb') as video_file:
+                                                            from django.core.files.base import ContentFile
+                                                            video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
+                                                            session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
+                                                            print(f"✅ Merged and saved video to database: {session.interview_video.name}")
+                                                    except Exception as save_error:
+                                                        print(f"⚠️ Error saving merged video to database: {save_error}")
+                                                        # Fallback: assign path string
+                                                        session.interview_video = video_path
+                                                        session.save()
+                                                        print(f"✅ Merged and saved video (fallback): {video_path}")
                                                     found_video = merged_path
                                                     break
                                         except Exception as merge_err:

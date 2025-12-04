@@ -97,12 +97,103 @@ CHANNEL_LAYERS = {
 
 
 # Database
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": str(BASE_DIR / "db.sqlite3"),
+# Using SQLite for local development
+# PostgreSQL database is paused - will use SQLite until PostgreSQL is resumed
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+# Force SQLite for now (PostgreSQL is paused)
+# To use PostgreSQL later, uncomment the PostgreSQL configuration below
+USE_POSTGRESQL = False  # Set to True when PostgreSQL is ready
+
+if USE_POSTGRESQL and DATABASE_URL:
+    # PostgreSQL configuration (currently disabled)
+    # Parse DATABASE_URL (format: postgresql://user:password@host:port/dbname)
+    try:
+        # Try using dj-database-url if available
+        try:
+            import dj_database_url
+            # Configure database with SSL support for Render.com
+            db_config = dj_database_url.config(
+                default=DATABASE_URL, 
+                conn_max_age=600,
+                conn_health_checks=True
+            )
+            # For Render.com databases, ensure SSL is properly configured
+            if 'render.com' in DATABASE_URL.lower():
+                if 'OPTIONS' not in db_config:
+                    db_config['OPTIONS'] = {}
+                # Render.com requires SSL but may need specific handling
+                db_config['OPTIONS']['sslmode'] = 'require'
+            DATABASES = {
+                "default": db_config
+            }
+            print("[OK] Using PostgreSQL database from DATABASE_URL (dj-database-url)")
+        except ImportError:
+            # Fallback: Parse DATABASE_URL manually
+            from urllib.parse import urlparse, parse_qs
+            db_url = urlparse(DATABASE_URL)
+            
+            # Parse query parameters (e.g., sslmode=require)
+            query_params = parse_qs(db_url.query)
+            sslmode = query_params.get('sslmode', ['require'])[0] if query_params else 'require'
+            
+            # Configure SSL options for Render.com and other cloud databases
+            ssl_options = {}
+            if sslmode == 'require' or sslmode == 'prefer':
+                # For Render.com and most cloud databases, we need SSL but can skip verification
+                ssl_options = {
+                    'sslmode': 'require',
+                    'sslcert': None,
+                    'sslkey': None,
+                    'sslrootcert': None,
+                }
+            
+            # For Render.com and cloud databases, configure SSL properly
+            # Render.com requires SSL but may need specific settings
+            database_options = {
+                "connect_timeout": 10,
+            }
+            
+            # Add SSL configuration if sslmode is in URL or for cloud databases
+            if 'sslmode' in db_url.query.lower() or 'render.com' in db_url.hostname.lower():
+                # Render.com and most cloud providers require SSL
+                database_options.update({
+                    'sslmode': 'require',
+                })
+            
+            DATABASES = {
+                "default": {
+                    "ENGINE": "django.db.backends.postgresql",
+                    "NAME": db_url.path[1:],  # Remove leading '/'
+                    "USER": db_url.username,
+                    "PASSWORD": db_url.password,
+                    "HOST": db_url.hostname,
+                    "PORT": db_url.port or 5432,
+                    "OPTIONS": database_options,
+                }
+            }
+            print("[OK] Using PostgreSQL database from DATABASE_URL (manual parsing)")
+    except Exception as e:
+        print(f"[WARNING] Error parsing DATABASE_URL: {e}")
+        print("[WARNING] Falling back to SQLite")
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": str(BASE_DIR / "db.sqlite3"),
+            }
+        }
+else:
+    # Using SQLite for local development (PostgreSQL is paused)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": str(BASE_DIR / "db.sqlite3"),
+        }
     }
-}
+    if DATABASE_URL:
+        print("[INFO] Using SQLite database (PostgreSQL is paused - set USE_POSTGRESQL=True to enable)")
+    else:
+        print("[INFO] Using SQLite database (DATABASE_URL not set)")
 
 
 # Password validation

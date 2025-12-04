@@ -84,7 +84,7 @@ try:
     active_key = getattr(dj_settings, 'GEMINI_API_KEY', '')
     # Fallback to hardcoded key if env key is not available
     if not active_key:
-        active_key = "AIzaSyA4DMuYRFP9-oxfQAJIMyZjabE5LA8YbyI"
+        active_key = "AIzaSyALc4F87QUPBxqLLczo7bACCSR6UHWriqo"
         print("⚠️ WARNING: GEMINI_API_KEY not set in environment, using hardcoded key")
     
     if active_key:
@@ -108,6 +108,17 @@ except Exception as e:
 
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 CAMERAS, camera_lock = {}, threading.Lock()
+
+# Import PyAudio recorder
+try:
+    from .simple_real_camera import PyAudioAudioRecorder
+    PYAudio_AVAILABLE = True
+except ImportError:
+    PYAudio_AVAILABLE = False
+    print("⚠️ PyAudioAudioRecorder not available")
+
+# Audio recorders dictionary (similar to CAMERAS)
+AUDIO_RECORDERS, audio_lock = {}, threading.Lock()
 
 THINKING_TIME, ANSWERING_TIME, REVIEW_TIME = 20, 60, 10
 
@@ -2159,9 +2170,23 @@ def end_interview_session(request):
                 video_start_ts = None
                 
                 # CRITICAL: Get video start timestamp from camera for synchronization
+                # Priority 1: Get from camera's _recording_start_timestamp (set when first frame written)
                 if hasattr(camera, '_recording_start_timestamp') and camera._recording_start_timestamp:
                     video_start_ts = camera._recording_start_timestamp
-                    print(f"🕐 Video start timestamp from camera: {video_start_ts}")
+                    print(f"🕐 Video start timestamp from camera (first frame): {video_start_ts}")
+                # Priority 2: Get from camera's _synchronized_start_time (set when start_video_recording called)
+                elif hasattr(camera, '_synchronized_start_time') and camera._synchronized_start_time:
+                    video_start_ts = camera._synchronized_start_time
+                    print(f"🕐 Video start timestamp from camera (synchronized time): {video_start_ts}")
+                # Priority 3: Get from request data
+                if not video_start_ts:
+                    video_start_ts = data.get('video_start_timestamp')
+                    if video_start_ts:
+                        try:
+                            video_start_ts = float(video_start_ts)
+                            print(f"🕐 Video start timestamp from request: {video_start_ts}")
+                        except (ValueError, TypeError):
+                            video_start_ts = None
                 
                 # CRITICAL: If audio_file_path is not provided, try to find it from uploaded audio
                 if not audio_file_path:
@@ -2286,16 +2311,49 @@ def end_interview_session(request):
                             except Exception as e:
                                 print(f"⚠️ Could not get cached timestamps: {e}")
                 
+                # CRITICAL: Get synchronized stop time from request if provided
+                synchronized_stop_time = data.get('synchronized_stop_time')
+                if synchronized_stop_time:
+                    try:
+                        synchronized_stop_time = float(synchronized_stop_time)
+                        print(f"🕐 Synchronized stop time received: {synchronized_stop_time}")
+                    except (ValueError, TypeError):
+                        synchronized_stop_time = None
+                
+                # CRITICAL: Stop PyAudio recording first (if using backend recording)
+                audio_file_path_pyaudio = None
+                audio_start_ts_pyaudio = None
+                if PYAudio_AVAILABLE and session_key in AUDIO_RECORDERS:
+                    try:
+                        with audio_lock:
+                            audio_recorder = AUDIO_RECORDERS[session_key]
+                            audio_file_path_pyaudio = audio_recorder.stop_recording(synchronized_stop_time=synchronized_stop_time)
+                            audio_start_ts_pyaudio = audio_recorder.recording_start_timestamp
+                            print(f"✅ PyAudio recording stopped: {audio_file_path_pyaudio}")
+                            print(f"🕐 PyAudio start timestamp: {audio_start_ts_pyaudio}")
+                            
+                            # Use PyAudio file if available (preferred - better sync)
+                            if audio_file_path_pyaudio:
+                                audio_full_path = os.path.join(settings.MEDIA_ROOT, audio_file_path_pyaudio)
+                                audio_start_ts = audio_start_ts_pyaudio
+                                print(f"✅ Using PyAudio recorded audio for merging")
+                    except Exception as e:
+                        print(f"⚠️ Error stopping PyAudio recording: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
                 # CRITICAL: Stop video and merge with audio in one call
                 # The merge function will use video duration as authoritative reference
                 # Video duration will be used to trim audio to match exactly
                 print(f"🔍 Stopping video recording and merging with audio...")
                 print(f"   Audio start timestamp: {audio_start_ts}, Video start timestamp: {video_start_ts}")
+                print(f"   Synchronized stop time: {synchronized_stop_time}")
                 print(f"   Audio file path: {audio_full_path}")
                 video_path = camera.stop_video_recording(
                     audio_file_path=audio_full_path,
                     audio_start_timestamp=audio_start_ts,
-                    video_start_timestamp=video_start_ts
+                    video_start_timestamp=video_start_ts,
+                    synchronized_stop_time=synchronized_stop_time
                 )
                 if video_path:
                     print(f"✅ Video recording stopped and saved: {video_path}")
@@ -2374,37 +2432,73 @@ def end_interview_session(request):
                     except Exception as e:
                         print(f"❌ Error finding merged video: {e}")
             else:
-                print(f"⚠️ WARNING: video_path is None - video was NOT saved to database!")
-                print(f"   This means the merge likely failed or video file was not found")
-                # Try to find video file manually as last resort
+                print(f"⚠️ WARNING: video_path is None - attempting to find and save video...")
+                # CRITICAL: Try to find video file manually and save it
                 try:
                     merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
                     raw_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw')
                     session_id_str = str(session_key)
                     
-                    # Search merged folder first
+                    # Search merged folder first (preferred - has audio)
                     found_video = None
                     if os.path.exists(merged_video_dir):
                         for filename in os.listdir(merged_video_dir):
                             if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
-                                found_video = os.path.join(merged_video_dir, filename)
-                                if os.path.exists(found_video):
+                                candidate = os.path.join(merged_video_dir, filename)
+                                if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                                    found_video = candidate
                                     video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
                                     session.interview_video = video_path
                                     session.save()
                                     print(f"✅ Found merged video manually and saved: {video_path}")
                                     break
                     
-                    # If not found in merged, check raw folder (but don't save raw videos)
+                    # If not found in merged, try to merge raw video with audio
+                    if not found_video and audio_full_path and os.path.exists(audio_full_path):
+                        print(f"🔄 Attempting to merge raw video with audio...")
+                        if os.path.exists(raw_video_dir):
+                            for filename in os.listdir(raw_video_dir):
+                                if session_id_str in filename and filename.endswith('.mp4'):
+                                    raw_video = os.path.join(raw_video_dir, filename)
+                                    if os.path.exists(raw_video) and os.path.getsize(raw_video) > 0:
+                                        print(f"   Found raw video: {raw_video}")
+                                        # Try to merge
+                                        try:
+                                            from interview_app.simple_real_camera import merge_video_audio_pyav
+                                            video_ts = getattr(camera, '_recording_start_timestamp', None) if camera else None
+                                            merge_success = merge_video_audio_pyav(
+                                                video_path=raw_video,
+                                                audio_file_path=audio_full_path,
+                                                output_path=os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4"),
+                                                video_start_timestamp=video_ts,
+                                                audio_start_timestamp=audio_start_ts,
+                                                video_duration=None
+                                            )
+                                            if merge_success:
+                                                merged_path = os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4")
+                                                if os.path.exists(merged_path):
+                                                    video_path = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
+                                                    session.interview_video = video_path
+                                                    session.save()
+                                                    print(f"✅ Merged and saved video: {video_path}")
+                                                    found_video = merged_path
+                                                    break
+                                        except Exception as merge_err:
+                                            print(f"   ❌ Merge failed: {merge_err}")
+                    
+                    # If still not found, check raw folder (but don't save raw videos without audio)
                     if not found_video and os.path.exists(raw_video_dir):
                         for filename in os.listdir(raw_video_dir):
                             if session_id_str in filename and filename.endswith('.mp4'):
                                 raw_video = os.path.join(raw_video_dir, filename)
                                 print(f"⚠️ Found raw video (not merged): {raw_video}")
-                                print(f"   This video does NOT have audio - merge may have failed")
+                                print(f"   ⚠️ This video does NOT have audio - merge may have failed")
+                                print(f"   ⚠️ NOT saving raw video to database - merge must succeed")
                                 break
                 except Exception as e:
                     print(f"⚠️ Error in manual video search: {e}")
+                    import traceback
+                    traceback.print_exc()
             session.save()
             
             # FINAL CHECK: Verify merged video was saved
@@ -2900,31 +2994,44 @@ def activate_proctoring_camera(request):
                 print(f"⚠️ Camera doesn't have activate_yolo_proctoring method, using fallback")
                 yolo_activated = True
             
+            # CRITICAL: Calculate synchronized start time for perfect video/audio synchronization
+            # This ensures both video and audio start at the EXACT same moment (no trimming needed)
+            import time
+            current_time = time.time()
+            # Calculate future timestamp (500ms from now) to account for network delay and frontend initialization
+            # Both video and audio will wait until this exact time to start recording
+            synchronized_start_time = current_time + 0.5  # 500ms in the future
+            print(f"🕐 Calculated synchronized start time: {synchronized_start_time}")
+            print(f"   Current time: {current_time}")
+            print(f"   Wait time: {(synchronized_start_time - current_time) * 1000:.1f}ms")
+            print(f"   ✅ Both video and audio will start at this EXACT moment - perfect synchronization!")
+            
             # Start video recording for the entire interview (both technical and coding phases)
-            # Get the exact start timestamp for audio synchronization
+            # Pass the synchronized start time so video waits until that exact moment
             video_start_timestamp = None
             if hasattr(camera, 'start_video_recording'):
                 try:
-                    # CRITICAL: start_video_recording() now returns the timestamp IMMEDIATELY
-                    # The timestamp is recorded when the function is called, not when first frame is written
-                    # This ensures audio can start at the exact same moment for perfect synchronization
-                    video_start_timestamp = camera.start_video_recording()  # Returns timestamp immediately
-                    print(f"✅ Video recording started for session {session_key}")
-                    print(f"🕐 Video start timestamp (recorded immediately): {video_start_timestamp}")
+                    # CRITICAL: Pass synchronized_start_time so video waits until exact moment
+                    # This ensures video starts at the same time as audio (no trimming needed)
+                    video_start_timestamp = camera.start_video_recording(synchronized_start_time=synchronized_start_time)
+                    print(f"✅ Video recording will start at synchronized time: {synchronized_start_time}")
+                    print(f"🕐 Video start timestamp: {video_start_timestamp}")
                     
                     if not video_start_timestamp:
-                        # Fallback: use current time if timestamp not returned
-                        import time
-                        video_start_timestamp = time.time()
-                        print(f"⚠️ Video recording started but no timestamp returned, using current time: {video_start_timestamp}")
+                        # Fallback: use synchronized time
+                        video_start_timestamp = synchronized_start_time
+                        print(f"⚠️ Using synchronized start time as fallback: {video_start_timestamp}")
                     
                     print(f"✅ Video recording active for session {session_key} (will continue through technical and coding phases)")
                 except Exception as e:
                     print(f"⚠️ Error starting video recording: {e}")
                     import traceback
                     traceback.print_exc()
+                    # Fallback: use synchronized time
+                    video_start_timestamp = synchronized_start_time
             else:
                 print(f"⚠️ Camera doesn't have start_video_recording method")
+                video_start_timestamp = synchronized_start_time
             
             # Ensure detection loop is running
             if not camera._running:
@@ -2942,6 +3049,28 @@ def activate_proctoring_camera(request):
                     camera._detector_thread.start()
                     print(f"✅ Detection loop started for session {str(camera.session_id)[:8]}")
             
+            # CRITICAL: Start PyAudio recording at the EXACT same time
+            audio_start_timestamp = None
+            if PYAudio_AVAILABLE:
+                try:
+                    with audio_lock:
+                        if session_key not in AUDIO_RECORDERS:
+                            audio_recorder = PyAudioAudioRecorder(session_id=camera.session_id, session_key=session_key)
+                            AUDIO_RECORDERS[session_key] = audio_recorder
+                            print(f"✅ PyAudio recorder created for session {session_key}")
+                        else:
+                            audio_recorder = AUDIO_RECORDERS[session_key]
+                        
+                        # Start audio recording with the SAME synchronized start time
+                        audio_start_timestamp = audio_recorder.start_recording(synchronized_start_time=synchronized_start_time)
+                        print(f"🕐 PyAudio recording started at timestamp: {audio_start_timestamp}")
+                except Exception as e:
+                    print(f"⚠️ Error starting PyAudio recording: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"⚠️ PyAudio not available - audio recording will use frontend MediaRecorder")
+            
             return JsonResponse({
                 'status': 'success', 
                 'message': 'YOLO model and proctoring warnings activated for technical interview',
@@ -2949,7 +3078,9 @@ def activate_proctoring_camera(request):
                 'yolo_loaded': yolo_activated,
                 'proctoring_active': getattr(camera, '_proctoring_active', False),
                 'detection_running': camera._running if hasattr(camera, '_running') else False,
-                'video_start_timestamp': video_start_timestamp  # Return timestamp for audio sync
+                'video_start_timestamp': video_start_timestamp,  # Return timestamp for audio sync
+                'audio_start_timestamp': audio_start_timestamp,  # PyAudio timestamp
+                'synchronized_start_time': synchronized_start_time  # Return for frontend debug
             })
         else:
             return JsonResponse({'status': 'error', 'message': 'Camera not opened'}, status=500)

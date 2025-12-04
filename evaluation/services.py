@@ -182,46 +182,73 @@ def create_evaluation_from_session(session_key: str):
         # Extract questions and answers for metrics calculation
         questions = InterviewQuestion.objects.filter(session=session).order_by('order')
         total_questions = questions.count()
-        questions_with_answers = questions.exclude(transcribed_answer__isnull=True).exclude(transcribed_answer='').exclude(transcribed_answer='No answer provided')
-        questions_attempted = questions_with_answers.count()
         
-        # Calculate response times
+        # CRITICAL: Separate technical questions from coding questions
+        # Technical Performance Metrics should ONLY include TECHNICAL and BEHAVIORAL questions
+        technical_questions = questions.filter(question_type__in=['TECHNICAL', 'BEHAVIORAL'])
+        technical_questions_with_answers = technical_questions.exclude(
+            transcribed_answer__isnull=True
+        ).exclude(
+            transcribed_answer=''
+        ).exclude(
+            transcribed_answer='No answer provided'
+        )
+        
+        # Calculate response times from all questions
+        questions_with_answers = questions.exclude(transcribed_answer__isnull=True).exclude(transcribed_answer='').exclude(transcribed_answer='No answer provided')
         response_times = [q.response_time_seconds for q in questions_with_answers if q.response_time_seconds and q.response_time_seconds > 0]
         average_response_time = sum(response_times) / len(response_times) if response_times else 0
         total_completion_time = sum(response_times) / 60.0 if response_times else 0  # Convert to minutes
         
-        # Use accurate question counts from comprehensive evaluation
-        # The comprehensive evaluation service now provides separate counts for technical, behavioral, and coding
+        # CRITICAL: Use accurate question counts from comprehensive evaluation (LLM analysis)
+        # The comprehensive evaluation service provides separate counts for technical, behavioral, and coding
+        # These counts come from LLM analysis of QUESTION CORRECTNESS ANALYSIS section
         questions_correct = 0
+        questions_attempted = 0
         accuracy_percentage = 0
         
-        # Priority: Use technical question counts from AI evaluation (for Technical Performance Metrics)
+        # Priority 1: Use technical question counts from AI evaluation (LLM analysis)
+        # These are the authoritative counts from LLM's QUESTION CORRECTNESS ANALYSIS
         if 'technical_questions_correct' in ai_evaluation_result and 'technical_questions_attempted' in ai_evaluation_result:
             questions_correct = ai_evaluation_result.get('technical_questions_correct', 0)
-            questions_attempted = ai_evaluation_result.get('technical_questions_attempted', questions_attempted)
+            questions_attempted = ai_evaluation_result.get('technical_questions_attempted', 0)
             accuracy_percentage = ai_evaluation_result.get('technical_accuracy_percentage', 0)
             if accuracy_percentage == 0 and questions_attempted > 0:
                 accuracy_percentage = (questions_correct / questions_attempted * 100)
-        # Fallback: Use overall questions_correct and questions_attempted (for backward compatibility)
+            print(f"✅ Using LLM analysis counts: {questions_correct}/{questions_attempted} correct (accuracy: {accuracy_percentage:.1f}%)")
+        # Priority 2: Use overall questions_correct and questions_attempted (for backward compatibility)
+        # These should also come from LLM analysis
         elif 'questions_correct' in ai_evaluation_result and ai_evaluation_result['questions_correct'] >= 0:
             questions_correct = ai_evaluation_result.get('questions_correct', 0)
             if 'questions_attempted' in ai_evaluation_result and ai_evaluation_result['questions_attempted'] > 0:
                 questions_attempted = ai_evaluation_result['questions_attempted']
+            else:
+                # Fallback to counting technical questions with answers
+                questions_attempted = technical_questions_with_answers.count()
             if 'accuracy_percentage' in ai_evaluation_result and ai_evaluation_result['accuracy_percentage'] > 0:
                 accuracy_percentage = ai_evaluation_result['accuracy_percentage']
             else:
                 accuracy_percentage = (questions_correct / questions_attempted * 100) if questions_attempted > 0 else 0
-        # Fallback: Estimate from accuracy percentage
+            print(f"✅ Using LLM analysis counts (backward compat): {questions_correct}/{questions_attempted} correct")
+        # Priority 3: Estimate from accuracy percentage (if LLM provided accuracy but not counts)
         elif 'accuracy_percentage' in ai_evaluation_result and ai_evaluation_result['accuracy_percentage'] > 0:
             accuracy_percentage = ai_evaluation_result['accuracy_percentage']
             if 'questions_attempted' in ai_evaluation_result and ai_evaluation_result['questions_attempted'] > 0:
                 questions_attempted = ai_evaluation_result['questions_attempted']
+            else:
+                # Count technical questions with answers
+                questions_attempted = technical_questions_with_answers.count()
             questions_correct = int((accuracy_percentage / 100) * questions_attempted) if questions_attempted > 0 else 0
-        # Final fallback: Estimate from overall score
+            print(f"⚠️ Estimated from accuracy: {questions_correct}/{questions_attempted} correct ({accuracy_percentage:.1f}%)")
+        # Final fallback: Estimate from overall score (NOT RECOMMENDED - should use LLM analysis)
         else:
-            score_ratio = overall_score / 100.0
+            # Count technical questions with answers
+            questions_attempted = technical_questions_with_answers.count()
+            score_ratio = technical_score / 100.0 if technical_score > 0 else (overall_score / 100.0)
             questions_correct = int(score_ratio * questions_attempted) if questions_attempted > 0 else 0
             accuracy_percentage = (questions_correct / questions_attempted * 100) if questions_attempted > 0 else 0
+            print(f"⚠️ WARNING: Using fallback estimation from score - LLM analysis not available!")
+            print(f"   Estimated: {questions_correct}/{questions_attempted} correct ({accuracy_percentage:.1f}%)")
         
         # Build technical_questions array with all question data for graphs
         # First, try to get per-question correctness from AI evaluation if available
@@ -486,9 +513,30 @@ def create_evaluation_from_session(session_key: str):
         if proctoring_pdf_path:
             print(f"✅ Proctoring PDF saved at: {proctoring_pdf_path}")
             print(f"✅ Proctoring PDF URL: {details.get('proctoring_pdf_url')}")
-            # Update the evaluation to ensure PDF URL is saved
-            evaluation.details = details
-            evaluation.save(update_fields=['details'])
+            # Save PDF file to database
+            try:
+                from django.core.files.base import ContentFile
+                import os
+                from django.conf import settings
+                
+                # Get full path to PDF file
+                pdf_full_path = os.path.join(settings.MEDIA_ROOT, proctoring_pdf_path.lstrip('/'))
+                if os.path.exists(pdf_full_path):
+                    with open(pdf_full_path, 'rb') as f:
+                        pdf_file = ContentFile(f.read(), name=os.path.basename(proctoring_pdf_path))
+                        evaluation.evaluation_pdf = pdf_file
+                        evaluation.details = details
+                        evaluation.save(update_fields=['evaluation_pdf', 'details'])
+                        print(f"✅ Evaluation PDF saved to database: {evaluation.evaluation_pdf.name}")
+                else:
+                    print(f"⚠️ PDF file not found at {pdf_full_path}, saving URL only")
+                    evaluation.details = details
+                    evaluation.save(update_fields=['details'])
+            except Exception as pdf_error:
+                print(f"⚠️ Error saving PDF to database: {pdf_error}")
+                # Still save the URL in details
+                evaluation.details = details
+                evaluation.save(update_fields=['details'])
             print(f"✅ Evaluation updated with PDF URL")
         else:
             print(f"⚠️ No proctoring PDF generated (warnings: {len(proctoring_warnings)})")

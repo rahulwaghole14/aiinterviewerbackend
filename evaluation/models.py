@@ -12,6 +12,7 @@ class Evaluation(models.Model):
     suggestions = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     details = models.JSONField(blank=True, null=True, default=dict, help_text="Extended AI evaluation details, proctoring warnings, and statistics.")
+    evaluation_pdf = models.FileField(upload_to='proctoring_pdfs/', null=True, blank=True, help_text="AI evaluation PDF report stored in database")
 
     class Meta:
         indexes = [

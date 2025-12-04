@@ -158,15 +158,39 @@ class InterviewAudioRecorder {
                 console.error('❌ MediaRecorder error:', event.error);
             };
             
-            // CRITICAL: If we have a video timestamp, use it as the authoritative start time
-            // This ensures both video and audio use the EXACT same timestamp for perfect synchronization
-            const mediaRecorderStartTime = Date.now() / 1000;
+            // CRITICAL: If we have a video timestamp, wait until that EXACT moment to start recording
+            // This ensures both video and audio start at the EXACT same time (no trimming needed)
+            const currentTime = Date.now() / 1000;
             
             if (videoStartTimestamp) {
-                // Use video timestamp as the authoritative start time for both video and audio
-                // This ensures perfect synchronization even if MediaRecorder starts slightly later
-                this.audioStartTimestamp = videoStartTimestamp;
-                console.log(`🕐 Using video timestamp as authoritative start time: ${videoStartTimestamp}`);
+                // Calculate time until synchronized start
+                const timeUntilStart = videoStartTimestamp - currentTime;
+                
+                if (timeUntilStart > 0) {
+                    // Future timestamp - wait until exact moment
+                    console.log(`⏱️ Waiting ${(timeUntilStart * 1000).toFixed(1)}ms until synchronized start time...`);
+                    console.log(`   Current time: ${currentTime}`);
+                    console.log(`   Start time: ${videoStartTimestamp}`);
+                    
+                    // Wait until the exact synchronized start time
+                    const waitMs = Math.max(0, timeUntilStart * 1000);
+                    await new Promise(resolve => setTimeout(resolve, waitMs));
+                    
+                    // Verify we're at the right time (or very close)
+                    const actualStartTime = Date.now() / 1000;
+                    const timeDiff = Math.abs(actualStartTime - videoStartTimestamp);
+                    console.log(`✅ Starting audio at synchronized time: ${actualStartTime}`);
+                    console.log(`   Time difference: ${(timeDiff * 1000).toFixed(1)}ms (should be < 50ms)`);
+                    
+                    // Use the synchronized timestamp as authoritative start time
+                    this.audioStartTimestamp = videoStartTimestamp;
+                    console.log(`🕐 Audio and video using EXACT same start timestamp: ${videoStartTimestamp}`);
+                    console.log(`   ✅ Perfect synchronization - no trimming needed!`);
+                } else {
+                    // Timestamp is in the past - use current time
+                    this.audioStartTimestamp = currentTime;
+                    console.log(`⚠️ Video timestamp is in the past, using current time: ${currentTime}`);
+                }
                 console.log(`🕐 MediaRecorder will start at: ${mediaRecorderStartTime}`);
                 
                 const syncDiff = Math.abs(mediaRecorderStartTime - videoStartTimestamp);
@@ -178,15 +202,28 @@ class InterviewAudioRecorder {
                     console.log(`✅ Audio and video start times are well synchronized (< 500ms difference)`);
                 }
             } else {
-                // No video timestamp - use MediaRecorder start time
-                this.audioStartTimestamp = mediaRecorderStartTime;
-                console.log(`🕐 No video timestamp - using MediaRecorder start time: ${mediaRecorderStartTime}`);
+                // No video timestamp - use current time
+                this.audioStartTimestamp = currentTime;
+                console.log(`⚠️ No video timestamp - using current time: ${currentTime}`);
             }
             
             // Start recording with 10 second chunks
+            // CRITICAL: Start MediaRecorder NOW (we already waited for synchronized time if needed)
             console.log('🎬 Starting MediaRecorder with enhanced audio filters...');
             this.mediaRecorder.start(10000);
             this.isRecording = true;
+            
+            // Verify synchronization
+            const actualMediaRecorderStart = Date.now() / 1000;
+            if (videoStartTimestamp) {
+                const syncDiff = Math.abs(actualMediaRecorderStart - videoStartTimestamp);
+                if (syncDiff < 0.1) {
+                    console.log(`✅ Perfect synchronization! Audio started ${(syncDiff * 1000).toFixed(1)}ms from video start`);
+                    console.log(`   ✅ No trimming needed - both started at exact same time!`);
+                } else {
+                    console.warn(`⚠️ Small sync difference: ${(syncDiff * 1000).toFixed(1)}ms (will be handled during merge)`);
+                }
+            }
             
             console.log('✅ Audio recording started successfully with enhanced filters');
             console.log('   - Echo cancellation: Enabled');
@@ -216,14 +253,30 @@ class InterviewAudioRecorder {
      * Stop recording and upload audio
      * Returns a promise that resolves when upload is complete
      */
-    async stopRecording() {
+    async stopRecording(synchronizedStopTime = null) {
+        // CRITICAL: If synchronized stop time is provided, wait until that exact moment
+        if (synchronizedStopTime) {
+            const currentTime = Date.now() / 1000;
+            if (currentTime < synchronizedStopTime) {
+                const waitTime = synchronizedStopTime - currentTime;
+                console.log(`🕐 Waiting ${(waitTime * 1000).toFixed(1)}ms until synchronized stop time: ${synchronizedStopTime}`);
+                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+                console.log(`✅ Reached synchronized stop time - stopping audio now`);
+            }
+        }
+        
+        // CRITICAL: Record audio stop timestamp AFTER synchronized wait
+        const audioStopTimestamp = Date.now() / 1000;
+        this.audioStopTimestamp = audioStopTimestamp;
+        console.log(`🕐 Audio recording stop timestamp: ${audioStopTimestamp}`);
+        
         // Even if not recording, check if there are chunks to process
         const hasChunks = this.audioChunks && this.audioChunks.length > 0;
         
         if (!this.isRecording && !hasChunks) {
             console.warn('⚠️ Audio recording not in progress and no chunks to process');
             // Still return stored path if available
-            return { success: true, audioPath: window.uploadedAudioPath || null };
+            return { success: true, audioPath: window.uploadedAudioPath || null, audioStopTimestamp: audioStopTimestamp };
         }
         
         try {

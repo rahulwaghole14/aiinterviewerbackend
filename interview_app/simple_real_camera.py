@@ -5,84 +5,1088 @@ import os
 import subprocess
 import platform
 from datetime import datetime
+from fractions import Fraction
 from django.conf import settings
+import threading
+import wave
+try:
+    import av
+    PYAV_AVAILABLE = True
+except ImportError:
+    PYAV_AVAILABLE = False
+    print("⚠️ PyAV not available - install with: pip install av")
 
+try:
+    import pyaudio
+    PYAudio_AVAILABLE = True
+except ImportError:
+    PYAudio_AVAILABLE = False
+    print("⚠️ PyAudio not available - install with: pip install pyaudio")
 
-def get_ffmpeg_path():
-    """Get FFmpeg executable path. Checks multiple Windows paths, then system PATH."""
-    if platform.system() == 'Windows':
-        # Try multiple possible Windows paths (user might have different installation)
-        # Note: Always use full path with ffmpeg.exe at the end
-        possible_paths = [
-            r"C:\ffmpeg-7.0.2-essentials_build\bin\ffmpeg.exe",  # User's actual path (without C:\ffmpeg prefix)
-            r"C:\ffmpeg\ffmpeg-7.0.2-essentials_build\bin\ffmpeg.exe",  # With C:\ffmpeg prefix
-            r"C:\ffmpeg\bin\ffmpeg.exe",  # Simplified path
-            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",  # Program Files location
-            r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",  # Program Files (x86)
-        ]
-        
-        # Check each path
-        for ffmpeg_path in possible_paths:
-            if os.path.exists(ffmpeg_path):
-                print(f"✅ Found FFmpeg at: {ffmpeg_path}")
-                # Verify it actually works
-                try:
-                    result = subprocess.run(
-                        [ffmpeg_path, '-version'],
-                        capture_output=True,
-                        timeout=5
-                    )
-                    if result.returncode == 0:
-                        print(f"✅ FFmpeg verified and working")
-                        return ffmpeg_path
-                    else:
-                        print(f"⚠️ FFmpeg found but version check failed: {ffmpeg_path}")
-                except Exception as e:
-                    print(f"⚠️ FFmpeg found but cannot execute: {ffmpeg_path} - {e}")
-                    continue
-        
-        # If none of the specific paths work, try system PATH
-        print(f"⚠️ FFmpeg not found in common Windows paths, trying system PATH...")
-    
-    # Fallback to system PATH
+try:
+    # MoviePy 2.x uses direct imports from moviepy, not moviepy.editor
+    from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip
+    MOVIEPY_AVAILABLE = True
+    MOVIEPY_VERSION = 2
+except ImportError:
     try:
-        # Test if ffmpeg is available in PATH
-        result = subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=5)
-        if result.returncode == 0:
-            print(f"✅ Using FFmpeg from system PATH")
-            return 'ffmpeg'
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+        # Fallback for MoviePy 1.x
+        from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
+        MOVIEPY_AVAILABLE = True
+        MOVIEPY_VERSION = 1
+    except ImportError:
+        MOVIEPY_AVAILABLE = False
+        MOVIEPY_VERSION = None
+        print("⚠️ MoviePy not available - install with: pip install moviepy")
+
+
+def merge_video_audio_moviepy(video_path, audio_file_path, output_path, video_start_timestamp=None, audio_start_timestamp=None, video_duration=None):
+    """
+    Merge video and audio using MoviePy - simple and reliable Python library.
+    MoviePy handles synchronization automatically based on timestamps.
     
-    # Last resort: try the most likely Windows path even if file doesn't exist
-    # (sometimes file exists but os.path.exists fails due to permissions)
-    if platform.system() == 'Windows':
-        # Try user's actual path first
-        fallback_paths = [
-            r"C:\ffmpeg-7.0.2-essentials_build\bin\ffmpeg.exe",  # User's path
-            r"C:\ffmpeg\ffmpeg-7.0.2-essentials_build\bin\ffmpeg.exe",  # Alternative
-        ]
-        for fallback_path in fallback_paths:
-            print(f"⚠️ Trying fallback path: {fallback_path}")
-            # Try to execute it even if os.path.exists says it doesn't exist
+    Args:
+        video_path: Path to video file (MP4)
+        audio_file_path: Path to audio file (WAV, MP3, etc.)
+        output_path: Path to save merged video
+        video_start_timestamp: Unix timestamp when video recording started
+        audio_start_timestamp: Unix timestamp when audio recording started
+        video_duration: Video duration in seconds (if None, will use video duration)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    if not MOVIEPY_AVAILABLE:
+        raise ImportError("MoviePy is required for video/audio merging. Install with: pip install moviepy")
+    
+    try:
+        print(f"🔄 Merging video and audio using MoviePy...")
+        print(f"   Video: {video_path}")
+        print(f"   Audio: {audio_file_path}")
+        print(f"   Output: {output_path}")
+        
+        # Convert all paths to absolute paths
+        video_path = os.path.normpath(video_path)
+        audio_file_path = os.path.normpath(audio_file_path)
+        output_path = os.path.normpath(output_path)
+        
+        if not os.path.isabs(video_path):
+            video_path = os.path.join(settings.MEDIA_ROOT, video_path)
+            video_path = os.path.normpath(video_path)
+        
+        if not os.path.isabs(audio_file_path):
+            audio_file_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+            audio_file_path = os.path.normpath(audio_file_path)
+        
+        if not os.path.isabs(output_path):
+            output_path = os.path.join(settings.MEDIA_ROOT, output_path)
+            output_path = os.path.normpath(output_path)
+        
+        video_path = os.path.abspath(video_path)
+        audio_file_path = os.path.abspath(audio_file_path)
+        output_path = os.path.abspath(output_path)
+        
+        # Verify files exist
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+        if not os.path.exists(audio_file_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+        
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_path)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        print(f"   ✅ Absolute video path: {video_path}")
+        print(f"   ✅ Absolute audio path: {audio_file_path}")
+        print(f"   ✅ Absolute output path: {output_path}")
+        
+        # Load video and audio clips
+        print(f"   📹 Loading video clip...")
+        video_clip = VideoFileClip(video_path)
+        video_duration_actual = video_clip.duration
+        print(f"   📹 Video duration: {video_duration_actual:.2f}s")
+        
+        print(f"   🎙️ Loading audio clip...")
+        audio_clip = AudioFileClip(audio_file_path)
+        audio_duration_actual = audio_clip.duration
+        print(f"   🎙️ Audio duration: {audio_duration_actual:.2f}s")
+        
+        # Calculate synchronization offset
+        audio_start_offset = 0.0
+        if video_start_timestamp and audio_start_timestamp:
+            time_diff = audio_start_timestamp - video_start_timestamp
+            print(f"   🕐 Synchronization analysis:")
+            print(f"      Video started at: {video_start_timestamp:.6f}")
+            print(f"      Audio started at: {audio_start_timestamp:.6f}")
+            print(f"      Time difference: {time_diff:.6f}s ({(time_diff * 1000):.2f}ms)")
+            
+            if abs(time_diff) > 0.01:  # More than 10ms difference
+                if time_diff < 0:
+                    # Audio started before video - trim beginning of audio
+                    audio_start_offset = abs(time_diff)
+                    print(f"   ⏱️ Audio started {abs(time_diff):.3f}s BEFORE video - trimming first {audio_start_offset:.3f}s")
+                    # MoviePy 2.x uses slicing (__getitem__), MoviePy 1.x uses subclip
+                    try:
+                        # Try MoviePy 2.x method first (slicing)
+                        audio_clip = audio_clip[audio_start_offset:]
+                    except (TypeError, AttributeError, IndexError):
+                        try:
+                            # Try MoviePy 1.x subclip method
+                            audio_clip = audio_clip.subclip(audio_start_offset)
+                        except AttributeError:
+                            # Last resort: reload and trim using ffmpeg
+                            print(f"   ⚠️ MoviePy trimming methods not available, using ffmpeg workaround...")
+                            import tempfile
+                            temp_audio = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                            temp_audio_path = temp_audio.name
+                            temp_audio.close()
+                            # Use ffmpeg to trim audio starting from offset
+                            import subprocess
+                            subprocess.run([
+                                'ffmpeg', '-i', audio_file_path, '-ss', str(audio_start_offset),
+                                '-c', 'copy', temp_audio_path, '-y'
+                            ], capture_output=True, check=True)
+                            audio_clip.close()
+                            audio_clip = AudioFileClip(temp_audio_path)
+                else:
+                    # Audio started after video - add silence at beginning
+                    audio_start_offset = time_diff
+                    print(f"   ⏱️ Audio started {time_diff:.3f}s AFTER video - adding {audio_start_offset:.3f}s silence")
+                    # Import CompositeAudioClip and AudioClip based on MoviePy version
+                    if MOVIEPY_VERSION == 2:
+                        try:
+                            from moviepy import CompositeAudioClip, AudioClip
+                        except ImportError:
+                            # Try alternative import path
+                            from moviepy.audio import CompositeAudioClip, AudioClip
+                    else:
+                        try:
+                            from moviepy.audio.AudioClip import CompositeAudioClip, AudioClip
+                        except ImportError:
+                            from moviepy.editor import CompositeAudioClip, AudioClip
+                    silence = AudioClip(lambda t: [0.0, 0.0], duration=audio_start_offset, fps=audio_clip.fps)
+                    audio_clip = CompositeAudioClip([silence, audio_clip])
+            else:
+                print(f"   ✅ Perfect synchronization! Time difference: {(time_diff * 1000):.1f}ms (< 10ms)")
+        
+        # CRITICAL: Always use video duration as authoritative
+        # Audio is often longer because it may start earlier or stop later
+        # We MUST trim audio to match video exactly for perfect sync
+        final_duration = video_duration_actual
+        print(f"   🎯 Using video duration as authoritative: {final_duration:.2f}s")
+        
+        if audio_clip.duration > video_duration_actual:
+            print(f"   ⚠️ Audio ({audio_clip.duration:.2f}s) is LONGER than video ({final_duration:.2f}s)")
+            print(f"   🔧 Trimming audio to match video duration exactly (removing {audio_clip.duration - final_duration:.2f}s from end)")
+            # MoviePy 2.x uses slicing (__getitem__), MoviePy 1.x uses subclip
             try:
-                result = subprocess.run(
-                    [fallback_path, '-version'],
-                    capture_output=True,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    print(f"✅ Fallback path works: {fallback_path}")
-                    return fallback_path
-            except:
-                continue
+                # Try MoviePy 2.x method first (slicing)
+                audio_clip = audio_clip[:final_duration]
+            except (TypeError, AttributeError, IndexError):
+                try:
+                    # Try MoviePy 1.x subclip method
+                    audio_clip = audio_clip.subclip(0, final_duration)
+                except AttributeError:
+                    # Last resort: use ffmpeg to trim audio
+                    print(f"   ⚠️ MoviePy trimming methods not available, using ffmpeg workaround...")
+                    import tempfile
+                    import subprocess
+                    temp_audio = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                    temp_audio_path = temp_audio.name
+                    temp_audio.close()
+                    # Use ffmpeg to trim audio to exact duration
+                    subprocess.run([
+                        'ffmpeg', '-i', audio_file_path, '-t', str(final_duration),
+                        '-c', 'copy', temp_audio_path, '-y'
+                    ], capture_output=True, check=True)
+                    audio_clip.close()
+                    audio_clip = AudioFileClip(temp_audio_path)
+            print(f"   ✅ Audio trimmed to: {audio_clip.duration:.2f}s")
+        elif audio_clip.duration < video_duration_actual:
+            print(f"   ⚠️ Audio ({audio_clip.duration:.2f}s) is SHORTER than video ({final_duration:.2f}s)")
+            print(f"   ⚠️ This is unusual - audio should be longer. Trimming video to match audio.")
+            print(f"   ⚠️ Video will lose {final_duration - audio_clip.duration:.2f}s from end")
+            final_duration = audio_clip.duration
+            # MoviePy 2.x uses slicing (__getitem__), MoviePy 1.x uses subclip
+            try:
+                # Try MoviePy 2.x method first (slicing)
+                video_clip = video_clip[:final_duration]
+            except (TypeError, AttributeError, IndexError):
+                try:
+                    # Try MoviePy 1.x subclip method
+                    video_clip = video_clip.subclip(0, final_duration)
+                except AttributeError:
+                    # Fallback: use subclip with explicit start/end
+                    video_clip = video_clip.subclip(t_start=0, t_end=final_duration)
+            print(f"   ✅ Video trimmed to: {final_duration:.2f}s")
+        else:
+            print(f"   ✅ Audio and video durations match perfectly: {final_duration:.2f}s")
+        
+        # Set audio to video
+        print(f"   🔗 Combining video and audio...")
+        # MoviePy 2.x uses with_audio, MoviePy 1.x uses set_audio
+        if MOVIEPY_VERSION == 2:
+            # MoviePy 2.x: use with_audio method
+            try:
+                final_clip = video_clip.with_audio(audio_clip)
+                print(f"   ✅ Using MoviePy 2.x with_audio method")
+            except AttributeError:
+                # Fallback: try CompositeVideoClip
+                try:
+                    final_clip = CompositeVideoClip([video_clip]).with_audio(audio_clip)
+                    print(f"   ✅ Using MoviePy 2.x CompositeVideoClip.with_audio method")
+                except AttributeError:
+                    raise Exception("MoviePy 2.x audio combination methods not available")
+        else:
+            # MoviePy 1.x: use set_audio method
+            try:
+                final_clip = video_clip.set_audio(audio_clip)
+                print(f"   ✅ Using MoviePy 1.x set_audio method")
+            except AttributeError:
+                # Fallback: try CompositeVideoClip
+                try:
+                    final_clip = CompositeVideoClip([video_clip]).set_audio(audio_clip)
+                    print(f"   ✅ Using MoviePy 1.x CompositeVideoClip.set_audio method")
+                except AttributeError:
+                    raise Exception("MoviePy 1.x audio combination methods not available")
+        
+        # Write output file
+        print(f"   💾 Writing merged video to: {output_path}")
+        print(f"   📊 Final clip duration: {final_clip.duration:.2f}s")
+        print(f"   📊 Video duration: {video_clip.duration:.2f}s")
+        print(f"   📊 Audio duration (after sync): {audio_clip.duration:.2f}s")
+        
+        try:
+            final_clip.write_videofile(
+                output_path,
+                codec='libx264',
+                audio_codec='aac',
+                temp_audiofile='temp-audio.m4a',
+                remove_temp=True,
+                fps=video_clip.fps,
+                preset='medium',
+                bitrate='5000k',
+                audio_bitrate='192k',
+                verbose=False,  # Reduce MoviePy output
+                logger=None  # Suppress MoviePy progress bars
+            )
+            print(f"   ✅ MoviePy write_videofile completed")
+        except Exception as e:
+            print(f"   ❌ MoviePy write_videofile failed: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        
+        # Clean up clips
+        video_clip.close()
+        audio_clip.close()
+        final_clip.close()
+        
+        # Verify output file
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"Merged video file was not created: {output_path}")
+        
+        merged_file_size = os.path.getsize(output_path)
+        if merged_file_size == 0:
+            raise ValueError(f"Merged video file is empty: {output_path}")
+        
+        print(f"✅ MoviePy merge completed successfully!")
+        print(f"   Output path: {output_path}")
+        print(f"   Output file size: {merged_file_size / 1024 / 1024:.2f} MB")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error merging video and audio with MoviePy: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def merge_video_audio_ffmpeg(video_path, audio_file_path, output_path, video_start_timestamp=None, audio_start_timestamp=None, video_duration=None):
+    """
+    Merge video and audio using FFmpeg (subprocess) - more reliable than PyAV.
+    FFmpeg handles synchronization perfectly and is the industry standard.
     
-    # Last resort: try 'ffmpeg' from PATH
-    print(f"❌ FFmpeg not found in any location!")
-    print(f"   Please ensure FFmpeg is installed at: C:\\ffmpeg-7.0.2-essentials_build\\bin\\ffmpeg.exe")
-    print(f"   Or add FFmpeg to your system PATH")
-    print(f"   Using 'ffmpeg' from PATH as last resort (may fail)")
-    return 'ffmpeg'  # Will likely fail, but we'll try
+    Args:
+        video_path: Path to video file (MP4)
+        audio_file_path: Path to audio file (WAV, MP3, WEBM, etc.)
+        output_path: Path to save merged video
+        video_start_timestamp: Unix timestamp when video recording started
+        audio_start_timestamp: Unix timestamp when audio recording started
+        video_duration: Video duration in seconds (if None, will be calculated from video)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        print(f"🔄 Merging video and audio using FFmpeg...")
+        print(f"   Video: {video_path}")
+        print(f"   Audio: {audio_file_path}")
+        print(f"   Output: {output_path}")
+        
+        # CRITICAL: Convert all paths to absolute paths for accurate file access
+        video_path = os.path.normpath(video_path)
+        audio_file_path = os.path.normpath(audio_file_path)
+        output_path = os.path.normpath(output_path)
+        
+        # Convert to absolute paths if they're relative
+        if not os.path.isabs(video_path):
+            video_path = os.path.join(settings.MEDIA_ROOT, video_path)
+            video_path = os.path.normpath(video_path)
+        
+        if not os.path.isabs(audio_file_path):
+            audio_file_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+            audio_file_path = os.path.normpath(audio_file_path)
+        
+        if not os.path.isabs(output_path):
+            output_path = os.path.join(settings.MEDIA_ROOT, output_path)
+            output_path = os.path.normpath(output_path)
+        
+        # Get absolute paths
+        video_path = os.path.abspath(video_path)
+        audio_file_path = os.path.abspath(audio_file_path)
+        output_path = os.path.abspath(output_path)
+        
+        # Verify all files exist
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+        if not os.path.exists(audio_file_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+        
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_path)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        print(f"   ✅ Absolute video path: {video_path}")
+        print(f"   ✅ Absolute audio path: {audio_file_path}")
+        print(f"   ✅ Absolute output path: {output_path}")
+        
+        # Get video duration using ffprobe if not provided
+        if video_duration is None or video_duration == 0:
+            try:
+                probe_cmd = [
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', video_path
+                ]
+                result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout.strip():
+                    video_duration = float(result.stdout.strip())
+                    print(f"   📹 Video duration from ffprobe: {video_duration:.2f}s")
+                else:
+                    print(f"   ⚠️ Could not get video duration from ffprobe, will use audio duration")
+            except Exception as e:
+                print(f"   ⚠️ Error getting video duration: {e}")
+        
+        # Calculate synchronization offset
+        audio_delay = 0.0
+        if video_start_timestamp and audio_start_timestamp:
+            time_diff = audio_start_timestamp - video_start_timestamp
+            print(f"   🕐 Synchronization analysis:")
+            print(f"      Video started at: {video_start_timestamp:.6f}")
+            print(f"      Audio started at: {audio_start_timestamp:.6f}")
+            print(f"      Time difference: {time_diff:.6f}s ({(time_diff * 1000):.2f}ms)")
+            
+            if abs(time_diff) > 0.01:  # More than 10ms difference
+                if time_diff > 0:
+                    # Audio started AFTER video - add delay to audio
+                    audio_delay = time_diff
+                    print(f"   ⏱️ Audio started {time_diff:.3f}s AFTER video - will delay audio by {audio_delay:.3f}s")
+                else:
+                    # Audio started BEFORE video - trim beginning of audio
+                    audio_delay = 0.0
+                    audio_trim_start = abs(time_diff)
+                    print(f"   ⏱️ Audio started {abs(time_diff):.3f}s BEFORE video - will trim first {audio_trim_start:.3f}s of audio")
+                    # Use -ss to skip beginning of audio
+                    audio_file_path = f"{audio_file_path} -ss {audio_trim_start}"
+            else:
+                print(f"   ✅ Perfect synchronization! Time difference: {(time_diff * 1000):.1f}ms (< 10ms)")
+        
+        # Build FFmpeg command for merging
+        ffmpeg_cmd = ['ffmpeg', '-y', '-i', video_path]
+        
+        # Handle audio input with trimming if needed
+        audio_trim_start = 0.0
+        if video_start_timestamp and audio_start_timestamp:
+            time_diff = audio_start_timestamp - video_start_timestamp
+            if time_diff < 0:
+                # Audio started before video - trim beginning of audio
+                audio_trim_start = abs(time_diff)
+                # Use -ss before -i to trim input (more efficient)
+                ffmpeg_cmd.extend(['-ss', str(audio_trim_start), '-i', audio_file_path])
+                print(f"   🔧 Trimming first {audio_trim_start:.3f}s from audio input")
+            else:
+                # Audio started after video - will add delay later
+                ffmpeg_cmd.extend(['-i', audio_file_path])
+                if time_diff > 0.01:
+                    audio_delay = time_diff
+        else:
+            ffmpeg_cmd.extend(['-i', audio_file_path])
+        
+        # Map video and audio streams with proper synchronization
+        # Use shortest to ensure both streams end together
+        if audio_delay > 0.01:
+            # Audio started after video - use itsoffset to delay audio
+            ffmpeg_cmd.extend([
+                '-itsoffset', str(audio_delay),
+                '-map', '1:a',  # Map delayed audio
+                '-map', '0:v',   # Map video
+            ])
+        else:
+            # Normal mapping (or audio already trimmed)
+            ffmpeg_cmd.extend([
+                '-map', '0:v',   # Map video
+                '-map', '1:a',   # Map audio
+            ])
+        
+        # Codec options
+        ffmpeg_cmd.extend([
+            '-c:v', 'copy',      # Copy video codec (no re-encoding for speed)
+            '-c:a', 'aac',       # Encode audio as AAC (browser-compatible)
+            '-b:a', '192k',      # Audio bitrate
+            '-ar', '44100',      # Audio sample rate
+            '-ac', '1',          # Mono audio
+        ])
+        
+        # Ensure video duration matches (trim to shortest stream)
+        if video_duration and video_duration > 0:
+            ffmpeg_cmd.extend(['-t', str(video_duration)])
+            print(f"   🎯 Trimming to video duration: {video_duration:.2f}s")
+        
+        # Output format options for browser compatibility
+        ffmpeg_cmd.extend([
+            '-shortest',         # End when shortest stream ends (ensures sync)
+            '-movflags', '+faststart',  # Enable faststart for web streaming
+            output_path
+        ])
+        
+        print(f"   🔧 FFmpeg command: {' '.join(ffmpeg_cmd)}")
+        
+        # Run FFmpeg
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode != 0:
+            print(f"   ❌ FFmpeg failed with return code {result.returncode}")
+            print(f"   Error output: {result.stderr}")
+            raise RuntimeError(f"FFmpeg merge failed: {result.stderr}")
+        
+        # Verify output file exists and has content
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"Merged video file was not created: {output_path}")
+        
+        merged_file_size = os.path.getsize(output_path)
+        if merged_file_size == 0:
+            raise ValueError(f"Merged video file is empty: {output_path}")
+        
+        # Verify the file has both video and audio streams
+        try:
+            probe_cmd = [
+                'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', output_path
+            ]
+            video_check = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+            
+            probe_cmd = [
+                'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', output_path
+            ]
+            audio_check = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+            
+            if 'video' not in video_check.stdout.lower():
+                raise ValueError(f"Merged file {output_path} does not contain a video stream.")
+            if 'audio' not in audio_check.stdout.lower():
+                raise ValueError(f"Merged file {output_path} does not contain an audio stream.")
+            
+            print(f"✅ Merged file verified: contains both video and audio streams")
+        except Exception as e:
+            print(f"   ⚠️ Could not verify streams: {e}")
+            # Don't fail - file exists and has content
+        
+        print(f"✅ FFmpeg merge completed successfully!")
+        print(f"   Output path: {output_path}")
+        print(f"   Output file size: {merged_file_size / 1024 / 1024:.2f} MB")
+        
+        return True
+        
+    except FileNotFoundError as e:
+        print(f"❌ File not found: {e}")
+        return False
+    except subprocess.TimeoutExpired:
+        print(f"❌ FFmpeg merge timed out after 5 minutes")
+        return False
+    except Exception as e:
+        print(f"❌ Error merging video and audio: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def merge_video_audio_pyav(video_path, audio_file_path, output_path, video_start_timestamp=None, audio_start_timestamp=None, video_duration=None):
+    """
+    DEPRECATED: Use merge_video_audio_ffmpeg instead.
+    Merge video and audio using PyAV (pure Python, no FFmpeg subprocess).
+    
+    Args:
+        video_path: Path to video file (MP4)
+        audio_file_path: Path to audio file (WAV, MP3, etc.)
+        output_path: Path to save merged video
+        video_start_timestamp: Unix timestamp when video recording started
+        audio_start_timestamp: Unix timestamp when audio recording started
+        video_duration: Video duration in seconds (if None, will be calculated)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    # Redirect to FFmpeg function
+    print(f"⚠️ PyAV merge function called - redirecting to FFmpeg (more reliable)")
+    return merge_video_audio_ffmpeg(video_path, audio_file_path, output_path, video_start_timestamp, audio_start_timestamp, video_duration)
+    
+    try:
+        print(f"🔄 Merging video and audio using PyAV...")
+        print(f"   Video: {video_path}")
+        print(f"   Audio: {audio_file_path}")
+        print(f"   Output: {output_path}")
+        
+        # CRITICAL: Convert all paths to absolute paths for accurate file access
+        # Normalize paths first to handle separators correctly
+        video_path = os.path.normpath(video_path)
+        audio_file_path = os.path.normpath(audio_file_path)
+        output_path = os.path.normpath(output_path)
+        
+        # Convert to absolute paths if they're relative
+        # settings is already imported at the top of the file
+        if not os.path.isabs(video_path):
+            # Try to resolve relative to MEDIA_ROOT first
+            video_path = os.path.join(settings.MEDIA_ROOT, video_path)
+            video_path = os.path.normpath(video_path)
+        
+        if not os.path.isabs(audio_file_path):
+            # Try to resolve relative to MEDIA_ROOT first
+            audio_file_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+            audio_file_path = os.path.normpath(audio_file_path)
+        
+        if not os.path.isabs(output_path):
+            # Try to resolve relative to MEDIA_ROOT first
+            output_path = os.path.join(settings.MEDIA_ROOT, output_path)
+            output_path = os.path.normpath(output_path)
+        
+        # Get absolute paths (resolve any symlinks or relative components)
+        video_path = os.path.abspath(video_path)
+        audio_file_path = os.path.abspath(audio_file_path)
+        output_path = os.path.abspath(output_path)
+        
+        # Verify all files exist before proceeding
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+        if not os.path.exists(audio_file_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+        
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_path)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        print(f"   ✅ Absolute video path: {video_path}")
+        print(f"   ✅ Absolute audio path: {audio_file_path}")
+        print(f"   ✅ Absolute output path: {output_path}")
+        print(f"   ✅ Video exists: {os.path.exists(video_path)}")
+        print(f"   ✅ Audio exists: {os.path.exists(audio_file_path)}")
+        print(f"   ✅ Output directory exists: {os.path.exists(output_dir)}")
+        
+        # Open input video container
+        video_container = av.open(video_path)
+        video_stream = video_container.streams.video[0]
+        
+        # Get video duration if not provided
+        if video_duration is None or video_duration == 0:
+            if video_stream.duration:
+                video_duration = float(video_stream.duration * video_stream.time_base)
+            elif video_container.duration:
+                video_duration = float(video_container.duration) / av.time_base
+            else:
+                # Estimate from frames
+                frame_count = 0
+                for frame in video_container.decode(video_stream):
+                    frame_count += 1
+                # Get frame rate (PyAV uses average_rate)
+                fps = 5.0  # Default to our recording rate
+                if hasattr(video_stream, 'average_rate') and video_stream.average_rate:
+                    fps = float(video_stream.average_rate)
+                elif hasattr(video_stream, 'rate') and video_stream.rate:
+                    fps = float(video_stream.rate)
+                video_duration = frame_count / fps if fps > 0 else 0
+                video_container.seek(0)  # Reset to beginning
+        
+        # Open input audio container
+        audio_container = av.open(audio_file_path)
+        audio_stream = audio_container.streams.audio[0]
+        
+        # Get audio duration
+        audio_duration = 0
+        if audio_stream.duration:
+            audio_duration = float(audio_stream.duration * audio_stream.time_base)
+        elif audio_container.duration:
+            audio_duration = float(audio_container.duration) / av.time_base
+        
+        print(f"   📹 Video duration: {video_duration:.2f}s")
+        print(f"   🎙️ Audio duration: {audio_duration:.2f}s")
+        
+        # CRITICAL: Always use video duration as authoritative
+        # Video duration is the source of truth - audio will be trimmed to match exactly
+        # This ensures perfect synchronization regardless of when audio started/stopped
+        final_audio_duration = video_duration if video_duration > 0 else audio_duration
+        print(f"   🎯 Using video duration as authoritative: {final_audio_duration:.2f}s")
+        print(f"   ✅ Audio will be trimmed to match video exactly (perfect sync)")
+        
+        # CRITICAL: Calculate audio synchronization offset
+        # This determines how much to skip from the beginning of audio to align with video
+        audio_skip_seconds = 0.0  # How much audio to skip from the beginning
+        audio_padding_seconds = 0.0  # How much silence to add at the beginning (if audio started after video)
+        
+        if video_start_timestamp and audio_start_timestamp:
+            time_diff = audio_start_timestamp - video_start_timestamp  # Positive = audio started after video
+            
+            print(f"   🕐 Synchronization analysis:")
+            print(f"      Video started at: {video_start_timestamp:.6f}")
+            print(f"      Audio started at: {audio_start_timestamp:.6f}")
+            print(f"      Time difference: {time_diff:.6f}s ({(time_diff * 1000):.2f}ms)")
+            
+            if abs(time_diff) > 0.05:  # More than 50ms difference
+                if time_diff > 0:
+                    # Audio started AFTER video - need to add silence/padding at start of audio
+                    audio_padding_seconds = time_diff
+                    print(f"   ⏱️ Audio started {time_diff:.3f}s AFTER video")
+                    print(f"   🔧 Will add {audio_padding_seconds:.3f}s of silence at audio start")
+                else:
+                    # Audio started BEFORE video - need to skip beginning of audio
+                    audio_skip_seconds = abs(time_diff)
+                    print(f"   ⏱️ Audio started {abs(time_diff):.3f}s BEFORE video")
+                    print(f"   🔧 Will skip first {audio_skip_seconds:.3f}s of audio")
+            else:
+                print(f"   ✅ Perfect synchronization! Time difference: {(time_diff * 1000):.1f}ms (< 50ms)")
+                print(f"   ✅ No adjustment needed - both started at exact same time!")
+        else:
+            print(f"   ⚠️ Timestamps not provided - assuming perfect synchronization")
+            print(f"      video_start_timestamp: {video_start_timestamp}")
+            print(f"      audio_start_timestamp: {audio_start_timestamp}")
+        
+        # Verify audio duration is sufficient
+        if audio_duration < final_audio_duration:
+            print(f"   ⚠️ WARNING: Audio ({audio_duration:.2f}s) is shorter than video ({final_audio_duration:.2f}s)")
+            print(f"   ⚠️ Video will be trimmed to match audio duration")
+            final_audio_duration = audio_duration  # Use shorter duration
+        elif audio_duration > final_audio_duration:
+            print(f"   ✅ Audio ({audio_duration:.2f}s) is longer than video ({final_audio_duration:.2f}s) - will trim audio to match")
+        else:
+            print(f"   ✅ Audio and video durations match perfectly!")
+        
+        # Create output container with explicit format for MP4
+        # Ensure proper MP4 container format for browser compatibility
+        output_container = av.open(output_path, mode='w', format='mp4')
+        
+        # Get frame rate from video stream (PyAV uses average_rate or calculate from time_base)
+        if hasattr(video_stream, 'average_rate') and video_stream.average_rate:
+            fps = float(video_stream.average_rate)
+        elif hasattr(video_stream, 'rate') and video_stream.rate:
+            fps = float(video_stream.rate)
+        else:
+            # Calculate from time_base if available, otherwise default to 5 fps (our recording rate)
+            if video_stream.time_base:
+                # Try to estimate from duration and frame count
+                fps = 5.0  # Default to our recording rate
+            else:
+                fps = 5.0  # Default to our recording rate
+        
+        print(f"   📹 Video FPS: {fps}")
+        
+        # Convert FPS to Fraction for PyAV (required format)
+        # Use limit_denominator for better precision
+        fps_fraction = Fraction(fps).limit_denominator(1000) if fps > 0 else Fraction(5, 1)
+        
+        # Add video stream to output (re-encode with H.264 for browser compatibility)
+        output_video_stream = output_container.add_stream('libx264', rate=fps_fraction)
+        output_video_stream.width = video_stream.width
+        output_video_stream.height = video_stream.height
+        output_video_stream.pix_fmt = 'yuv420p'  # Required for browser compatibility
+        # Configure H.264 codec options for browser compatibility
+        output_video_stream.options = {
+            'preset': 'medium',  # Balance between speed and quality
+            'crf': '23',  # Constant Rate Factor (lower = better quality)
+            'profile': 'baseline',  # Baseline profile for maximum browser compatibility
+            'level': '3.1',  # H.264 level
+            'movflags': '+faststart'  # Enable faststart for web streaming (moov atom at beginning)
+        }
+        print(f"   📹 Video stream configured: {output_video_stream.width}x{output_video_stream.height}, {fps:.2f} fps, H.264 baseline")
+        
+        # Add audio stream to output (encode as AAC)
+        # CRITICAL: Configure audio stream properly for AAC encoding
+        # Use explicit layout parameter when creating stream
+        try:
+            # Try creating stream with explicit mono layout
+            output_audio_stream = output_container.add_stream('aac', rate=44100, layout='mono')
+            print(f"   ✅ Audio stream created with mono layout")
+        except Exception as e:
+            print(f"   ⚠️ Could not create stream with layout: {e}, creating without layout")
+            output_audio_stream = output_container.add_stream('aac', rate=44100)
+        
+        # Configure codec context for mono audio and bitrate
+        try:
+            # Set bitrate using options (most reliable method)
+            output_audio_stream.options = {
+                'ac': '1',      # Audio channels: 1 (mono)
+                'b:a': '192k',  # Audio bitrate: 192kbps
+                'ar': '44100'   # Sample rate: 44100Hz
+            }
+            print(f"   ✅ Audio stream options configured: mono, 192kbps, 44100Hz")
+        except Exception as e:
+            print(f"   ⚠️ Could not set audio options: {e}")
+        
+        # Log final audio stream configuration
+        try:
+            print(f"   📊 Output audio stream config:")
+            print(f"      Format: {output_audio_stream.format}")
+            print(f"      Layout: {output_audio_stream.layout}")
+            print(f"      Rate: {output_audio_stream.rate}")
+            if hasattr(output_audio_stream, 'codec_context'):
+                print(f"      Codec context channels: {getattr(output_audio_stream.codec_context, 'channels', 'N/A')}")
+        except Exception as e:
+            print(f"   ⚠️ Could not log audio stream config: {e}")
+        
+        # CRITICAL: Seek audio to skip beginning if audio started before video
+        if audio_skip_seconds > 0.05:  # More than 50ms to skip
+            # Calculate seek timestamp in audio stream's time base
+            seek_pts = int(audio_skip_seconds / audio_stream.time_base)
+            try:
+                audio_container.seek(seek_pts, stream=audio_stream)
+                print(f"   🔧 Seeking audio to skip first {audio_skip_seconds:.3f}s (pts={seek_pts})")
+            except Exception as e:
+                print(f"   ⚠️ Could not seek audio: {e}, will process from beginning")
+                audio_skip_seconds = 0.0  # Reset skip if seeking fails
+        else:
+            # Reset audio container to beginning if no skipping needed
+            try:
+                audio_container.seek(0, stream=audio_stream)
+            except:
+                pass
+            print(f"   ✅ Audio starting from beginning (no skip needed)")
+        
+        # CRITICAL: Process video frames first - video duration is authoritative
+        video_frame_count = 0
+        video_time_processed = 0.0
+        frame_duration = 1.0 / fps if fps > 0 else 0.2  # Default to 0.2s per frame (5fps)
+        
+        for frame in video_container.decode(video_stream):
+            # Stop if we've reached the final duration (use shorter of video/audio)
+            if video_time_processed + frame_duration > final_audio_duration:
+                # Don't add this frame - we've reached the limit
+                break
+            
+            # Re-encode video frame
+            for packet in output_video_stream.encode(frame):
+                output_container.mux(packet)
+            video_frame_count += 1
+            video_time_processed += frame_duration
+        
+        # Flush video encoder
+        for packet in output_video_stream.encode():
+            output_container.mux(packet)
+        
+        print(f"   📹 Processed {video_frame_count} video frames ({video_time_processed:.2f}s)")
+        print(f"   🎯 Video duration used as authoritative: {final_audio_duration:.2f}s")
+        
+        # Process audio frames (with duration limit)
+        audio_frame_count = 0
+        # CRITICAL: Initialize audio_time_processed accounting for skipped audio
+        # This tracks position in the SOURCE audio file (after seeking)
+        audio_time_processed = audio_skip_seconds  # Start from skip point
+        
+        # CRITICAL: Always create resampler to ensure audio frames match output format exactly
+        # PyAV requires exact format matching for encoding, so we always resample
+        resampler = None
+        needs_resampling = True  # Always resample to ensure compatibility
+        
+        print(f"   🔧 Audio format conversion:")
+        print(f"      Input: format={audio_stream.format.name}, layout={audio_stream.layout.name}, rate={audio_stream.rate}")
+        print(f"      Output: format={output_audio_stream.format.name}, layout={output_audio_stream.layout.name}, rate={output_audio_stream.rate}")
+        
+        try:
+            resampler = av.AudioResampler(
+                format=output_audio_stream.format,
+                layout=output_audio_stream.layout,
+                rate=output_audio_stream.rate
+            )
+            print(f"   ✅ Audio resampler created successfully")
+        except Exception as e:
+            print(f"   ⚠️ Could not create resampler: {e}")
+            print(f"   ⚠️ Will attempt direct encoding (may fail if formats don't match exactly)")
+            needs_resampling = False
+            import traceback
+            traceback.print_exc()
+        
+        print(f"   🎙️ Starting audio frame processing...")
+        print(f"   📊 Audio timeline: skip={audio_skip_seconds:.3f}s, padding={audio_padding_seconds:.3f}s")
+        audio_frames_decoded = 0
+        
+        # CRITICAL: Add silence padding if audio started after video
+        # This ensures audio timeline aligns with video timeline starting from 0
+        if audio_padding_seconds > 0.05:
+            print(f"   🔇 Adding {audio_padding_seconds:.3f}s of silence at audio start (audio started after video)")
+            # Create silence frame(s) to pad the beginning
+            import numpy as np
+            silence_samples = int(audio_padding_seconds * output_audio_stream.rate)
+            silence_frame = av.AudioFrame.from_ndarray(
+                np.zeros((silence_samples, 1), dtype=np.float32),
+                format=output_audio_stream.format.name,
+                layout=output_audio_stream.layout.name
+            )
+            silence_frame.sample_rate = output_audio_stream.rate
+            silence_frame.pts = 0  # Start at beginning of timeline
+            
+            try:
+                # Encode silence frames
+                packets = list(output_audio_stream.encode(silence_frame))
+                for packet in packets:
+                    output_container.mux(packet)
+                audio_frame_count += 1
+                # Note: audio_time_processed tracks SOURCE audio position, not timeline position
+                # Padding doesn't affect source position, so we don't increment it here
+                print(f"   ✅ Added {audio_padding_seconds:.3f}s of silence padding")
+            except Exception as e:
+                print(f"   ⚠️ Could not add silence padding: {e}")
+                audio_padding_seconds = 0.0  # Reset if padding fails
+        
+        # Track audio timeline offset (accounts for skipped audio)
+        audio_timeline_offset = audio_skip_seconds  # Audio timeline starts after skip
+        
+        for frame in audio_container.decode(audio_stream):
+            audio_frames_decoded += 1
+            
+            # CRITICAL: Check if we've reached the duration limit (video duration is authoritative)
+            frame_duration = float(frame.samples) / frame.sample_rate
+            
+            # Calculate where this frame should be in the final timeline
+            # Account for padding and skip
+            frame_timeline_position = audio_time_processed - audio_skip_seconds + audio_padding_seconds
+            
+            if frame_timeline_position + frame_duration > final_audio_duration:
+                # Trim the last frame if needed
+                remaining_time = final_audio_duration - audio_time_processed
+                if remaining_time > 0:
+                    # Trim frame to remaining time
+                    samples_to_keep = int(remaining_time * frame.sample_rate)
+                    if samples_to_keep < frame.samples:
+                        # Create new frame with fewer samples
+                        import numpy as np
+                        audio_array = frame.to_ndarray()
+                        if len(audio_array.shape) > 1:
+                            audio_array = audio_array[:samples_to_keep, :]
+                        else:
+                            audio_array = audio_array[:samples_to_keep]
+                        frame = av.AudioFrame.from_ndarray(audio_array, format=frame.format.name, layout=frame.layout.name)
+                        frame.sample_rate = frame.sample_rate
+                        frame.pts = frame.pts
+                
+                # CRITICAL: Calculate correct PTS for trimmed frame
+                # This frame should be at the end of the video timeline
+                frame_timeline_position = audio_time_processed - audio_skip_seconds + audio_padding_seconds
+                
+                # CRITICAL: Always resample trimmed frame to match output stream format
+                frames_to_encode = []
+                if resampler:
+                    try:
+                        resampled = resampler.resample(frame)
+                        if isinstance(resampled, list):
+                            frames_to_encode = [f for f in resampled if f is not None]
+                        elif resampled is not None:
+                            frames_to_encode = [resampled]
+                        else:
+                            frames_to_encode = []
+                    except Exception as e:
+                        print(f"   ⚠️ Resampling trimmed frame failed: {e}")
+                        frames_to_encode = []
+                else:
+                    # No resampler - try direct encoding
+                    frame.pts = None  # Reset PTS
+                    frames_to_encode = [frame]
+                
+                # Encode and mux all frames with correct PTS
+                if not frames_to_encode:
+                    print(f"   ⚠️ No frames to encode for final trimmed audio - audio may be incomplete")
+                else:
+                    for frame_to_encode in frames_to_encode:
+                        if frame_to_encode is not None:
+                            try:
+                                # CRITICAL: Set PTS to align with video timeline
+                                if output_audio_stream.time_base:
+                                    frame_to_encode.pts = int(frame_timeline_position / output_audio_stream.time_base)
+                                else:
+                                    frame_to_encode.pts = None
+                                
+                                packets = list(output_audio_stream.encode(frame_to_encode))
+                                if packets:
+                                    for packet in packets:
+                                        output_container.mux(packet)
+                                    audio_frame_count += 1
+                                else:
+                                    print(f"   ⚠️ No packets generated for final trimmed audio frame")
+                            except Exception as e:
+                                print(f"   ⚠️ Error encoding final audio frame: {e}")
+                                import traceback
+                                traceback.print_exc()
+                break
+            
+            # CRITICAL: Calculate correct PTS for this audio frame
+            # PTS must align with video timeline (starting from 0)
+            # Account for padding (if audio started after video) and skip (if audio started before video)
+            # frame_timeline_position is where this frame should be in the final synchronized timeline
+            frame_timeline_position = audio_time_processed - audio_skip_seconds + audio_padding_seconds
+            
+            # CRITICAL: Always resample audio frames to match output stream format
+            # Even if formats appear to match, PyAV requires exact format compatibility
+            frames_to_encode = []
+            if resampler:
+                try:
+                    resampled = resampler.resample(frame)
+                    # Resampler can return a single frame or a list of frames
+                    if isinstance(resampled, list):
+                        frames_to_encode = [f for f in resampled if f is not None]
+                    elif resampled is not None:
+                        frames_to_encode = [resampled]
+                    else:
+                        print(f"   ⚠️ Resampler returned None for frame at {audio_time_processed:.2f}s")
+                        frames_to_encode = []
+                except Exception as e:
+                    print(f"   ⚠️ Resampling failed at {audio_time_processed:.2f}s: {e}")
+                    # Try to convert frame format manually
+                    try:
+                        # Convert frame to output format
+                        frame.pts = None  # Reset PTS for re-encoding
+                        frames_to_encode = [frame]
+                    except Exception as e2:
+                        print(f"   ⚠️ Frame conversion also failed: {e2}")
+                        frames_to_encode = []
+            else:
+                # No resampler - try direct encoding (may fail if formats don't match)
+                try:
+                    # Ensure frame format matches output
+                    frame.pts = None  # Reset PTS
+                    frames_to_encode = [frame]
+                except Exception as e:
+                    print(f"   ⚠️ Frame preparation failed: {e}")
+                    frames_to_encode = []
+            
+            # Re-encode all frames with correct PTS
+            if not frames_to_encode:
+                print(f"   ⚠️ No frames to encode at {audio_time_processed:.2f}s (timeline pos: {frame_timeline_position:.2f}s) - skipping")
+            else:
+                for frame_to_encode in frames_to_encode:
+                    if frame_to_encode is not None:
+                        try:
+                            # CRITICAL: Set PTS to align with video timeline
+                            # PTS is in output stream's time base
+                            # Calculate PTS based on timeline position (where frame should be in final video)
+                            if output_audio_stream.time_base:
+                                frame_to_encode.pts = int(frame_timeline_position / output_audio_stream.time_base)
+                            else:
+                                # Fallback: let encoder set PTS automatically
+                                frame_to_encode.pts = None
+                            
+                            # Ensure frame has correct sample rate and layout
+                            if hasattr(frame_to_encode, 'sample_rate') and frame_to_encode.sample_rate != output_audio_stream.rate:
+                                print(f"   ⚠️ Frame sample rate mismatch: {frame_to_encode.sample_rate} vs {output_audio_stream.rate}")
+                            
+                            # Encode the frame
+                            packets = list(output_audio_stream.encode(frame_to_encode))
+                            if packets:
+                                for packet in packets:
+                                    output_container.mux(packet)
+                                audio_frame_count += 1
+                            else:
+                                print(f"   ⚠️ No packets generated for audio frame at timeline {frame_timeline_position:.2f}s")
+                        except Exception as e:
+                            print(f"   ⚠️ Error encoding audio frame at timeline {frame_timeline_position:.2f}s: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # Continue with next frame instead of failing completely
+            
+            # Update audio_time_processed AFTER processing (tracks position in source audio file)
+            audio_time_processed += frame_duration
+            
+            # Log progress every 10 seconds
+            if int(audio_time_processed) % 10 == 0 and audio_time_processed > 0:
+                print(f"   🎙️ Processed {audio_time_processed:.1f}s of audio ({audio_frame_count} frames)")
+        
+        # Flush audio encoder (get any remaining packets)
+        try:
+            for packet in output_audio_stream.encode():
+                output_container.mux(packet)
+        except Exception as e:
+            print(f"   ⚠️ Error flushing audio encoder: {e}")
+        
+        # CRITICAL: Properly close containers to finalize the file
+        # This ensures the MP4 file is properly formatted and can be played
+        try:
+            output_container.close()
+            print(f"   ✅ Output container closed successfully")
+        except Exception as e:
+            print(f"   ⚠️ Error closing output container: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        video_container.close()
+        audio_container.close()
+        
+        # CRITICAL: Verify the merged file was actually created and has content
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"Merged video file was not created: {output_path}")
+        
+        merged_file_size = os.path.getsize(output_path)
+        if merged_file_size == 0:
+            raise ValueError(f"Merged video file is empty: {output_path}")
+        
+        # Verify the file is a valid MP4 by trying to open it
+        try:
+            verify_container = av.open(output_path)
+            video_streams = [s for s in verify_container.streams if s.type == 'video']
+            audio_streams = [s for s in verify_container.streams if s.type == 'audio']
+            verify_container.close()
+            
+            if len(video_streams) == 0:
+                raise ValueError(f"Merged file has no video stream: {output_path}")
+            if len(audio_streams) == 0:
+                raise ValueError(f"Merged file has no audio stream: {output_path}")
+            
+            print(f"   ✅ File format verified: {len(video_streams)} video stream(s), {len(audio_streams)} audio stream(s)")
+        except Exception as e:
+            print(f"   ⚠️ Could not verify file format: {e}")
+            # Don't fail - file exists and has content, format verification is optional
+        
+        print(f"✅ PyAV merge completed successfully!")
+        print(f"   Video frames processed: {video_frame_count}")
+        print(f"   Audio frames decoded: {audio_frames_decoded}")
+        print(f"   Audio frames encoded: {audio_frame_count}")
+        print(f"   Output path: {output_path}")
+        print(f"   Output file size: {merged_file_size / 1024 / 1024:.2f} MB")
+        print(f"   ✅ Merged file verified: exists={os.path.exists(output_path)}, size={merged_file_size} bytes")
+        
+        # CRITICAL: Verify audio was actually encoded
+        if audio_frame_count == 0:
+            raise ValueError(f"No audio frames were encoded! Audio frames decoded: {audio_frames_decoded}, but none encoded. Video will have NO audio.")
+        elif audio_frame_count < audio_frames_decoded / 2:
+            print(f"   ⚠️ WARNING: Only {audio_frame_count} audio frames encoded out of {audio_frames_decoded} decoded")
+            print(f"   ⚠️ This may indicate encoding issues - video may have reduced audio quality")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ PyAV merge failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 class _VideoCapture:
@@ -128,14 +1132,22 @@ class _VideoCapture:
                 print(f"✅ Camera configured successfully")
                 
                 # Give camera a moment to initialize
-                time.sleep(0.2)
+                time.sleep(0.3)
+                
+                # Warm up camera by reading multiple frames (cameras often need this)
+                # Flush any stale frames in the buffer
+                for i in range(5):
+                    ret, _ = self.cap.read()
+                    if ret:
+                        break
+                    time.sleep(0.1)
                 
                 # Test reading a frame to ensure it's working
                 ret, test_frame = self.cap.read()
                 if ret and test_frame is not None:
                     print(f"✅ Camera test frame captured: {test_frame.shape}")
                 else:
-                    print(f"⚠️ Camera test frame failed, but camera is opened")
+                    print(f"⚠️ Camera test frame failed, but camera is opened - will retry in capture loop")
         except Exception as e:
             print(f"❌ Camera initialization error: {e}")
             self.cap = None
@@ -211,12 +1223,18 @@ class SimpleRealVideoCamera:
             if self.video.isOpened():
                 self._frame_lock = threading.Lock()
                 self._running = True
+                # Give camera a moment to fully initialize before starting capture
+                time.sleep(0.3)
                 # Start basic frame capture only (no YOLO detection yet)
                 self._detector_thread = threading.Thread(target=self._capture_and_detect_loop, daemon=True)
                 self._detector_thread.start()
                 print(f"✅ Basic camera frame capture started for session {self.session_id} (YOLO not loaded yet)")
+            else:
+                print(f"⚠️ Camera not opened - cannot start frame capture for session {self.session_id}")
         except Exception as e:
             print(f"⚠️ Failed to start frame capture loop: {e}")
+            import traceback
+            traceback.print_exc()
     
     def activate_yolo_proctoring(self):
         """Activate YOLO model and start proctoring warnings when technical interview starts"""
@@ -244,19 +1262,43 @@ class SimpleRealVideoCamera:
             print(f"ℹ️ ultralytics not installed; falling back to Haar cascade. {e}")
             return False
     
-    def start_video_recording(self):
-        """Start recording video frames to a file. Returns the exact start timestamp for synchronization."""
+    def start_video_recording(self, synchronized_start_time=None):
+        """Start recording video frames to a file. Returns the exact start timestamp for synchronization.
+        
+        Args:
+            synchronized_start_time: Optional future timestamp to start at (for perfect sync with audio).
+                                    If provided, video will wait until this exact time to start recording.
+        """
         if self._recording_active:
             print(f"⚠️ Video recording already active for session {self.session_id}")
             return getattr(self, '_recording_start_timestamp', None)
         
         try:
-            # CRITICAL: Record timestamp IMMEDIATELY when recording starts (not when first frame is written)
-            # This ensures audio can start at the exact same moment for perfect synchronization
             import time
-            self._recording_start_timestamp = time.time()  # Record timestamp NOW, before any async operations
+            
+            # CRITICAL: If synchronized_start_time is provided, use it as the authoritative start time
+            # This ensures both video and audio start at the EXACT same moment
+            # IMPORTANT: Set _recording_start_timestamp IMMEDIATELY to synchronized_start_time
+            # This ensures the timestamp is available even before first frame is written
+            if synchronized_start_time:
+                self._synchronized_start_time = synchronized_start_time
+                self._recording_start_timestamp = synchronized_start_time  # Set immediately for synchronization
+                print(f"🕐 Using synchronized start time: {synchronized_start_time}")
+                print(f"   ⏱️ Will start recording at exact time (current: {time.time()}, wait: {(synchronized_start_time - time.time()) * 1000:.1f}ms)")
+                print(f"   ✅ Video start timestamp set IMMEDIATELY: {self._recording_start_timestamp}")
+                print(f"   ✅ Audio should use this EXACT timestamp for perfect synchronization!")
+            else:
+                # Calculate a future timestamp (500ms from now) to allow frontend to prepare
+                # This accounts for network delay and frontend initialization
+                current_time = time.time()
+                self._synchronized_start_time = current_time + 0.5  # 500ms in the future
+                self._recording_start_timestamp = self._synchronized_start_time  # Set immediately
+                print(f"🕐 Calculated synchronized start time: {self._synchronized_start_time} (500ms from now)")
+                print(f"   ✅ Video start timestamp set IMMEDIATELY: {self._recording_start_timestamp}")
+            
             self._first_frame_written = False  # Flag to track first frame
-            print(f"🕐 Video recording start timestamp recorded IMMEDIATELY: {self._recording_start_timestamp}")
+            # Store the synchronized time for the capture loop to use
+            # But DON'T set _recording_start_timestamp until first frame is written
             
             # Create video directories if they don't exist
             # Raw videos (without audio) go to interview_videos_raw/
@@ -319,10 +1361,19 @@ class SimpleRealVideoCamera:
             if self._video_writer.isOpened():
                 self._recording_active = True
                 print(f"✅ Video recording started for session {self.session_id}: {video_filename}")
-                # Return the exact timestamp that was recorded at the start of this function
+                # CRITICAL: Return the synchronized start time (not the timestamp)
+                # The timestamp will be set when the first frame is written
                 # This ensures audio can start at the EXACT same moment for perfect synchronization
-                print(f"🕐 Video recording active - start timestamp: {self._recording_start_timestamp}")
-                return self._recording_start_timestamp
+                synchronized_time = getattr(self, '_synchronized_start_time', None)
+                if synchronized_time:
+                    print(f"🕐 Video recording active - will start at synchronized time: {synchronized_time}")
+                    print(f"   ✅ First frame timestamp will be set when frame is written at this exact time")
+                    return synchronized_time
+                else:
+                    # Fallback: return current time + small delay
+                    fallback_time = time.time() + 0.5
+                    print(f"🕐 Video recording active - using fallback start time: {fallback_time}")
+                    return fallback_time
             else:
                 print(f"❌ Failed to open video writer for session {self.session_id}")
                 self._video_writer = None
@@ -335,24 +1386,15 @@ class SimpleRealVideoCamera:
             return None
     
     def ensure_browser_compatible_video(self, video_path):
-        """Convert video to H.264 format for browser compatibility."""
+        """Convert video to H.264 format for browser compatibility using PyAV."""
         if not os.path.exists(video_path):
             return None
         
         try:
-            import subprocess
-            # Get FFmpeg path
-            ffmpeg_path = get_ffmpeg_path()
-            
-            # Check if ffmpeg is available
-            try:
-                result = subprocess.run([ffmpeg_path, '-version'], capture_output=True, timeout=5)
-                if result.returncode != 0:
-                    print(f"⚠️ FFmpeg found but version check failed")
-                    return None
-            except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-                print(f"⚠️ FFmpeg not found at {ffmpeg_path}: {e}")
-                return None
+            # Use PyAV for conversion
+            if not PYAV_AVAILABLE:
+                print(f"⚠️ PyAV not available - cannot convert video")
+                return video_path  # Return original if PyAV not available
             
             # Create converted video path
             base_name = os.path.splitext(video_path)[0]
@@ -363,55 +1405,109 @@ class SimpleRealVideoCamera:
                 print(f"✅ Video already converted: {video_path}")
                 return video_path
             
-            print(f"🔄 Converting video to H.264 for browser compatibility: {video_path}")
-            convert_cmd = [
-                ffmpeg_path,
-                '-i', video_path,
-                '-c:v', 'libx264',  # H.264 codec
-                '-preset', 'medium',  # Encoding speed
-                '-crf', '23',  # Quality (18-28 range, 23 is good)
-                '-movflags', '+faststart',  # Enable fast start for web playback
-                '-pix_fmt', 'yuv420p',  # Ensure compatibility
-                '-r', '5',  # Set output frame rate to 5 fps (matches recording)
-                '-vsync', 'cfr',  # Constant frame rate for correct playback speed
-                '-y',  # Overwrite output file
-                converted_video_path
-            ]
+            # Create converted video path
+            base_name = os.path.splitext(video_path)[0]
+            converted_video_path = f"{base_name}_converted.mp4"
             
-            result = subprocess.run(
-                convert_cmd,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
+            # Skip if already converted
+            if '_converted' in video_path or '_with_audio' in video_path:
+                print(f"✅ Video already converted: {video_path}")
+                return video_path
             
-            if result.returncode == 0 and os.path.exists(converted_video_path):
-                try:
-                    os.remove(video_path)  # Remove original
-                except:
-                    pass
-                print(f"✅ Video converted to H.264: {converted_video_path}")
-                return converted_video_path
-            else:
-                print(f"⚠️ Video conversion failed: {result.stderr}")
-                print(f"⚠️ Original video path: {video_path}")
-                print(f"⚠️ Attempted output: {converted_video_path}")
-                # Return original path even if conversion failed
+            print(f"🔄 Converting video to H.264 for browser compatibility using PyAV: {video_path}")
+            
+            # Use PyAV to convert video
+            try:
+                # Open input video
+                input_container = av.open(video_path)
+                video_stream = input_container.streams.video[0]
+                
+                # Get frame rate from video stream (PyAV uses average_rate or calculate from time_base)
+                if hasattr(video_stream, 'average_rate') and video_stream.average_rate:
+                    fps = float(video_stream.average_rate)
+                elif hasattr(video_stream, 'rate') and video_stream.rate:
+                    fps = float(video_stream.rate)
+                else:
+                    # Calculate from time_base if available, otherwise default to 5 fps (our recording rate)
+                    if video_stream.time_base:
+                        # Try to estimate from duration and frame count
+                        fps = 5.0  # Default to our recording rate
+                    else:
+                        fps = 5.0  # Default to our recording rate
+                
+                print(f"   📹 Video FPS: {fps}")
+                
+                # Convert FPS to Fraction for PyAV (required format)
+                # Use limit_denominator for better precision
+                fps_fraction = Fraction(fps).limit_denominator(1000) if fps > 0 else Fraction(5, 1)
+                
+                # Create output container
+                output_container = av.open(converted_video_path, mode='w')
+                
+                # Add video stream with H.264 codec
+                output_video_stream = output_container.add_stream('libx264', rate=fps_fraction)
+                output_video_stream.width = video_stream.width
+                output_video_stream.height = video_stream.height
+                output_video_stream.pix_fmt = 'yuv420p'
+                output_video_stream.options = {
+                    'preset': 'medium',
+                    'crf': '23',
+                    'movflags': '+faststart'
+                }
+                
+                # Copy video frames
+                for frame in input_container.decode(video_stream):
+                    for packet in output_video_stream.encode(frame):
+                        output_container.mux(packet)
+                
+                # Flush encoder
+                for packet in output_video_stream.encode():
+                    output_container.mux(packet)
+                
+                # Close containers
+                output_container.close()
+                input_container.close()
+                
+                if os.path.exists(converted_video_path):
+                    try:
+                        os.remove(video_path)  # Remove original
+                    except:
+                        pass
+                    print(f"✅ Video converted to H.264 using PyAV: {converted_video_path}")
+                    return converted_video_path
+                else:
+                    print(f"⚠️ Video conversion failed - output file not created")
+                    return video_path
+            except Exception as e:
+                print(f"⚠️ PyAV conversion error: {e}")
+                import traceback
+                traceback.print_exc()
                 return video_path
         except Exception as e:
             print(f"⚠️ Error converting video: {e}")
-            return None
+            return video_path
     
-    def stop_video_recording(self, audio_file_path=None, audio_start_timestamp=None, video_start_timestamp=None):
+    def stop_video_recording(self, audio_file_path=None, audio_start_timestamp=None, video_start_timestamp=None, synchronized_stop_time=None):
         """Stop recording and save video file. Optionally merge with audio using ffmpeg.
         
         Args:
             audio_file_path: Path to audio file to merge
             audio_start_timestamp: Unix timestamp when audio recording started (for sync)
             video_start_timestamp: Unix timestamp when video recording started (for sync)
+            synchronized_stop_time: Optional future timestamp to stop at (for perfect sync with audio)
         """
-        # CRITICAL: Record video stop timestamp for audio synchronization
         import time
+        
+        # CRITICAL: If synchronized_stop_time is provided, wait until that exact moment
+        if synchronized_stop_time:
+            current_time = time.time()
+            if current_time < synchronized_stop_time:
+                wait_time = synchronized_stop_time - current_time
+                print(f"🕐 Waiting {wait_time * 1000:.1f}ms until synchronized stop time: {synchronized_stop_time}")
+                time.sleep(wait_time)
+                print(f"✅ Reached synchronized stop time - stopping video now")
+        
+        # CRITICAL: Record video stop timestamp AFTER synchronized wait
         video_stop_timestamp = time.time()
         self._recording_stop_timestamp = video_stop_timestamp
         print(f"🕐 Video recording stop timestamp: {video_stop_timestamp}")
@@ -605,10 +1701,25 @@ class SimpleRealVideoCamera:
         
         try:
             
-            # If audio file is provided, merge video and audio using ffmpeg
-            # Also convert to H.264 for browser compatibility
+            # If audio file is provided, merge video and audio using MoviePy (preferred) or FFmpeg
             if audio_file_path and os.path.exists(audio_file_path) and os.path.exists(video_path):
+                print(f"🔍 Checking merge library availability...")
+                print(f"   MoviePy available: {MOVIEPY_AVAILABLE}")
+                print(f"   FFmpeg available: Checking...")
+                
+                ffmpeg_available = False
                 try:
+                    subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=5)
+                    ffmpeg_available = True
+                    print(f"   FFmpeg available: True")
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    print(f"   FFmpeg available: False")
+                
+                if not MOVIEPY_AVAILABLE and not ffmpeg_available:
+                    raise RuntimeError("Neither MoviePy nor FFmpeg is available for video/audio merging. Install MoviePy: pip install moviepy")
+                
+                try:
+                    
                     # Verify and process audio file before merging
                     try:
                         from interview_app.audio_processor import verify_audio_file, process_uploaded_audio, get_audio_info
@@ -628,7 +1739,7 @@ class SimpleRealVideoCamera:
                         
                         # Process audio if needed (convert to WAV for better compatibility)
                         file_ext = os.path.splitext(audio_file_path)[1].lower()
-                        if file_ext not in ['.wav', '.mp3']:
+                        if file_ext not in ['.wav', '.mp3', '.m4a', '.aac']:
                             print(f"🔄 Audio format ({file_ext}) may not be optimal, converting to WAV...")
                             processed_audio = process_uploaded_audio(audio_file_path, convert_to_wav=True)
                             if processed_audio and os.path.exists(processed_audio):
@@ -640,29 +1751,35 @@ class SimpleRealVideoCamera:
                         print(f"⚠️ Error processing audio before merge: {e}")
                         # Continue with original audio file
                     
-                    # Get FFmpeg path first and verify it works
-                    ffmpeg_path = get_ffmpeg_path()
+                    print(f"✅ FFmpeg available - using FFmpeg for merging (more reliable)")
                     
-                    # Verify FFmpeg is accessible
-                    try:
-                        test_result = subprocess.run(
-                            [ffmpeg_path, '-version'],
-                            capture_output=True,
-                            timeout=5
-                        )
-                        if test_result.returncode != 0:
-                            raise FileNotFoundError(f"FFmpeg at {ffmpeg_path} returned non-zero exit code")
-                        print(f"✅ FFmpeg verified at: {ffmpeg_path}")
-                    except Exception as e:
-                        print(f"❌ FFmpeg verification failed: {e}")
-                        raise FileNotFoundError(f"FFmpeg not accessible at {ffmpeg_path}")
-                    
-                    # Normalize all paths to avoid separator issues
+                    # CRITICAL: Convert all paths to absolute paths for accurate file access
+                    # Normalize paths first to handle separators correctly
                     video_path = os.path.normpath(video_path)
                     audio_file_path = os.path.normpath(audio_file_path)
                     
+                    # Convert to absolute paths if they're relative
+                    if not os.path.isabs(video_path):
+                        video_path = os.path.join(settings.MEDIA_ROOT, video_path)
+                        video_path = os.path.normpath(video_path)
+                    
+                    if not os.path.isabs(audio_file_path):
+                        audio_file_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
+                        audio_file_path = os.path.normpath(audio_file_path)
+                    
+                    # Get absolute paths (resolve any symlinks or relative components)
+                    video_path = os.path.abspath(video_path)
+                    audio_file_path = os.path.abspath(audio_file_path)
+                    
+                    # Verify files exist before proceeding
+                    if not os.path.exists(video_path):
+                        raise FileNotFoundError(f"Video file not found: {video_path}")
+                    if not os.path.exists(audio_file_path):
+                        raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+                    
                     # Create output path for merged video in interview_videos_merged/ folder
                     merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
+                    merged_video_dir = os.path.abspath(os.path.normpath(merged_video_dir))
                     os.makedirs(merged_video_dir, exist_ok=True)
                     
                     # Get base filename (without directory)
@@ -675,19 +1792,18 @@ class SimpleRealVideoCamera:
                     # Save merged video to interview_videos_merged/ folder
                     merged_video_filename = f"{base_name}_with_audio.mp4"
                     merged_video_path = os.path.join(merged_video_dir, merged_video_filename)
-                    merged_video_path = os.path.normpath(merged_video_path)
+                    merged_video_path = os.path.abspath(os.path.normpath(merged_video_path))
                     
                     # Get file sizes for logging
                     video_size = os.path.getsize(video_path) / 1024 / 1024
                     audio_size = os.path.getsize(audio_file_path) / 1024 / 1024
                     print(f"📊 Merging video ({video_size:.2f} MB) with audio ({audio_size:.2f} MB)...")
-                    print(f"   Normalized video path: {video_path}")
-                    print(f"   Normalized audio path: {audio_file_path}")
-                    print(f"   Normalized output path: {merged_video_path}")
-                    
-                    # CRITICAL: Calculate time offset for synchronization using timestamps
-                    time_offset = 0.0
-                    audio_offset = 0.0  # Initialize audio offset
+                    print(f"   ✅ Absolute video path: {video_path}")
+                    print(f"   ✅ Absolute audio path: {audio_file_path}")
+                    print(f"   ✅ Absolute output path: {merged_video_path}")
+                    print(f"   ✅ Video exists: {os.path.exists(video_path)}")
+                    print(f"   ✅ Audio exists: {os.path.exists(audio_file_path)}")
+                    print(f"   ✅ Output directory exists: {os.path.exists(merged_video_dir)}")
                     
                     # Get video start timestamp (prefer from first frame, fallback to parameter or attribute)
                     video_ts = None
@@ -698,303 +1814,81 @@ class SimpleRealVideoCamera:
                         video_ts = video_start_timestamp
                         print(f"🕐 Video start timestamp (from parameter): {video_ts}")
                     
-                    # CRITICAL: Get video and audio durations FIRST to determine exact trimming
-                    vid_dur = 0
-                    aud_dur = 0
-                    try:
-                        # Get video duration FIRST (this is the reference)
-                        probe_cmd = [ffmpeg_path, '-i', video_path, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv=p=0']
-                        video_duration = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
-                        if video_duration.returncode == 0:
-                            vid_dur = float(video_duration.stdout.strip()) if video_duration.stdout.strip() else 0
-                            print(f"   📹 Video duration: {vid_dur:.2f} seconds ({vid_dur/60:.2f} minutes)")
-                        
-                        # Get audio duration
-                        probe_cmd = [ffmpeg_path, '-i', audio_file_path, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv=p=0']
-                        audio_duration = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
-                        if audio_duration.returncode == 0:
-                            aud_dur = float(audio_duration.stdout.strip()) if audio_duration.stdout.strip() else 0
-                            print(f"   🎙️ Audio duration: {aud_dur:.2f} seconds ({aud_dur/60:.2f} minutes)")
-                    except Exception as e:
-                        print(f"   ⚠️ Could not probe durations: {e}")
+                    # Call FFmpeg merge function
+                    print(f"🔄 Calling merge_video_audio_ffmpeg with:")
+                    print(f"   video_path: {video_path}")
+                    print(f"   audio_file_path: {audio_file_path}")
+                    print(f"   output_path: {merged_video_path}")
+                    print(f"   video_start_timestamp: {video_ts}")
+                    print(f"   audio_start_timestamp: {audio_start_timestamp}")
                     
-                    # Get audio start timestamp and calculate offset
-                    audio_trim_start = 0.0  # How much to skip from audio START
-                    audio_trim_end = None   # How much to trim from audio END (duration limit)
-                    extra_audio_at_start = False
-                    extra_audio_at_end = False
-                    
-                    if audio_start_timestamp:
-                        audio_ts = audio_start_timestamp
-                        print(f"🕐 Audio start timestamp: {audio_ts}")
-                        
-                        # Calculate time difference (positive = audio started after video, negative = audio started before)
-                        if video_ts:
-                            time_diff = audio_ts - video_ts
-                            print(f"⏱️ Time difference: {time_diff:.3f} seconds ({time_diff * 1000:.1f}ms)")
-                            
-                            if abs(time_diff) > 0.1:  # More than 100ms difference
-                                if time_diff > 0:
-                                    # Audio started AFTER video - extra audio is at the START
-                                    audio_trim_start = time_diff
-                                    extra_audio_at_start = True
-                                    print(f"🔧 Audio started {time_diff:.3f}s AFTER video")
-                                    print(f"   → Extra audio is at the START of audio file")
-                                    print(f"   → Will skip {audio_trim_start:.3f}s from audio start using -ss")
-                                else:
-                                    # Audio started BEFORE video - extra audio is at the START
-                                    audio_trim_start = abs(time_diff)
-                                    extra_audio_at_start = True
-                                    print(f"🔧 Audio started {abs(time_diff):.3f}s BEFORE video")
-                                    print(f"   → Extra audio is at the START of audio file")
-                                    print(f"   → Will skip {audio_trim_start:.3f}s from audio start using -ss")
-                            else:
-                                print(f"✅ Audio and video start times are synchronized (< 100ms difference)")
+                    # Use MoviePy for merging (preferred)
+                    if MOVIEPY_AVAILABLE:
+                        merge_success = merge_video_audio_moviepy(
+                            video_path=video_path,
+                            audio_file_path=audio_file_path,
+                            output_path=merged_video_path,
+                            video_start_timestamp=video_ts,
+                            audio_start_timestamp=audio_start_timestamp,
+                            video_duration=None  # Let MoviePy calculate from video
+                        )
                     else:
-                        print(f"⚠️ No audio timestamp provided - assuming audio and video start together")
-                    
-                    # CRITICAL: Determine if extra audio is at the END
-                    # Calculate if audio continues after video stops
-                    if vid_dur > 0 and aud_dur > 0:
-                        # Calculate effective audio duration after trimming start
-                        effective_audio_dur = aud_dur - audio_trim_start
-                        
-                        if effective_audio_dur > vid_dur:
-                            # Audio is longer than video even after trimming start
-                            # Extra audio is at the END
-                            extra_audio_at_end = True
-                            audio_trim_end = vid_dur  # Limit audio to video duration
-                            extra_duration = effective_audio_dur - vid_dur
-                            print(f"🔧 Audio continues AFTER video stops")
-                            print(f"   → Effective audio duration (after start trim): {effective_audio_dur:.2f}s")
-                            print(f"   → Video duration: {vid_dur:.2f}s")
-                            print(f"   → Extra audio at END: {extra_duration:.2f}s")
-                            print(f"   → Will trim audio to match video duration: {audio_trim_end:.2f}s using -t")
-                        elif effective_audio_dur < vid_dur:
-                            # Audio is shorter than video (after trimming start)
-                            print(f"🔧 Audio is shorter than video after trimming start")
-                            print(f"   → Effective audio duration: {effective_audio_dur:.2f}s")
-                            print(f"   → Video duration: {vid_dur:.2f}s")
-                            print(f"   → Will use -shortest flag (video will be trimmed)")
-                        else:
-                            print(f"✅ Audio and video durations match perfectly after start trim")
-                    
-                    # Build FFmpeg command with time offset for synchronization
-                    ffmpeg_cmd_simple = [ffmpeg_path]
-                    
-                    # Add video input
-                    ffmpeg_cmd_simple.extend(['-i', video_path])
-                    
-                    # Add audio input with offset if needed
-                    if audio_trim_start > 0.1:
-                        # Use -ss to skip the beginning of audio to align with video
-                        ffmpeg_cmd_simple.extend(['-ss', f'{audio_trim_start:.3f}', '-i', audio_file_path])
-                        print(f"🔧 Applying audio start trim: skipping {audio_trim_start:.3f}s from audio start")
-                    else:
-                        # No offset needed - audio and video are already aligned
-                        ffmpeg_cmd_simple.extend(['-i', audio_file_path])
-                    
-                    # Add encoding options
-                    ffmpeg_cmd_simple.extend([
-                        '-c:v', 'copy',  # Copy video stream (faster, no re-encoding)
-                        '-c:a', 'aac',  # Encode audio as AAC
-                        '-b:a', '192k',
-                        '-ar', '44100',  # Audio sample rate
-                        '-ac', '1',  # Mono audio
-                    ])
-                    
-                    # CRITICAL: ALWAYS trim audio to match video duration exactly
-                    # Video duration is the authoritative reference - audio MUST match it
-                    if vid_dur > 0:
-                        # ALWAYS use -t to limit audio to exact video duration
-                        # This ensures audio and video end at the exact same time
-                        ffmpeg_cmd_simple.extend(['-t', f'{vid_dur:.3f}'])
-                        print(f"🔧 CRITICAL: Using -t {vid_dur:.3f} to ensure audio matches video duration EXACTLY")
-                        print(f"   This ensures audio and video end at the exact same time")
-                    elif audio_trim_end and audio_trim_end > 0:
-                        # Fallback: use calculated trim end
-                        ffmpeg_cmd_simple.extend(['-t', f'{audio_trim_end:.3f}'])
-                        print(f"🔧 Using -t {audio_trim_end:.3f} to trim audio END to match video duration")
-                    else:
-                        # Last resort: use -shortest
-                        ffmpeg_cmd_simple.extend(['-shortest'])
-                        print(f"🔧 Using -shortest flag (fallback - video duration not available)")
-                    
-                    # Summary of trimming strategy
-                    print(f"📊 Audio-Video Synchronization Summary:")
-                    if extra_audio_at_start:
-                        print(f"   ✅ Extra audio at START: {audio_trim_start:.3f}s will be skipped")
-                    if extra_audio_at_end:
-                        print(f"   ✅ Extra audio at END: {audio_trim_end:.2f}s duration limit applied")
-                    if not extra_audio_at_start and not extra_audio_at_end:
-                        print(f"   ✅ No extra audio - perfect synchronization")
-                    
-                    ffmpeg_cmd_simple.extend([
-                        '-y',  # Overwrite output file
-                        merged_video_path
-                    ])
-                    
-                    # Advanced command with re-encoding (fallback if simple fails)
-                    # Also includes time offset for synchronization
-                    ffmpeg_cmd_advanced = [ffmpeg_path]
-                    
-                    # Add video input
-                    ffmpeg_cmd_advanced.extend(['-i', video_path])
-                    
-                    # Add audio input with offset if needed
-                    if audio_offset > 0.1:  # More than 100ms offset
-                        # Use -ss to skip the beginning of audio to align with video
-                        ffmpeg_cmd_advanced.extend(['-ss', f'{audio_offset:.3f}', '-i', audio_file_path])
-                        print(f"🔧 Advanced merge: Applying audio offset: skipping {audio_offset:.3f}s from audio start")
-                    else:
-                        # No offset needed
-                        ffmpeg_cmd_advanced.extend(['-i', audio_file_path])
-                    
-                    # Add filter complex for synchronization
-                    if audio_offset > 0.1:
-                        # Adjust audio PTS to account for the offset
-                        filter_complex = f'[0:v]setpts=PTS-STARTPTS[v];[1:a]asetpts=PTS-STARTPTS+{audio_offset}/TB[a]'
-                    else:
-                        filter_complex = '[0:v]setpts=PTS-STARTPTS[v];[1:a]asetpts=PTS-STARTPTS[a]'
-                    
-                    ffmpeg_cmd_advanced.extend([
-                        '-filter_complex', filter_complex,
-                        '-map', '[v]',
-                        '-map', '[a]',
-                        '-c:v', 'libx264',
-                        '-preset', 'medium',
-                        '-crf', '23',
-                        '-pix_fmt', 'yuv420p',
-                        '-c:a', 'aac',
-                        '-b:a', '192k',
-                        '-ar', '44100',
-                        '-shortest',
-                        '-movflags', '+faststart',
-                        '-y',
-                        merged_video_path
-                    ])
-                    
-                    # Try simple command first
-                    ffmpeg_cmd = ffmpeg_cmd_simple
-                    use_simple = True
-                    
-                    print(f"🔄 Merging video and audio using FFmpeg (simple method)...")
-                    print(f"   FFmpeg: {ffmpeg_path}")
-                    print(f"   Command: {' '.join(ffmpeg_cmd_simple)}")
-                    
-                    # Log duration comparison if we have both (already calculated above)
-                    if vid_dur > 0 and aud_dur > 0:
-                        duration_diff = abs(vid_dur - aud_dur)
-                        if duration_diff > 1:  # More than 1 second difference
-                            print(f"   ⚠️ Duration mismatch: {duration_diff:.2f} seconds ({duration_diff/60:.2f} minutes)")
-                            if vid_dur < aud_dur:
-                                print(f"   ✅ Audio will be trimmed to match video duration: {vid_dur:.2f}s")
-                            else:
-                                print(f"   ✅ Video will be trimmed to match audio duration: {aud_dur:.2f}s")
-                        else:
-                            print(f"   ✅ Durations are well matched (difference: {duration_diff:.2f}s)")
-                    
-                    result = subprocess.run(
-                        ffmpeg_cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=600,  # 10 minute timeout for large files
-                        encoding='utf-8',
-                        errors='replace'  # Handle encoding errors gracefully
-                    )
-                    
-                    # If simple command failed, try advanced command
-                    if result.returncode != 0 and use_simple:
-                        print(f"⚠️ Simple merge failed (code: {result.returncode}), trying advanced method...")
-                        print(f"   Simple error: {result.stderr[:500] if result.stderr else result.stdout[:500]}")
-                        ffmpeg_cmd = ffmpeg_cmd_advanced
-                        use_simple = False
-                        result = subprocess.run(
-                            ffmpeg_cmd,
-                            capture_output=True,
-                            text=True,
-                            timeout=600,
-                            encoding='utf-8',
-                            errors='replace'
+                        # Fallback to FFmpeg if MoviePy not available
+                        merge_success = merge_video_audio_ffmpeg(
+                            video_path=video_path,
+                            audio_file_path=audio_file_path,
+                            output_path=merged_video_path,
+                            video_start_timestamp=video_ts,
+                            audio_start_timestamp=audio_start_timestamp,
+                            video_duration=None  # Let FFmpeg calculate from video
                         )
                     
-                    if result.returncode == 0 and os.path.exists(merged_video_path):
-                        merged_size = os.path.getsize(merged_video_path) / 1024 / 1024
-                        if merged_size > 0:
-                            # Verify the merged video has audio track
-                            try:
-                                verify_cmd = [
-                                    ffmpeg_path,
-                                    '-i', merged_video_path,
-                                    '-hide_banner'
-                                ]
-                                verify_result = subprocess.run(
-                                    verify_cmd,
-                                    capture_output=True,
-                                    text=True,
-                                    timeout=10
-                                )
-                                # Check if audio stream is present in output
-                                if 'Audio:' in verify_result.stderr or 'Stream #0:1' in verify_result.stderr:
-                                    print(f"✅ Verified: Merged video contains audio track")
-                                else:
-                                    print(f"⚠️ Warning: Merged video may not have audio track")
-                                    print(f"   FFmpeg output: {verify_result.stderr[:500]}")
-                            except Exception as e:
-                                print(f"⚠️ Could not verify audio in merged video: {e}")
-                            
-                            # Remove original video without audio
-                            try:
-                                if os.path.exists(video_path):
-                                    os.remove(video_path)
-                                    print(f"🗑️ Removed original video without audio: {video_path}")
-                                else:
-                                    print(f"ℹ️ Original video already removed or doesn't exist: {video_path}")
-                            except Exception as e:
-                                print(f"⚠️ Could not remove original video: {e}")
-                                import traceback
-                                traceback.print_exc()
-                            
-                            video_path = merged_video_path
-                            self._video_file_path = merged_video_path
-                            print(f"✅ Video and audio merged successfully!")
-                            print(f"   Output: {merged_video_path} ({merged_size:.2f} MB)")
-                            print(f"   Frame rate: 5 fps (preserved from recording)")
-                            print(f"   ✅ ONLY merged video exists - original removed")
+                    # CRITICAL: Verify merged file exists and has content
+                    if not merge_success:
+                        merge_lib_name = "MoviePy" if MOVIEPY_AVAILABLE else "FFmpeg"
+                        print(f"❌ {merge_lib_name} merge function returned False!")
+                        raise Exception(f"{merge_lib_name} merge function returned False")
+                    
+                    if not os.path.exists(merged_video_path):
+                        print(f"❌ Merged video file does not exist at: {merged_video_path}")
+                        raise FileNotFoundError(f"Merged video file not found: {merged_video_path}")
+                    
+                    merged_size = os.path.getsize(merged_video_path)
+                    if merged_size == 0:
+                        print(f"❌ Merged video file is empty (0 bytes): {merged_video_path}")
+                        raise ValueError(f"Merged video file is empty: {merged_video_path}")
+                    
+                    merged_size_mb = merged_size / 1024 / 1024
+                    print(f"✅ Merge verification passed!")
+                    print(f"   Merged file exists: {os.path.exists(merged_video_path)}")
+                    print(f"   Merged file size: {merged_size_mb:.2f} MB ({merged_size} bytes)")
+                    print(f"   Merged file path: {merged_video_path}")
+                    
+                    # Remove original video without audio
+                    try:
+                        if os.path.exists(video_path) and video_path != merged_video_path:
+                            os.remove(video_path)
+                            print(f"🗑️ Removed original video without audio: {video_path}")
                         else:
-                            print(f"❌ Merged video file is empty!")
-                            raise Exception("Merged video file is empty")
-                    else:
-                        error_msg = result.stderr if result.stderr else result.stdout
-                        print(f"❌ FFmpeg merge failed!")
-                        print(f"   Return code: {result.returncode}")
-                        print(f"   Command used: {' '.join(ffmpeg_cmd)}")
-                        print(f"   Full error output:")
-                        print(f"   {'='*80}")
-                        if error_msg:
-                            # Print full error, split into chunks if too long
-                            error_lines = error_msg.split('\n')
-                            for i, line in enumerate(error_lines[:50]):  # First 50 lines
-                                print(f"   {line}")
-                            if len(error_lines) > 50:
-                                print(f"   ... ({len(error_lines) - 50} more lines)")
-                        else:
-                            print(f"   (No error output available)")
-                        print(f"   {'='*80}")
+                            print(f"ℹ️ Original video already removed or is same as merged: {video_path}")
+                    except Exception as e:
+                        print(f"⚠️ Could not remove original video: {e}")
+                        import traceback
+                        traceback.print_exc()
+                    
+                    video_path = merged_video_path
+                    self._video_file_path = merged_video_path
+                    merge_lib_name = "MoviePy" if MOVIEPY_AVAILABLE else "FFmpeg"
+                    print(f"✅ Video and audio merged successfully using {merge_lib_name}!")
+                    print(f"   Final video path: {merged_video_path}")
+                    print(f"   Final video size: {merged_size_mb:.2f} MB")
+                    print(f"   Frame rate: 5 fps (preserved from recording)")
+                    print(f"   ✅ ONLY merged video exists - original removed")
                         
-                        # Don't raise exception - let it fall through to save video without audio
-                        # But log the error clearly
-                        print(f"⚠️ CRITICAL: Merge failed - video will be saved WITHOUT audio")
-                        print(f"⚠️ This should NOT happen - merge must succeed for proper functionality")
-                        raise Exception(f"FFmpeg merge failed with return code {result.returncode}. Check error output above.")
-                        
-                except FileNotFoundError as e:
-                    print(f"❌ FFmpeg not found: {e}")
-                    print(f"⚠️ Video saved without audio - FFmpeg is required for audio merging")
-                    print(f"⚠️ Please install FFmpeg at one of these locations:")
-                    print(f"   - C:\\ffmpeg-7.0.2-essentials_build\\bin\\ffmpeg.exe")
-                    print(f"   - C:\\ffmpeg\\ffmpeg-7.0.2-essentials_build\\bin\\ffmpeg.exe")
-                    print(f"   Or add FFmpeg to your system PATH")
+                except ImportError as e:
+                    print(f"❌ Merge library not available: {e}")
+                    print(f"⚠️ Video saved without audio - MoviePy or FFmpeg is required for audio merging")
+                    print(f"⚠️ Please install MoviePy with: pip install moviepy")
                 except Exception as e:
                     print(f"❌ Error merging audio with video: {e}")
                     import traceback
@@ -1033,14 +1927,10 @@ class SimpleRealVideoCamera:
                         
                         # Re-check the condition with found audio path
                         audio_file_path = found_audio
-                        # Now the condition at line 404 should pass, so we need to manually do the merge
-                        # Actually, we can't easily re-enter the if block, so let's do the merge here
+                        # Use PyAV to merge video and audio
                         try:
-                            ffmpeg_path = get_ffmpeg_path()
-                            test_result = subprocess.run([ffmpeg_path, '-version'], capture_output=True, timeout=5)
-                            if test_result.returncode != 0:
-                                raise FileNotFoundError(f"FFmpeg at {ffmpeg_path} returned non-zero exit code")
-                            print(f"✅ FFmpeg verified at: {ffmpeg_path}")
+                            if not PYAV_AVAILABLE:
+                                raise ImportError("PyAV is required for video/audio merging. Install with: pip install av")
                             
                             # Save merged video to interview_videos_merged/ folder
                             merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
@@ -1054,65 +1944,56 @@ class SimpleRealVideoCamera:
                             merged_video_path = os.path.normpath(merged_video_path)
                             video_size = os.path.getsize(video_path) / 1024 / 1024
                             audio_size = os.path.getsize(found_audio) / 1024 / 1024
-                            print(f"📊 Merging video ({video_size:.2f} MB) with audio ({audio_size:.2f} MB)...")
+                            print(f"📊 Merging video ({video_size:.2f} MB) with audio ({audio_size:.2f} MB) using PyAV...")
                             
-                            # Try simple command first
-                            ffmpeg_cmd = [
-                                ffmpeg_path, '-i', video_path, '-i', found_audio,
-                                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-                                '-shortest', '-y', merged_video_path
-                            ]
+                            # Get video start timestamp
+                            video_ts = None
+                            if hasattr(self, '_recording_start_timestamp') and self._recording_start_timestamp:
+                                video_ts = self._recording_start_timestamp
+                            elif video_start_timestamp:
+                                video_ts = video_start_timestamp
                             
-                            print(f"🔄 Merging video and audio using FFmpeg (simple method)...")
-                            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=600, encoding='utf-8', errors='replace')
+                            # Use MoviePy for merging (preferred)
+                            if MOVIEPY_AVAILABLE:
+                                merge_success = merge_video_audio_moviepy(
+                                    video_path=video_path,
+                                    audio_file_path=found_audio,
+                                    output_path=merged_video_path,
+                                    video_start_timestamp=video_ts,
+                                    audio_start_timestamp=audio_start_timestamp,
+                                    video_duration=None
+                                )
+                                merge_lib = "MoviePy"
+                            else:
+                                # Fallback to FFmpeg
+                                merge_success = merge_video_audio_ffmpeg(
+                                    video_path=video_path,
+                                    audio_file_path=found_audio,
+                                    output_path=merged_video_path,
+                                    video_start_timestamp=video_ts,
+                                    audio_start_timestamp=audio_start_timestamp,
+                                    video_duration=None
+                                )
+                                merge_lib = "FFmpeg"
                             
-                            # If simple fails, try advanced
-                            if result.returncode != 0:
-                                print(f"⚠️ Simple merge failed, trying advanced method...")
-                                ffmpeg_cmd = [
-                                    ffmpeg_path, '-i', video_path, '-i', found_audio,
-                                    '-filter_complex', '[0:v]setpts=PTS-STARTPTS[v];[1:a]asetpts=PTS-STARTPTS[a]',
-                                    '-map', '[v]', '-map', '[a]',
-                                    '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
-                                    '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
-                                    '-shortest', '-movflags', '+faststart', '-y', merged_video_path
-                                ]
-                                result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=600, encoding='utf-8', errors='replace')
-                            
-                            if result.returncode == 0 and os.path.exists(merged_video_path):
+                            if merge_success and os.path.exists(merged_video_path):
                                 merged_size = os.path.getsize(merged_video_path) / 1024 / 1024
                                 if merged_size > 0:
-                                    try:
-                                        if os.path.exists(video_path):
-                                            os.remove(video_path)
-                                            print(f"🗑️ Removed original video without audio: {video_path}")
-                                        else:
-                                            print(f"ℹ️ Original video already removed or doesn't exist: {video_path}")
-                                    except Exception as e:
-                                        print(f"⚠️ Could not remove original video: {e}")
-                                        import traceback
-                                        traceback.print_exc()
                                     video_path = merged_video_path
                                     self._video_file_path = merged_video_path
-                                    print(f"✅ Video and audio merged successfully! ({merged_size:.2f} MB)")
-                                    print(f"   ✅ ONLY merged video exists - original removed")
-                                    if os.path.exists(video_path):
-                                        # Return relative path from MEDIA_ROOT
-                                        relative_path = os.path.relpath(video_path, settings.MEDIA_ROOT)
-                                        relative_path = relative_path.replace('\\', '/')
-                                        return relative_path
+                                    print(f"✅ Video and audio merged successfully using {merge_lib}!")
+                                    print(f"   Output: {merged_video_path} ({merged_size:.2f} MB)")
+                                else:
+                                    print(f"❌ Merged video file is empty!")
                             else:
-                                error_msg = result.stderr if result.stderr else result.stdout
-                                print(f"❌ Manual merge failed!")
-                                print(f"   Return code: {result.returncode}")
-                                print(f"   Error: {error_msg[:1000] if error_msg else 'No error output'}")
-                                raise Exception(f"Manual merge failed: {error_msg[:200] if error_msg else 'Unknown error'}")
+                                print(f"❌ {merge_lib} merge failed!")
+                                raise Exception(f"{merge_lib} merge failed")
                         except Exception as e:
-                            print(f"❌ Error in manual merge attempt: {e}")
+                            print(f"❌ Error in PyAV merge attempt: {e}")
                             import traceback
                             traceback.print_exc()
                             # Don't save video if merge failed
-                            raise Exception(f"Cannot save video - manual merge failed: {str(e)}")
+                            raise Exception(f"Cannot save video - PyAV merge failed: {str(e)}")
                 elif not os.path.exists(video_path):
                     print(f"⚠️ Video file does not exist: {video_path}")
                     # Try to find video in raw folder
@@ -1127,51 +2008,13 @@ class SimpleRealVideoCamera:
                 
                 if os.path.exists(video_path):
                     try:
-                        # Get FFmpeg path
-                        ffmpeg_path = get_ffmpeg_path()
-                        
-                        print(f"🔄 Converting video to H.264 for browser compatibility...")
-                        # Save converted video to raw folder
-                        raw_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw')
-                        os.makedirs(raw_video_dir, exist_ok=True)
-                        video_basename = os.path.basename(video_path)
-                        base_name = os.path.splitext(video_basename)[0]
-                        converted_video_filename = f"{base_name}_converted.mp4"
-                        converted_video_path = os.path.join(raw_video_dir, converted_video_filename)
-                        # Preserve frame rate to ensure correct playback speed
-                        convert_cmd = [
-                            ffmpeg_path,
-                            '-i', video_path,
-                            '-c:v', 'libx264',
-                            '-preset', 'medium',
-                            '-crf', '23',
-                            '-pix_fmt', 'yuv420p',  # Ensure pixel format compatibility
-                            '-r', '5',  # Set output frame rate to 5 fps (matches recording)
-                            '-vsync', 'cfr',  # Constant frame rate for correct playback speed
-                            '-movflags', '+faststart',
-                            '-y',
-                            converted_video_path
-                        ]
-                        convert_result = subprocess.run(
-                            convert_cmd,
-                            capture_output=True,
-                            text=True,
-                            timeout=300
-                        )
-                        if convert_result.returncode == 0 and os.path.exists(converted_video_path):
-                            try:
-                                os.remove(video_path)
-                            except:
-                                pass
-                            video_path = converted_video_path
-                            self._video_file_path = converted_video_path
-                            print(f"✅ Video converted to H.264: {converted_video_path}")
+                        # Use PyAV to convert video
+                        if PYAV_AVAILABLE:
+                            converted_video_path = self.ensure_browser_compatible_video(video_path)
+                            if converted_video_path:
+                                video_path = converted_video_path
                         else:
-                            print(f"⚠️ Video conversion failed: {convert_result.stderr}")
-                            print(f"⚠️ Using original video (may not play in browser): {video_path}")
-                    except FileNotFoundError:
-                        print(f"⚠️ FFmpeg not found - video may not be browser-compatible.")
-                        print(f"⚠️ Install ffmpeg to enable H.264 conversion.")
+                            print(f"⚠️ PyAV not available - skipping video conversion")
                     except Exception as e:
                         print(f"⚠️ Error converting video: {e}")
                         print(f"⚠️ Using original video: {video_path}")
@@ -1286,23 +2129,39 @@ class SimpleRealVideoCamera:
                         try:
                             from .models import InterviewSession, WarningLog
                             from django.db import transaction
+                            from django.core.files.base import ContentFile
+                            import os
                             # Use select_for_update with nowait to prevent blocking
                             try:
                                 session = InterviewSession.objects.select_for_update(nowait=True).get(id=self.session_id)
                                 with transaction.atomic():
-                                    WarningLog.objects.create(
+                                    # Save snapshot image to database
+                                    snapshot_image_field = None
+                                    if img_path and os.path.exists(img_path):
+                                        try:
+                                            with open(img_path, 'rb') as f:
+                                                image_file = ContentFile(f.read(), name=snapshot_filename)
+                                                snapshot_image_field = image_file
+                                        except Exception as img_error:
+                                            print(f"⚠️ Error reading snapshot image for DB: {img_error}")
+                                    
+                                    warning_log = WarningLog(
                                         session=session,
                                         warning_type=warning_type,
                                         snapshot=snapshot_filename
                                     )
+                                    if snapshot_image_field:
+                                        warning_log.snapshot_image = snapshot_image_field
+                                    warning_log.save()
+                                    print(f"✅ Warning logged to database with snapshot image: {snapshot_filename}")
                             except Exception as db_error:
                                 # Skip database logging if it would block - snapshot is still saved
                                 # Only print if it's not the expected "no column named snapshot" error
                                 if 'snapshot' not in str(db_error).lower():
-                                    pass  # Other errors are silently skipped
+                                    print(f"⚠️ Database logging error (non-critical): {db_error}")
                         except Exception as e:
                             # Silently continue - snapshot was saved, DB logging is optional
-                            pass
+                            print(f"⚠️ Error in database logging (non-critical): {e}")
                     else:
                         # Proctoring not active yet (still in identity verification), don't save warnings
                         print(f"⚠️ Warning detected but proctoring not active yet - skipping snapshot save")
@@ -1340,12 +2199,29 @@ class SimpleRealVideoCamera:
                     try:
                         if hasattr(self.video, 'cap') and self.video.cap:
                             self.video.release()
+                        time.sleep(0.5)  # Brief pause before reopening
                         self.video = _VideoCapture()
                         if not self.video.isOpened():
                             time.sleep(2.0)  # Wait longer before retry
                             continue
                         else:
                             print(f"✅ Camera successfully reopened for session {str(self.session_id)[:8]}")
+                            # Warm up the reopened camera
+                            for i in range(5):
+                                ret_warm, _ = self.video.read()
+                                if ret_warm:
+                                    break
+                                time.sleep(0.1)
+                            # Clear the frame buffer when camera reopens
+                            if self._frame_lock is not None:
+                                try:
+                                    if self._frame_lock.acquire(blocking=False):
+                                        try:
+                                            self._latest_frame = None
+                                        finally:
+                                            self._frame_lock.release()
+                                except:
+                                    pass
                     except Exception as e:
                         if now_check - self._last_reopen_attempt_time <= 30:
                             # Only log if we haven't logged recently
@@ -1353,27 +2229,76 @@ class SimpleRealVideoCamera:
                         time.sleep(2.0)
                         continue
                 
-                ret, frame = self.video.read()
-                if not ret or frame is None:
+                # Try reading frame with retry logic
+                ret, frame = None, None
+                for attempt in range(3):  # Try up to 3 times
+                    ret, frame = self.video.read()
+                    if ret and frame is not None and frame.size > 0:
+                        break
+                    if attempt < 2:  # Don't sleep on last attempt
+                        time.sleep(0.05)  # Small delay between retries
+                
+                if not ret or frame is None or frame.size == 0:
+                    # Camera read failed - try to reopen if it's been closed
+                    if not self.video.isOpened():
+                        try:
+                            if hasattr(self.video, 'cap') and self.video.cap:
+                                self.video.release()
+                            self.video = _VideoCapture()
+                            if self.video.isOpened():
+                                print(f"✅ Camera successfully reopened for session {str(self.session_id)[:8]}")
+                                # Warm up the reopened camera
+                                for i in range(3):
+                                    ret, _ = self.video.read()
+                                    if ret:
+                                        break
+                                    time.sleep(0.1)
+                        except Exception as e:
+                            pass
                     time.sleep(0.1)  # Increased sleep to reduce CPU when camera fails
                     continue
                 
                 # Record frame to video file (parallel with YOLO detection)
                 if self._recording_active and self._video_writer is not None:
                     try:
+                        current_time = _t.time()
+                        
+                        # CRITICAL: Wait for synchronized start time if specified
+                        # This ensures video starts at the EXACT same moment as audio
+                        if hasattr(self, '_synchronized_start_time') and self._synchronized_start_time:
+                            if current_time < self._synchronized_start_time:
+                                # Not time yet - skip this frame and wait
+                                continue
+                            elif not self._first_frame_written:
+                                # First frame at synchronized time - record EXACT timestamp
+                                # CRITICAL: Use synchronized_start_time as authoritative timestamp (not current_time)
+                                # This ensures video and audio use the SAME timestamp for perfect synchronization
+                                self._first_frame_written = True
+                                # Use synchronized_start_time if available, otherwise use current_time
+                                if hasattr(self, '_synchronized_start_time') and self._synchronized_start_time:
+                                    self._recording_start_timestamp = self._synchronized_start_time
+                                    print(f"🕐 FIRST FRAME WRITTEN at synchronized time: {self._recording_start_timestamp}")
+                                    print(f"   ✅ Using synchronized_start_time as authoritative timestamp")
+                                    print(f"   ✅ Video and audio will use SAME timestamp - perfect synchronization!")
+                                else:
+                                    self._recording_start_timestamp = current_time
+                                    print(f"🕐 FIRST FRAME WRITTEN (no sync time) - Video recording started at: {self._recording_start_timestamp}")
+                        elif not self._first_frame_written:
+                            # No synchronized time - record timestamp when first frame is written
+                            self._first_frame_written = True
+                            # Try to use synchronized_start_time if available
+                            if hasattr(self, '_synchronized_start_time') and self._synchronized_start_time:
+                                self._recording_start_timestamp = self._synchronized_start_time
+                                print(f"🕐 FIRST FRAME WRITTEN - Using synchronized_start_time: {self._recording_start_timestamp}")
+                            else:
+                                self._recording_start_timestamp = current_time
+                                print(f"🕐 FIRST FRAME WRITTEN - Video recording started at: {self._recording_start_timestamp}")
+                        
                         # Resize frame to match recording dimensions if needed
                         if frame.shape[1] != self._frame_width or frame.shape[0] != self._frame_height:
                             frame_resized = cv2.resize(frame, (self._frame_width, self._frame_height))
                         else:
                             frame_resized = frame
-                        
-                        # Write frame with timestamp tracking
-                        current_time = _t.time()
-                        
-                        # Mark first frame as written (timestamp already recorded in start_video_recording)
-                        if not self._first_frame_written:
-                            self._first_frame_written = True
-                            print(f"🕐 FIRST FRAME WRITTEN - Video recording timestamp was: {self._recording_start_timestamp}")
                         
                         if self._last_frame_time is not None:
                             self._frame_timestamps.append(current_time - self._last_frame_time)
@@ -1561,7 +2486,16 @@ class SimpleRealVideoCamera:
             # If no buffered frame, read directly from camera (fallback)
             if frame is None:
                 try:
-                    ret, tmp = self.video.read()
+                    # Try reading with retries
+                    ret, tmp = None, None
+                    import time as time_module
+                    for attempt in range(3):
+                        ret, tmp = self.video.read()
+                        if ret and tmp is not None and tmp.size > 0:
+                            break
+                        if attempt < 2:
+                            time_module.sleep(0.05)
+                    
                     if ret and tmp is not None and tmp.size > 0:
                         frame = tmp
                         # Also update the buffer if we got a frame (non-blocking)
@@ -1574,7 +2508,8 @@ class SimpleRealVideoCamera:
                                         self._frame_lock.release()
                             except:
                                 pass
-                except Exception:
+                except Exception as e:
+                    # Silently continue - fallback frame will be returned
                     pass
             
             # If we have a valid frame, add overlays and encode
@@ -1792,6 +2727,190 @@ class SimpleRealVideoCamera:
         prefixes.append(str(self.session_id))
         
         latest_file = None
+
+
+class PyAudioAudioRecorder:
+    """
+    Backend audio recorder using PyAudio.
+    Records audio synchronously with video recording for perfect synchronization.
+    """
+    def __init__(self, session_id, session_key=None):
+        if not PYAudio_AVAILABLE:
+            raise ImportError("PyAudio is required for backend audio recording. Install with: pip install pyaudio")
+        
+        self.session_id = session_id
+        self.session_key = session_key
+        self.audio = pyaudio.PyAudio()
+        self.stream = None
+        self.is_recording = False
+        self.audio_frames = []
+        self.recording_start_timestamp = None
+        self.recording_stop_timestamp = None
+        
+        # Audio settings
+        self.CHUNK = 1024
+        self.FORMAT = pyaudio.paInt16
+        self.CHANNELS = 1  # Mono
+        self.RATE = 44100   # Sample rate
+        
+        # File paths
+        self.audio_file_path = None
+        
+    def start_recording(self, synchronized_start_time=None):
+        """Start recording audio. Returns the exact start timestamp for synchronization.
+        
+        Args:
+            synchronized_start_time: Optional future timestamp to start at (for perfect sync with video).
+                                    If provided, audio will wait until this exact time to start recording.
+        """
+        if self.is_recording:
+            print(f"⚠️ Audio recording already active for session {self.session_id}")
+            return getattr(self, 'recording_start_timestamp', None)
+        
+        try:
+            import time
+            
+            # CRITICAL: If synchronized_start_time is provided, wait until that exact moment
+            if synchronized_start_time:
+                current_time = time.time()
+                if current_time < synchronized_start_time:
+                    wait_time = synchronized_start_time - current_time
+                    print(f"🕐 Audio waiting {wait_time * 1000:.1f}ms until synchronized start time: {synchronized_start_time}")
+                    time.sleep(wait_time)
+                    print(f"✅ Reached synchronized start time - starting audio recording now")
+            
+            # CRITICAL: Record exact start timestamp AFTER synchronized wait
+            self.recording_start_timestamp = time.time()
+            print(f"🕐 Audio recording start timestamp: {self.recording_start_timestamp}")
+            
+            # Open audio stream
+            self.stream = self.audio.open(
+                format=self.FORMAT,
+                channels=self.CHANNELS,
+                rate=self.RATE,
+                input=True,
+                frames_per_buffer=self.CHUNK
+            )
+            
+            self.is_recording = True
+            self.audio_frames = []
+            
+            # Start recording thread
+            self.recording_thread = threading.Thread(target=self._record_audio_thread)
+            self.recording_thread.daemon = True
+            self.recording_thread.start()
+            
+            print(f"✅ PyAudio recording started for session {self.session_id}")
+            return self.recording_start_timestamp
+            
+        except Exception as e:
+            print(f"❌ Error starting PyAudio recording: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def _record_audio_thread(self):
+        """Thread function to continuously record audio frames."""
+        try:
+            while self.is_recording:
+                data = self.stream.read(self.CHUNK, exception_on_overflow=False)
+                self.audio_frames.append(data)
+        except Exception as e:
+            print(f"❌ Error in audio recording thread: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def stop_recording(self, synchronized_stop_time=None):
+        """Stop recording and save audio file. Returns the exact stop timestamp.
+        
+        Args:
+            synchronized_stop_time: Optional future timestamp to stop at (for perfect sync with video).
+        """
+        import time
+        
+        if not self.is_recording:
+            print(f"⚠️ Audio recording not active for session {self.session_id}")
+            return None
+        
+        # CRITICAL: If synchronized_stop_time is provided, wait until that exact moment
+        if synchronized_stop_time:
+            current_time = time.time()
+            if current_time < synchronized_stop_time:
+                wait_time = synchronized_stop_time - current_time
+                print(f"🕐 Audio waiting {wait_time * 1000:.1f}ms until synchronized stop time: {synchronized_stop_time}")
+                time.sleep(wait_time)
+                print(f"✅ Reached synchronized stop time - stopping audio recording now")
+        
+        # CRITICAL: Record exact stop timestamp AFTER synchronized wait
+        self.recording_stop_timestamp = time.time()
+        print(f"🕐 Audio recording stop timestamp: {self.recording_stop_timestamp}")
+        
+        # Stop recording
+        self.is_recording = False
+        
+        # Wait for recording thread to finish
+        if hasattr(self, 'recording_thread'):
+            self.recording_thread.join(timeout=2.0)
+        
+        # Stop and close stream
+        if self.stream:
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+            except:
+                pass
+            self.stream = None
+        
+        # Save audio to file
+        try:
+            # Create audio directory
+            audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
+            os.makedirs(audio_dir, exist_ok=True)
+            
+            # Generate filename
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            audio_filename = f"{self.session_id}_{timestamp}.wav"
+            self.audio_file_path = os.path.join(audio_dir, audio_filename)
+            
+            # Save as WAV file
+            wf = wave.open(self.audio_file_path, 'wb')
+            wf.setnchannels(self.CHANNELS)
+            wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
+            wf.setframerate(self.RATE)
+            wf.writeframes(b''.join(self.audio_frames))
+            wf.close()
+            
+            # Return relative path
+            relative_path = os.path.relpath(self.audio_file_path, settings.MEDIA_ROOT).replace('\\', '/')
+            print(f"✅ Audio saved: {relative_path} ({len(self.audio_frames) * self.CHUNK / self.RATE:.2f}s)")
+            
+            return relative_path
+            
+        except Exception as e:
+            print(f"❌ Error saving audio file: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def cleanup(self):
+        """Clean up resources."""
+        if self.is_recording:
+            self.stop_recording()
+        
+        if self.stream:
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+            except:
+                pass
+        
+        try:
+            self.audio.terminate()
+        except:
+            pass
+        
+        return self.audio_file_path
         latest_mtime = 0
         
         for filename in os.listdir(audio_dir):

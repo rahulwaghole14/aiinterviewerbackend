@@ -19,6 +19,9 @@ sounddevice>=0.4.6
 pyannote.audio>=3.1.0
 torch>=2.0.0
 torchaudio>=2.0.0
+av>=12.0.0  # PyAV for video/audio recording and merging
+pyaudio>=0.2.14  # PyAudio for backend audio recording
+moviepy>=1.0.3  # MoviePy for video/audio merging
 
 # Text Analysis
 textblob>=0.17.1

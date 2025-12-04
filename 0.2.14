@@ -1,0 +1,5 @@
+Collecting pyaudio
+  Using cached PyAudio-0.2.14-cp310-cp310-win_amd64.whl.metadata (2.7 kB)
+Using cached PyAudio-0.2.14-cp310-cp310-win_amd64.whl (164 kB)
+Installing collected packages: pyaudio
+Successfully installed pyaudio-0.2.14

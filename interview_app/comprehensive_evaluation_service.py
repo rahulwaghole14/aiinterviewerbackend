@@ -187,11 +187,18 @@ class ComprehensiveEvaluationService:
             coding_accuracy = (coding_correct / coding_attempted * 100) if coding_attempted > 0 else 0
             overall_accuracy = (total_correct / total_questions * 100) if total_questions > 0 else 0
             
-            # Add metrics to result - use technical counts for backward compatibility
+            # CRITICAL: Add metrics to result - use technical counts for Technical Performance Metrics
             # Frontend expects questions_attempted and questions_correct for TECHNICAL questions
+            # These values come from LLM's QUESTION CORRECTNESS ANALYSIS section
             result['questions_attempted'] = technical_attempted
             result['questions_correct'] = technical_correct
             result['accuracy_percentage'] = technical_accuracy
+            
+            print(f"✅ LLM Analysis Results:")
+            print(f"   Technical Questions Attempted: {technical_attempted}")
+            print(f"   Technical Questions Correct: {technical_correct}")
+            print(f"   Technical Accuracy: {technical_accuracy:.1f}%")
+            print(f"   (These values come from LLM's QUESTION CORRECTNESS ANALYSIS)")
             
             # Also include separate counts for all question types
             result['technical_questions_attempted'] = technical_attempted

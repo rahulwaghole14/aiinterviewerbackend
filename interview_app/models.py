@@ -42,6 +42,7 @@ class WarningLog(models.Model):
     warning_type = models.CharField(max_length=50)
     timestamp = models.DateTimeField(auto_now_add=True)
     snapshot = models.CharField(max_length=255, null=True, blank=True, help_text="Filename of the snapshot image captured when warning occurred")
+    snapshot_image = models.ImageField(upload_to='proctoring_snaps/', null=True, blank=True, help_text="Snapshot image stored in database")
 
     def __str__(self):
         return f"Warning ({self.warning_type}) for {self.session.candidate_name}"

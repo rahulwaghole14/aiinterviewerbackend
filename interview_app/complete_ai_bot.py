@@ -13,7 +13,7 @@ from django.conf import settings
 import numpy as np
 
 # Configure Gemini - Using 2.5-flash as per your app.py
-GEMINI_API_KEY = "AIzaSyA4DMuYRFP9-oxfQAJIMyZjabE5LA8YbyI"
+GEMINI_API_KEY = "AIzaSyALc4F87QUPBxqLLczo7bACCSR6UHWriqo"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Google Cloud TTS setup (exactly like app.py)
@@ -1333,31 +1333,62 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                         "continuous": True
                     }
 
-        # Check if candidate is requesting to repeat the question using LLM
-        # Send candidate response to LLM to determine if it's a repeat request
+        # Check if candidate is requesting to repeat the question
+        # FIRST: Check for explicit repeat phrases (fast, reliable)
+        # ONLY use LLM if explicit phrases are found to avoid false positives
         last_question = get_last_strict_question(session)
-        if last_question:
-            # Use LLM to analyze if candidate is asking to repeat the question
-            is_repeat = is_repeat_request_via_llm(session, transcript, last_question)
+        if last_question and transcript.strip():
+            transcript_lower = transcript.lower().strip()
             
-            if is_repeat:
-                # Candidate is asking to repeat - use LLM to generate a natural response that repeats the question
-                repeat_response = generate_repeat_question_response(session, last_question)
-                session.add_interviewer_message(repeat_response)
-                session.awaiting_answer = True
-                session.last_active_question_text = last_question  # Keep original question as active
-                repeat_audio_url = text_to_speech(repeat_response, f"q{session.current_question_number}_repeat.mp3")
-                _reset_question_timers(session)
-                print(f"🔄 LLM detected repeat request. Generated repeat response: {repeat_response[:100]}...")
-                return {
-                    "transcript": transcript,
-                    "completed": False,
-                    "next_question": repeat_response,
-                    "audio_url": repeat_audio_url,
-                    "question_number": session.current_question_number,  # Don't increment - same question
-                    "max_questions": session.max_questions,
-                    "continuous": True
-                }
+            # Explicit repeat request phrases (must contain these to be considered a repeat request)
+            explicit_repeat_phrases = [
+                "repeat the question",
+                "repeat the previous question",
+                "ask again",
+                "say that again",
+                "what was the question",
+                "i didn't hear",
+                "i didn't catch",
+                "pardon",
+                "sorry what",
+                "can you repeat",
+                "could you repeat",
+                "would you repeat",
+                "please repeat"
+            ]
+            
+            # Only check for repeat if explicit phrases are present
+            has_explicit_repeat_phrase = any(phrase in transcript_lower for phrase in explicit_repeat_phrases)
+            
+            if has_explicit_repeat_phrase:
+                # Use LLM to confirm it's a repeat request (not a false positive)
+                is_repeat = is_repeat_request_via_llm(session, transcript, last_question)
+                
+                if is_repeat:
+                    # SAFEGUARD: Prevent infinite loops - don't repeat if we've already repeated this question recently
+                    # Check if the last message was also a repeat of the same question
+                    last_messages = session.get_conversation_context()
+                    if "of course" in last_messages.lower() and last_question.lower() in last_messages.lower():
+                        # We just repeated this question - don't repeat again, move to next question instead
+                        print(f"⚠️ Prevented infinite repeat loop - already repeated this question. Moving to next question.")
+                    else:
+                        # Candidate is asking to repeat - use LLM to generate a natural response that repeats the question
+                        repeat_response = generate_repeat_question_response(session, last_question)
+                        session.add_interviewer_message(repeat_response)
+                        session.awaiting_answer = True
+                        session.last_active_question_text = last_question  # Keep original question as active
+                        repeat_audio_url = text_to_speech(repeat_response, f"q{session.current_question_number}_repeat.mp3")
+                        _reset_question_timers(session)
+                        print(f"🔄 LLM confirmed repeat request. Generated repeat response: {repeat_response[:100]}...")
+                        return {
+                            "transcript": transcript,
+                            "completed": False,
+                            "next_question": repeat_response,
+                            "audio_url": repeat_audio_url,
+                            "question_number": session.current_question_number,  # Don't increment - same question
+                            "max_questions": session.max_questions,
+                            "continuous": True
+                        }
         
         # Regular skip command handling (for skips like "skip", "next question", "move on")
         if any(phrase in transcript_lower for phrase in ["skip", "next question", "move on"]):

@@ -4010,17 +4010,22 @@
                             });
                         }
                         
-                        // CRITICAL: Stop audio FIRST, then end session (which stops video)
-                        // This ensures both stop at approximately the same time
-                        console.log('🛑 Stopping audio recording BEFORE ending session...');
-                        const audioStopResult = await audioRecorder.stopRecording();
+                        // CRITICAL: Calculate synchronized stop time for both audio and video
+                        // This ensures both stop at the EXACT same moment
+                        const synchronizedStopTime = Date.now() / 1000 + 0.2; // 200ms in the future
+                        console.log(`🕐 Synchronized stop time: ${synchronizedStopTime} (both audio and video will stop at this exact moment)`);
+                        
+                        // CRITICAL: Stop audio at synchronized time
+                        console.log('🛑 Stopping audio recording at synchronized time...');
+                        const audioStopResult = await audioRecorder.stopRecording(synchronizedStopTime);
                         console.log('📊 Audio stop result:', audioStopResult);
                         
-                        // Small delay to ensure audio is fully stopped
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        // Add synchronized stop time to end session data
+                        endSessionData.synchronized_stop_time = synchronizedStopTime;
+                        endSessionData.audio_stop_timestamp = audioStopResult.audioStopTimestamp || audioStopTimestamp;
                         
-                        // Now end session (which will stop video and merge)
-                        console.log('🏁 Ending interview session (will stop video and merge)...');
+                        // Now end session (which will stop video at the same synchronized time and merge)
+                        console.log('🏁 Ending interview session (will stop video at synchronized time and merge)...');
                         fetch("{% url 'end_interview_session' %}", {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -4078,14 +4083,24 @@
                         hasChunks: audioRecorder.audioChunks && audioRecorder.audioChunks.length > 0
                     });
                     
-                    // If recording, stop it and wait for upload
+                    // CRITICAL: Calculate synchronized stop time for both audio and video
+                    const synchronizedStopTime = Date.now() / 1000 + 0.2; // 200ms in the future
+                    console.log(`🕐 Synchronized stop time: ${synchronizedStopTime}`);
+                    
+                    // If recording, stop it at synchronized time and wait for upload
                     if (audioRecorder.isRecording) {
-                        const stopResult = await audioRecorder.stopRecording();
+                        const stopResult = await audioRecorder.stopRecording(synchronizedStopTime);
                         console.log('📊 Stop recording result:', stopResult);
                         
                         if (stopResult && stopResult.success && stopResult.audioPath) {
                             audioPath = stopResult.audioPath;
                             console.log('✅ Audio path from stopRecording:', audioPath);
+                        }
+                        
+                        // Add synchronized stop time to end session data
+                        if (endSessionData) {
+                            endSessionData.synchronized_stop_time = synchronizedStopTime;
+                            endSessionData.audio_stop_timestamp = stopResult.audioStopTimestamp;
                         }
                     } else if (audioRecorder.audioChunks && audioRecorder.audioChunks.length > 0) {
                         // If not recording but has chunks, process them

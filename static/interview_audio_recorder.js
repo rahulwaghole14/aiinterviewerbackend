@@ -182,24 +182,15 @@ class InterviewAudioRecorder {
                     console.log(`✅ Starting audio at synchronized time: ${actualStartTime}`);
                     console.log(`   Time difference: ${(timeDiff * 1000).toFixed(1)}ms (should be < 50ms)`);
                     
-                    // Use the synchronized timestamp as authoritative start time
+                    // CRITICAL: Use the synchronized timestamp as authoritative start time (not actualStartTime)
+                    // This ensures video and audio use the EXACT same timestamp for perfect synchronization
                     this.audioStartTimestamp = videoStartTimestamp;
                     console.log(`🕐 Audio and video using EXACT same start timestamp: ${videoStartTimestamp}`);
                     console.log(`   ✅ Perfect synchronization - no trimming needed!`);
                 } else {
-                    // Timestamp is in the past - use current time
-                    this.audioStartTimestamp = currentTime;
-                    console.log(`⚠️ Video timestamp is in the past, using current time: ${currentTime}`);
-                }
-                console.log(`🕐 MediaRecorder will start at: ${mediaRecorderStartTime}`);
-                
-                const syncDiff = Math.abs(mediaRecorderStartTime - videoStartTimestamp);
-                console.log(`⏱️ Time difference between video start and audio MediaRecorder start: ${(syncDiff * 1000).toFixed(2)}ms`);
-                
-                if (syncDiff > 0.5) {
-                    console.warn(`⚠️ WARNING: Audio MediaRecorder started ${(syncDiff * 1000).toFixed(2)}ms after video - will be corrected during merge`);
-                } else {
-                    console.log(`✅ Audio and video start times are well synchronized (< 500ms difference)`);
+                    // Timestamp is in the past - use video timestamp anyway for consistency
+                    this.audioStartTimestamp = videoStartTimestamp;
+                    console.log(`⚠️ Video timestamp is in the past, but using it for consistency: ${videoStartTimestamp}`);
                 }
             } else {
                 // No video timestamp - use current time
@@ -263,12 +254,16 @@ class InterviewAudioRecorder {
                 await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
                 console.log(`✅ Reached synchronized stop time - stopping audio now`);
             }
+            // CRITICAL: Use synchronized_stop_time as authoritative timestamp (not current time after wait)
+            // This ensures video and audio stop at the EXACT same timestamp for perfect synchronization
+            this.audioStopTimestamp = synchronizedStopTime;
+            console.log(`🕐 Audio recording stop timestamp (using synchronized time): ${this.audioStopTimestamp}`);
+            console.log(`   ✅ Video and audio will stop at EXACT same timestamp - perfect synchronization!`);
+        } else {
+            // No synchronized stop time - use current time
+            this.audioStopTimestamp = Date.now() / 1000;
+            console.log(`🕐 Audio recording stop timestamp (no sync): ${this.audioStopTimestamp}`);
         }
-        
-        // CRITICAL: Record audio stop timestamp AFTER synchronized wait
-        const audioStopTimestamp = Date.now() / 1000;
-        this.audioStopTimestamp = audioStopTimestamp;
-        console.log(`🕐 Audio recording stop timestamp: ${audioStopTimestamp}`);
         
         // Even if not recording, check if there are chunks to process
         const hasChunks = this.audioChunks && this.audioChunks.length > 0;

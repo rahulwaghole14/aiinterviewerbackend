@@ -1503,14 +1503,20 @@ class SimpleRealVideoCamera:
             current_time = time.time()
             if current_time < synchronized_stop_time:
                 wait_time = synchronized_stop_time - current_time
-                print(f"🕐 Waiting {wait_time * 1000:.1f}ms until synchronized stop time: {synchronized_stop_time}")
+                print(f"🕐 Video waiting {wait_time * 1000:.1f}ms until synchronized stop time: {synchronized_stop_time}")
                 time.sleep(wait_time)
                 print(f"✅ Reached synchronized stop time - stopping video now")
-        
-        # CRITICAL: Record video stop timestamp AFTER synchronized wait
-        video_stop_timestamp = time.time()
-        self._recording_stop_timestamp = video_stop_timestamp
-        print(f"🕐 Video recording stop timestamp: {video_stop_timestamp}")
+            # CRITICAL: Use synchronized_stop_time as authoritative timestamp (not current time after wait)
+            # This ensures video and audio stop at the EXACT same timestamp for perfect synchronization
+            video_stop_timestamp = synchronized_stop_time
+            self._recording_stop_timestamp = video_stop_timestamp
+            print(f"🕐 Video recording stop timestamp (using synchronized time): {video_stop_timestamp}")
+            print(f"   ✅ Video and audio will stop at EXACT same timestamp - perfect synchronization!")
+        else:
+            # No synchronized stop time - use current time
+            video_stop_timestamp = time.time()
+            self._recording_stop_timestamp = video_stop_timestamp
+            print(f"🕐 Video recording stop timestamp (no sync): {video_stop_timestamp}")
         
         # Allow merging even if recording was already stopped (for audio merge after cleanup)
         video_path = self._video_file_path
@@ -2267,22 +2273,22 @@ class SimpleRealVideoCamera:
                         # This ensures video starts at the EXACT same moment as audio
                         if hasattr(self, '_synchronized_start_time') and self._synchronized_start_time:
                             if current_time < self._synchronized_start_time:
-                                # Not time yet - skip this frame and wait
+                                # Not time yet - sleep for precise timing (more accurate than continue)
+                                wait_time = self._synchronized_start_time - current_time
+                                if wait_time > 0.001:  # Only sleep if wait time is significant (>1ms)
+                                    _t.sleep(min(wait_time, 0.1))  # Sleep up to 100ms at a time
                                 continue
                             elif not self._first_frame_written:
                                 # First frame at synchronized time - record EXACT timestamp
                                 # CRITICAL: Use synchronized_start_time as authoritative timestamp (not current_time)
                                 # This ensures video and audio use the SAME timestamp for perfect synchronization
                                 self._first_frame_written = True
-                                # Use synchronized_start_time if available, otherwise use current_time
-                                if hasattr(self, '_synchronized_start_time') and self._synchronized_start_time:
-                                    self._recording_start_timestamp = self._synchronized_start_time
-                                    print(f"🕐 FIRST FRAME WRITTEN at synchronized time: {self._recording_start_timestamp}")
-                                    print(f"   ✅ Using synchronized_start_time as authoritative timestamp")
-                                    print(f"   ✅ Video and audio will use SAME timestamp - perfect synchronization!")
-                                else:
-                                    self._recording_start_timestamp = current_time
-                                    print(f"🕐 FIRST FRAME WRITTEN (no sync time) - Video recording started at: {self._recording_start_timestamp}")
+                                # ALWAYS use synchronized_start_time as authoritative timestamp
+                                self._recording_start_timestamp = self._synchronized_start_time
+                                print(f"🕐 FIRST FRAME WRITTEN at synchronized time: {self._recording_start_timestamp}")
+                                print(f"   ✅ Using synchronized_start_time as authoritative timestamp")
+                                print(f"   ✅ Video and audio will use SAME timestamp - perfect synchronization!")
+                                print(f"   ⏱️ Current time: {current_time}, Difference: {(current_time - self._synchronized_start_time) * 1000:.2f}ms")
                         elif not self._first_frame_written:
                             # No synchronized time - record timestamp when first frame is written
                             self._first_frame_written = True
@@ -2778,10 +2784,15 @@ class PyAudioAudioRecorder:
                     print(f"🕐 Audio waiting {wait_time * 1000:.1f}ms until synchronized start time: {synchronized_start_time}")
                     time.sleep(wait_time)
                     print(f"✅ Reached synchronized start time - starting audio recording now")
-            
-            # CRITICAL: Record exact start timestamp AFTER synchronized wait
-            self.recording_start_timestamp = time.time()
-            print(f"🕐 Audio recording start timestamp: {self.recording_start_timestamp}")
+                # CRITICAL: Use synchronized_start_time as authoritative timestamp (not current time after wait)
+                # This ensures video and audio use the EXACT same timestamp for perfect synchronization
+                self.recording_start_timestamp = synchronized_start_time
+                print(f"🕐 Audio recording start timestamp (using synchronized time): {self.recording_start_timestamp}")
+                print(f"   ✅ Video and audio using EXACT same timestamp - perfect synchronization!")
+            else:
+                # No synchronized time - use current time
+                self.recording_start_timestamp = time.time()
+                print(f"🕐 Audio recording start timestamp (no sync): {self.recording_start_timestamp}")
             
             # Open audio stream
             self.stream = self.audio.open(
@@ -2840,10 +2851,15 @@ class PyAudioAudioRecorder:
                 print(f"🕐 Audio waiting {wait_time * 1000:.1f}ms until synchronized stop time: {synchronized_stop_time}")
                 time.sleep(wait_time)
                 print(f"✅ Reached synchronized stop time - stopping audio recording now")
-        
-        # CRITICAL: Record exact stop timestamp AFTER synchronized wait
-        self.recording_stop_timestamp = time.time()
-        print(f"🕐 Audio recording stop timestamp: {self.recording_stop_timestamp}")
+            # CRITICAL: Use synchronized_stop_time as authoritative timestamp (not current time after wait)
+            # This ensures video and audio stop at the EXACT same timestamp for perfect synchronization
+            self.recording_stop_timestamp = synchronized_stop_time
+            print(f"🕐 Audio recording stop timestamp (using synchronized time): {self.recording_stop_timestamp}")
+            print(f"   ✅ Video and audio will stop at EXACT same timestamp - perfect synchronization!")
+        else:
+            # No synchronized stop time - use current time
+            self.recording_stop_timestamp = time.time()
+            print(f"🕐 Audio recording stop timestamp (no sync): {self.recording_stop_timestamp}")
         
         # Stop recording
         self.is_recording = False

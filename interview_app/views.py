@@ -1648,6 +1648,49 @@ def dashboard(request):
     template = loader.get_template('interview_app/dashboard.html')
     return HttpResponse(template.render(context, request))
 
+def serve_react_app(request):
+    """Serve React app's index.html for all frontend routes (SPA catch-all)"""
+    try:
+        # Path to React app's built index.html
+        frontend_build_path = os.path.join(settings.BASE_DIR, 'frontend', 'dist', 'index.html')
+        
+        # If built version exists, serve it
+        if os.path.exists(frontend_build_path):
+            with open(frontend_build_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Update asset paths if needed (Vite builds use absolute paths)
+                return HttpResponse(content, content_type='text/html')
+        
+        # Fallback: serve development index.html if dist doesn't exist
+        # Note: In development, you should run the frontend separately with `npm run dev`
+        # This is just a fallback for when accessing Django directly
+        frontend_dev_path = os.path.join(settings.BASE_DIR, 'frontend', 'index.html')
+        if os.path.exists(frontend_dev_path):
+            with open(frontend_dev_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # In development mode, suggest using the Vite dev server
+                if settings.DEBUG:
+                    content = content.replace(
+                        '</body>',
+                        '<script>console.warn("⚠️ Frontend not built. For development, run: cd frontend && npm run dev");</script></body>'
+                    )
+                return HttpResponse(content, content_type='text/html')
+        
+        # Last resort: return a helpful message
+        return HttpResponse(
+            '<html><body><h1>Frontend not found</h1>'
+            '<p>Please build the frontend:</p>'
+            '<pre>cd frontend && npm run build</pre>'
+            '<p>Or for development, run the frontend separately:</p>'
+            '<pre>cd frontend && npm run dev</pre>'
+            '</body></html>',
+            status=404
+        )
+    except Exception as e:
+        import traceback
+        error_msg = f'Error serving frontend: {str(e)}\n{traceback.format_exc()}'
+        return HttpResponse(f'<html><body><h1>Error</h1><pre>{error_msg}</pre></body></html>', status=500)
+
 @login_required
 def interview_report(request, session_id):
     try:

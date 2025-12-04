@@ -1,14 +1,18 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
 from . import views
+import os
 
 urlpatterns = [
     # Existing URLs for the app
     path('invite/', views.create_interview_invite, name='create_invite'),
     path('generate-link/', views.generate_interview_link, name='generate_interview_link'),
-    path('', views.interview_portal, name='interview_portal'),
-    path('dashboard/', views.dashboard, name='dashboard'),
+    # Interview portal route (specific route, not catch-all)
+    path('interview/', views.interview_portal, name='interview_portal'),
+    # Root path - serve React app (interview portal accessed via /interview/)
+    path('', views.serve_react_app, name='react_app_root'),
     path('report/<uuid:session_id>/pdf/', views.download_report_pdf, name='download_report_pdf'),
     path('report/<uuid:session_id>/', views.interview_report, name='interview_report'),
     path('complete/', views.interview_complete, name='interview_complete'),
@@ -64,6 +68,15 @@ urlpatterns = [
     path('api/requests/', include('candidates.urls')),  # Requests endpoints (pending, etc.)
 ]
 
+# Catch-all route for React SPA (must be added after all other routes)
+# This serves the React app for all frontend routes like /login, /dashboard, etc.
+# Excludes API routes, media files, static files, and other backend routes
+urlpatterns += [
+    re_path(r'^(?!api/|media/|static/|admin/|invite/|generate-link/|report/|complete/|video_feed/|video_frame/|status/|transcribe/|check_camera/|activate_proctoring/|end_session/|release_camera/|verify_id/|execute_code/|submit_coding_challenge/|ai/|chatbot/|interview/).*$', views.serve_react_app, name='react_app'),
+]
+
 # Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Serve static files from frontend dist folder
+    urlpatterns += static('/static/', document_root=os.path.join(settings.BASE_DIR, 'frontend', 'dist'))

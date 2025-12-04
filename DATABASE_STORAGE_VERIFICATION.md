@@ -112,3 +112,4 @@ To verify files are saved correctly:
 - PostgreSQL stores the file paths and metadata, while actual files are stored in MEDIA_ROOT
 - The `ContentFile` wrapper ensures files are properly handled by Django's file storage system
 
+

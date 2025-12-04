@@ -86,3 +86,4 @@ To verify the fix works:
 3. Check frontend console for: "✅ Using LLM analysis (technical_questions_*): X/Y correct"
 4. Verify Technical Performance Metrics show correct numbers
 
+

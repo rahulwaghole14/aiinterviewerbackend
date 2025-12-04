@@ -1,6 +1,5 @@
 import os
 import google.generativeai as genai
-from numpy._core.numeric import False_
 import whisper
 import PyPDF2
 import docx

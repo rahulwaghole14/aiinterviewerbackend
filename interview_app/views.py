@@ -1677,23 +1677,39 @@ def dashboard(request):
 def serve_react_app(request):
     """Serve React app's index.html for all frontend routes (SPA catch-all)"""
     try:
-        # Path to React app's built index.html
-        frontend_build_path = os.path.join(settings.BASE_DIR, 'frontend', 'dist', 'index.html')
-        frontend_dist_dir = os.path.join(settings.BASE_DIR, 'frontend', 'dist')
+        # Try multiple possible locations for the frontend build
+        # 1. static_frontend_dist (copied dist folder in backend repo - for deployment)
+        # 2. frontend/dist (if frontend is not a submodule or is checked out)
+        possible_paths = [
+            os.path.join(settings.BASE_DIR, 'static_frontend_dist', 'index.html'),
+            os.path.join(settings.BASE_DIR, 'frontend', 'dist', 'index.html'),
+        ]
+        
+        frontend_build_path = None
+        frontend_dist_dir = None
         
         # Debug logging
-        print(f"🔍 Looking for frontend at: {frontend_build_path}")
+        print(f"🔍 Looking for frontend build...")
         print(f"   BASE_DIR: {settings.BASE_DIR}")
-        print(f"   dist dir exists: {os.path.exists(frontend_dist_dir)}")
-        print(f"   index.html exists: {os.path.exists(frontend_build_path)}")
         
-        # Check if dist directory exists
-        if os.path.exists(frontend_dist_dir):
-            dist_files = os.listdir(frontend_dist_dir)
-            print(f"   Files in dist: {dist_files[:10]}")  # Show first 10 files
+        for path in possible_paths:
+            dist_dir = os.path.dirname(path)
+            print(f"   Checking: {path}")
+            print(f"   Exists: {os.path.exists(path)}")
+            if os.path.exists(path):
+                frontend_build_path = path
+                frontend_dist_dir = dist_dir
+                print(f"   ✅ Found frontend at: {path}")
+                break
+        
+        # If no build found, use first path for logging
+        if not frontend_build_path:
+            frontend_build_path = possible_paths[0]
+            frontend_dist_dir = os.path.dirname(frontend_build_path)
+            print(f"   ❌ Frontend build not found in any location")
         
         # If built version exists, serve it
-        if os.path.exists(frontend_build_path):
+        if frontend_build_path and os.path.exists(frontend_build_path):
             print(f"✅ Serving frontend from: {frontend_build_path}")
             with open(frontend_build_path, 'r', encoding='utf-8') as f:
                 content = f.read()

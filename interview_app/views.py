@@ -1,6 +1,13 @@
 import os
 import google.generativeai as genai
-import whisper
+# Whisper import with fallback (optional dependency)
+try:
+    import whisper
+    WHISPER_AVAILABLE = True
+except ImportError:
+    whisper = None
+    WHISPER_AVAILABLE = False
+    print("⚠️ Warning: openai-whisper not available. Whisper transcription features will be disabled.")
 import PyPDF2
 import docx
 import re
@@ -54,7 +61,14 @@ from django.contrib.auth.decorators import login_required
 from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
 from django.core.mail import send_mail
-from weasyprint import HTML
+# WeasyPrint import with fallback (optional dependency)
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    HTML = None
+    WEASYPRINT_AVAILABLE = False
+    print("⚠️ Warning: weasyprint not available. PDF generation features will be disabled.")
 
 # from .camera import VideoCamera
 # from .simple_camera import SimpleVideoCamera as VideoCamera
@@ -99,11 +113,17 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CRE
 # This does NOT affect AI evaluation in the report or email sending.
 DEV_MODE = False
 
-try:
-    whisper_model = whisper.load_model("base")
-    print("Whisper model 'base' loaded.")
-except Exception as e:
-    print(f"Error loading Whisper model: {e}"); whisper_model = None
+# Initialize Whisper model if available
+whisper_model = None
+if WHISPER_AVAILABLE and whisper:
+    try:
+        whisper_model = whisper.load_model("base")
+        print("Whisper model 'base' loaded.")
+    except Exception as e:
+        print(f"Error loading Whisper model: {e}")
+        whisper_model = None
+else:
+    print("Whisper not available - transcription features disabled")
 
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 CAMERAS, camera_lock = {}, threading.Lock()
@@ -2088,6 +2108,12 @@ def download_report_pdf(request, session_id):
         html_string = render_to_string('interview_app/report_pdf.html', context)
         
         # 7. Use WeasyPrint to convert the rendered HTML string into a PDF.
+        if not WEASYPRINT_AVAILABLE or HTML is None:
+            return HttpResponse(
+                "PDF generation is not available. WeasyPrint is not installed. Please install weasyprint to enable PDF generation.",
+                status=503
+            )
+        
         print("🖨️ Generating PDF with WeasyPrint...")
         try:
             # Use base_url to help resolve any relative URLs, but don't rely on it for external images

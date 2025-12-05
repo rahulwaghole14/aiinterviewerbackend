@@ -158,7 +158,7 @@ def login_view(request):
                 )
 
                 return Response(
-                    {"error": "Invalid credentials"},
+                    {"error": "Invalid credentials", "detail": "Invalid email or password. Please try again."},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
         else:

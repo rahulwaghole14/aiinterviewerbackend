@@ -217,7 +217,8 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
-    BASE_DIR / "frontend" / "dist",  # Include frontend build output
+    BASE_DIR / "static_frontend_dist",  # Include frontend build output (copied dist folder)
+    BASE_DIR / "frontend" / "dist",  # Include frontend build output (if submodule is checked out)
 ]
 
 # Media files

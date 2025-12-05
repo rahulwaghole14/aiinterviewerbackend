@@ -70,12 +70,25 @@ urlpatterns = [
 
 # Serve frontend static assets (CSS, JS, images from Vite build)
 # Vite builds assets to /assets/ directory
-def serve_frontend_assets(request, path):
+def serve_frontend_assets(request, path=None):
     """Serve frontend static assets from static_frontend_dist/assets/"""
     from django.http import FileResponse, Http404
     import os
     
-    # Try multiple possible locations
+    # Handle root-level assets (favicons, etc.) - path might be the filename
+    if path is None or '/' not in path:
+        # This is likely a root-level asset request
+        asset_name = path or request.path.lstrip('/')
+        root_assets = [
+            os.path.join(settings.BASE_DIR, 'static_frontend_dist', asset_name),
+            os.path.join(settings.BASE_DIR, 'frontend', 'dist', asset_name),
+        ]
+        
+        for file_path in root_assets:
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return FileResponse(open(file_path, 'rb'), content_type=get_content_type(file_path))
+    
+    # Try multiple possible locations for /assets/ path
     possible_paths = [
         os.path.join(settings.BASE_DIR, 'static_frontend_dist', 'assets', path),
         os.path.join(settings.BASE_DIR, 'frontend', 'dist', 'assets', path),

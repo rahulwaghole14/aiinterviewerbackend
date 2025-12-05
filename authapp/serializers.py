@@ -86,10 +86,10 @@ class LoginSerializer(serializers.Serializer):
             )
 
         if not user:
-            raise serializers.ValidationError("Invalid email/username or password.")
+            raise serializers.ValidationError({"detail": "Invalid email/username or password."})
 
         if not user.is_active:
-            raise serializers.ValidationError("User account is disabled.")
+            raise serializers.ValidationError({"detail": "User account is disabled."})
 
         data["user"] = user
         return data

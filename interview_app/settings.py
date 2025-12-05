@@ -247,7 +247,21 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Disable CSRF for API endpoints (using Token auth instead)
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
 }
+
+# Disable CSRF for API endpoints - they use token authentication
+CSRF_TRUSTED_ORIGINS = [
+    "https://aiinterviewerbackend-2.onrender.com",
+    "https://*.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 
 # CORS settings to allow Vite dev server and Render frontend
 CORS_ALLOWED_ORIGINS = [
@@ -262,6 +276,16 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$", 
     r"^http://127\.0\.0\.1:\d+$",
     r"^https://.*\.onrender\.com$",  # Allow all Render subdomains
+]
+
+# CSRF trusted origins - required for CSRF exemption to work properly
+CSRF_TRUSTED_ORIGINS = [
+    "https://aiinterviewerbackend-2.onrender.com",
+    "https://*.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # Email configuration (reads from environment; falls back to console backend in dev)

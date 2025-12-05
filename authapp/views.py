@@ -24,8 +24,6 @@ class IsAdminUserCustom(IsAuthenticated):
         )
 
 
-from django.views.decorators.csrf import csrf_exempt
-
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])

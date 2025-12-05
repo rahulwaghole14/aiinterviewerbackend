@@ -68,11 +68,66 @@ urlpatterns = [
     path('api/requests/', include('candidates.urls')),  # Requests endpoints (pending, etc.)
 ]
 
+# Serve frontend static assets (CSS, JS, images from Vite build)
+# Vite builds assets to /assets/ directory
+def serve_frontend_assets(request, path):
+    """Serve frontend static assets from static_frontend_dist/assets/"""
+    from django.http import FileResponse, Http404
+    import os
+    
+    # Try multiple possible locations
+    possible_paths = [
+        os.path.join(settings.BASE_DIR, 'static_frontend_dist', 'assets', path),
+        os.path.join(settings.BASE_DIR, 'frontend', 'dist', 'assets', path),
+    ]
+    
+    for file_path in possible_paths:
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(open(file_path, 'rb'), content_type=get_content_type(file_path))
+    
+    # Also check root level assets (favicons, etc.)
+    root_assets = [
+        os.path.join(settings.BASE_DIR, 'static_frontend_dist', path),
+        os.path.join(settings.BASE_DIR, 'frontend', 'dist', path),
+    ]
+    
+    for file_path in root_assets:
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(open(file_path, 'rb'), content_type=get_content_type(file_path))
+    
+    raise Http404("Asset not found")
+
+def get_content_type(file_path):
+    """Determine content type based on file extension"""
+    ext = os.path.splitext(file_path)[1].lower()
+    content_types = {
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.jsx': 'application/javascript',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.eot': 'application/vnd.ms-fontobject',
+    }
+    return content_types.get(ext, 'application/octet-stream')
+
+# Serve frontend assets before catch-all
+urlpatterns += [
+    path('assets/<path:path>', serve_frontend_assets, name='serve_frontend_assets'),
+]
+
 # Catch-all route for React SPA (must be added after all other routes)
 # This serves the React app for all frontend routes like /login, /dashboard, etc.
-# Excludes API routes, media files, static files, and other backend routes
+# Excludes API routes, media files, static files, assets, and other backend routes
 urlpatterns += [
-    re_path(r'^(?!api/|media/|static/|admin/|invite/|generate-link/|report/|complete/|video_feed/|video_frame/|status/|transcribe/|check_camera/|activate_proctoring/|end_session/|release_camera/|verify_id/|execute_code/|submit_coding_challenge/|ai/|chatbot/|interview/).*$', views.serve_react_app, name='react_app'),
+    re_path(r'^(?!api/|media/|static/|assets/|admin/|invite/|generate-link/|report/|complete/|video_feed/|video_frame/|status/|transcribe/|check_camera/|activate_proctoring/|end_session/|release_camera/|verify_id/|execute_code/|submit_coding_challenge/|ai/|chatbot/|interview/).*$', views.serve_react_app, name='react_app'),
 ]
 
 # Serve media files in development

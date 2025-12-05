@@ -1,18 +1,19 @@
 """
-Custom middleware to exempt API routes from CSRF protection
+Custom middleware to exempt API endpoints from CSRF protection.
+This is needed because API endpoints use token authentication, not session-based auth.
 """
 from django.utils.deprecation import MiddlewareMixin
-from django.middleware.csrf import CsrfViewMiddleware
+from django.views.decorators.csrf import csrf_exempt
 
 
-class CsrfExemptApiMiddleware(MiddlewareMixin):
+class DisableCSRFForAPI(MiddlewareMixin):
     """
-    Middleware that exempts API routes from CSRF protection.
-    API routes use token authentication, so CSRF is not needed.
+    Middleware to disable CSRF protection for all /api/ endpoints.
+    API endpoints use token authentication, so CSRF is not needed.
     """
     
     def process_request(self, request):
-        # Exempt all /api/ routes from CSRF
+        # Exempt all API endpoints from CSRF
         if request.path.startswith('/api/'):
             setattr(request, '_dont_enforce_csrf_checks', True)
         return None

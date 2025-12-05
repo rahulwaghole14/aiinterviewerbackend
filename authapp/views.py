@@ -194,6 +194,7 @@ def login_view(request):
         raise
 
 
+@csrf_exempt
 @api_view(["POST"])
 def logout_view(request):
     """User logout with comprehensive logging"""

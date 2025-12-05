@@ -41,7 +41,14 @@ import traceback
 import readtime
 import time
 import numpy as np
-import cv2
+# OpenCV import with fallback (optional dependency)
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    cv2 = None
+    CV2_AVAILABLE = False
+    print("⚠️ Warning: opencv-python not available. Camera and image processing features will be disabled.")
 import base64
 from django.utils import timezone
 from django.core.files.base import ContentFile
@@ -3048,8 +3055,11 @@ def video_frame(request):
     if not camera:
         # Return a minimal error frame
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.putText(frame, "Camera Not Found", (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        ok, buf = cv2.imencode('.jpg', frame)
+        if CV2_AVAILABLE and cv2:
+            cv2.putText(frame, "Camera Not Found", (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            ok, buf = cv2.imencode('.jpg', frame)
+        else:
+            return HttpResponse("OpenCV not available", status=503)
         if ok:
             return HttpResponse(buf.tobytes(), content_type='image/jpeg')
         return HttpResponse(status=404)
@@ -4341,6 +4351,9 @@ def verify_id(request):
         session.id_card_image.save(img_file.name, img_file, save=True)
         
         tmp_path = session.id_card_image.path
+        
+        if not CV2_AVAILABLE or cv2 is None:
+            return JsonResponse({'status': 'error', 'message': 'OpenCV not available. Image processing features are disabled.'})
         
         full_image = cv2.imread(tmp_path)
         if full_image is None:

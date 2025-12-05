@@ -1,16 +1,44 @@
 import logging
 import json
 import re
+import os
 from datetime import datetime
-from django.conf import settings
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 
 # Configure logging
+# Ensure logs directory exists
+try:
+    from django.conf import settings
+    log_dir = os.path.join(settings.BASE_DIR, "logs")
+except Exception:
+    # Fallback if Django settings not initialized
+    log_dir = "logs"
+
+# Create logs directory if it doesn't exist
+try:
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, "ai_interviewer.log")
+except Exception as e:
+    log_file_path = None
+    print(f"⚠️ Warning: Could not create logs directory: {e}")
+
+# Create handlers
+handlers = [logging.StreamHandler()]
+if log_file_path:
+    try:
+        # Try to create file handler
+        file_handler = logging.FileHandler(log_file_path)
+        handlers.append(file_handler)
+    except Exception as e:
+        # If file handler creation fails, only use StreamHandler
+        print(f"⚠️ Warning: Could not create log file handler: {e}")
+        print(f"   Logging to console only")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/ai_interviewer.log"), logging.StreamHandler()],
+    handlers=handlers,
 )
 
 logger = logging.getLogger("ai_interviewer")

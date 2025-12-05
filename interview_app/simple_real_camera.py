@@ -470,9 +470,9 @@ def merge_video_audio_ffmpeg(video_path, audio_file_path, output_path, video_sta
         print(f"   🔧 FFmpeg command: {' '.join(ffmpeg_cmd)}")
         
         # Run FFmpeg
-                    result = subprocess.run(
+        result = subprocess.run(
             ffmpeg_cmd,
-                        capture_output=True,
+            capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
         )
@@ -614,7 +614,7 @@ def merge_video_audio_pyav(video_path, audio_file_path, output_path, video_start
                 video_duration = float(video_stream.duration * video_stream.time_base)
             elif video_container.duration:
                 video_duration = float(video_container.duration) / av.time_base
-                    else:
+            else:
                 # Estimate from frames
                 frame_count = 0
                 for frame in video_container.decode(video_stream):
@@ -736,7 +736,7 @@ def merge_video_audio_pyav(video_path, audio_file_path, output_path, video_start
             # Try creating stream with explicit mono layout
             output_audio_stream = output_container.add_stream('aac', rate=44100, layout='mono')
             print(f"   ✅ Audio stream created with mono layout")
-                except Exception as e:
+        except Exception as e:
             print(f"   ⚠️ Could not create stream with layout: {e}, creating without layout")
             output_audio_stream = output_container.add_stream('aac', rate=44100)
         
@@ -1490,13 +1490,13 @@ class SimpleRealVideoCamera:
                 input_container.close()
                 
                 if os.path.exists(converted_video_path):
-                try:
-                    os.remove(video_path)  # Remove original
-                except:
-                    pass
+                    try:
+                        os.remove(video_path)  # Remove original
+                    except:
+                        pass
                     print(f"✅ Video converted to H.264 using PyAV: {converted_video_path}")
-                return converted_video_path
-            else:
+                    return converted_video_path
+                else:
                     print(f"⚠️ Video conversion failed - output file not created")
                     return video_path
             except Exception as e:
@@ -1859,7 +1859,7 @@ class SimpleRealVideoCamera:
                             audio_start_timestamp=audio_start_timestamp,
                             video_duration=None  # Let MoviePy calculate from video
                         )
-                                else:
+                    else:
                         # Fallback to FFmpeg if MoviePy not available
                         merge_success = merge_video_audio_ffmpeg(
                             video_path=video_path,
@@ -1890,27 +1890,27 @@ class SimpleRealVideoCamera:
                     print(f"   Merged file exists: {os.path.exists(merged_video_path)}")
                     print(f"   Merged file size: {merged_size_mb:.2f} MB ({merged_size} bytes)")
                     print(f"   Merged file path: {merged_video_path}")
-                            
-                            # Remove original video without audio
-                            try:
+                    
+                    # Remove original video without audio
+                    try:
                         if os.path.exists(video_path) and video_path != merged_video_path:
-                                    os.remove(video_path)
-                                    print(f"🗑️ Removed original video without audio: {video_path}")
-                                else:
+                            os.remove(video_path)
+                            print(f"🗑️ Removed original video without audio: {video_path}")
+                        else:
                             print(f"ℹ️ Original video already removed or is same as merged: {video_path}")
-                            except Exception as e:
-                                print(f"⚠️ Could not remove original video: {e}")
-                                import traceback
-                                traceback.print_exc()
-                            
-                            video_path = merged_video_path
-                            self._video_file_path = merged_video_path
+                    except Exception as e:
+                        print(f"⚠️ Could not remove original video: {e}")
+                        import traceback
+                        traceback.print_exc()
+                    
+                    video_path = merged_video_path
+                    self._video_file_path = merged_video_path
                     merge_lib_name = "MoviePy" if MOVIEPY_AVAILABLE else "FFmpeg"
                     print(f"✅ Video and audio merged successfully using {merge_lib_name}!")
                     print(f"   Final video path: {merged_video_path}")
                     print(f"   Final video size: {merged_size_mb:.2f} MB")
-                            print(f"   Frame rate: 5 fps (preserved from recording)")
-                            print(f"   ✅ ONLY merged video exists - original removed")
+                    print(f"   Frame rate: 5 fps (preserved from recording)")
+                    print(f"   ✅ ONLY merged video exists - original removed")
                         
                 except ImportError as e:
                     print(f"❌ Merge library not available: {e}")
@@ -2010,7 +2010,7 @@ class SimpleRealVideoCamera:
                                     self._video_file_path = merged_video_path
                                     print(f"✅ Video and audio merged successfully using {merge_lib}!")
                                     print(f"   Output: {merged_video_path} ({merged_size:.2f} MB)")
-                            else:
+                                else:
                                     print(f"❌ Merged video file is empty!")
                             else:
                                 print(f"❌ {merge_lib} merge failed!")
@@ -2039,7 +2039,7 @@ class SimpleRealVideoCamera:
                         if PYAV_AVAILABLE:
                             converted_video_path = self.ensure_browser_compatible_video(video_path)
                             if converted_video_path:
-                            video_path = converted_video_path
+                                video_path = converted_video_path
                         else:
                             print(f"⚠️ PyAV not available - skipping video conversion")
                     except Exception as e:
@@ -2265,7 +2265,7 @@ class SimpleRealVideoCamera:
                 # Try reading frame with retry logic
                 ret, frame = None, None
                 for attempt in range(3):  # Try up to 3 times
-                ret, frame = self.video.read()
+                    ret, frame = self.video.read()
                     if ret and frame is not None and frame.size > 0:
                         break
                     if attempt < 2:  # Don't sleep on last attempt
@@ -2530,7 +2530,7 @@ class SimpleRealVideoCamera:
                     ret, tmp = None, None
                     import time as time_module
                     for attempt in range(3):
-                    ret, tmp = self.video.read()
+                        ret, tmp = self.video.read()
                         if ret and tmp is not None and tmp.size > 0:
                             break
                         if attempt < 2:

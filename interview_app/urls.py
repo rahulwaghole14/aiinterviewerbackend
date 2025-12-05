@@ -136,7 +136,7 @@ urlpatterns += [
     path('assets/<path:path>', serve_frontend_assets, name='serve_frontend_assets'),
     # Serve root-level asset files (favicons, logos, etc.)
     re_path(r'^([^/]+\.(png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))$', 
-            lambda request, filename: serve_frontend_assets(request, filename), 
+            lambda request, *args: serve_frontend_assets(request, args[0] if args else request.path.lstrip('/')), 
             name='serve_root_assets'),
 ]
 

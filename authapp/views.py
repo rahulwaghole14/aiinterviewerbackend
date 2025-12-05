@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
+from django.views.decorators.csrf import csrf_exempt
 from .serializers import RegisterSerializer, LoginSerializer
 from .models import CustomUser
 from utils.logger import (
@@ -23,6 +24,9 @@ class IsAdminUserCustom(IsAuthenticated):
         )
 
 
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_view(request):
@@ -96,6 +100,7 @@ def register_view(request):
         raise
 
 
+@csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_view(request):

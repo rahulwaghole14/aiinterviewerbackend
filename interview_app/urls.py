@@ -134,6 +134,10 @@ def get_content_type(file_path):
 # Serve frontend assets before catch-all
 urlpatterns += [
     path('assets/<path:path>', serve_frontend_assets, name='serve_frontend_assets'),
+    # Serve root-level asset files (favicons, logos, etc.)
+    re_path(r'^([^/]+\.(png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))$', 
+            lambda request, filename: serve_frontend_assets(request, filename), 
+            name='serve_root_assets'),
 ]
 
 # Catch-all route for React SPA (must be added after all other routes)

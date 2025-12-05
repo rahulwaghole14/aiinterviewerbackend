@@ -1,5 +1,12 @@
 import time
-import cv2
+# OpenCV import with fallback (optional dependency)
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    cv2 = None
+    CV2_AVAILABLE = False
+    print("⚠️ Warning: opencv-python not available. Camera and video processing features will be disabled.")
 import numpy as np
 import os
 import subprocess
@@ -463,9 +470,9 @@ def merge_video_audio_ffmpeg(video_path, audio_file_path, output_path, video_sta
         print(f"   🔧 FFmpeg command: {' '.join(ffmpeg_cmd)}")
         
         # Run FFmpeg
-        result = subprocess.run(
+                    result = subprocess.run(
             ffmpeg_cmd,
-            capture_output=True,
+                        capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
         )
@@ -607,7 +614,7 @@ def merge_video_audio_pyav(video_path, audio_file_path, output_path, video_start
                 video_duration = float(video_stream.duration * video_stream.time_base)
             elif video_container.duration:
                 video_duration = float(video_container.duration) / av.time_base
-            else:
+                    else:
                 # Estimate from frames
                 frame_count = 0
                 for frame in video_container.decode(video_stream):
@@ -729,7 +736,7 @@ def merge_video_audio_pyav(video_path, audio_file_path, output_path, video_start
             # Try creating stream with explicit mono layout
             output_audio_stream = output_container.add_stream('aac', rate=44100, layout='mono')
             print(f"   ✅ Audio stream created with mono layout")
-        except Exception as e:
+                except Exception as e:
             print(f"   ⚠️ Could not create stream with layout: {e}, creating without layout")
             output_audio_stream = output_container.add_stream('aac', rate=44100)
         
@@ -1094,6 +1101,10 @@ class _VideoCapture:
         print(f"🎥 Attempting to open camera {camera_index}")
         self.cap = None
         
+        if not CV2_AVAILABLE or cv2 is None:
+            print("❌ OpenCV (cv2) not available - camera features disabled")
+            return
+        
         try:
             # Try DirectShow backend first (works on Windows)
             self.cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
@@ -1315,6 +1326,12 @@ class SimpleRealVideoCamera:
             # Save raw video (without audio) to interview_videos_raw/
             self._video_file_path = os.path.join(raw_video_dir, video_filename)
             
+            # Check if cv2 is available
+            if not CV2_AVAILABLE or cv2 is None:
+                print("❌ OpenCV (cv2) not available - cannot create video writer")
+                self._video_writer = None
+                return None
+            
             # Initialize VideoWriter with H.264 codec (browser-compatible)
             # Try different codecs in order of preference
             codecs_to_try = [
@@ -1349,14 +1366,18 @@ class SimpleRealVideoCamera:
             
             # If all codecs failed, use default
             if self._video_writer is None:
-                print(f"⚠️ All codecs failed, using default")
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                self._video_writer = cv2.VideoWriter(
-                    self._video_file_path,
-                    fourcc,
-                    self._fps,
-                    (self._frame_width, self._frame_height)
-                )
+                if CV2_AVAILABLE and cv2:
+                    print(f"⚠️ All codecs failed, using default")
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    self._video_writer = cv2.VideoWriter(
+                        self._video_file_path,
+                        fourcc,
+                        self._fps,
+                        (self._frame_width, self._frame_height)
+                    )
+                else:
+                    print("❌ OpenCV not available - cannot create video writer")
+                    self._video_writer = None
             
             if self._video_writer.isOpened():
                 self._recording_active = True
@@ -1469,13 +1490,13 @@ class SimpleRealVideoCamera:
                 input_container.close()
                 
                 if os.path.exists(converted_video_path):
-                    try:
-                        os.remove(video_path)  # Remove original
-                    except:
-                        pass
+                try:
+                    os.remove(video_path)  # Remove original
+                except:
+                    pass
                     print(f"✅ Video converted to H.264 using PyAV: {converted_video_path}")
-                    return converted_video_path
-                else:
+                return converted_video_path
+            else:
                     print(f"⚠️ Video conversion failed - output file not created")
                     return video_path
             except Exception as e:
@@ -1767,11 +1788,11 @@ class SimpleRealVideoCamera:
                     # Convert to absolute paths if they're relative
                     if not os.path.isabs(video_path):
                         video_path = os.path.join(settings.MEDIA_ROOT, video_path)
-                        video_path = os.path.normpath(video_path)
+                    video_path = os.path.normpath(video_path)
                     
                     if not os.path.isabs(audio_file_path):
                         audio_file_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
-                        audio_file_path = os.path.normpath(audio_file_path)
+                    audio_file_path = os.path.normpath(audio_file_path)
                     
                     # Get absolute paths (resolve any symlinks or relative components)
                     video_path = os.path.abspath(video_path)
@@ -1838,7 +1859,7 @@ class SimpleRealVideoCamera:
                             audio_start_timestamp=audio_start_timestamp,
                             video_duration=None  # Let MoviePy calculate from video
                         )
-                    else:
+                                else:
                         # Fallback to FFmpeg if MoviePy not available
                         merge_success = merge_video_audio_ffmpeg(
                             video_path=video_path,
@@ -1869,27 +1890,27 @@ class SimpleRealVideoCamera:
                     print(f"   Merged file exists: {os.path.exists(merged_video_path)}")
                     print(f"   Merged file size: {merged_size_mb:.2f} MB ({merged_size} bytes)")
                     print(f"   Merged file path: {merged_video_path}")
-                    
-                    # Remove original video without audio
-                    try:
+                            
+                            # Remove original video without audio
+                            try:
                         if os.path.exists(video_path) and video_path != merged_video_path:
-                            os.remove(video_path)
-                            print(f"🗑️ Removed original video without audio: {video_path}")
-                        else:
+                                    os.remove(video_path)
+                                    print(f"🗑️ Removed original video without audio: {video_path}")
+                                else:
                             print(f"ℹ️ Original video already removed or is same as merged: {video_path}")
-                    except Exception as e:
-                        print(f"⚠️ Could not remove original video: {e}")
-                        import traceback
-                        traceback.print_exc()
-                    
-                    video_path = merged_video_path
-                    self._video_file_path = merged_video_path
+                            except Exception as e:
+                                print(f"⚠️ Could not remove original video: {e}")
+                                import traceback
+                                traceback.print_exc()
+                            
+                            video_path = merged_video_path
+                            self._video_file_path = merged_video_path
                     merge_lib_name = "MoviePy" if MOVIEPY_AVAILABLE else "FFmpeg"
                     print(f"✅ Video and audio merged successfully using {merge_lib_name}!")
                     print(f"   Final video path: {merged_video_path}")
                     print(f"   Final video size: {merged_size_mb:.2f} MB")
-                    print(f"   Frame rate: 5 fps (preserved from recording)")
-                    print(f"   ✅ ONLY merged video exists - original removed")
+                            print(f"   Frame rate: 5 fps (preserved from recording)")
+                            print(f"   ✅ ONLY merged video exists - original removed")
                         
                 except ImportError as e:
                     print(f"❌ Merge library not available: {e}")
@@ -1989,7 +2010,7 @@ class SimpleRealVideoCamera:
                                     self._video_file_path = merged_video_path
                                     print(f"✅ Video and audio merged successfully using {merge_lib}!")
                                     print(f"   Output: {merged_video_path} ({merged_size:.2f} MB)")
-                                else:
+                            else:
                                     print(f"❌ Merged video file is empty!")
                             else:
                                 print(f"❌ {merge_lib} merge failed!")
@@ -2018,7 +2039,7 @@ class SimpleRealVideoCamera:
                         if PYAV_AVAILABLE:
                             converted_video_path = self.ensure_browser_compatible_video(video_path)
                             if converted_video_path:
-                                video_path = converted_video_path
+                            video_path = converted_video_path
                         else:
                             print(f"⚠️ PyAV not available - skipping video conversion")
                     except Exception as e:
@@ -2083,13 +2104,16 @@ class SimpleRealVideoCamera:
     def _capture_and_detect_loop(self):
         """Continuously capture frames, update latest frame, and run simple face-based warnings."""
         # Load Haar cascade once (fallback if YOLO not available)
-        try:
-            import cv2
-            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-            face_cascade = cv2.CascadeClassifier(cascade_path)
-        except Exception as e:
-            print(f"⚠️ Failed to load Haar cascade: {e}")
-            face_cascade = None
+        face_cascade = None
+        if CV2_AVAILABLE and cv2:
+            try:
+                cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+            except Exception as e:
+                print(f"⚠️ Failed to load Haar cascade: {e}")
+                face_cascade = None
+        else:
+            print("⚠️ OpenCV not available - Haar cascade face detection disabled")
         
         import time
         import time as _t
@@ -2117,14 +2141,17 @@ class SimpleRealVideoCamera:
                     # Save snapshot only if proctoring is active (technical interview started)
                     # Skip snapshot saving during identity verification
                     if self._proctoring_active and frame_copy is not None and snapshot_filename:
-                        try:
-                            img_dir = os.path.join(settings.MEDIA_ROOT, "proctoring_snaps")
-                            os.makedirs(img_dir, exist_ok=True)
-                            img_path = os.path.join(img_dir, snapshot_filename)
-                            cv2.imwrite(img_path, frame_copy)
-                            print(f"📸 Snapshot saved: {snapshot_filename}")
-                        except Exception as e:
-                            print(f"[Proctoring] Failed to save snapshot: {e}")
+                        if not CV2_AVAILABLE or cv2 is None:
+                            print("⚠️ OpenCV not available - cannot save snapshot")
+                        else:
+                            try:
+                                img_dir = os.path.join(settings.MEDIA_ROOT, "proctoring_snaps")
+                                os.makedirs(img_dir, exist_ok=True)
+                                img_path = os.path.join(img_dir, snapshot_filename)
+                                cv2.imwrite(img_path, frame_copy)
+                                print(f"📸 Snapshot saved: {snapshot_filename}")
+                            except Exception as e:
+                                print(f"[Proctoring] Failed to save snapshot: {e}")
                     elif not self._proctoring_active:
                         # Proctoring not active - skip snapshot saving
                         print(f"⚠️ Skipping snapshot save - proctoring not active yet (still in identity verification)")
@@ -2238,7 +2265,7 @@ class SimpleRealVideoCamera:
                 # Try reading frame with retry logic
                 ret, frame = None, None
                 for attempt in range(3):  # Try up to 3 times
-                    ret, frame = self.video.read()
+                ret, frame = self.video.read()
                     if ret and frame is not None and frame.size > 0:
                         break
                     if attempt < 2:  # Don't sleep on last attempt
@@ -2301,7 +2328,10 @@ class SimpleRealVideoCamera:
                                 print(f"🕐 FIRST FRAME WRITTEN - Video recording started at: {self._recording_start_timestamp}")
                         
                         # Resize frame to match recording dimensions if needed
-                        if frame.shape[1] != self._frame_width or frame.shape[0] != self._frame_height:
+                        if not CV2_AVAILABLE or cv2 is None:
+                            print("⚠️ OpenCV not available - cannot resize frame")
+                            frame_resized = frame
+                        elif frame.shape[1] != self._frame_width or frame.shape[0] != self._frame_height:
                             frame_resized = cv2.resize(frame, (self._frame_width, self._frame_height))
                         else:
                             frame_resized = frame
@@ -2434,6 +2464,10 @@ class SimpleRealVideoCamera:
 
                 # Motion-based detection (low concentration only)
                 try:
+                    if not CV2_AVAILABLE or cv2 is None:
+                        # Skip motion detection if cv2 not available
+                        last_gray = None
+                        continue
                     gray_small = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     gray_small = cv2.resize(gray_small, (160, 120))
                     if last_gray is not None:
@@ -2496,7 +2530,7 @@ class SimpleRealVideoCamera:
                     ret, tmp = None, None
                     import time as time_module
                     for attempt in range(3):
-                        ret, tmp = self.video.read()
+                    ret, tmp = self.video.read()
                         if ret and tmp is not None and tmp.size > 0:
                             break
                         if attempt < 2:

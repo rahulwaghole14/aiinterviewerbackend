@@ -249,14 +249,20 @@ REST_FRAMEWORK = {
     ],
 }
 
-# CORS settings to allow Vite dev server
+# CORS settings to allow Vite dev server and Render frontend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://aiinterviewerbackend-2.onrender.com",  # Backend serving frontend
+    "https://aiinterviewerbackend-3.onrender.com",  # Separate frontend service (if deployed)
 ]
 
 # Allow any localhost port (when Vite picks alternate ports)
-CORS_ALLOWED_ORIGIN_REGEXES = [r"^http://localhost:\d+$", r"^http://127\.0\.0\.1:\d+$"]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$", 
+    r"^http://127\.0\.0\.1:\d+$",
+    r"^https://.*\.onrender\.com$",  # Allow all Render subdomains
+]
 
 # Email configuration (reads from environment; falls back to console backend in dev)
 EMAIL_BACKEND = os.environ.get(

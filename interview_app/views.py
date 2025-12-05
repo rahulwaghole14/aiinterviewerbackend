@@ -1679,9 +1679,22 @@ def serve_react_app(request):
     try:
         # Path to React app's built index.html
         frontend_build_path = os.path.join(settings.BASE_DIR, 'frontend', 'dist', 'index.html')
+        frontend_dist_dir = os.path.join(settings.BASE_DIR, 'frontend', 'dist')
+        
+        # Debug logging
+        print(f"🔍 Looking for frontend at: {frontend_build_path}")
+        print(f"   BASE_DIR: {settings.BASE_DIR}")
+        print(f"   dist dir exists: {os.path.exists(frontend_dist_dir)}")
+        print(f"   index.html exists: {os.path.exists(frontend_build_path)}")
+        
+        # Check if dist directory exists
+        if os.path.exists(frontend_dist_dir):
+            dist_files = os.listdir(frontend_dist_dir)
+            print(f"   Files in dist: {dist_files[:10]}")  # Show first 10 files
         
         # If built version exists, serve it
         if os.path.exists(frontend_build_path):
+            print(f"✅ Serving frontend from: {frontend_build_path}")
             with open(frontend_build_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 # Update asset paths if needed (Vite builds use absolute paths)
@@ -1692,6 +1705,7 @@ def serve_react_app(request):
         # This is just a fallback for when accessing Django directly
         frontend_dev_path = os.path.join(settings.BASE_DIR, 'frontend', 'index.html')
         if os.path.exists(frontend_dev_path):
+            print(f"⚠️ Using dev index.html from: {frontend_dev_path}")
             with open(frontend_dev_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 # In development mode, suggest using the Vite dev server
@@ -1702,19 +1716,31 @@ def serve_react_app(request):
                     )
                 return HttpResponse(content, content_type='text/html')
         
-        # Last resort: return a helpful message
+        # Last resort: return a helpful message with debug info
+        debug_info = f"""
+        <h2>Debug Information:</h2>
+        <ul>
+            <li>BASE_DIR: {settings.BASE_DIR}</li>
+            <li>Expected build path: {frontend_build_path}</li>
+            <li>Build path exists: {os.path.exists(frontend_build_path)}</li>
+            <li>Frontend dir exists: {os.path.exists(os.path.join(settings.BASE_DIR, 'frontend'))}</li>
+            <li>Dist dir exists: {os.path.exists(frontend_dist_dir)}</li>
+        </ul>
+        """
         return HttpResponse(
-            '<html><body><h1>Frontend not found</h1>'
-            '<p>Please build the frontend:</p>'
-            '<pre>cd frontend && npm run build</pre>'
-            '<p>Or for development, run the frontend separately:</p>'
-            '<pre>cd frontend && npm run dev</pre>'
-            '</body></html>',
-            status=404
+            f'<html><body><h1>Frontend not found</h1>'
+            f'{debug_info}'
+            f'<p>Please build the frontend:</p>'
+            f'<pre>cd frontend && npm install && npm run build</pre>'
+            f'<p>Or for development, run the frontend separately:</p>'
+            f'<pre>cd frontend && npm run dev</pre>'
+            f'</body></html>',
+            status=200  # Return 200 instead of 404 so it shows the message
         )
     except Exception as e:
         import traceback
         error_msg = f'Error serving frontend: {str(e)}\n{traceback.format_exc()}'
+        print(f"❌ Error in serve_react_app: {error_msg}")
         return HttpResponse(f'<html><body><h1>Error</h1><pre>{error_msg}</pre></body></html>', status=500)
 
 @login_required

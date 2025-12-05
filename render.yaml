@@ -5,7 +5,17 @@ services:
     plan: free
     buildCommand: |
       pip install -r requirements.txt
-      cd frontend && npm install && npm run build && cd ..
+      echo "🔍 Checking Node.js availability..."
+      node --version || echo "⚠️ Node.js not found, skipping frontend build"
+      npm --version || echo "⚠️ npm not found, skipping frontend build"
+      if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        echo "✅ Node.js and npm found, building frontend..."
+        cd frontend && npm install && npm run build && cd ..
+        echo "✅ Frontend build completed"
+      else
+        echo "⚠️ Node.js/npm not available in Python runtime. Frontend build skipped."
+        echo "   Note: Frontend should be built separately or use a Node.js buildpack."
+      fi
       python manage.py collectstatic --noinput
       python manage.py migrate --noinput
       python verify_deployment.py || true

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Domain, Job
+from companies.models import Company
 
 
 class DomainSerializer(serializers.ModelSerializer):
@@ -64,6 +65,52 @@ class JobSerializer(serializers.ModelSerializer):
                     f"Invalid coding language: {value}. Must be one of: {', '.join(allowed_languages)}"
                 )
         return value
+    
+    def create(self, validated_data):
+        """Create job and automatically create/update Company record"""
+        company_name = validated_data.get('company_name', '').strip()
+        
+        # Create or update Company record if company_name is provided
+        if company_name:
+            company, created = Company.objects.get_or_create(
+                name=company_name,
+                defaults={
+                    'description': f'Company created automatically from job: {validated_data.get("job_title", "")}',
+                    'is_active': True,
+                }
+            )
+            # Update description if company already exists (to keep it active)
+            if not created:
+                company.is_active = True
+                company.save()
+        
+        # Create the job
+        job = Job.objects.create(**validated_data)
+        return job
+    
+    def update(self, instance, validated_data):
+        """Update job and automatically create/update Company record"""
+        company_name = validated_data.get('company_name', '').strip()
+        
+        # Create or update Company record if company_name is provided
+        if company_name:
+            company, created = Company.objects.get_or_create(
+                name=company_name,
+                defaults={
+                    'description': f'Company created automatically from job: {validated_data.get("job_title", instance.job_title)}',
+                    'is_active': True,
+                }
+            )
+            # Update description if company already exists (to keep it active)
+            if not created:
+                company.is_active = True
+                company.save()
+        
+        # Update the job
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
 class JobTitleSerializer(serializers.ModelSerializer):

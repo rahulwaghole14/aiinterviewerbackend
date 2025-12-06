@@ -103,9 +103,9 @@ CHANNEL_LAYERS = {
 # PostgreSQL database is paused - will use SQLite until PostgreSQL is resumed
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# Force SQLite for now (PostgreSQL is paused)
-# To use PostgreSQL later, uncomment the PostgreSQL configuration below
-USE_POSTGRESQL = False  # Set to True when PostgreSQL is ready
+# PostgreSQL is now enabled - using new database
+# To use SQLite for local development, set USE_POSTGRESQL = False
+USE_POSTGRESQL = os.environ.get("USE_POSTGRESQL", "True").lower() == "true"
 
 if USE_POSTGRESQL and DATABASE_URL:
     # PostgreSQL configuration (currently disabled)

@@ -1646,17 +1646,10 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                     interview.session_key = session_key
                     interview.save(update_fields=['session_key'])
                     
-                    # Send email notification
-                    try:
-                        from interview_app_11.views import send_interview_session_email
-                        base_url = request.build_absolute_uri('/').rstrip('/')
-                        interview_link = f"{base_url}/?session_key={session_key}"
-                        send_interview_session_email(session, interview_link, request)
-                        print(f"✅ InterviewSession created and email sent for interview {interview.id}")
-                    except Exception as e:
-                        print(f"⚠️ Email sending failed: {e}")
-                        import traceback
-                        traceback.print_exc()
+                    # Send email notification using NotificationService (already handled above)
+                    # Email is sent via NotificationService.send_candidate_interview_scheduled_notification
+                    # which is called earlier in this function
+                    print(f"✅ InterviewSession created for interview {interview.id}")
         except Exception as e:
             print(f"⚠️ Auto-creation of InterviewSession failed: {e}")
             import traceback
@@ -1737,7 +1730,7 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                     resume = candidate.resume
                     # Try to read resume file
                     if hasattr(resume, 'file') and resume.file:
-                        from interview_app_11.views import get_text_from_file
+                        from interview_app.views import get_text_from_file
                         resume_text = get_text_from_file(resume.file) or ""
                     # Or use extracted text if available
                     elif hasattr(resume, 'extracted_text'):

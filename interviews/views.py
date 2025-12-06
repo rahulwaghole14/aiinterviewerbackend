@@ -1285,7 +1285,7 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                             if hasattr(candidate.resume, 'parsed_text') and candidate.resume.parsed_text:
                                 resume_text = candidate.resume.parsed_text
                             elif hasattr(candidate.resume, 'file') and candidate.resume.file:
-                                from interview_app_11.views import get_text_from_file
+                                from interview_app.views import get_text_from_file
                                 resume_text = get_text_from_file(candidate.resume.file) or ""
                         except Exception as e:
                             print(f"Warning: Could not extract resume text: {e}")
@@ -1323,21 +1323,7 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                     
                     print(f"✅ InterviewSession created for interview {interview.id}, session_key: {session_key}")
                     
-                    # Send email notification using the send_interview_session_email function
-                    try:
-                        from interview_app_11.views import send_interview_session_email
-                        base_url = request.build_absolute_uri('/').rstrip('/')
-                        interview_link = f"{base_url}/?session_key={session_key}"
-                        email_sent = send_interview_session_email(session, interview_link, request)
-                        if email_sent:
-                            print(f"✅ Email sent to {candidate.email} with interview link: {interview_link}")
-                        else:
-                            print(f"⚠️ Email sending failed for {candidate.email} - check email configuration")
-                    except Exception as e:
-                        print(f"⚠️ Email sending exception: {e}")
-                        import traceback
-                        traceback.print_exc()
-            # ALWAYS try to send email using NotificationService (most reliable)
+            # Send email notification using NotificationService (most reliable)
             try:
                 from notifications.services import NotificationService
                 NotificationService.send_candidate_interview_scheduled_notification(interview)
@@ -1629,7 +1615,7 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                             if hasattr(candidate.resume, 'parsed_text') and candidate.resume.parsed_text:
                                 resume_text = candidate.resume.parsed_text
                             elif hasattr(candidate.resume, 'file') and candidate.resume.file:
-                                from interview_app_11.views import get_text_from_file
+                                from interview_app.views import get_text_from_file
                                 resume_text = get_text_from_file(candidate.resume.file) or ""
                         except Exception as e:
                             print(f"Warning: Could not extract resume text: {e}")
@@ -1789,12 +1775,15 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
             base_url = request.build_absolute_uri('/').rstrip('/')
             interview_link = f"{base_url}/?session_key={session_key}"
             
-            # Send email notification
+            # Send email notification using NotificationService
+            email_sent = False
             try:
-                from interview_app_11.views import send_interview_session_email
-                email_sent = send_interview_session_email(session, interview_link, request)
+                from notifications.services import NotificationService
+                email_sent = NotificationService.send_candidate_interview_scheduled_notification(interview)
                 if email_sent:
                     print(f"✅ Email sent to {candidate.email}")
+                else:
+                    print(f"⚠️ Email sending failed for {candidate.email} - check email configuration")
             except Exception as e:
                 print(f"⚠️ Email sending failed: {e}")
                 import traceback

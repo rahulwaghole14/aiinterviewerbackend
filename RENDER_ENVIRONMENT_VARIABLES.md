@@ -31,9 +31,32 @@ USE_POSTGRESQL=True
 
 ---
 
-## 📧 **3. Email Configuration (Gmail SMTP)**
+## 📧 **3. Email Configuration (SendGrid - Recommended)**
+
+**Option 1: SendGrid (Recommended for Render - More Reliable)**
 
 ```env
+USE_SENDGRID=True
+SENDGRID_API_KEY=SG.your-sendgrid-api-key-here
+DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+```
+
+**How to get SendGrid API Key:**
+1. Sign up at https://sendgrid.com (Free tier: 100 emails/day)
+2. Go to Settings → API Keys
+3. Create API Key with "Full Access" or "Mail Send" permissions
+4. Copy the API key (starts with `SG.`)
+5. Mark `SENDGRID_API_KEY` as **"Secret"** in Render
+
+**Important:**
+- Verify your sender email in SendGrid dashboard (Settings → Sender Authentication)
+- Free tier allows 100 emails/day
+- More reliable than Gmail SMTP on Render
+
+**Option 2: Gmail SMTP (Alternative)**
+
+```env
+USE_SENDGRID=False
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
@@ -47,7 +70,7 @@ DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
 **Important:**
 - `EMAIL_HOST_PASSWORD` must be Gmail App Password (16 characters, no spaces)
 - Generate at: https://myaccount.google.com/apppasswords
-- Mark this as **"Secret"** in Render
+- Mark `EMAIL_HOST_PASSWORD` as **"Secret"** in Render
 
 ---
 
@@ -88,14 +111,9 @@ DJANGO_SECRET_KEY=your-secret-key-here
 DJANGO_DEBUG=False
 DATABASE_URL=postgresql://ai_interview_platform_db_user:B5NCPLg8er6rFaKRUp6HWUnL7WjYt0GO@dpg-d4pt6ikhg0os73ftr9l0-a.singapore-postgres.render.com/ai_interview_platform_db
 USE_POSTGRESQL=True
-EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_USE_SSL=False
-EMAIL_HOST_USER=aditya24.rsl@gmail.com
-EMAIL_HOST_PASSWORD=your-gmail-app-password
-DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
+USE_SENDGRID=True
+SENDGRID_API_KEY=SG.your-sendgrid-api-key-here
+DEFAULT_FROM_EMAIL=noreply@yourdomain.com
 BACKEND_URL=https://aiinterviewerbackend-2.onrender.com
 GEMINI_API_KEY=your-gemini-api-key
 DEEPGRAM_API_KEY=your-deepgram-api-key
@@ -125,7 +143,8 @@ For each variable above:
 ### Step 4: Variables to Mark as "Secret"
 Mark these as **Secret** (they won't be visible in logs):
 - `DJANGO_SECRET_KEY`
-- `EMAIL_HOST_PASSWORD`
+- `SENDGRID_API_KEY` (if using SendGrid)
+- `EMAIL_HOST_PASSWORD` (if using Gmail SMTP)
 - `GEMINI_API_KEY`
 - `DEEPGRAM_API_KEY`
 - `DATABASE_URL` (contains password)

@@ -537,135 +537,182 @@ This is an automated message. Please do not reply to this email.
                     print(f"  Fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in Render environment variables")
                     return False
                 
-                # Send email with timeout handling (socket timeout only - signal doesn't work in threads)
-                import socket
-                import smtplib
-                from django.core.mail import get_connection
-                
-                original_timeout = socket.getdefaulttimeout()
-                socket.setdefaulttimeout(30)  # 30 second timeout for SMTP connection
-                
-                try:
-                    # Log before attempting to send
-                    logger.info(f"📧 Attempting SMTP connection to {email_host}:{email_port}")
-                    print(f"[EMAIL DEBUG] Attempting SMTP connection...")
-                    print(f"  Host: {email_host}:{email_port}")
-                    print(f"  User: {email_user}")
-                    print(f"  TLS: {email_use_tls}, SSL: {email_use_ssl}")
-                    
-                    # Try to get connection first to test connectivity
+                # Send email - Support both SendGrid and SMTP
+                if use_sendgrid:
+                    # Use SendGrid API (more reliable for cloud deployments)
                     try:
-                        connection = get_connection(
-                            backend=email_backend,
-                            host=email_host,
-                            port=email_port,
-                            username=email_user,
-                            password=email_password,
-                            use_tls=email_use_tls,
-                            use_ssl=email_use_ssl,
+                        logger.info(f"📧 Sending email via SendGrid API...")
+                        print(f"[EMAIL DEBUG] Sending via SendGrid API...")
+                        print(f"  From: {from_email}")
+                        print(f"  To: {candidate_email}")
+                        print(f"  Subject: {subject[:50]}...")
+                        
+                        result = send_mail(
+                            subject=subject,
+                            message=message,
+                            from_email=from_email,
+                            recipient_list=[candidate_email],
                             fail_silently=False,
                         )
-                        logger.info(f"📧 Connection object created successfully")
-                        print(f"[EMAIL DEBUG] Connection object created")
-                    except Exception as conn_error:
-                        error_msg = str(conn_error)
-                        error_type = type(conn_error).__name__
-                        logger.error(f"❌ Failed to create email connection: {error_msg} (Type: {error_type})")
-                        print(f"\n[EMAIL FAILED] Connection creation failed")
-                        print(f"  Error Type: {error_type}")
+                        
+                        if result:
+                            logger.info(f"✅ Interview notification sent via SendGrid successfully: {candidate_email}")
+                            print(f"\n[SUCCESS] Interview notification email sent successfully via SendGrid!")
+                            print(f"  ✅ send_mail() returned: {result}")
+                            print(f"  ✅ Recipient: {candidate_email}")
+                            print(f"  ✅ Interview URL: {interview_url}")
+                            print(f"  Check inbox for interview link!")
+                            return True
+                        else:
+                            logger.warning(f"⚠️ send_mail() returned False (0) for {candidate_email}")
+                            print(f"\n[EMAIL WARNING] send_mail() returned False")
+                            print(f"  Recipient: {candidate_email}")
+                            return False
+                            
+                    except Exception as sendgrid_error:
+                        error_msg = str(sendgrid_error)
+                        error_type = type(sendgrid_error).__name__
+                        logger.error(f"❌ SendGrid email sending failed for {candidate_email}: {error_msg} (Type: {error_type})")
+                        print(f"\n[EMAIL FAILED] SendGrid Error Type: {error_type}")
                         print(f"  Error Message: {error_msg}")
+                        print(f"  Recipient: {candidate_email}")
+                        print(f"  This usually means:")
+                        print(f"  1. SENDGRID_API_KEY is invalid or expired")
+                        print(f"  2. SendGrid account is suspended")
+                        print(f"  3. From email is not verified in SendGrid")
                         import traceback
                         traceback.print_exc()
                         return False
+                else:
+                    # Use SMTP (Gmail, etc.)
+                    import socket
+                    import smtplib
+                    from django.core.mail import get_connection
                     
-                    # Now try to send the email
-                    logger.info(f"📧 Calling send_mail()...")
-                    print(f"[EMAIL DEBUG] Calling send_mail()...")
+                    original_timeout = socket.getdefaulttimeout()
+                    socket.setdefaulttimeout(30)  # 30 second timeout for SMTP connection
                     
-                    result = send_mail(
-                        subject=subject,
-                        message=message,
-                        from_email=from_email,
-                        recipient_list=[candidate_email],
-                        connection=connection,
-                        fail_silently=False,
-                    )
-                    
-                    logger.info(f"📧 send_mail() completed, result: {result}")
-                    print(f"[EMAIL DEBUG] send_mail() completed, result: {result}")
-                    
-                    if result:
-                        logger.info(f"✅ Interview notification sent via email successfully: {candidate_email}")
-                        print(f"\n[SUCCESS] Interview notification email sent successfully!")
-                        print(f"  ✅ send_mail() returned: {result}")
-                        print(f"  ✅ Recipient: {candidate_email}")
-                        print(f"  ✅ Interview URL: {interview_url}")
-                        print(f"  Check inbox for interview link!")
-                        return True
-                    else:
-                        logger.warning(f"⚠️ send_mail() returned False (0) for {candidate_email}")
-                        print(f"\n[EMAIL WARNING] send_mail() returned False")
-                        print(f"  Recipient: {candidate_email}")
-                        print(f"  This might indicate email was not sent")
-                        return False
-                        
-                except socket.timeout as timeout_err:
-                    error_msg = f"SMTP connection timeout (>30 seconds): {str(timeout_err)}"
-                    logger.error(f"❌ Email timeout for {candidate_email}: {error_msg}")
-                    print(f"\n[EMAIL TIMEOUT] Connection to SMTP server timed out")
-                    print(f"  Error: {str(timeout_err)}")
-                    print(f"  This usually means:")
-                    print(f"  1. SMTP server is slow or unreachable")
-                    print(f"  2. Network issues on Render")
-                    print(f"  3. Gmail is blocking the connection")
-                    print(f"  Recipient: {candidate_email}")
-                    import traceback
-                    traceback.print_exc()
-                    return False
-                except smtplib.SMTPAuthenticationError as auth_err:
-                    error_msg = f"SMTP Authentication failed: {str(auth_err)}"
-                    logger.error(f"❌ Email authentication failed for {candidate_email}: {error_msg}")
-                    print(f"\n[EMAIL FAILED] Authentication Error")
-                    print(f"  Error: {str(auth_err)}")
-                    print(f"  This usually means:")
-                    print(f"  1. EMAIL_HOST_PASSWORD is incorrect")
-                    print(f"  2. Gmail App Password is not set correctly")
-                    print(f"  3. 2-Step Verification is not enabled")
-                    print(f"  Recipient: {candidate_email}")
-                    import traceback
-                    traceback.print_exc()
-                    return False
-                except smtplib.SMTPConnectError as conn_err:
-                    error_msg = f"SMTP Connection failed: {str(conn_err)}"
-                    logger.error(f"❌ Email connection failed for {candidate_email}: {error_msg}")
-                    print(f"\n[EMAIL FAILED] Connection Error")
-                    print(f"  Error: {str(conn_err)}")
-                    print(f"  This usually means:")
-                    print(f"  1. Cannot reach SMTP server")
-                    print(f"  2. Port {email_port} is blocked")
-                    print(f"  3. Firewall/network issue")
-                    print(f"  Recipient: {candidate_email}")
-                    import traceback
-                    traceback.print_exc()
-                    return False
-                except Exception as smtp_error:
-                    error_msg = str(smtp_error)
-                    error_type = type(smtp_error).__name__
-                    logger.error(f"❌ Email sending failed for {candidate_email}: {error_msg} (Type: {error_type})")
-                    print(f"\n[EMAIL FAILED] Error Type: {error_type}")
-                    print(f"  Error Message: {error_msg}")
-                    print(f"  Recipient: {candidate_email}")
-                    import traceback
-                    traceback.print_exc()
-                    return False
-                finally:
-                    socket.setdefaulttimeout(original_timeout)  # Reset to original timeout
                     try:
-                        if 'connection' in locals():
-                            connection.close()
-                            logger.info(f"📧 Email connection closed")
-                    except:
-                        pass
+                        # Log before attempting to send
+                        logger.info(f"📧 Attempting SMTP connection to {email_host}:{email_port}")
+                        print(f"[EMAIL DEBUG] Attempting SMTP connection...")
+                        print(f"  Host: {email_host}:{email_port}")
+                        print(f"  User: {email_user}")
+                        print(f"  TLS: {email_use_tls}, SSL: {email_use_ssl}")
+                        
+                        # Try to get connection first to test connectivity
+                        try:
+                            connection = get_connection(
+                                backend=email_backend,
+                                host=email_host,
+                                port=email_port,
+                                username=email_user,
+                                password=email_password,
+                                use_tls=email_use_tls,
+                                use_ssl=email_use_ssl,
+                                fail_silently=False,
+                            )
+                            logger.info(f"📧 Connection object created successfully")
+                            print(f"[EMAIL DEBUG] Connection object created")
+                        except Exception as conn_error:
+                            error_msg = str(conn_error)
+                            error_type = type(conn_error).__name__
+                            logger.error(f"❌ Failed to create email connection: {error_msg} (Type: {error_type})")
+                            print(f"\n[EMAIL FAILED] Connection creation failed")
+                            print(f"  Error Type: {error_type}")
+                            print(f"  Error Message: {error_msg}")
+                            import traceback
+                            traceback.print_exc()
+                            return False
+                        
+                        # Now try to send the email
+                        logger.info(f"📧 Calling send_mail()...")
+                        print(f"[EMAIL DEBUG] Calling send_mail()...")
+                        
+                        result = send_mail(
+                            subject=subject,
+                            message=message,
+                            from_email=from_email,
+                            recipient_list=[candidate_email],
+                            connection=connection,
+                            fail_silently=False,
+                        )
+                        
+                        logger.info(f"📧 send_mail() completed, result: {result}")
+                        print(f"[EMAIL DEBUG] send_mail() completed, result: {result}")
+                        
+                        if result:
+                            logger.info(f"✅ Interview notification sent via email successfully: {candidate_email}")
+                            print(f"\n[SUCCESS] Interview notification email sent successfully!")
+                            print(f"  ✅ send_mail() returned: {result}")
+                            print(f"  ✅ Recipient: {candidate_email}")
+                            print(f"  ✅ Interview URL: {interview_url}")
+                            print(f"  Check inbox for interview link!")
+                            return True
+                        else:
+                            logger.warning(f"⚠️ send_mail() returned False (0) for {candidate_email}")
+                            print(f"\n[EMAIL WARNING] send_mail() returned False")
+                            print(f"  Recipient: {candidate_email}")
+                            print(f"  This might indicate email was not sent")
+                            return False
+                            
+                    except socket.timeout as timeout_err:
+                        error_msg = f"SMTP connection timeout (>30 seconds): {str(timeout_err)}"
+                        logger.error(f"❌ Email timeout for {candidate_email}: {error_msg}")
+                        print(f"\n[EMAIL TIMEOUT] Connection to SMTP server timed out")
+                        print(f"  Error: {str(timeout_err)}")
+                        print(f"  This usually means:")
+                        print(f"  1. SMTP server is slow or unreachable")
+                        print(f"  2. Network issues on Render")
+                        print(f"  3. Gmail is blocking the connection")
+                        print(f"  Recipient: {candidate_email}")
+                        import traceback
+                        traceback.print_exc()
+                        return False
+                    except smtplib.SMTPAuthenticationError as auth_err:
+                        error_msg = f"SMTP Authentication failed: {str(auth_err)}"
+                        logger.error(f"❌ Email authentication failed for {candidate_email}: {error_msg}")
+                        print(f"\n[EMAIL FAILED] Authentication Error")
+                        print(f"  Error: {str(auth_err)}")
+                        print(f"  This usually means:")
+                        print(f"  1. EMAIL_HOST_PASSWORD is incorrect")
+                        print(f"  2. Gmail App Password is not set correctly")
+                        print(f"  3. 2-Step Verification is not enabled")
+                        print(f"  Recipient: {candidate_email}")
+                        import traceback
+                        traceback.print_exc()
+                        return False
+                    except smtplib.SMTPConnectError as conn_err:
+                        error_msg = f"SMTP Connection failed: {str(conn_err)}"
+                        logger.error(f"❌ Email connection failed for {candidate_email}: {error_msg}")
+                        print(f"\n[EMAIL FAILED] Connection Error")
+                        print(f"  Error: {str(conn_err)}")
+                        print(f"  This usually means:")
+                        print(f"  1. Cannot reach SMTP server")
+                        print(f"  2. Port {email_port} is blocked")
+                        print(f"  3. Firewall/network issue")
+                        print(f"  Recipient: {candidate_email}")
+                        import traceback
+                        traceback.print_exc()
+                        return False
+                    except Exception as smtp_error:
+                        error_msg = str(smtp_error)
+                        error_type = type(smtp_error).__name__
+                        logger.error(f"❌ Email sending failed for {candidate_email}: {error_msg} (Type: {error_type})")
+                        print(f"\n[EMAIL FAILED] Error Type: {error_type}")
+                        print(f"  Error Message: {error_msg}")
+                        print(f"  Recipient: {candidate_email}")
+                        import traceback
+                        traceback.print_exc()
+                        return False
+                    finally:
+                        socket.setdefaulttimeout(original_timeout)  # Reset to original timeout
+                        try:
+                            if 'connection' in locals():
+                                connection.close()
+                                logger.info(f"📧 Email connection closed")
+                        except:
+                            pass
                 
                 # Also create an in-app notification for the recruiter
                 try:

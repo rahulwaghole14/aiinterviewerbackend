@@ -1,44 +1,28 @@
-# ============================================
-# RENDER ENVIRONMENT VARIABLES - QUICK COPY
-# ============================================
-# Copy each line below and add to Render Dashboard
-# Go to: Render Dashboard → Your Service → Environment
-# ============================================
+# Quick Copy-Paste for Render Environment Variables
+# Copy these into Render Dashboard → Your Service → Environment tab
 
+# Core Django
 DJANGO_SECRET_KEY=your-secret-key-here
 DJANGO_DEBUG=False
+
+# Database
 DATABASE_URL=postgresql://ai_interview_platform_db_user:B5NCPLg8er6rFaKRUp6HWUnL7WjYt0GO@dpg-d4pt6ikhg0os73ftr9l0-a.singapore-postgres.render.com/ai_interview_platform_db
 USE_POSTGRESQL=True
-EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_USE_SSL=False
-EMAIL_HOST_USER=aditya24.rsl@gmail.com
-EMAIL_HOST_PASSWORD=your-gmail-app-password
+
+# Email - SendGrid (Recommended)
+USE_SENDGRID=True
+SENDGRID_API_KEY=SG.ojhPglHyQ6mgk3PVuYQqJQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
+
+# Backend URL
 BACKEND_URL=https://aiinterviewerbackend-2.onrender.com
+
+# API Keys
 GEMINI_API_KEY=your-gemini-api-key
 DEEPGRAM_API_KEY=your-deepgram-api-key
 
-# ============================================
-# INSTRUCTIONS:
-# ============================================
-# 1. Replace placeholder values:
-#    - DJANGO_SECRET_KEY: Generate using Python command
-#    - EMAIL_HOST_PASSWORD: Your Gmail App Password (16 chars)
-#    - BACKEND_URL: Your actual Render backend URL
-#    - GEMINI_API_KEY: Your Gemini API key
-#    - DEEPGRAM_API_KEY: Your Deepgram API key
-#
-# 2. Mark as "Secret" in Render:
-#    - DJANGO_SECRET_KEY
-#    - EMAIL_HOST_PASSWORD
-#    - DATABASE_URL
-#    - GEMINI_API_KEY
-#    - DEEPGRAM_API_KEY
-#
-# 3. After adding all, click "Save Changes"
-#    Render will automatically redeploy
-# ============================================
-
+# IMPORTANT: Mark these as "Secret" in Render:
+# - DJANGO_SECRET_KEY
+# - SENDGRID_API_KEY
+# - GEMINI_API_KEY
+# - DEEPGRAM_API_KEY

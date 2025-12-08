@@ -516,18 +516,27 @@ This is an automated message. Please do not reply to this email.
                     print(f"To fix: Set USE_SENDGRID=True and SENDGRID_API_KEY, or set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD")
                     return False
 
-            # Try to send email via SMTP (same approach as test_email_sending_live.py)
+            # Send email - Support both SendGrid and SMTP
             try:
                 logger.info(f"Attempting to send interview notification email to {candidate_email}...")
-                print(f"EMAIL: Configuration check:")
-                print(f"  EMAIL_BACKEND: {email_backend}")
-                print(f"  EMAIL_HOST: {email_host}")
-                print(f"  EMAIL_PORT: {email_port}")
-                print(f"  EMAIL_USE_TLS: {email_use_tls}")
-                print(f"  EMAIL_USE_SSL: {email_use_ssl}")
-                print(f"  EMAIL_HOST_USER: {email_user[:20] + '...' if email_user and len(email_user) > 20 else email_user}")
-                print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
-                print(f"  DEFAULT_FROM_EMAIL: {default_from_email}")
+                
+                if use_sendgrid:
+                    print(f"EMAIL: Configuration check (SendGrid):")
+                    print(f"  EMAIL_BACKEND: {email_backend}")
+                    print(f"  USE_SENDGRID: {use_sendgrid}")
+                    print(f"  SENDGRID_API_KEY: {'SET' if sendgrid_api_key else 'NOT SET'}")
+                    print(f"  DEFAULT_FROM_EMAIL: {default_from_email}")
+                else:
+                    print(f"EMAIL: Configuration check (SMTP):")
+                    print(f"  EMAIL_BACKEND: {email_backend}")
+                    print(f"  EMAIL_HOST: {email_host}")
+                    print(f"  EMAIL_PORT: {email_port}")
+                    print(f"  EMAIL_USE_TLS: {email_use_tls}")
+                    print(f"  EMAIL_USE_SSL: {email_use_ssl}")
+                    print(f"  EMAIL_HOST_USER: {email_user[:20] + '...' if email_user and len(email_user) > 20 else email_user}")
+                    print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
+                    print(f"  DEFAULT_FROM_EMAIL: {default_from_email}")
+                
                 print(f"EMAIL: Sending interview notification email")
                 print(f"EMAIL: To: {candidate_email}")
                 print(f"EMAIL: Subject: {subject}")

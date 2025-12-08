@@ -300,6 +300,8 @@ if USE_SENDGRID and SENDGRID_API_KEY:
     EMAIL_BACKEND = "sgbackend.SendGridBackend"
     SENDGRID_API_KEY = SENDGRID_API_KEY  # Set for sendgrid-django package
     SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+    # Disable click tracking to prevent SendGrid from wrapping interview links
+    SENDGRID_DISABLE_CLICK_TRACKING = True
     DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@example.com")
     # SendGrid uses API key, not SMTP credentials
     EMAIL_HOST = ""

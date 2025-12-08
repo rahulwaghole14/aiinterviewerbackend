@@ -448,10 +448,16 @@ class NotificationService:
             
             # HTML email content with embedded logo
             logo_img_tag = ""
-            if logo_base64:
+            if logo_base64 and len(logo_base64) > 100:  # Ensure we have actual base64 data (at least 100 chars)
+                # Embed logo as base64 data URI (works in all email clients)
                 logo_img_tag = f'<img src="data:image/png;base64,{logo_base64}" alt="Talaro Logo" style="height: 30px; width: auto; display: block; margin: 10px 0;" />'
+                logger.info("✅ Logo embedded as base64 in email")
+                print(f"[EMAIL DEBUG] ✅ Logo image tag created (base64 length: {len(logo_base64)})")
             else:
-                logo_img_tag = '<p style="color: #9333ea; font-weight: bold; margin: 10px 0;">Talaro Logo</p>'
+                # Fallback: show text if logo file not found
+                logo_img_tag = '<p style="color: #9333ea; font-weight: bold; margin: 10px 0;">[Talaro Logo Image]</p>'
+                logger.warning("⚠️ Logo not embedded - using text fallback")
+                print(f"[EMAIL WARNING] Logo not embedded - base64 length: {len(logo_base64) if logo_base64 else 0}")
             
             html_message = f"""
 <!DOCTYPE html>

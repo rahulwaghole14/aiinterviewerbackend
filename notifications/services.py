@@ -575,7 +575,10 @@ This is an automated message. Please do not reply to this email.
                         # Use SendGrid API directly to disable click tracking for interview links
                         try:
                             from sendgrid import SendGridAPIClient
-                            from sendgrid.helpers.mail import Mail, Content
+                            from sendgrid.helpers.mail import Mail
+                            
+                            logger.info(f"📧 Using SendGrid API directly (click tracking disabled)...")
+                            print(f"[EMAIL DEBUG] Using SendGrid API directly with click tracking disabled")
                             
                             # Create email with click tracking disabled
                             mail = Mail(
@@ -585,9 +588,12 @@ This is an automated message. Please do not reply to this email.
                                 plain_text_content=message
                             )
                             
-                            # Disable click tracking to prevent SendGrid from wrapping interview links
+                            # CRITICAL: Disable click tracking to prevent SendGrid from wrapping interview links
                             mail.tracking_settings = {
                                 "click_tracking": {
+                                    "enable": False
+                                },
+                                "open_tracking": {
                                     "enable": False
                                 }
                             }
@@ -602,19 +608,31 @@ This is an automated message. Please do not reply to this email.
                                 print(f"  ✅ Status Code: {response.status_code}")
                                 print(f"  ✅ Recipient: {candidate_email}")
                                 print(f"  ✅ Interview URL: {interview_url}")
-                                print(f"  ✅ Click tracking: DISABLED (direct link)")
+                                print(f"  ✅ Click tracking: DISABLED (direct link will be sent)")
                                 return True
                             else:
                                 logger.warning(f"⚠️ SendGrid returned status {response.status_code} for {candidate_email}")
                                 print(f"\n[EMAIL WARNING] SendGrid returned status {response.status_code}")
-                                print(f"  Response: {response.body}")
-                                return False
+                                try:
+                                    print(f"  Response body: {response.body.decode('utf-8')}")
+                                except:
+                                    print(f"  Response body: {response.body}")
+                                # Don't return False here, fall through to send_mail as backup
                                 
-                        except ImportError:
+                        except ImportError as import_err:
                             # Fallback to Django send_mail if SendGrid library not available
-                            logger.warning("SendGrid library not available, using Django send_mail")
-                            print(f"[EMAIL DEBUG] SendGrid library not available, using Django send_mail")
+                            logger.warning(f"SendGrid library not available: {import_err}, using Django send_mail")
+                            print(f"[EMAIL DEBUG] SendGrid library not available: {import_err}")
+                            print(f"[EMAIL DEBUG] Falling back to Django send_mail (click tracking may be enabled)")
+                        except Exception as api_err:
+                            # If SendGrid API call fails, fall back to Django send_mail
+                            logger.warning(f"SendGrid API call failed: {api_err}, falling back to Django send_mail")
+                            print(f"[EMAIL WARNING] SendGrid API call failed: {api_err}")
+                            print(f"[EMAIL DEBUG] Falling back to Django send_mail (click tracking may be enabled)")
                         
+                        # Fallback: Use Django send_mail (may have click tracking enabled)
+                        logger.info(f"📧 Using Django send_mail as fallback...")
+                        print(f"[EMAIL DEBUG] Using Django send_mail (click tracking may be enabled)")
                         result = send_mail(
                             subject=subject,
                             message=message,

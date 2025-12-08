@@ -33,12 +33,12 @@ USE_POSTGRESQL=True
 
 ## 📧 **3. Email Configuration (SendGrid - Recommended)**
 
-**Option 1: SendGrid (Recommended for Render - More Reliable)**
+**✅ Option 1: SendGrid (Recommended for Render - More Reliable)**
 
 ```env
 USE_SENDGRID=True
-SENDGRID_API_KEY=SG.your-sendgrid-api-key-here
-DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+SENDGRID_API_KEY=SG.ojhPglHyQ6mgk3PVuYQqJQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
 ```
 
 **How to get SendGrid API Key:**
@@ -49,11 +49,12 @@ DEFAULT_FROM_EMAIL=noreply@yourdomain.com
 5. Mark `SENDGRID_API_KEY` as **"Secret"** in Render
 
 **Important:**
+- ✅ **EMAIL_BACKEND is NOT needed** - code sets it automatically when `USE_SENDGRID=True`
 - Verify your sender email in SendGrid dashboard (Settings → Sender Authentication)
 - Free tier allows 100 emails/day
 - More reliable than Gmail SMTP on Render
 
-**Option 2: Gmail SMTP (Alternative)**
+**Option 2: Gmail SMTP (Alternative - Not Recommended)**
 
 ```env
 USE_SENDGRID=False
@@ -71,6 +72,7 @@ DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
 - `EMAIL_HOST_PASSWORD` must be Gmail App Password (16 characters, no spaces)
 - Generate at: https://myaccount.google.com/apppasswords
 - Mark `EMAIL_HOST_PASSWORD` as **"Secret"** in Render
+- ⚠️ Gmail SMTP may have network issues on Render
 
 ---
 

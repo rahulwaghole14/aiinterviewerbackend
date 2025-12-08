@@ -15,6 +15,7 @@ dj-database-url==3.0.1
 gunicorn==23.0.0
 whitenoise==6.6.0
 sendgrid>=6.11.0
+sendgrid-django>=0.2.0
 
 # Essential utilities
 python-decouple==3.8

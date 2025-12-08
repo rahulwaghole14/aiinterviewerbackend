@@ -297,7 +297,8 @@ USE_SENDGRID = os.environ.get("USE_SENDGRID", "False").lower() == "true"
 
 if USE_SENDGRID and SENDGRID_API_KEY:
     # Use SendGrid API for email sending
-    EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
+    EMAIL_BACKEND = "sgbackend.SendGridBackend"
+    SENDGRID_API_KEY = SENDGRID_API_KEY  # Set for sendgrid-django package
     SENDGRID_SANDBOX_MODE_IN_DEBUG = False
     DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@example.com")
     # SendGrid uses API key, not SMTP credentials

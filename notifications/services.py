@@ -525,11 +525,35 @@ This is an automated message. Please do not reply to this email.
                 print(f"  From: {from_email}")
                 print(f"  To: {candidate_email}")
                 print(f"  Subject: {subject[:50]}...")
+                print(f"  Backend: {email_backend}")
+                print(f"  Host: {email_host}:{email_port}")
+                print(f"  TLS: {email_use_tls}, SSL: {email_use_ssl}")
+                
+                # CRITICAL: Verify EMAIL_BACKEND is not console
+                if "console" in str(email_backend).lower():
+                    logger.error(f"❌ EMAIL_BACKEND is set to console - email will not be sent!")
+                    print(f"\n[EMAIL FAILED] EMAIL_BACKEND is '{email_backend}'")
+                    print(f"  This means emails will only print to console, not actually send")
+                    print(f"  Fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in Render environment variables")
+                    return False
                 
                 # Send email with timeout handling
                 import socket
+                import signal
                 original_timeout = socket.getdefaulttimeout()
                 socket.setdefaulttimeout(30)  # 30 second timeout for SMTP connection
+                
+                # Add timeout alarm for extra safety
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Email sending exceeded 30 seconds")
+                
+                # Set alarm (Unix only - won't work on Windows/Render, but socket timeout will)
+                try:
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(35)  # 35 seconds (slightly longer than socket timeout)
+                except (AttributeError, OSError):
+                    # Windows/Render doesn't support SIGALRM, rely on socket timeout
+                    pass
                 
                 try:
                     result = send_mail(
@@ -576,6 +600,10 @@ This is an automated message. Please do not reply to this email.
                     return False
                 finally:
                     socket.setdefaulttimeout(original_timeout)  # Reset to original timeout
+                    try:
+                        signal.alarm(0)  # Cancel alarm
+                    except (AttributeError, OSError):
+                        pass
                 
                 # Also create an in-app notification for the recruiter
                 try:

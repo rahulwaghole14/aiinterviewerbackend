@@ -396,12 +396,74 @@ class NotificationService:
             # Create email subject and message
             subject = f"Interview Scheduled - {job_title} at {company_name}"
 
+            # Create HTML email with logo
+            # Get the logo URL - use the backend URL to serve the logo
+            base_url = getattr(settings, "BACKEND_URL", None)
+            if not base_url or "localhost" in str(base_url).lower():
+                import os
+                base_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+            
+            logo_url = f"{base_url}/assets/talaro-logo-BU1oLZlK.png"
+            
+            # HTML email content
+            html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <p>Dear {candidate_name},</p>
+    
+    <p>Your interview has been scheduled successfully!</p>
+    
+    <h3 style="color: #4a5568;">📋 Interview Details:</h3>
+    <ul>
+        <li><strong>Position:</strong> {job_title}</li>
+        <li><strong>Company:</strong> {company_name}</li>
+        <li><strong>Date & Time:</strong> {scheduled_time}</li>
+        <li><strong>Duration:</strong> {duration}</li>
+        <li><strong>Interview Type:</strong> {interview_type}</li>
+    </ul>
+    
+    {slot_details.replace('**', '<strong>').replace('**', '</strong>') if slot_details else ''}
+    
+    <h3 style="color: #4a5568;">🔗 Join Your Interview:</h3>
+    <p>Click the link below to join your interview at the scheduled time:</p>
+    <p><a href="{interview_url if interview_url != 'Interview link will be provided separately' else '#'}" style="color: #3182ce; text-decoration: underline;">{interview_url if interview_url != 'Interview link will be provided separately' else 'Your interview link will be sent separately.'}</a></p>
+    
+    <h3 style="color: #e53e3e;">⚠️ Important Instructions:</h3>
+    <ul>
+        <li>Please join the interview 5-10 minutes before the scheduled time</li>
+        <li>You can only access the interview link at the scheduled date and time</li>
+        <li>The link will be active 15 minutes before the interview starts</li>
+        <li>Make sure you have a stable internet connection and a quiet environment</li>
+        <li>Ensure your camera and microphone are working properly</li>
+        <li>Have a valid government-issued ID ready for verification</li>
+    </ul>
+    
+    {booking_notes.replace('**', '<strong>').replace('**', '</strong>') if booking_notes else ''}
+    
+    <p><strong>📧 Contact Information:</strong><br>
+    If you have any questions or need to reschedule, please contact your recruiter.</p>
+    
+    <p>Best regards,<br>
+    <img src="{logo_url}" alt="Talaro Logo" style="height: 20px; width: auto; vertical-align: middle; margin-left: 5px;" /><br>
+    <strong>Telaro.ai</strong> (AI interview Platform)</p>
+    
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+    <p style="color: #718096; font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
+</body>
+</html>
+            """
+            
+            # Plain text version (fallback)
             message = f"""
 Dear {candidate_name},
 
 Your interview has been scheduled successfully!
 
-📋 **Interview Details:**
+📋 Interview Details:
 • Position: {job_title}
 • Company: {company_name}
 • Date & Time: {scheduled_time}
@@ -409,11 +471,11 @@ Your interview has been scheduled successfully!
 • Interview Type: {interview_type}
 
 {slot_details}
-🔗 **Join Your Interview:**
+🔗 Join Your Interview:
 Click the link below to join your interview at the scheduled time:
 {interview_url if interview_url != "Interview link will be provided separately" else "Your interview link will be sent separately."}
 
-⚠️ **Important Instructions:**
+⚠️ Important Instructions:
 • Please join the interview 5-10 minutes before the scheduled time
 • You can only access the interview link at the scheduled date and time
 • The link will be active 15 minutes before the interview starts
@@ -422,11 +484,11 @@ Click the link below to join your interview at the scheduled time:
 • Have a valid government-issued ID ready for verification
 
 {booking_notes}
-📧 **Contact Information:**
+📧 Contact Information:
 If you have any questions or need to reschedule, please contact your recruiter.
 
 Best regards,
-{company_name} Recruitment Team
+Telaro.ai (AI interview Platform)
 
 ---
 This is an automated message. Please do not reply to this email.

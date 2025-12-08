@@ -1,0 +1,4 @@
+USE_SENDGRID=True
+SENDGRID_API_KEY=SG.ojhPglHyQ6mgk3PVuYQqJQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
+

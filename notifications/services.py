@@ -398,16 +398,23 @@ class NotificationService:
 
             # Create HTML email with embedded logo (base64)
             # Embed logo as base64 for better email client compatibility
+            # This works on Render because the logo file is in the repository
             import base64
             import os
             
             logo_base64 = ""
+            # Try multiple possible paths (works both locally and on Render)
             logo_paths = [
+                # Render deployment path (static_frontend_dist is in repo)
                 os.path.join(settings.BASE_DIR, "static_frontend_dist", "assets", "talaro-logo-BU1oLZlK.png"),
-                os.path.join(settings.BASE_DIR, "frontend", "src", "assets", "talaro-logo.png"),
+                # Alternative paths
                 os.path.join(settings.BASE_DIR, "static_frontend_dist", "talaro-favicon.png"),
+                os.path.join(settings.BASE_DIR, "frontend", "src", "assets", "talaro-logo.png"),
+                # Fallback: check if in staticfiles after collectstatic
+                os.path.join(settings.BASE_DIR, "staticfiles", "assets", "talaro-logo-BU1oLZlK.png"),
             ]
             
+            logo_loaded = False
             for logo_path in logo_paths:
                 if os.path.exists(logo_path):
                     try:
@@ -415,10 +422,15 @@ class NotificationService:
                             logo_data = logo_file.read()
                             logo_base64 = base64.b64encode(logo_data).decode('utf-8')
                             logger.info(f"✅ Logo loaded from: {logo_path}")
+                            logo_loaded = True
                             break
                     except Exception as e:
                         logger.warning(f"⚠️ Could not load logo from {logo_path}: {e}")
                         continue
+            
+            if not logo_loaded:
+                logger.warning("⚠️ Logo file not found in any expected location. Email will show text only.")
+                print(f"[EMAIL WARNING] Logo not found. Checked paths: {logo_paths}")
             
             # HTML email content with embedded logo
             logo_img_tag = ""

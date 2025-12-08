@@ -5664,9 +5664,13 @@ class InterviewAnalyticsAPIView(APIView):
                         question_analytics_item['filler_word_count'] = filler_count
                         total_filler_words += filler_count
                         
-                        sentiment = TextBlob(item.transcribed_answer).sentiment.polarity
-                        question_analytics_item['sentiment_score'] = sentiment
-                        sentiment_scores.append(sentiment)
+                        if TEXTBLOB_AVAILABLE and TextBlob:
+                            sentiment = TextBlob(item.transcribed_answer).sentiment.polarity
+                            question_analytics_item['sentiment_score'] = sentiment
+                            sentiment_scores.append(sentiment)
+                        else:
+                            question_analytics_item['sentiment_score'] = 0.0
+                            sentiment_scores.append(0.0)
                     
                     question_analytics.append(question_analytics_item)
             

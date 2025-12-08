@@ -432,9 +432,11 @@ Best regards,
 This is an automated message. Please do not reply to this email.
             """
 
-            # Send email to candidate - using same approach as test_email_sending_live.py
+            # Send email to candidate - Support both SendGrid and SMTP
             # Note: settings is already imported at the top of the file
             # Get email configuration from settings (loaded from .env)
+            use_sendgrid = getattr(settings, 'USE_SENDGRID', False)
+            sendgrid_api_key = getattr(settings, 'SENDGRID_API_KEY', '')
             email_backend = settings.EMAIL_BACKEND
             email_host = settings.EMAIL_HOST
             email_port = settings.EMAIL_PORT
@@ -445,60 +447,74 @@ This is an automated message. Please do not reply to this email.
             default_from_email = settings.DEFAULT_FROM_EMAIL
             
             # CRITICAL VALIDATION: Check if email configuration is complete
-            if not email_host or not email_user or not email_password:
-                logger.error(
-                    f"❌ Email configuration incomplete. Cannot send email to {candidate_email}. "
-                    f"EMAIL_HOST: {'SET' if email_host else 'NOT SET'}, "
-                    f"EMAIL_HOST_USER: {'SET' if email_user else 'NOT SET'}, "
-                    f"EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}"
-                )
-                print(f"\n[EMAIL FAILED] Configuration incomplete:")
-                print(f"  EMAIL_HOST: {'SET' if email_host else 'NOT SET'}")
-                print(f"  EMAIL_HOST_USER: {'SET' if email_user else 'NOT SET'}")
-                print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
-                print(f"  Please configure these in .env file")
-                return False
-            
-            # CRITICAL: Fix TLS/SSL conflict - for Gmail with port 587, use TLS only
-            # Same approach as test_email_sending_live.py - modify settings directly
-            if email_port == 587 and email_use_tls and email_use_ssl:
-                logger.warning("Both TLS and SSL are enabled. Disabling SSL for port 587 (TLS only)...")
-                settings.EMAIL_USE_SSL = False
-                email_use_ssl = False
-                print("  EMAIL_USE_SSL set to: False (temporarily for this email)")
-            
-            # Final check for TLS/SSL conflict
-            if email_use_tls and email_use_ssl:
-                logger.error("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
-                print(f"\n[EMAIL NOT SENT] EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
-                print(f"To fix: For Gmail port 587, set EMAIL_USE_TLS=True and EMAIL_USE_SSL=False in .env")
-                return False
+            if use_sendgrid:
+                # Using SendGrid API
+                if not sendgrid_api_key:
+                    logger.error(
+                        f"SENDGRID_API_KEY is not set - cannot send email to {candidate_email}. "
+                        "Set SENDGRID_API_KEY in environment variables"
+                    )
+                    print(f"\n[EMAIL NOT SENT] SENDGRID_API_KEY is not set")
+                    print(f"To fix: Set SENDGRID_API_KEY in Render environment variables")
+                    return False
+                logger.info(f"📧 Using SendGrid API for email sending")
+                print(f"[EMAIL DEBUG] Using SendGrid API")
+            else:
+                # Using SMTP - validate SMTP configuration
+                if not email_host or not email_user or not email_password:
+                    logger.error(
+                        f"❌ Email configuration incomplete. Cannot send email to {candidate_email}. "
+                        f"EMAIL_HOST: {'SET' if email_host else 'NOT SET'}, "
+                        f"EMAIL_HOST_USER: {'SET' if email_user else 'NOT SET'}, "
+                        f"EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}"
+                    )
+                    print(f"\n[EMAIL FAILED] Configuration incomplete:")
+                    print(f"  EMAIL_HOST: {'SET' if email_host else 'NOT SET'}")
+                    print(f"  EMAIL_HOST_USER: {'SET' if email_user else 'NOT SET'}")
+                    print(f"  EMAIL_HOST_PASSWORD: {'SET' if email_password else 'NOT SET'}")
+                    print(f"  Please configure these in .env file, or set USE_SENDGRID=True")
+                    return False
+                
+                # CRITICAL: Fix TLS/SSL conflict - for Gmail with port 587, use TLS only
+                # Same approach as test_email_sending_live.py - modify settings directly
+                if email_port == 587 and email_use_tls and email_use_ssl:
+                    logger.warning("Both TLS and SSL are enabled. Disabling SSL for port 587 (TLS only)...")
+                    settings.EMAIL_USE_SSL = False
+                    email_use_ssl = False
+                    print("  EMAIL_USE_SSL set to: False (temporarily for this email)")
+                
+                # Final check for TLS/SSL conflict
+                if email_use_tls and email_use_ssl:
+                    logger.error("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
+                    print(f"\n[EMAIL NOT SENT] EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be True!")
+                    print(f"To fix: For Gmail port 587, set EMAIL_USE_TLS=True and EMAIL_USE_SSL=False in .env")
+                    return False
 
-            # CRITICAL: Check email configuration BEFORE attempting to send (same checks as test script)
-            if "console" in email_backend.lower():
-                logger.warning(
-                    f"EMAIL_BACKEND is set to console - email will not be sent to {candidate_email}. "
-                    "Update .env: EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend"
-                )
-                print(f"\n[EMAIL NOT SENT] EMAIL_BACKEND is 'console' - email would print to console only")
-                print(f"To fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env file")
-                return False
-            elif not email_host:
-                logger.error(
-                    f"EMAIL_HOST is not set - cannot send email to {candidate_email}. "
-                    "Update .env: EMAIL_HOST=smtp.gmail.com"
-                )
-                print(f"\n[EMAIL NOT SENT] EMAIL_HOST is not set")
-                print(f"To fix: Set EMAIL_HOST=smtp.gmail.com in .env file")
-                return False
-            elif not email_user or not email_password:
-                logger.error(
-                    f"Email credentials incomplete - cannot send email to {candidate_email}. "
-                    f"Missing: EMAIL_HOST_USER={bool(email_user)}, EMAIL_HOST_PASSWORD={bool(email_password)}"
-                )
-                print(f"\n[EMAIL NOT SENT] Email credentials incomplete")
-                print(f"To fix: Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in .env file")
-                return False
+                # CRITICAL: Check email configuration BEFORE attempting to send (same checks as test script)
+                if "console" in email_backend.lower():
+                    logger.warning(
+                        f"EMAIL_BACKEND is set to console - email will not be sent to {candidate_email}. "
+                        "Update .env: EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend or USE_SENDGRID=True"
+                    )
+                    print(f"\n[EMAIL NOT SENT] EMAIL_BACKEND is 'console' - email would print to console only")
+                    print(f"To fix: Set USE_SENDGRID=True and SENDGRID_API_KEY, or set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend")
+                    return False
+                elif not email_host:
+                    logger.error(
+                        f"EMAIL_HOST is not set - cannot send email to {candidate_email}. "
+                        "Update .env: EMAIL_HOST=smtp.gmail.com or USE_SENDGRID=True"
+                    )
+                    print(f"\n[EMAIL NOT SENT] EMAIL_HOST is not set")
+                    print(f"To fix: Set USE_SENDGRID=True and SENDGRID_API_KEY, or set EMAIL_HOST=smtp.gmail.com")
+                    return False
+                elif not email_user or not email_password:
+                    logger.error(
+                        f"Email credentials incomplete - cannot send email to {candidate_email}. "
+                        f"Missing: EMAIL_HOST_USER={bool(email_user)}, EMAIL_HOST_PASSWORD={bool(email_password)}"
+                    )
+                    print(f"\n[EMAIL NOT SENT] Email credentials incomplete")
+                    print(f"To fix: Set USE_SENDGRID=True and SENDGRID_API_KEY, or set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD")
+                    return False
 
             # Try to send email via SMTP (same approach as test_email_sending_live.py)
             try:

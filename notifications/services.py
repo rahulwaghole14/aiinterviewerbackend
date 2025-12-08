@@ -780,18 +780,19 @@ This is an automated message. Please do not reply to this email.
                             traceback.print_exc()
                             return False
                         
-                        # Now try to send the email
-                        logger.info(f"📧 Calling send_mail()...")
-                        print(f"[EMAIL DEBUG] Calling send_mail()...")
+                        # Now try to send the email (HTML + plain text)
+                        logger.info(f"📧 Calling EmailMultiAlternatives...")
+                        print(f"[EMAIL DEBUG] Calling EmailMultiAlternatives (HTML + plain text)...")
                         
-                        result = send_mail(
+                        email = EmailMultiAlternatives(
                             subject=subject,
-                            message=message,
+                            body=message,  # Plain text version
                             from_email=from_email,
-                            recipient_list=[candidate_email],
-                            connection=connection,
-                            fail_silently=False,
+                            to=[candidate_email],
+                            connection=connection
                         )
+                        email.attach_alternative(html_message, "text/html")  # HTML version
+                        result = email.send(fail_silently=False)
                         
                         logger.info(f"📧 send_mail() completed, result: {result}")
                         print(f"[EMAIL DEBUG] send_mail() completed, result: {result}")

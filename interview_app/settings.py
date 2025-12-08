@@ -337,3 +337,11 @@ DEEPGRAM_API_KEY = os.environ.get(
     "6690abf90d1c62c6b70ed632900b2c093bc06d79"  # TODO: Remove hardcoded key in production
 )
 
+# Backend URL for generating interview links (used in emails)
+# For Render: Set this to your Render backend service URL
+# Example: https://aiinterviewerbackend-2.onrender.com
+BACKEND_URL = os.environ.get(
+    "BACKEND_URL",
+    "http://localhost:8000"  # Default for local development
+)
+

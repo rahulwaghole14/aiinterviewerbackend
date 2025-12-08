@@ -19,7 +19,14 @@ import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 import pytz
-from textblob import TextBlob
+# TextBlob import with lazy loading to prevent startup timeout
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except ImportError:
+    TextBlob = None
+    TEXTBLOB_AVAILABLE = False
+    print("⚠️ Warning: textblob not available. Text analysis features will be disabled.")
 import subprocess
 import tempfile
 import psutil

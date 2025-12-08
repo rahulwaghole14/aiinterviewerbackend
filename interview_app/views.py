@@ -1898,7 +1898,10 @@ def interview_report(request, session_id):
                     lower_answer = item.transcribed_answer.lower()
                     item.filler_word_count = sum(lower_answer.count(word) for word in FILLER_WORDS)
                     total_filler_words += item.filler_word_count
-                    sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': TextBlob(item.transcribed_answer).sentiment.polarity})
+                    if TEXTBLOB_AVAILABLE and TextBlob:
+                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': TextBlob(item.transcribed_answer).sentiment.polarity})
+                    else:
+                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
                 else:
                     sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
         
@@ -5442,7 +5445,10 @@ class InterviewResultsAPIView(APIView):
                         lower_answer = item.transcribed_answer.lower()
                         item.filler_word_count = sum(lower_answer.count(word) for word in FILLER_WORDS)
                         total_filler_words += item.filler_word_count
+                        if TEXTBLOB_AVAILABLE and TextBlob:
                         sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': TextBlob(item.transcribed_answer).sentiment.polarity})
+                    else:
+                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
                     else:
                         sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
             

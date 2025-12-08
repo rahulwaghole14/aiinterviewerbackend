@@ -469,6 +469,7 @@ class NotificationService:
     If you have any questions or need to reschedule, please contact your recruiter.</p>
     
     <p>Best regards,<br><br>
+    <strong>Talaro Logo</strong><br>
     {logo_img_tag}
     <strong>Telaro.ai</strong> (AI interview Platform)</p>
     

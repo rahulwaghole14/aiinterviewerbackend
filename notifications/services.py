@@ -404,35 +404,37 @@ class NotificationService:
             
             logo_base64 = ""
             # Try multiple possible paths (works both locally and on Render)
-            # Convert Path objects to strings for os.path.join
+            # Use Path objects for better cross-platform compatibility
+            base_dir = Path(settings.BASE_DIR) if not isinstance(settings.BASE_DIR, Path) else settings.BASE_DIR
             logo_paths = [
                 # Render deployment path (static_frontend_dist is in repo)
-                str(settings.BASE_DIR / "static_frontend_dist" / "assets" / "talaro-logo-BU1oLZlK.png"),
+                base_dir / "static_frontend_dist" / "assets" / "talaro-logo-BU1oLZlK.png",
                 # Alternative paths
-                str(settings.BASE_DIR / "static_frontend_dist" / "talaro-favicon.png"),
-                str(settings.BASE_DIR / "frontend" / "src" / "assets" / "talaro-logo.png"),
+                base_dir / "static_frontend_dist" / "talaro-favicon.png",
+                base_dir / "frontend" / "src" / "assets" / "talaro-logo.png",
                 # Fallback: check if in staticfiles after collectstatic
-                str(settings.BASE_DIR / "staticfiles" / "assets" / "talaro-logo-BU1oLZlK.png"),
+                base_dir / "staticfiles" / "assets" / "talaro-logo-BU1oLZlK.png",
             ]
             
             logo_loaded = False
             for logo_path in logo_paths:
-                if os.path.exists(logo_path):
+                logo_path_str = str(logo_path)
+                if logo_path.exists():
                     try:
                         with open(logo_path, "rb") as logo_file:
                             logo_data = logo_file.read()
                             if len(logo_data) > 0:
                                 logo_base64 = base64.b64encode(logo_data).decode('utf-8')
-                                logger.info(f"✅ Logo loaded from: {logo_path} (size: {len(logo_data)} bytes)")
-                                print(f"[EMAIL DEBUG] ✅ Logo loaded successfully from: {logo_path}")
+                                logger.info(f"✅ Logo loaded from: {logo_path_str} (size: {len(logo_data)} bytes)")
+                                print(f"[EMAIL DEBUG] ✅ Logo loaded successfully from: {logo_path_str}")
                                 print(f"[EMAIL DEBUG] Logo base64 length: {len(logo_base64)} characters")
                                 logo_loaded = True
                                 break
                             else:
-                                logger.warning(f"⚠️ Logo file is empty: {logo_path}")
+                                logger.warning(f"⚠️ Logo file is empty: {logo_path_str}")
                     except Exception as e:
-                        logger.warning(f"⚠️ Could not load logo from {logo_path}: {e}")
-                        print(f"[EMAIL WARNING] Could not load logo from {logo_path}: {e}")
+                        logger.warning(f"⚠️ Could not load logo from {logo_path_str}: {e}")
+                        print(f"[EMAIL WARNING] Could not load logo from {logo_path_str}: {e}")
                         import traceback
                         traceback.print_exc()
                         continue
@@ -441,7 +443,7 @@ class NotificationService:
                 logger.warning("⚠️ Logo file not found in any expected location. Email will show text only.")
                 print(f"[EMAIL WARNING] Logo not found. Checked paths:")
                 for path in logo_paths:
-                    exists = "✅ EXISTS" if os.path.exists(path) else "❌ NOT FOUND"
+                    exists = "✅ EXISTS" if path.exists() else "❌ NOT FOUND"
                     print(f"  {exists}: {path}")
             
             # HTML email content with embedded logo

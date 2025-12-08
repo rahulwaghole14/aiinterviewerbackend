@@ -1,1 +1,1 @@
-web: gunicorn interview_app.wsgi:application --bind 0.0.0.0:$PORT
+web: gunicorn interview_app.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --graceful-timeout 30

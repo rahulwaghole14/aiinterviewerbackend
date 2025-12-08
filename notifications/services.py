@@ -396,16 +396,37 @@ class NotificationService:
             # Create email subject and message
             subject = f"Interview Scheduled - {job_title} at {company_name}"
 
-            # Create HTML email with logo
-            # Get the logo URL - use the backend URL to serve the logo
-            base_url = getattr(settings, "BACKEND_URL", None)
-            if not base_url or "localhost" in str(base_url).lower():
-                import os
-                base_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+            # Create HTML email with embedded logo (base64)
+            # Embed logo as base64 for better email client compatibility
+            import base64
+            import os
             
-            logo_url = f"{base_url}/assets/talaro-logo-BU1oLZlK.png"
+            logo_base64 = ""
+            logo_paths = [
+                os.path.join(settings.BASE_DIR, "static_frontend_dist", "assets", "talaro-logo-BU1oLZlK.png"),
+                os.path.join(settings.BASE_DIR, "frontend", "src", "assets", "talaro-logo.png"),
+                os.path.join(settings.BASE_DIR, "static_frontend_dist", "talaro-favicon.png"),
+            ]
             
-            # HTML email content
+            for logo_path in logo_paths:
+                if os.path.exists(logo_path):
+                    try:
+                        with open(logo_path, "rb") as logo_file:
+                            logo_data = logo_file.read()
+                            logo_base64 = base64.b64encode(logo_data).decode('utf-8')
+                            logger.info(f"✅ Logo loaded from: {logo_path}")
+                            break
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not load logo from {logo_path}: {e}")
+                        continue
+            
+            # HTML email content with embedded logo
+            logo_img_tag = ""
+            if logo_base64:
+                logo_img_tag = f'<img src="data:image/png;base64,{logo_base64}" alt="Talaro Logo" style="height: 30px; width: auto; display: block; margin: 10px 0;" />'
+            else:
+                logo_img_tag = '<p style="color: #9333ea; font-weight: bold; margin: 10px 0;">Talaro Logo</p>'
+            
             html_message = f"""
 <!DOCTYPE html>
 <html>
@@ -447,8 +468,8 @@ class NotificationService:
     <p><strong>📧 Contact Information:</strong><br>
     If you have any questions or need to reschedule, please contact your recruiter.</p>
     
-    <p>Best regards,<br>
-    <img src="{logo_url}" alt="Talaro Logo" style="height: 20px; width: auto; vertical-align: middle; margin-left: 5px;" /><br>
+    <p>Best regards,<br><br>
+    {logo_img_tag}
     <strong>Telaro.ai</strong> (AI interview Platform)</p>
     
     <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">

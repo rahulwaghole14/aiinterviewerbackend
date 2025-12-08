@@ -1323,15 +1323,22 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                     
                     print(f"✅ InterviewSession created for interview {interview.id}, session_key: {session_key}")
                     
-            # Send email notification using NotificationService (most reliable)
-            try:
-                from notifications.services import NotificationService
-                NotificationService.send_candidate_interview_scheduled_notification(interview)
-                print(f"✅ Email sent via NotificationService for interview {interview.id}")
-            except Exception as e:
-                print(f"⚠️ NotificationService email failed: {e}")
-                import traceback
-                traceback.print_exc()
+            # Send email notification using NotificationService (asynchronously to prevent timeout)
+            import threading
+            def send_email_async():
+                try:
+                    from notifications.services import NotificationService
+                    NotificationService.send_candidate_interview_scheduled_notification(interview)
+                    print(f"✅ Email sent via NotificationService for interview {interview.id}")
+                except Exception as e:
+                    print(f"⚠️ NotificationService email failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Start email sending in background thread
+            email_thread = threading.Thread(target=send_email_async, daemon=True)
+            email_thread.start()
+            print(f"📧 Email sending started in background for interview {interview.id}")
                     
         except Exception as e:
             print(f"⚠️ Auto-creation of InterviewSession failed: {e}")

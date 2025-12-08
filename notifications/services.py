@@ -344,8 +344,18 @@ class NotificationService:
             # Generate URL using session_key - format must match interview_portal view
             if session_key:
                 # Use BACKEND_URL from settings or fallback to localhost
-                base_url = getattr(settings, "BACKEND_URL", "http://localhost:8000")
-                # Format: http://localhost:8000/?session_key=xxx (matches interview_portal view)
+                # CRITICAL: BACKEND_URL must be set in Render environment variables!
+                base_url = getattr(settings, "BACKEND_URL", None)
+                if not base_url or "localhost" in str(base_url).lower():
+                    # Try to get from environment directly
+                    import os
+                    base_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+                    if "localhost" in base_url.lower():
+                        logger.warning("⚠️ BACKEND_URL not set in Render! Using localhost. Add BACKEND_URL=https://aiinterviewerbackend-2.onrender.com to Render environment variables")
+                        print(f"⚠️ WARNING: BACKEND_URL not set in Render environment variables!")
+                        print(f"   Add BACKEND_URL=https://aiinterviewerbackend-2.onrender.com to Render → Environment")
+                
+                # Format: https://your-render-url.onrender.com/?session_key=xxx
                 interview_url = f"{base_url}/?session_key={session_key}"
                 logger.info(f"📧 Generated interview URL: {interview_url}")
                 print(f"[EMAIL DEBUG] Generated interview URL: {interview_url}")

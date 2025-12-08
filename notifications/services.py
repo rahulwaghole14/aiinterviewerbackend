@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMultiAlternatives
 from django.conf import settings
 from datetime import datetime
 from .models import (
@@ -642,13 +642,18 @@ This is an automated message. Please do not reply to this email.
                             logger.info(f"📧 Using SendGrid API directly (click tracking disabled)...")
                             print(f"[EMAIL DEBUG] Using SendGrid API directly with click tracking disabled")
                             
-                            # Create email with click tracking disabled
+                            # Create email with click tracking disabled (HTML + plain text)
+                            from sendgrid.helpers.mail import Content
+                            
                             mail = Mail(
                                 from_email=from_email,
                                 to_emails=candidate_email,
-                                subject=subject,
-                                plain_text_content=message
+                                subject=subject
                             )
+                            
+                            # Add both HTML and plain text content
+                            mail.add_content(Content("text/html", html_message))
+                            mail.add_content(Content("text/plain", message))
                             
                             # CRITICAL: Disable click tracking to prevent SendGrid from wrapping interview links
                             mail.tracking_settings = {
@@ -692,16 +697,18 @@ This is an automated message. Please do not reply to this email.
                             print(f"[EMAIL WARNING] SendGrid API call failed: {api_err}")
                             print(f"[EMAIL DEBUG] Falling back to Django send_mail (click tracking may be enabled)")
                         
-                        # Fallback: Use Django send_mail (may have click tracking enabled)
-                        logger.info(f"📧 Using Django send_mail as fallback...")
-                        print(f"[EMAIL DEBUG] Using Django send_mail (click tracking may be enabled)")
-                        result = send_mail(
+                        # Fallback: Use Django EmailMultiAlternatives for HTML + plain text
+                        logger.info(f"📧 Using Django EmailMultiAlternatives as fallback...")
+                        print(f"[EMAIL DEBUG] Using Django EmailMultiAlternatives (HTML + plain text)")
+                        
+                        email = EmailMultiAlternatives(
                             subject=subject,
-                            message=message,
+                            body=message,  # Plain text version
                             from_email=from_email,
-                            recipient_list=[candidate_email],
-                            fail_silently=False,
+                            to=[candidate_email]
                         )
+                        email.attach_alternative(html_message, "text/html")  # HTML version
+                        result = email.send(fail_silently=False)
                         
                         if result:
                             logger.info(f"✅ Interview notification sent via SendGrid successfully: {candidate_email}")

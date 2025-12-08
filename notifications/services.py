@@ -355,8 +355,9 @@ class NotificationService:
                         print(f"⚠️ WARNING: BACKEND_URL not set in Render environment variables!")
                         print(f"   Add BACKEND_URL=https://aiinterviewerbackend-2.onrender.com to Render → Environment")
                 
-                # Format: https://your-render-url.onrender.com/?session_key=xxx
-                interview_url = f"{base_url}/?session_key={session_key}"
+                # Format: https://your-render-url.onrender.com/interview/?session_key=xxx
+                # Use /interview/ route which is the actual interview portal
+                interview_url = f"{base_url}/interview/?session_key={session_key}"
                 logger.info(f"📧 Generated interview URL: {interview_url}")
                 print(f"[EMAIL DEBUG] Generated interview URL: {interview_url}")
             else:

@@ -1324,98 +1324,27 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                     print(f"✅ InterviewSession created for interview {interview.id}, session_key: {session_key}")
                     
             # Send email notification using NotificationService (asynchronously to prevent timeout)
-            import threading
-            def send_email_async():
-                try:
-                    from notifications.services import NotificationService
-                    NotificationService.send_candidate_interview_scheduled_notification(interview)
-                    print(f"✅ Email sent via NotificationService for interview {interview.id}")
-                except Exception as e:
-                    print(f"⚠️ NotificationService email failed: {e}")
-                    import traceback
-                    traceback.print_exc()
-            
-            # Start email sending in background thread
-            email_thread = threading.Thread(target=send_email_async, daemon=True)
-            email_thread.start()
-            print(f"📧 Email sending started in background for interview {interview.id}")
+            if interview.candidate and interview.candidate.email:
+                import threading
+                def send_email_async():
+                    try:
+                        from notifications.services import NotificationService
+                        NotificationService.send_candidate_interview_scheduled_notification(interview)
+                        print(f"✅ Email sent via NotificationService for interview {interview.id}")
+                    except Exception as e:
+                        print(f"⚠️ NotificationService email failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Start email sending in background thread
+                email_thread = threading.Thread(target=send_email_async, daemon=True)
+                email_thread.start()
+                print(f"📧 Email sending started in background for interview {interview.id}")
                     
         except Exception as e:
             print(f"⚠️ Auto-creation of InterviewSession failed: {e}")
             import traceback
             traceback.print_exc()
-        
-        # CRITICAL: ALWAYS send email notification - this is the PRIMARY method
-        # Ensure candidate and email exist before attempting
-        if interview.candidate and interview.candidate.email:
-            print(f"\n{'='*70}")
-            print(f"EMAIL: Attempting to send interview notification email for interview {interview.id}")
-            print(f"EMAIL: Interview session_key: {interview.session_key}")
-            print(f"EMAIL: Candidate email: {interview.candidate.email}")
-            print(f"EMAIL: Interview started_at: {interview.started_at}")
-            print(f"EMAIL: Interview ended_at: {interview.ended_at}")
-            print(f"{'='*70}\n")
-            
-            try:
-                from notifications.services import NotificationService
-                print(f"[EMAIL DEBUG] Calling NotificationService.send_candidate_interview_scheduled_notification")
-                print(f"[EMAIL DEBUG] Interview ID: {interview.id}")
-                print(f"[EMAIL DEBUG] Interview has session_key: {bool(interview.session_key)}")
-                print(f"[EMAIL DEBUG] Session Key: {interview.session_key}")
-                print(f"[EMAIL DEBUG] Candidate Email: {interview.candidate.email}")
-                
-                email_sent = NotificationService.send_candidate_interview_scheduled_notification(interview)
-                
-                print(f"[EMAIL DEBUG] NotificationService returned: {email_sent} (type: {type(email_sent)})")
-                
-                if email_sent:
-                    print(f"\n{'='*70}")
-                    print(f"✅ SUCCESS: Email notification sent successfully for interview {interview.id}")
-                    print(f"✅ Recipient: {interview.candidate.email}")
-                    print(f"✅ Interview link should be in the email")
-                    print(f"{'='*70}\n")
-                else:
-                    print(f"\n{'='*70}")
-                    print(f"⚠️ WARNING: Email notification returned False for interview {interview.id}")
-                    print(f"⚠️ This means email configuration is incorrect or missing")
-                    print(f"⚠️ Check the logs above for specific configuration errors")
-                    print(f"⚠️ Required in .env: EMAIL_BACKEND, EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD")
-                    print(f"{'='*70}\n")
-                    # Log the failure
-                    try:
-                        ActionLogger.log_user_action(
-                            user=request.user,
-                            action="slot_booking_notification_failed",
-                            details={
-                                "slot_id": slot.id,
-                                "interview_id": interview.id,
-                                "error": "Email sending returned False - check configuration",
-                            },
-                            status="FAILED",
-                        )
-                    except Exception:
-                        pass
-            except Exception as notif_error:
-                print(f"\n{'='*70}")
-                print(f"❌ ERROR: NotificationService failed for interview {interview.id}")
-                print(f"❌ Error: {str(notif_error)}")
-                import traceback
-                traceback.print_exc()
-                print(f"{'='*70}\n")
-                # Log notification failure
-                try:
-                    ActionLogger.log_user_action(
-                        user=request.user,
-                        action="slot_booking_notification_failed",
-                        details={
-                            "slot_id": slot.id,
-                            "interview_id": interview.id,
-                            "error": str(notif_error),
-                        },
-                        status="FAILED",
-                    )
-                except Exception:
-                    pass
         else:
             print(f"\n{'='*70}")
             print(f"⚠️ WARNING: Cannot send email - candidate or email missing")

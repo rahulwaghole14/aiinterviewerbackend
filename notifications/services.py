@@ -539,11 +539,16 @@ This is an automated message. Please do not reply to this email.
                 return True
             except Exception as email_error:
                 error_msg = str(email_error)
+                error_type = type(email_error).__name__
                 logger.error(
-                    f"❌ SMTP email failed for {candidate_email}: {error_msg}"
+                    f"❌ SMTP email failed for {candidate_email}: {error_msg} (Type: {error_type})"
                 )
                 print(f"\n[EMAIL FAILED] Error sending email to {candidate_email}")
-                print(f"Error: {error_msg}")
+                print(f"Error Type: {error_type}")
+                print(f"Error Message: {error_msg}")
+                import traceback
+                print(f"\nFull Traceback:")
+                traceback.print_exc()
                 
                 # Provide helpful error messages (same as test script)
                 if "authentication" in error_msg.lower() or "535" in error_msg:

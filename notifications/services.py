@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.conf import settings
 from datetime import datetime
+from pathlib import Path
 from .models import (
     Notification,
     NotificationTemplate,
@@ -407,9 +408,11 @@ class NotificationService:
             # Use Path objects for better cross-platform compatibility
             base_dir = Path(settings.BASE_DIR) if not isinstance(settings.BASE_DIR, Path) else settings.BASE_DIR
             logo_paths = [
-                # Render deployment path (static_frontend_dist is in repo)
-                base_dir / "static_frontend_dist" / "assets" / "talaro-logo-BU1oLZlK.png",
+                # Actual path: frontend/dist/assets/talaro-logo-BU1oLZlK.png
+                base_dir / "frontend" / "dist" / "assets" / "talaro-logo-BU1oLZlK.png",
                 # Alternative paths
+                base_dir / "frontend" / "dist" / "talaro-favicon.png",
+                base_dir / "static_frontend_dist" / "assets" / "talaro-logo-BU1oLZlK.png",
                 base_dir / "static_frontend_dist" / "talaro-favicon.png",
                 base_dir / "frontend" / "src" / "assets" / "talaro-logo.png",
                 # Fallback: check if in staticfiles after collectstatic

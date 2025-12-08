@@ -5446,11 +5446,9 @@ class InterviewResultsAPIView(APIView):
                         item.filler_word_count = sum(lower_answer.count(word) for word in FILLER_WORDS)
                         total_filler_words += item.filler_word_count
                         if TEXTBLOB_AVAILABLE and TextBlob:
-                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': TextBlob(item.transcribed_answer).sentiment.polarity})
-                    else:
-                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
-                    else:
-                        sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
+                            sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': TextBlob(item.transcribed_answer).sentiment.polarity})
+                        else:
+                            sentiment_scores.append({'question': f"Q{item.order + 1}", 'score': 0.0})
             
             final_avg_wpm = round(avg_wpm / wpm_count) if wpm_count > 0 else 0
             final_avg_response_time = round(avg_response_time / response_time_count, 2) if response_time_count > 0 else 0

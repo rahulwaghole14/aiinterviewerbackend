@@ -528,10 +528,11 @@ This is an automated message. Please do not reply to this email.
                 
                 # Send email with timeout handling
                 import socket
+                original_timeout = socket.getdefaulttimeout()
                 socket.setdefaulttimeout(30)  # 30 second timeout for SMTP connection
                 
                 try:
-                    send_mail(
+                    result = send_mail(
                         subject=subject,
                         message=message,
                         from_email=from_email,
@@ -539,12 +540,20 @@ This is an automated message. Please do not reply to this email.
                         fail_silently=False,
                     )
                     
-                    logger.info(f"✅ Interview notification sent via email successfully: {candidate_email}")
-                    print(f"\n[SUCCESS] Interview notification email sent successfully!")
-                    print(f"  ✅ send_mail() returned without exception")
-                    print(f"  ✅ Recipient: {candidate_email}")
-                    print(f"  ✅ Interview URL: {interview_url}")
-                    print(f"  Check inbox for interview link!")
+                    if result:
+                        logger.info(f"✅ Interview notification sent via email successfully: {candidate_email}")
+                        print(f"\n[SUCCESS] Interview notification email sent successfully!")
+                        print(f"  ✅ send_mail() returned: {result}")
+                        print(f"  ✅ Recipient: {candidate_email}")
+                        print(f"  ✅ Interview URL: {interview_url}")
+                        print(f"  Check inbox for interview link!")
+                        return True
+                    else:
+                        logger.warning(f"⚠️ send_mail() returned False (0) for {candidate_email}")
+                        print(f"\n[EMAIL WARNING] send_mail() returned False")
+                        print(f"  Recipient: {candidate_email}")
+                        print(f"  This might indicate email was not sent")
+                        return False
                 except socket.timeout:
                     error_msg = "SMTP connection timeout (>30 seconds)"
                     logger.error(f"❌ Email timeout for {candidate_email}: {error_msg}")
@@ -553,14 +562,20 @@ This is an automated message. Please do not reply to this email.
                     print(f"  1. SMTP server is slow or unreachable")
                     print(f"  2. Network issues on Render")
                     print(f"  3. Gmail is blocking the connection")
-                    raise
+                    print(f"  Recipient: {candidate_email}")
+                    return False
                 except Exception as smtp_error:
                     error_msg = str(smtp_error)
-                    logger.error(f"❌ Email sending failed for {candidate_email}: {error_msg}")
-                    print(f"\n[EMAIL FAILED] Error: {error_msg}")
-                    raise
+                    error_type = type(smtp_error).__name__
+                    logger.error(f"❌ Email sending failed for {candidate_email}: {error_msg} (Type: {error_type})")
+                    print(f"\n[EMAIL FAILED] Error Type: {error_type}")
+                    print(f"  Error Message: {error_msg}")
+                    print(f"  Recipient: {candidate_email}")
+                    import traceback
+                    traceback.print_exc()
+                    return False
                 finally:
-                    socket.setdefaulttimeout(None)  # Reset timeout
+                    socket.setdefaulttimeout(original_timeout)  # Reset to original timeout
                 
                 # Also create an in-app notification for the recruiter
                 try:

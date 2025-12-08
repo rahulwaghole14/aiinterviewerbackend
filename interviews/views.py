@@ -1329,29 +1329,39 @@ class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
                 def send_email_async():
                     try:
                         from notifications.services import NotificationService
-                        NotificationService.send_candidate_interview_scheduled_notification(interview)
-                        print(f"✅ Email sent via NotificationService for interview {interview.id}")
+                        result = NotificationService.send_candidate_interview_scheduled_notification(interview)
+                        if result:
+                            print(f"✅ Email sent successfully via NotificationService for interview {interview.id}")
+                            logger.info(f"✅ Email sent successfully for interview {interview.id} to {interview.candidate.email}")
+                        else:
+                            print(f"⚠️ Email sending returned False for interview {interview.id}")
+                            logger.warning(f"⚠️ Email sending returned False for interview {interview.id}")
                     except Exception as e:
-                        print(f"⚠️ NotificationService email failed: {e}")
+                        error_msg = str(e)
+                        print(f"❌ NotificationService email failed for interview {interview.id}: {error_msg}")
+                        logger.error(f"❌ Email sending failed for interview {interview.id}: {error_msg}")
                         import traceback
                         traceback.print_exc()
                 
                 # Start email sending in background thread
                 email_thread = threading.Thread(target=send_email_async, daemon=True)
                 email_thread.start()
-                print(f"📧 Email sending started in background for interview {interview.id}")
+                print(f"📧 Email sending started in background thread for interview {interview.id}")
+                logger.info(f"📧 Email sending started in background for interview {interview.id}")
+            else:
+                print(f"\n{'='*70}")
+                print(f"⚠️ WARNING: Cannot send email - candidate or email missing")
+                print(f"⚠️ Interview ID: {interview.id}")
+                print(f"⚠️ Candidate: {'EXISTS' if interview.candidate else 'MISSING'}")
+                print(f"⚠️ Email: {interview.candidate.email if interview.candidate else 'N/A'}")
+                print(f"{'='*70}\n")
+                logger.warning(f"⚠️ Cannot send email for interview {interview.id} - candidate or email missing")
                     
         except Exception as e:
             print(f"⚠️ Auto-creation of InterviewSession failed: {e}")
             import traceback
             traceback.print_exc()
-        else:
-            print(f"\n{'='*70}")
-            print(f"⚠️ WARNING: Cannot send email - candidate or email missing")
-            print(f"⚠️ Interview ID: {interview.id}")
-            print(f"⚠️ Candidate: {'EXISTS' if interview.candidate else 'MISSING'}")
-            print(f"⚠️ Email: {interview.candidate.email if interview.candidate else 'N/A'}")
-            print(f"{'='*70}\n")
+            logger.error(f"⚠️ Auto-creation of InterviewSession failed: {e}")
 
         print(f"DEBUG: Schedule created successfully: {schedule.id}")
         print(f"DEBUG: Interview: {interview.id}, Status: {interview.status}")

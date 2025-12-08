@@ -1,4 +1,12 @@
+# SendGrid Email Configuration for Render
+# Add these 3 variables to Render Dashboard → Environment
+
 USE_SENDGRID=True
 SENDGRID_API_KEY=SG.ojhPglHyQ6mgk3PVuYQqJQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
+
+# IMPORTANT:
+# - Mark SENDGRID_API_KEY as "Secret"
+# - EMAIL_BACKEND is NOT needed - code sets it automatically when USE_SENDGRID=True
+# - Remove EMAIL_BACKEND, EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS, EMAIL_USE_SSL, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD if they exist
 

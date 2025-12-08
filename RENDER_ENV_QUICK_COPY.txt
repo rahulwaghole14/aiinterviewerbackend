@@ -9,7 +9,7 @@ DJANGO_DEBUG=False
 DATABASE_URL=postgresql://ai_interview_platform_db_user:B5NCPLg8er6rFaKRUp6HWUnL7WjYt0GO@dpg-d4pt6ikhg0os73ftr9l0-a.singapore-postgres.render.com/ai_interview_platform_db
 USE_POSTGRESQL=True
 
-# Email - SendGrid (Recommended)
+# Email - SendGrid (Recommended - No EMAIL_BACKEND needed!)
 USE_SENDGRID=True
 SENDGRID_API_KEY=SG.ojhPglHyQ6mgk3PVuYQqJQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 DEFAULT_FROM_EMAIL=aditya24.rsl@gmail.com
@@ -26,3 +26,6 @@ DEEPGRAM_API_KEY=your-deepgram-api-key
 # - SENDGRID_API_KEY
 # - GEMINI_API_KEY
 # - DEEPGRAM_API_KEY
+
+# NOTE: EMAIL_BACKEND is NOT needed when using SendGrid!
+# The code automatically sets EMAIL_BACKEND=sgbackend.SendGridBackend when USE_SENDGRID=True

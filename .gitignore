@@ -1,5 +1,6 @@
 .env
 *.json
+!ringed-reach-471807-m3-cf0ec93e3257.json
 __pycache__/
 *.pyc
 *.pkl

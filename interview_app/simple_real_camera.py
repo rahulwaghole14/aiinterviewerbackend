@@ -1256,9 +1256,20 @@ class SimpleRealVideoCamera:
         
         try:
             from ultralytics import YOLO
+            from django.conf import settings
+            import os
             try:
                 # Load YOLO model only when technical interview starts
-                self._yolo = YOLO('yolov8n.pt')
+                # Use absolute path from BASE_DIR: BASE_DIR/yolov8n.pt
+                model_path = os.path.join(settings.BASE_DIR, 'yolov8n.pt')
+                if os.path.exists(model_path):
+                    self._yolo = YOLO(model_path)
+                    print(f"✅ YOLOv8 model loaded from: {model_path}")
+                else:
+                    # Fallback: try current directory
+                    fallback_path = 'yolov8n.pt'
+                    self._yolo = YOLO(fallback_path)
+                    print(f"✅ YOLOv8 model loaded from fallback path: {fallback_path}")
                 self._yolo_loaded = True
                 self._proctoring_active = True
                 print(f"✅ YOLOv8 model loaded and proctoring activated for session {self.session_id}")

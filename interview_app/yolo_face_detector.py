@@ -1,16 +1,32 @@
 
 # interview_app/yolo_face_detector.py
 # Safe import with fallback if ultralytics is not installed
+import os
+from django.conf import settings
+
 try:
     from ultralytics import YOLO
     import cv2
     # Load the YOLOv8 model specialized for face detection.
-    # You can also use the generic 'yolov8n.pt' if a specialized one isn't available,
-    # but a face-specific model is generally better.
-    # Let's use the generic one for simplicity as it's already part of the project.
+    # Use absolute path from BASE_DIR to ensure it works in production
+    # Path: BASE_DIR/yolov8n.pt
     try:
-        model = YOLO('yolov8n.pt')
-        YOLO_AVAILABLE = True
+        model_path = os.path.join(settings.BASE_DIR, 'yolov8n.pt')
+        if os.path.exists(model_path):
+            model = YOLO(model_path)
+            print(f"✅ YOLOv8 model loaded from: {model_path}")
+            YOLO_AVAILABLE = True
+        else:
+            # Fallback: try current directory
+            fallback_path = 'yolov8n.pt'
+            if os.path.exists(fallback_path):
+                model = YOLO(fallback_path)
+                print(f"✅ YOLOv8 model loaded from fallback path: {fallback_path}")
+                YOLO_AVAILABLE = True
+            else:
+                print(f"⚠️ YOLOv8 model not found at {model_path} or {fallback_path}")
+                model = None
+                YOLO_AVAILABLE = False
     except Exception as e:
         print(f"⚠️ Could not load YOLOv8 model: {e}")
         model = None

@@ -6,6 +6,8 @@ __pycache__/
 *.pkl
 *.pt
 !yolov8n.pt
+*.onnx
+!yolov8n.onnx
 .DS_Store
 venv/
 

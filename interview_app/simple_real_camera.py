@@ -1255,47 +1255,59 @@ class SimpleRealVideoCamera:
             return True
         
         try:
-            from ultralytics import YOLO
+            import onnxruntime as ort
             from django.conf import settings
             import os
+            import numpy as np
             from pathlib import Path
             try:
-                # Load YOLO model only when technical interview starts
-                # Use absolute path from BASE_DIR: BASE_DIR/yolov8n.pt (project root: aiinterviewerbackend/yolov8n.pt)
-                model_path = Path(settings.BASE_DIR) / 'yolov8n.pt'
-                print(f"🔍 Looking for YOLOv8 model at: {model_path}")
+                # Load YOLO ONNX model only when technical interview starts
+                # Use absolute path from BASE_DIR: BASE_DIR/yolov8n.onnx
+                model_path = Path(settings.BASE_DIR) / 'yolov8n.onnx'
+                print(f"🔍 Looking for YOLOv8 ONNX model at: {model_path}")
                 print(f"🔍 BASE_DIR: {settings.BASE_DIR}")
                 print(f"🔍 Model path exists: {model_path.exists()}")
                 
-                if model_path.exists():
-                    self._yolo = YOLO(str(model_path))
-                    print(f"✅ YOLOv8 model loaded successfully from: {model_path}")
-                else:
+                if not model_path.exists():
                     # Fallback: try current directory
-                    fallback_path = Path('yolov8n.pt')
+                    fallback_path = Path('yolov8n.onnx')
                     print(f"🔍 Trying fallback path: {fallback_path} (exists: {fallback_path.exists()})")
                     if fallback_path.exists():
-                        self._yolo = YOLO(str(fallback_path))
-                        print(f"✅ YOLOv8 model loaded from fallback path: {fallback_path}")
+                        model_path = fallback_path
                     else:
-                        print(f"⚠️ YOLOv8 model not found at {model_path} or {fallback_path}")
-                        print(f"⚠️ Please ensure yolov8n.pt is in the project root directory")
+                        print(f"⚠️ YOLOv8 ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8n.onnx'} or {fallback_path}")
+                        print(f"⚠️ Please ensure yolov8n.onnx is in the project root directory")
+                        print(f"ℹ️ You can convert yolov8n.pt to .onnx using: yolo export model=yolov8n.pt format=onnx")
                         self._yolo = None
                         return False
+                
+                # Create ONNX Runtime session
+                providers = ['CPUExecutionProvider']
+                self._yolo = ort.InferenceSession(str(model_path), providers=providers)
+                self._yolo_input_name = self._yolo.get_inputs()[0].name
+                self._yolo_output_names = [output.name for output in self._yolo.get_outputs()]
+                
+                print(f"✅ YOLOv8 ONNX model loaded successfully from: {model_path}")
+                print(f"   Input: {self._yolo_input_name}, Outputs: {self._yolo_output_names}")
+                
                 self._yolo_loaded = True
                 self._proctoring_active = True
-                print(f"✅ YOLOv8 model loaded and proctoring activated for session {self.session_id}")
+                print(f"✅ YOLOv8 ONNX model loaded and proctoring activated for session {self.session_id}")
                 # Start video recording when proctoring starts
                 self.start_video_recording()
                 return True
             except Exception as e:
-                print(f"⚠️ Could not load yolov8n.pt: {e}")
+                print(f"⚠️ Could not load yolov8n.onnx: {e}")
                 import traceback
                 traceback.print_exc()
                 self._yolo = None
                 return False
+        except ImportError as e:
+            print(f"ℹ️ onnxruntime not installed; falling back to Haar cascade. {e}")
+            print(f"ℹ️ Install with: pip install onnxruntime")
+            return False
         except Exception as e:
-            print(f"ℹ️ ultralytics not installed; falling back to Haar cascade. {e}")
+            print(f"ℹ️ Error loading ONNX model; falling back to Haar cascade. {e}")
             return False
     
     def start_video_recording(self, synchronized_start_time=None):
@@ -2396,23 +2408,52 @@ class SimpleRealVideoCamera:
                 # Skip YOLO during identity verification
                 if should_run_yolo and self._yolo is not None and self._proctoring_active:
                     try:
-                        # Run YOLO with lower confidence for sensitivity; small imgsz for speed
-                        results = self._yolo.predict(source=frame, imgsz=480, conf=0.35, iou=0.45, verbose=False)
-                        if results and len(results) > 0:
-                            r0 = results[0]
-                            # Map class indices to names
-                            names = r0.names if hasattr(r0, 'names') else getattr(self._yolo, 'names', {})
-                            cls = r0.boxes.cls.cpu().numpy().tolist() if hasattr(r0, 'boxes') and r0.boxes is not None else []
-                            labels = [str(names.get(int(c), str(int(c)))) for c in cls]
-                            person_count = sum(1 for l in labels if l.lower() == 'person')
-                            phone_count = sum(1 for l in labels if 'phone' in l.lower())
-                            has_person = person_count >= 1
-                            multiple_people = person_count >= 2
-                            phone_detected = phone_count >= 1
+                        # Run ONNX inference (lightweight, no PyTorch)
+                        # Preprocess frame for ONNX model
+                        input_size = 480  # Smaller for speed
+                        frame_resized = cv2.resize(frame, (input_size, input_size))
+                        frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+                        frame_normalized = frame_rgb.astype(np.float32) / 255.0
+                        frame_transposed = np.transpose(frame_normalized, (2, 0, 1))
+                        frame_batch = np.expand_dims(frame_transposed, axis=0)
+                        
+                        # Run inference
+                        outputs = self._yolo.run(self._yolo_output_names, {self._yolo_input_name: frame_batch})
+                        
+                        # Post-process outputs (similar to yolo_face_detector.py)
+                        predictions = outputs[0][0] if len(outputs) > 0 else []
+                        
+                        # YOLOv8 COCO classes: 0='person', 67='cell phone', 77='mobile phone'
+                        person_count = 0
+                        phone_count = 0
+                        conf_threshold = 0.35
+                        
+                        for pred in predictions:
+                            if len(pred) < 5:
+                                continue
+                            x_center, y_center, width, height = pred[0:4]
+                            class_scores = pred[4:]
+                            max_score = np.max(class_scores)
+                            max_class = np.argmax(class_scores)
+                            
+                            if max_score < conf_threshold:
+                                continue
+                            
+                            # Count persons (class 0) and phones (classes 67, 77)
+                            if max_class == 0:  # person
+                                person_count += 1
+                            elif max_class in [67, 77]:  # cell phone, mobile phone
+                                phone_count += 1
+                        
+                        has_person = person_count >= 1
+                        multiple_people = person_count >= 2
+                        phone_detected = phone_count >= 1
                         last_yolo_time = now_ts
                     except Exception as e:
                         # Fall back to Haar if YOLO fails mid-run
-                        print(f"⚠️ YOLO detection error; falling back to Haar: {e}")
+                        print(f"⚠️ YOLO ONNX detection error; falling back to Haar: {e}")
+                        import traceback
+                        traceback.print_exc()
                         self._yolo = None
 
                 if self._yolo is None or not should_run_yolo:

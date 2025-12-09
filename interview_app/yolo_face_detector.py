@@ -103,6 +103,8 @@ def _load_onnx_model():
         
         print(f"✅ YOLOv8 ONNX model loaded successfully from: {model_path}")
         print(f"   Input: {_input_name}, Outputs: {_output_names}")
+        print(f"⚠️ NOTE: Standard YOLOv8n (COCO) detects 'person' class, not faces specifically.")
+        print(f"⚠️ For face detection, you may need a face-specific YOLOv8 model.")
         _YOLO_AVAILABLE = True
         return True
         
@@ -131,31 +133,37 @@ def _preprocess_image(img, input_size=640):
 def _postprocess_output(outputs, img_shape, input_size=640, conf_threshold=0.25, iou_threshold=0.45):
     """
     Post-process ONNX model outputs to get bounding boxes.
-    Returns a list compatible with ultralytics YOLO output format.
+    YOLOv8 ONNX output format: [batch, features, anchors] = [1, 84, 8400]
+    where 84 = 4 (bbox coords) + 80 (class scores), 8400 = anchor points
     """
-    # ONNX output is typically [batch, num_detections, 84] for YOLOv8
-    # 84 = 4 (bbox) + 80 (classes) for COCO, but we need face detection
-    # For face detection models, it might be different
-    
     if len(outputs) == 0:
         return []
     
-    predictions = outputs[0]  # Shape: [1, num_detections, 84] or [num_detections, 84]
+    predictions = outputs[0]  # Shape: [1, 84, 8400] for YOLOv8n
     
+    # Handle different output shapes
     if len(predictions.shape) == 3:
-        predictions = predictions[0]  # Remove batch dimension
+        # Standard YOLOv8 format: [batch, features, anchors]
+        # Transpose to [anchors, features] for easier processing
+        predictions = predictions[0].transpose(1, 0)  # [8400, 84]
+    elif len(predictions.shape) == 2:
+        # Already in [anchors, features] format
+        predictions = predictions
+    else:
+        print(f"⚠️ Unexpected output shape: {predictions.shape}")
+        return []
     
     # Extract boxes and scores
     boxes = []
     scores = []
     
     # YOLOv8 format: [x_center, y_center, width, height, class_scores...]
-    # For face detection, we look for the highest confidence class
+    # Coordinates are normalized (0-1) relative to input_size
     for pred in predictions:
         if len(pred) < 5:
             continue
         
-        # Get box coordinates (normalized)
+        # Get box coordinates (normalized, center format)
         x_center, y_center, width, height = pred[0:4]
         
         # Get class scores (rest of the array)
@@ -173,10 +181,17 @@ def _postprocess_output(outputs, img_shape, input_size=640, conf_threshold=0.25,
         scale_x = img_w / input_size
         scale_y = img_h / input_size
         
-        x1 = (x_center - width / 2) * scale_x
-        y1 = (y_center - height / 2) * scale_y
-        x2 = (x_center + width / 2) * scale_x
-        y2 = (y_center + height / 2) * scale_y
+        # Convert center format to corner format
+        x1 = (x_center - width / 2) * input_size * scale_x
+        y1 = (y_center - height / 2) * input_size * scale_y
+        x2 = (x_center + width / 2) * input_size * scale_x
+        y2 = (y_center + height / 2) * input_size * scale_y
+        
+        # Ensure coordinates are within image bounds
+        x1 = max(0, min(x1, img_w))
+        y1 = max(0, min(y1, img_h))
+        x2 = max(0, min(x2, img_w))
+        y2 = max(0, min(y2, img_h))
         
         boxes.append([x1, y1, x2, y2, max_score, max_class])
         scores.append(max_score)
@@ -185,27 +200,37 @@ def _postprocess_output(outputs, img_shape, input_size=640, conf_threshold=0.25,
     if len(boxes) == 0:
         return []
     
-    boxes_array = np.array(boxes)
-    scores_array = np.array(scores)
+    boxes_array = np.array(boxes, dtype=np.float32)
+    scores_array = np.array(scores, dtype=np.float32)
     
     # Use OpenCV's NMS
-    indices = cv2.dnn.NMSBoxes(
-        boxes_array[:, :4].tolist(),
-        scores_array.tolist(),
-        conf_threshold,
-        iou_threshold
-    )
-    
-    if len(indices) == 0:
+    try:
+        indices = cv2.dnn.NMSBoxes(
+            boxes_array[:, :4].tolist(),
+            scores_array.tolist(),
+            conf_threshold,
+            iou_threshold
+        )
+        
+        if indices is None or len(indices) == 0:
+            return []
+        
+        # Handle both numpy array and list formats
+        if isinstance(indices, np.ndarray):
+            indices = indices.flatten()
+        else:
+            indices = [int(i) for i in indices]
+    except Exception as e:
+        print(f"⚠️ NMS error: {e}")
         return []
     
     # Create mock boxes object compatible with ultralytics format
     class MockBox:
         def __init__(self, box_data):
             self.data = box_data  # [x1, y1, x2, y2, conf, cls]
-            self.xyxy = np.array([box_data[:4]])  # Bounding box coordinates
-            self.conf = box_data[4]  # Confidence
-            self.cls = box_data[5]  # Class
+            self.xyxy = np.array([box_data[:4]], dtype=np.float32)  # Bounding box coordinates
+            self.conf = float(box_data[4])  # Confidence
+            self.cls = int(box_data[5])  # Class
     
     class MockBoxes:
         def __init__(self, boxes_list):
@@ -217,7 +242,7 @@ def _postprocess_output(outputs, img_shape, input_size=640, conf_threshold=0.25,
         def __getitem__(self, idx):
             return self.boxes_list[idx]
     
-    filtered_boxes = MockBoxes([MockBox(boxes_array[i]) for i in indices.flatten()])
+    filtered_boxes = MockBoxes([MockBox(boxes_array[i]) for i in indices])
     
     return filtered_boxes
 
@@ -225,20 +250,12 @@ def detect_face_with_yolo(image_input):
     """
     Takes a file path or numpy array and returns YOLO detection results.
     Falls back gracefully if YOLOv8 ONNX is not available.
+    Uses Haar cascade as fallback for face detection.
     Always returns a list for consistency.
     
     Model is loaded lazily on first call to prevent startup timeout.
     """
     global _onnx_session, _YOLO_AVAILABLE, _input_name, _output_names
-    
-    # Lazy load model on first use
-    if _YOLO_AVAILABLE is None:
-        _load_onnx_model()
-    
-    if not _YOLO_AVAILABLE or _onnx_session is None:
-        # Return empty results as a list if YOLO is not available
-        empty_obj = type('obj', (object,), {'boxes': []})()
-        return [empty_obj]
     
     if not CV2_AVAILABLE or cv2 is None:
         raise ValueError("OpenCV not available. Image processing features are disabled.")
@@ -253,28 +270,87 @@ def detect_face_with_yolo(image_input):
     
     original_shape = img.shape
     
+    # Lazy load model on first use
+    if _YOLO_AVAILABLE is None:
+        _load_onnx_model()
+    
+    # Try ONNX YOLO first if available
+    if _YOLO_AVAILABLE and _onnx_session is not None:
+        try:
+            # Preprocess image
+            img_preprocessed = _preprocess_image(img, _MODEL_INPUT_SIZE)
+            print(f"🔍 Preprocessed image shape: {img_preprocessed.shape}, original: {original_shape}")
+            
+            # Run inference
+            outputs = _onnx_session.run(_output_names, {_input_name: img_preprocessed})
+            print(f"🔍 ONNX output shapes: {[o.shape for o in outputs]}")
+            
+            # Post-process outputs
+            boxes = _postprocess_output(
+                outputs,
+                original_shape,
+                _MODEL_INPUT_SIZE,
+                _CONFIDENCE_THRESHOLD,
+                _IOU_THRESHOLD
+            )
+            
+            print(f"🔍 Detected {len(boxes)} boxes after post-processing")
+            
+            # If we got results, return them
+            if len(boxes) > 0:
+                result = YOLOResult(boxes)
+                return [result]
+            else:
+                print("⚠️ YOLO detected 0 boxes, falling back to Haar cascade")
+        except Exception as e:
+            print(f"⚠️ YOLO ONNX detection error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Fallback to Haar cascade for face detection
+    print("🔄 Using Haar cascade fallback for face detection")
     try:
-        # Preprocess image
-        img_preprocessed = _preprocess_image(img, _MODEL_INPUT_SIZE)
+        # Load Haar cascade classifier
+        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        face_cascade = cv2.CascadeClassifier(cascade_path)
         
-        # Run inference
-        outputs = _onnx_session.run(_output_names, {_input_name: img_preprocessed})
+        if face_cascade.empty():
+            print("⚠️ Haar cascade not available")
+            empty_obj = type('obj', (object,), {'boxes': []})()
+            return [empty_obj]
         
-        # Post-process outputs
-        boxes = _postprocess_output(
-            outputs,
-            original_shape,
-            _MODEL_INPUT_SIZE,
-            _CONFIDENCE_THRESHOLD,
-            _IOU_THRESHOLD
-        )
+        # Convert to grayscale for face detection
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
         
-        # Create result object compatible with ultralytics format
+        print(f"🔍 Haar cascade detected {len(faces)} faces")
+        
+        # Convert Haar cascade format to YOLO-compatible format
+        class MockBox:
+            def __init__(self, x, y, w, h):
+                # Haar returns (x, y, w, h), convert to (x1, y1, x2, y2)
+                self.xyxy = np.array([[x, y, x + w, y + h]], dtype=np.float32)
+                self.conf = 1.0
+                self.cls = 0  # Face class
+        
+        class MockBoxes:
+            def __init__(self, boxes_list):
+                self.boxes_list = boxes_list
+            
+            def __len__(self):
+                return len(self.boxes_list)
+            
+            def __getitem__(self, idx):
+                return self.boxes_list[idx]
+        
+        boxes_list = [MockBox(x, y, w, h) for (x, y, w, h) in faces]
+        boxes = MockBoxes(boxes_list)
+        
         result = YOLOResult(boxes)
         return [result]
         
     except Exception as e:
-        print(f"⚠️ YOLO ONNX detection error: {e}")
+        print(f"⚠️ Haar cascade detection error: {e}")
         import traceback
         traceback.print_exc()
         # Return empty results on error as a list

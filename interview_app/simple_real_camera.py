@@ -1258,18 +1258,30 @@ class SimpleRealVideoCamera:
             from ultralytics import YOLO
             from django.conf import settings
             import os
+            from pathlib import Path
             try:
                 # Load YOLO model only when technical interview starts
-                # Use absolute path from BASE_DIR: BASE_DIR/yolov8n.pt
-                model_path = os.path.join(settings.BASE_DIR, 'yolov8n.pt')
-                if os.path.exists(model_path):
-                    self._yolo = YOLO(model_path)
-                    print(f"✅ YOLOv8 model loaded from: {model_path}")
+                # Use absolute path from BASE_DIR: BASE_DIR/yolov8n.pt (project root: aiinterviewerbackend/yolov8n.pt)
+                model_path = Path(settings.BASE_DIR) / 'yolov8n.pt'
+                print(f"🔍 Looking for YOLOv8 model at: {model_path}")
+                print(f"🔍 BASE_DIR: {settings.BASE_DIR}")
+                print(f"🔍 Model path exists: {model_path.exists()}")
+                
+                if model_path.exists():
+                    self._yolo = YOLO(str(model_path))
+                    print(f"✅ YOLOv8 model loaded successfully from: {model_path}")
                 else:
                     # Fallback: try current directory
-                    fallback_path = 'yolov8n.pt'
-                    self._yolo = YOLO(fallback_path)
-                    print(f"✅ YOLOv8 model loaded from fallback path: {fallback_path}")
+                    fallback_path = Path('yolov8n.pt')
+                    print(f"🔍 Trying fallback path: {fallback_path} (exists: {fallback_path.exists()})")
+                    if fallback_path.exists():
+                        self._yolo = YOLO(str(fallback_path))
+                        print(f"✅ YOLOv8 model loaded from fallback path: {fallback_path}")
+                    else:
+                        print(f"⚠️ YOLOv8 model not found at {model_path} or {fallback_path}")
+                        print(f"⚠️ Please ensure yolov8n.pt is in the project root directory")
+                        self._yolo = None
+                        return False
                 self._yolo_loaded = True
                 self._proctoring_active = True
                 print(f"✅ YOLOv8 model loaded and proctoring activated for session {self.session_id}")
@@ -1278,6 +1290,8 @@ class SimpleRealVideoCamera:
                 return True
             except Exception as e:
                 print(f"⚠️ Could not load yolov8n.pt: {e}")
+                import traceback
+                traceback.print_exc()
                 self._yolo = None
                 return False
         except Exception as e:

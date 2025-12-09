@@ -64,7 +64,7 @@ opencv-python-headless==4.9.0.80
 # google-cloud-texttospeech==2.16.3
 
 # Computer Vision and Audio Processing (Optional - Comment out if causing issues)
-# ultralytics==8.1.28
+ultralytics==8.1.28
 # torch==2.2.0
 # torchvision==0.17.0
 # scipy==1.13.0

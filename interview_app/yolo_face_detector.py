@@ -41,10 +41,12 @@ def detect_face_with_yolo(image_input):
     """
     Takes a file path or numpy array and returns YOLO detection results.
     Falls back gracefully if YOLOv8 is not available.
+    Always returns a list for consistency.
     """
     if not YOLO_AVAILABLE or model is None:
-        # Return empty results if YOLO is not available
-        return type('obj', (object,), {'boxes': []})()
+        # Return empty results as a list if YOLO is not available
+        empty_obj = type('obj', (object,), {'boxes': []})()
+        return [empty_obj]
     
     if isinstance(image_input, str):
         img = cv2.imread(image_input)
@@ -56,8 +58,13 @@ def detect_face_with_yolo(image_input):
 
     try:
         results = model(img)
+        # Ensure results is always a list
+        if not isinstance(results, list):
+            # If YOLO returns a single result object, wrap it in a list
+            return [results] if results else [type('obj', (object,), {'boxes': []})()]
         return results
     except Exception as e:
         print(f"⚠️ YOLO detection error: {e}")
-        # Return empty results on error
-        return type('obj', (object,), {'boxes': []})()
+        # Return empty results on error as a list
+        empty_obj = type('obj', (object,), {'boxes': []})()
+        return [empty_obj]

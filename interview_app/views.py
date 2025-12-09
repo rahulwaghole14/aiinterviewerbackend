@@ -101,7 +101,10 @@ try:
     from .yolo_face_detector import detect_face_with_yolo
 except ImportError:
     print("Warning: yolo_face_detector could not be imported. Using a placeholder.")
-    def detect_face_with_yolo(img): return [type('obj', (object,), {'boxes': []})()]
+    def detect_face_with_yolo(img): 
+        # Return empty results as a list for consistency
+        empty_obj = type('obj', (object,), {'boxes': []})()
+        return [empty_obj]
 
 
 load_dotenv()
@@ -3134,6 +3137,7 @@ def report_tab_switch(request):
     return JsonResponse({"status": "ok"})
 
 @csrf_exempt
+@csrf_exempt
 def check_camera(request):
     """
     Check camera availability for identity verification.
@@ -3145,7 +3149,12 @@ def check_camera(request):
         if not session_key:
             return JsonResponse({"status": "error", "message": "session_key required"}, status=400)
         
-        camera = get_camera_for_session(session_key)
+        try:
+            camera = get_camera_for_session(session_key)
+        except Exception as e:
+            # If camera creation fails, that's OK - browser will handle camera access
+            print(f"⚠️ Camera creation failed (non-critical, browser will handle): {e}")
+            camera = None
         
         # On cloud servers (like Render), physical cameras are not available
         # The browser will handle camera access via getUserMedia API
@@ -3153,7 +3162,13 @@ def check_camera(request):
         if camera:
             # Check if camera hardware is available (will be False on Render)
             try:
-                camera_available = camera.video.isOpened() if hasattr(camera, 'video') and camera.video else False
+                camera_available = False
+                if hasattr(camera, 'video') and camera.video:
+                    try:
+                        camera_available = camera.video.isOpened()
+                    except (AttributeError, Exception):
+                        camera_available = False
+                
                 if camera_available:
                     return JsonResponse({"status": "ok", "message": "Camera hardware detected"})
                 else:
@@ -4458,8 +4473,21 @@ def verify_id(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid image format.'})
 
         results = detect_face_with_yolo(full_image)
-        boxes = results[0].boxes if results and hasattr(results[0], 'boxes') else []
-        num_faces_detected = len(boxes)
+        # Handle both list and single object returns
+        if results:
+            # Check if results is a list
+            if isinstance(results, list) and len(results) > 0:
+                # Access first element if it's a list
+                first_result = results[0]
+                boxes = first_result.boxes if hasattr(first_result, 'boxes') else []
+            elif hasattr(results, 'boxes'):
+                # Results is a single object with boxes attribute
+                boxes = results.boxes
+            else:
+                boxes = []
+        else:
+            boxes = []
+        num_faces_detected = len(boxes) if boxes else 0
 
         # Check for exactly two faces (candidate + ID photo)
         if num_faces_detected != 2:

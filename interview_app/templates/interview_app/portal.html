@@ -2049,36 +2049,33 @@
         try {
             const response = await fetch(`{% url 'check_camera' %}?session_key=${SESSION_KEY}`);
             if (!response.ok) { const errData = await response.json(); throw new Error(errData.message || "Server error."); }
-            statusEl.innerText = "Camera detected. Waiting for video stream...";
-            feedEl.src = `{% url 'video_feed' %}?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
-            console.log('📺 Video feed URL set:', feedEl.src);
+            const data = await response.json();
             
-            let feedLoaded = false;
+            // Check if browser camera should be used (e.g., on cloud servers like Render)
+            const useBrowserCamera = data.browser_camera === true;
+            window.USE_BROWSER_CAMERA = useBrowserCamera;
             
-            feedEl.onload = async () => {
-                console.log('✅ Video feed loaded successfully');
-                if (feedLoaded) return; // Prevent multiple calls
-                feedLoaded = true;
-                
-                statusEl.innerText = "Camera check successful!";
-                // DON'T release camera here - it needs to stay alive for the interview!
+            if (useBrowserCamera) {
+                console.log('🌐 Using browser camera (no server hardware camera available)');
+                statusEl.innerText = "Browser camera will be used";
+                // Skip backend video feed and proceed directly to verification
                 setTimeout(() => {
                     document.getElementById('camera-check-screen').style.display = 'none';
                     document.getElementById('id-verification-screen').style.display = 'block';
                     startVerificationCamera();
-                }, 1000);
-            };
-            
-            feedEl.onerror = (e) => { 
-                console.error('❌ Video feed error:', e);
-                throw new Error("Could not display video feed."); 
-            };
-            
-            // Fallback timeout in case onload doesn't fire
-            setTimeout(async () => {
-                if (!feedLoaded) {
-                    console.log('⏰ Video feed timeout - proceeding anyway');
+                }, 500);
+            } else {
+                statusEl.innerText = "Camera detected. Waiting for video stream...";
+                feedEl.src = `{% url 'video_feed' %}?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
+                console.log('📺 Video feed URL set:', feedEl.src);
+                
+                let feedLoaded = false;
+                
+                feedEl.onload = async () => {
+                    console.log('✅ Video feed loaded successfully');
+                    if (feedLoaded) return; // Prevent multiple calls
                     feedLoaded = true;
+                    
                     statusEl.innerText = "Camera check successful!";
                     // DON'T release camera here - it needs to stay alive for the interview!
                     setTimeout(() => {
@@ -2086,8 +2083,28 @@
                         document.getElementById('id-verification-screen').style.display = 'block';
                         startVerificationCamera();
                     }, 1000);
-                }
-            }, 3000); // 3 second timeout
+                };
+                
+                feedEl.onerror = (e) => { 
+                    console.error('❌ Video feed error:', e);
+                    throw new Error("Could not display video feed."); 
+                };
+                
+                // Fallback timeout in case onload doesn't fire
+                setTimeout(async () => {
+                    if (!feedLoaded) {
+                        console.log('⏰ Video feed timeout - proceeding anyway');
+                        feedLoaded = true;
+                        statusEl.innerText = "Camera check successful!";
+                        // DON'T release camera here - it needs to stay alive for the interview!
+                        setTimeout(() => {
+                            document.getElementById('camera-check-screen').style.display = 'none';
+                            document.getElementById('id-verification-screen').style.display = 'block';
+                            startVerificationCamera();
+                        }, 1000);
+                    }
+                }, 3000); // 3 second timeout
+            }
         } catch (err) {
             statusEl.innerText = `Error: ${err.message}`;
             statusEl.style.color = "red";
@@ -2103,44 +2120,133 @@
             return;
         }
         
-        console.log('🎥 Starting verification camera (using backend feed)...');
-        statusEl.innerText = "Initializing camera...";
-        statusEl.style.color = "";
+        // Check if browser camera should be used
+        const useBrowserCamera = window.USE_BROWSER_CAMERA === true;
         
-        // Use backend video feed instead of getUserMedia (avoids camera conflict)
-        const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
-        let frameUpdateInterval = null;
-        
-        const updateFrame = () => {
-            if (interviewEnded) {
-                if (frameUpdateInterval) clearInterval(frameUpdateInterval);
-                return;
-            }
+        if (useBrowserCamera) {
+            console.log('🌐 Starting verification camera (using browser camera)...');
+            statusEl.innerText = "Requesting camera access...";
+            statusEl.style.color = "";
             
-            const url = `${frameUrl}&t=${Date.now()}&cache=${Math.random()}`;
-            imgEl.onload = () => {
-                console.log('✅ Verification frame loaded');
-                if (statusEl.innerText === "Initializing camera...") {
+            // Use browser's getUserMedia API
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                },
+                audio: false 
+            })
+            .then(stream => {
+                console.log('✅ Browser camera access granted');
+                window._verificationStream = stream;
+                
+                // Create a hidden video element to capture frames
+                let videoEl = document.getElementById('verification-video-hidden');
+                if (!videoEl) {
+                    videoEl = document.createElement('video');
+                    videoEl.id = 'verification-video-hidden';
+                    videoEl.style.display = 'none';
+                    videoEl.autoplay = true;
+                    videoEl.playsInline = true;
+                    document.body.appendChild(videoEl);
+                }
+                
+                videoEl.srcObject = stream;
+                videoEl.onloadedmetadata = () => {
+                    videoEl.play();
+                    
+                    // Create canvas to capture frames
+                    let canvasEl = document.getElementById('verification-canvas-hidden');
+                    if (!canvasEl) {
+                        canvasEl = document.createElement('canvas');
+                        canvasEl.id = 'verification-canvas-hidden';
+                        canvasEl.style.display = 'none';
+                        document.body.appendChild(canvasEl);
+                    }
+                    
+                    canvasEl.width = videoEl.videoWidth || 640;
+                    canvasEl.height = videoEl.videoHeight || 480;
+                    const ctx = canvasEl.getContext('2d');
+                    
+                    // Update image element with frames from video
+                    const updateFrame = () => {
+                        if (interviewEnded) {
+                            if (window._verificationFrameInterval) {
+                                clearInterval(window._verificationFrameInterval);
+                            }
+                            if (stream) {
+                                stream.getTracks().forEach(track => track.stop());
+                            }
+                            return;
+                        }
+                        
+                        try {
+                            ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+                            imgEl.src = canvasEl.toDataURL('image/jpeg', 0.8);
+                            
+                            if (statusEl.innerText === "Requesting camera access..." || statusEl.innerText === "Initializing camera...") {
+                                statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                                statusEl.style.color = "green";
+                            }
+                        } catch (e) {
+                            console.warn('⚠️ Failed to capture frame:', e);
+                        }
+                    };
+                    
+                    // Update at ~15fps for smooth preview
+                    window._verificationFrameInterval = setInterval(updateFrame, 67);
+                    updateFrame(); // Start immediately
+                    
                     statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
                     statusEl.style.color = "green";
+                };
+            })
+            .catch(err => {
+                console.error('❌ Browser camera access denied:', err);
+                statusEl.innerText = `Error: ${err.name === 'NotAllowedError' ? 'Camera access denied. Please allow camera access.' : 'Failed to access camera.'}`;
+                statusEl.style.color = "red";
+            });
+        } else {
+            console.log('🎥 Starting verification camera (using backend feed)...');
+            statusEl.innerText = "Initializing camera...";
+            statusEl.style.color = "";
+            
+            // Use backend video feed instead of getUserMedia (avoids camera conflict)
+            const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
+            let frameUpdateInterval = null;
+            
+            const updateFrame = () => {
+                if (interviewEnded) {
+                    if (frameUpdateInterval) clearInterval(frameUpdateInterval);
+                    return;
                 }
+                
+                const url = `${frameUrl}&t=${Date.now()}&cache=${Math.random()}`;
+                imgEl.onload = () => {
+                    console.log('✅ Verification frame loaded');
+                    if (statusEl.innerText === "Initializing camera...") {
+                        statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                        statusEl.style.color = "green";
+                    }
+                };
+                imgEl.onerror = () => {
+                    console.warn('⚠️ Failed to load verification frame');
+                };
+                imgEl.src = url;
             };
-            imgEl.onerror = () => {
-                console.warn('⚠️ Failed to load verification frame');
-            };
-            imgEl.src = url;
-        };
-        
-        // Start polling for frames every 500ms (~2fps - sufficient for verification, reduces load)
-        frameUpdateInterval = setInterval(updateFrame, 500);
-        updateFrame(); // Start immediately
-        
-        console.log('✅ Verification camera feed started (backend video)');
-        statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
-        statusEl.style.color = "green";
-        
-        // Store interval so we can clear it later
-        window._verificationFrameInterval = frameUpdateInterval;
+            
+            // Start polling for frames every 500ms (~2fps - sufficient for verification, reduces load)
+            frameUpdateInterval = setInterval(updateFrame, 500);
+            updateFrame(); // Start immediately
+            
+            console.log('✅ Verification camera feed started (backend video)');
+            statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+            statusEl.style.color = "green";
+            
+            // Store interval so we can clear it later
+            window._verificationFrameInterval = frameUpdateInterval;
+        }
     }
 
     function startTechnicalInterview() {
@@ -2225,33 +2331,60 @@
         const imgEl = document.getElementById('verification-feed');
         const canvasEl = document.getElementById('verification-canvas');
         
-        // Check if image is loaded
-        if (!imgEl || !imgEl.complete || !imgEl.naturalWidth) {
-            statusEl.innerText = "Error: Camera not ready. Please wait for camera to initialize.";
-            statusEl.style.color = "red";
-            console.error('❌ Image not loaded - complete:', imgEl?.complete, 'naturalWidth:', imgEl?.naturalWidth);
-            return;
+        const useBrowserCamera = window.USE_BROWSER_CAMERA === true;
+        let imageDataUrl;
+        
+        if (useBrowserCamera) {
+            // Capture directly from video element for better quality
+            const videoEl = document.getElementById('verification-video-hidden');
+            if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+                statusEl.innerText = "Error: Camera not ready. Please wait for camera to initialize.";
+                statusEl.style.color = "red";
+                console.error('❌ Video element not ready');
+                return;
+            }
+            
+            statusEl.innerText = "Processing, please hold still...";
+            statusEl.style.color = "";
+            
+            // Use the canvas element or create one to capture the image
+            const canvas = canvasEl || document.createElement('canvas');
+            canvas.width = videoEl.videoWidth;
+            canvas.height = videoEl.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw the current frame from the video element
+            ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+            imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        } else {
+            // Check if image is loaded (backend feed)
+            if (!imgEl || !imgEl.complete || !imgEl.naturalWidth) {
+                statusEl.innerText = "Error: Camera not ready. Please wait for camera to initialize.";
+                statusEl.style.color = "red";
+                console.error('❌ Image not loaded - complete:', imgEl?.complete, 'naturalWidth:', imgEl?.naturalWidth);
+                return;
+            }
+            
+            if (imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
+                statusEl.innerText = "Error: Image dimensions invalid. Please wait a moment and try again.";
+                statusEl.style.color = "red";
+                console.error('❌ Invalid image dimensions');
+                return;
+            }
+            
+            statusEl.innerText = "Processing, please hold still...";
+            statusEl.style.color = "";
+            
+            // Use the canvas element or create one to capture the image
+            const canvas = canvasEl || document.createElement('canvas');
+            canvas.width = imgEl.naturalWidth;
+            canvas.height = imgEl.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw the current frame from the backend feed
+            ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+            imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         }
-        
-        if (imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
-            statusEl.innerText = "Error: Image dimensions invalid. Please wait a moment and try again.";
-            statusEl.style.color = "red";
-            console.error('❌ Invalid image dimensions');
-            return;
-        }
-        
-        statusEl.innerText = "Processing, please hold still...";
-        statusEl.style.color = "";
-        
-        // Use the canvas element or create one to capture the image
-        const canvas = canvasEl || document.createElement('canvas');
-        canvas.width = imgEl.naturalWidth;
-        canvas.height = imgEl.naturalHeight;
-        const ctx = canvas.getContext('2d');
-        
-        // Draw the current frame from the backend feed
-        ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         const formData = new FormData();
         formData.append('session_id', INTERVIEW_SESSION_ID);
         formData.append('image_data', imageDataUrl);
@@ -2269,7 +2402,11 @@
                     window._verificationFrameInterval = null;
                 }
                 
-                // Note: No need to stop verificationStream anymore since we're using backend feed
+                // Clean up browser camera stream if used
+                if (window._verificationStream) {
+                    window._verificationStream.getTracks().forEach(track => track.stop());
+                    window._verificationStream = null;
+                }
                 
                 // Show instructions screen instead of going directly to interview
                 setTimeout(() => {

@@ -65,7 +65,7 @@ opencv-python-headless==4.9.0.80
 
 # Computer Vision and Audio Processing (Optional - Comment out if causing issues)
 # ultralytics==8.1.28  # Replaced with onnxruntime for lower memory usage
-onnxruntime==1.18.0  # Lightweight alternative to ultralytics/PyTorch (~50MB vs ~500MB+)
+onnxruntime>=1.20.0  # Lightweight alternative to ultralytics/PyTorch (~50MB vs ~500MB+)
 # torch==2.2.0
 # torchvision==0.17.0
 # scipy==1.13.0

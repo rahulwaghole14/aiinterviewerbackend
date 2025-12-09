@@ -408,9 +408,10 @@ class NotificationService:
             # Use Path objects for better cross-platform compatibility
             base_dir = Path(settings.BASE_DIR) if not isinstance(settings.BASE_DIR, Path) else settings.BASE_DIR
             logo_paths = [
-                # Actual path: frontend/dist/assets/talaro-logo-BU1oLZlK.png
-                base_dir / "frontend" / "dist" / "assets" / "talaro-logo-BU1oLZlK.png",
+                # Primary logo path: aiinterviewfrontend/public/Gemini_Generated_Image_n5wd4ln5wd4ln5wd.png
+                base_dir / "aiinterviewfrontend" / "public" / "Gemini_Generated_Image_n5wd4ln5wd4ln5wd.png",
                 # Alternative paths
+                base_dir / "frontend" / "dist" / "assets" / "talaro-logo-BU1oLZlK.png",
                 base_dir / "frontend" / "dist" / "talaro-favicon.png",
                 base_dir / "static_frontend_dist" / "assets" / "talaro-logo-BU1oLZlK.png",
                 base_dir / "static_frontend_dist" / "talaro-favicon.png",

@@ -60,7 +60,7 @@ numpy==1.26.4
 
 # AI and Machine Learning (Optional - Comment out if causing issues)
 # openai-whisper==20231117
-# opencv-python-headless==4.9.0.80
+opencv-python-headless==4.9.0.80
 # google-cloud-texttospeech==2.16.3
 
 # Computer Vision and Audio Processing (Optional - Comment out if causing issues)

@@ -58,6 +58,8 @@ MIDDLEWARE = [
     # CORS must be first to ensure headers on responses incl. preflight
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise must be after SecurityMiddleware but before other middleware
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     # Custom middleware to disable CSRF for API endpoints (must be before CsrfViewMiddleware)

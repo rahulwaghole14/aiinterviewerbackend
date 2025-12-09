@@ -225,6 +225,9 @@ STATICFILES_DIRS = [
     BASE_DIR / "frontend" / "dist",  # Include frontend build output (if submodule is checked out)
 ]
 
+# WhiteNoise configuration for serving static files in production
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 # Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

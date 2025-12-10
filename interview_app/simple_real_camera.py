@@ -1248,12 +1248,21 @@ class SimpleRealVideoCamera:
             traceback.print_exc()
     
     def activate_yolo_proctoring(self):
-        """Activate YOLO model and start proctoring warnings when technical interview starts"""
+        """
+        Activate YOLO model and start proctoring warnings when technical interview starts.
+        IMPORTANT: Camera feed continues to work even if ONNX model fails to load.
+        """
+        # Always activate proctoring (for warnings) even if YOLO fails
+        self._proctoring_active = True
+        
         if self._yolo_loaded:
             print(f"✅ YOLO already loaded for session {self.session_id}")
-            self._proctoring_active = True
+            # Ensure video recording is started
+            if not hasattr(self, '_recording_start_timestamp') or self._recording_start_timestamp is None:
+                self.start_video_recording()
             return True
         
+        # Try to load ONNX model, but don't fail if it doesn't work
         try:
             import onnxruntime as ort
             from django.conf import settings
@@ -1276,10 +1285,13 @@ class SimpleRealVideoCamera:
                         model_path = fallback_path
                     else:
                         print(f"⚠️ YOLOv8 ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8n.onnx'} or {fallback_path}")
-                        print(f"⚠️ Please ensure yolov8n.onnx is in the project root directory")
+                        print(f"⚠️ Proctoring will use Haar cascade fallback (camera feed will still work)")
                         print(f"ℹ️ You can convert yolov8n.pt to .onnx using: yolo export model=yolov8n.pt format=onnx")
                         self._yolo = None
-                        return False
+                        # Don't return False - continue with Haar cascade
+                        # Start video recording anyway
+                        self.start_video_recording()
+                        return True  # Return True so camera feed continues
                 
                 # Create ONNX Runtime session
                 providers = ['CPUExecutionProvider']
@@ -1291,24 +1303,33 @@ class SimpleRealVideoCamera:
                 print(f"   Input: {self._yolo_input_name}, Outputs: {self._yolo_output_names}")
                 
                 self._yolo_loaded = True
-                self._proctoring_active = True
                 print(f"✅ YOLOv8 ONNX model loaded and proctoring activated for session {self.session_id}")
                 # Start video recording when proctoring starts
                 self.start_video_recording()
                 return True
             except Exception as e:
                 print(f"⚠️ Could not load yolov8n.onnx: {e}")
+                print(f"⚠️ Proctoring will use Haar cascade fallback (camera feed will still work)")
                 import traceback
                 traceback.print_exc()
                 self._yolo = None
-                return False
+                # Don't return False - continue with Haar cascade
+                # Start video recording anyway
+                self.start_video_recording()
+                return True  # Return True so camera feed continues
         except ImportError as e:
             print(f"ℹ️ onnxruntime not installed; falling back to Haar cascade. {e}")
             print(f"ℹ️ Install with: pip install onnxruntime")
-            return False
+            print(f"⚠️ Camera feed will continue to work with Haar cascade fallback")
+            # Start video recording anyway
+            self.start_video_recording()
+            return True  # Return True so camera feed continues
         except Exception as e:
             print(f"ℹ️ Error loading ONNX model; falling back to Haar cascade. {e}")
-            return False
+            print(f"⚠️ Camera feed will continue to work with Haar cascade fallback")
+            # Start video recording anyway
+            self.start_video_recording()
+            return True  # Return True so camera feed continues
     
     def start_video_recording(self, synchronized_start_time=None):
         """Start recording video frames to a file. Returns the exact start timestamp for synchronization.

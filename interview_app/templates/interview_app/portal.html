@@ -4338,7 +4338,7 @@
                 console.log('Released verification stream');
             }
             
-            // Stop proctoring streams
+            // Stop proctoring streams (both old format and new array format)
             if (window.proctoringStream1) {
                 window.proctoringStream1.getTracks().forEach(track => track.stop());
                 console.log('Released proctoring stream 1');
@@ -4347,6 +4347,25 @@
             if (window.proctoringStream2) {
                 window.proctoringStream2.getTracks().forEach(track => track.stop());
                 console.log('Released proctoring stream 2');
+            }
+            
+            // Stop proctoring streams from array (browser camera feeds)
+            if (window._proctoringStreams && Array.isArray(window._proctoringStreams)) {
+                window._proctoringStreams.forEach((stream, index) => {
+                    if (stream && stream.getTracks) {
+                        stream.getTracks().forEach(track => track.stop());
+                        console.log(`Released proctoring stream ${index + 1} from array`);
+                    }
+                });
+                window._proctoringStreams = [];
+            }
+            
+            // Clear proctoring intervals
+            if (window._proctoringIntervals && Array.isArray(window._proctoringIntervals)) {
+                window._proctoringIntervals.forEach(interval => {
+                    if (interval) clearInterval(interval);
+                });
+                window._proctoringIntervals = [];
             }
             
             // Stop media recorder
@@ -4421,7 +4440,15 @@
         
         const proctoringFeed = document.getElementById('proctoring-feed');
         const proctoringFeed2 = document.getElementById('proctoring-feed-2');
-        console.log("Starting proctoring monitors via backend video_frame (same as identity verification)...");
+        
+        // Check if browser camera should be used (e.g., on cloud servers like Render)
+        const useBrowserCamera = window.USE_BROWSER_CAMERA === true;
+        
+        if (useBrowserCamera) {
+            console.log("🌐 Starting proctoring monitors using browser camera (getUserMedia)...");
+        } else {
+            console.log("📺 Starting proctoring monitors via backend video_frame...");
+        }
         
         // Update session ID displays
         if (SESSION_KEY) {
@@ -4432,13 +4459,95 @@
             if (sessionIdCoding) sessionIdCoding.textContent = sessionIdDisplay;
         }
         
+        // Function to start browser camera feed
+        const startBrowserFeed = (imgElement, name) => {
+            if (!imgElement) {
+                console.error(`❌ ${name} image element not found`);
+                return;
+            }
+            
+            console.log(`🌐 Starting ${name} live camera feed using browser camera...`);
+            
+            // Request browser camera access
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                },
+                audio: false 
+            })
+            .then(stream => {
+                console.log(`✅ Browser camera access granted for ${name}`);
+                
+                // Create a hidden video element to capture frames
+                let videoEl = document.getElementById(`proctoring-video-${name.toLowerCase().replace(/\s+/g, '-')}`);
+                if (!videoEl) {
+                    videoEl = document.createElement('video');
+                    videoEl.id = `proctoring-video-${name.toLowerCase().replace(/\s+/g, '-')}`;
+                    videoEl.style.display = 'none';
+                    videoEl.autoplay = true;
+                    videoEl.playsInline = true;
+                    document.body.appendChild(videoEl);
+                }
+                
+                videoEl.srcObject = stream;
+                videoEl.onloadedmetadata = () => {
+                    videoEl.play();
+                    
+                    // Create canvas to capture frames and display in img element
+                    let canvasEl = document.getElementById(`proctoring-canvas-${name.toLowerCase().replace(/\s+/g, '-')}`);
+                    if (!canvasEl) {
+                        canvasEl = document.createElement('canvas');
+                        canvasEl.id = `proctoring-canvas-${name.toLowerCase().replace(/\s+/g, '-')}`;
+                        canvasEl.style.display = 'none';
+                        document.body.appendChild(canvasEl);
+                    }
+                    
+                    canvasEl.width = videoEl.videoWidth || 640;
+                    canvasEl.height = videoEl.videoHeight || 480;
+                    
+                    // Update img element with frames from video
+                    const updateFrame = () => {
+                        if (interviewEnded) {
+                            stream.getTracks().forEach(track => track.stop());
+                            return;
+                        }
+                        
+                        const ctx = canvasEl.getContext('2d');
+                        ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+                        imgElement.src = canvasEl.toDataURL('image/jpeg', 0.8);
+                        imgElement.style.display = 'block';
+                        imgElement.style.opacity = '1';
+                        imgElement.style.backgroundColor = 'transparent';
+                        
+                        requestAnimationFrame(updateFrame);
+                    };
+                    
+                    updateFrame();
+                    console.log(`✅ ${name} browser camera feed started`);
+                };
+                
+                // Store stream for cleanup
+                if (!window._proctoringStreams) window._proctoringStreams = [];
+                window._proctoringStreams.push(stream);
+            })
+            .catch(error => {
+                console.error(`❌ Error accessing browser camera for ${name}:`, error);
+                imgElement.style.backgroundColor = '#000';
+                // Fallback to backend feed if browser camera fails
+                startBackendFeed(imgElement, name);
+            });
+        };
+        
+        // Function to start backend feed (fallback or when server has camera)
         const startBackendFeed = (imgElement, name, canvasId = null) => {
             if (!imgElement) {
                 console.error(`❌ ${name} image element not found`);
                 return;
             }
             
-            console.log(`📺 Starting ${name} live camera feed (same as identity verification)...`);
+            console.log(`📺 Starting ${name} live camera feed (backend video_frame endpoint)...`);
             
             // Use same approach as identity verification - direct video_frame polling
             const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
@@ -4476,8 +4585,14 @@
             window._proctoringIntervals.push(frameUpdateInterval);
         };
         
-        startBackendFeed(proctoringFeed, 'Technical Interview', 'proctoring-feed-canvas');
-        startBackendFeed(proctoringFeed2, 'Coding Round', 'proctoring-feed-canvas-2');
+        // Start feeds based on camera availability
+        if (useBrowserCamera) {
+            startBrowserFeed(proctoringFeed, 'Technical Interview');
+            startBrowserFeed(proctoringFeed2, 'Coding Round');
+        } else {
+            startBackendFeed(proctoringFeed, 'Technical Interview', 'proctoring-feed-canvas');
+            startBackendFeed(proctoringFeed2, 'Coding Round', 'proctoring-feed-canvas-2');
+        }
         
         // Start timestamp updates when proctoring starts
         startProctoringTimestamps();

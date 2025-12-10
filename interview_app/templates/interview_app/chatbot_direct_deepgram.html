@@ -27,7 +27,7 @@ audio{width:100%;margin:10px 0;}
 
 <script>
 const SESSION_KEY="{{ session_key }}";
-const DEEPGRAM_API_KEY='6690abf90d1c62c6b70ed632900b2c093bc06d79';
+const DEEPGRAM_API_KEY='{{ DEEPGRAM_API_KEY|default:"" }}';
 
 let sid=null,listening=false,isFinalizing=false;
 let ws=null,audioContext=null,processor=null,source=null,streamRef=null;

@@ -357,11 +357,9 @@ GEMINI_API_KEY = os.environ.get(
 
 # Deepgram configuration
 # IMPORTANT: Set DEEPGRAM_API_KEY in your .env file for security
-# Fallback to hardcoded key only for development (remove in production)
-DEEPGRAM_API_KEY = os.environ.get(
-    "DEEPGRAM_API_KEY",
-    "6690abf90d1c62c6b70ed632900b2c093bc06d79"  # TODO: Remove hardcoded key in production
-)
+DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY", "")
+if not DEEPGRAM_API_KEY:
+    print("⚠️ WARNING: DEEPGRAM_API_KEY not set in environment. Deepgram features will be disabled.")
 
 # Backend URL for generating interview links (used in emails)
 # For Render: Set this to your Render backend service URL

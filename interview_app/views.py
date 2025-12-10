@@ -1652,6 +1652,7 @@ def interview_portal(request):
             'interview_started': True,
             'candidate_name': session.candidate_name,
             'job_description': session.job_description,
+            'DEEPGRAM_API_KEY': settings.DEEPGRAM_API_KEY,  # Pass Deepgram API key from settings
         }
         return render(request, 'interview_app/portal.html', context)
     except Exception as e:
@@ -1666,6 +1667,7 @@ def interview_portal(request):
                 'spoken_questions_data': [],
                 'coding_questions_data': [],
                 'interview_started': True,
+                'DEEPGRAM_API_KEY': settings.DEEPGRAM_API_KEY,  # Pass Deepgram API key from settings
             }
             return render(request, 'interview_app/portal.html', context)
         except Exception as e:
@@ -3399,7 +3401,7 @@ def chatbot_standalone(request):
     session_key = request.GET.get('session_key', '')
     return render(request, 'interview_app/chatbot_direct_deepgram.html', {
         'session_key': session_key,
-        'deepgram_api_key': getattr(settings, 'DEEPGRAM_API_KEY', '')
+        'DEEPGRAM_API_KEY': getattr(settings, 'DEEPGRAM_API_KEY', '')
     })
 
 @csrf_exempt

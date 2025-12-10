@@ -112,16 +112,12 @@ load_dotenv()
 try:
     from django.conf import settings as dj_settings
     active_key = getattr(dj_settings, 'GEMINI_API_KEY', '')
-    # Fallback to hardcoded key if env key is not available
-    if not active_key:
-        active_key = "AIzaSyALc4F87QUPBxqLLczo7bACCSR6UHWriqo"
-        print("⚠️ WARNING: GEMINI_API_KEY not set in environment, using hardcoded key")
     
     if active_key:
         genai.configure(api_key=active_key)
         print("✅ Gemini API configured successfully in views.py")
     else:
-        print("⚠️ WARNING: GEMINI_API_KEY not available")
+        print("⚠️ WARNING: GEMINI_API_KEY not set in environment. Please set GEMINI_API_KEY in .env file")
 except Exception as e:
     print(f"⚠️ WARNING: Could not configure Gemini API: {e}")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")

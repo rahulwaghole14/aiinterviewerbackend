@@ -1,29 +1,52 @@
 import re
 from difflib import SequenceMatcher
 from typing import Dict, List, Tuple
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
 import string
 
-# Download required NLTK data (run once)
-try:
-    nltk.data.find("tokenizers/punkt")
-except LookupError:
-    nltk.download("punkt")
+# Lazy import NLTK to avoid blocking during module import
+_nltk_loaded = False
+_nltk_modules = {}
 
-try:
-    nltk.data.find("corpora/stopwords")
-except LookupError:
-    nltk.download("stopwords")
-
-try:
-    nltk.data.find("corpora/wordnet")
-except LookupError:
-    nltk.download("wordnet")
-
-# No additional downloads needed - punkt_tab is not a valid NLTK resource
+def _ensure_nltk_loaded():
+    """Lazy load NLTK modules only when needed (not at import time)"""
+    global _nltk_loaded, _nltk_modules
+    if _nltk_loaded:
+        return _nltk_modules
+    
+    try:
+        import nltk
+        from nltk.corpus import stopwords
+        from nltk.stem import WordNetLemmatizer
+        
+        # Download required NLTK data only when first needed (not at import time)
+        # This prevents worker timeouts during request handling
+        try:
+            nltk.data.find("tokenizers/punkt")
+        except LookupError:
+            print("📥 Downloading NLTK punkt data (first use only)...")
+            nltk.download("punkt", quiet=True)
+        
+        try:
+            nltk.data.find("corpora/stopwords")
+        except LookupError:
+            print("📥 Downloading NLTK stopwords data (first use only)...")
+            nltk.download("stopwords", quiet=True)
+        
+        try:
+            nltk.data.find("corpora/wordnet")
+        except LookupError:
+            print("📥 Downloading NLTK wordnet data (first use only)...")
+            nltk.download("wordnet", quiet=True)
+        
+        _nltk_modules['stopwords'] = stopwords
+        _nltk_modules['WordNetLemmatizer'] = WordNetLemmatizer
+        _nltk_loaded = True
+        print("✅ NLTK modules loaded successfully")
+    except Exception as e:
+        print(f"⚠️ Warning: NLTK not available: {e}")
+        _nltk_modules = {}
+    
+    return _nltk_modules
 
 
 class ResumeJobMatcher:
@@ -32,8 +55,15 @@ class ResumeJobMatcher:
     """
 
     def __init__(self):
-        self.stop_words = set(stopwords.words("english"))
-        self.lemmatizer = WordNetLemmatizer()
+        # Lazy load NLTK modules only when needed
+        nltk_modules = _ensure_nltk_loaded()
+        if nltk_modules:
+            self.stop_words = set(nltk_modules['stopwords'].words("english"))
+            self.lemmatizer = nltk_modules['WordNetLemmatizer']()
+        else:
+            # Fallback: use empty set if NLTK not available
+            self.stop_words = set()
+            self.lemmatizer = None
 
         # Common technical skills and keywords
         self.technical_keywords = {
@@ -142,7 +172,10 @@ class ResumeJobMatcher:
         processed_tokens = []
         for token in tokens:
             if token not in self.stop_words and len(token) > 2:
-                lemmatized = self.lemmatizer.lemmatize(token)
+                if self.lemmatizer:
+                    lemmatized = self.lemmatizer.lemmatize(token)
+                else:
+                    lemmatized = token  # Fallback if NLTK not available
                 processed_tokens.append(lemmatized)
 
         return " ".join(processed_tokens)

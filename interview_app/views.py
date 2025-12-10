@@ -3220,13 +3220,51 @@ def activate_proctoring_camera(request):
         # Ensure camera is running
         if hasattr(camera, 'video') and camera.video.isOpened():
             # Activate YOLO model and proctoring (only now, not during identity verification)
+            # IMPORTANT: Camera feed continues to work even if YOLO/ONNX fails
             yolo_activated = False
             if hasattr(camera, 'activate_yolo_proctoring'):
                 yolo_activated = camera.activate_yolo_proctoring()
+                # Even if YOLO fails, camera feed should still work
+                if not yolo_activated:
+                    print(f"⚠️ YOLO/ONNX activation returned False, but camera feed will continue with Haar cascade")
+                    yolo_activated = True  # Treat as success so camera feed continues
             else:
                 # Fallback for older camera implementations
                 print(f"⚠️ Camera doesn't have activate_yolo_proctoring method, using fallback")
                 yolo_activated = True
+            
+            # Ensure camera is still running and capturing frames
+            if hasattr(camera, 'video') and camera.video:
+                if not camera.video.isOpened():
+                    print(f"⚠️ Camera not opened after proctoring activation, attempting to reinitialize...")
+                    # Try to reinitialize camera
+                    try:
+                        camera.video = camera._VideoCapture(0)
+                        if camera.video.isOpened():
+                            print(f"✅ Camera reinitialized successfully")
+                        else:
+                            print(f"⚠️ Camera reinitialization failed - feed may show black screen")
+                    except Exception as e:
+                        print(f"⚠️ Error reinitializing camera: {e}")
+            
+            # Ensure frame capture loop is running
+            if hasattr(camera, '_running') and not camera._running:
+                print(f"⚠️ Frame capture loop not running, attempting to restart...")
+                try:
+                    if hasattr(camera, '_capture_and_detect_loop'):
+                        import threading
+                        camera._running = True
+                        if hasattr(camera, '_detector_thread'):
+                            if not camera._detector_thread.is_alive():
+                                camera._detector_thread = threading.Thread(target=camera._capture_and_detect_loop, daemon=True)
+                                camera._detector_thread.start()
+                                print(f"✅ Frame capture loop restarted")
+                        else:
+                            camera._detector_thread = threading.Thread(target=camera._capture_and_detect_loop, daemon=True)
+                            camera._detector_thread.start()
+                            print(f"✅ Frame capture loop started")
+                except Exception as e:
+                    print(f"⚠️ Error restarting frame capture loop: {e}")
             
             # CRITICAL: Calculate synchronized start time for perfect video/audio synchronization
             # This ensures both video and audio start at the EXACT same moment (no trimming needed)

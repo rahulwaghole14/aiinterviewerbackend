@@ -13,7 +13,7 @@ from django.conf import settings
 import numpy as np
 
 # Configure Gemini - Using 2.5-flash as per your app.py
-GEMINI_API_KEY = "AIzaSyALc4F87QUPBxqLLczo7bACCSR6UHWriqo"
+GEMINI_API_KEY = "AIzaSyCY5Xv8t5WXibdnMsSkL-MixHsB-rc0EDM"
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Google Cloud TTS setup (exactly like app.py)

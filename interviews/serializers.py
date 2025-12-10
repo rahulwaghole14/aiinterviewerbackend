@@ -935,8 +935,6 @@ class InterviewSerializer(serializers.ModelSerializer):
                             else:
                                 # Ultimate fallback: no answer available
                                 answer_text = ''
-                            else:
-                                answer_text = None
                             created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
                             response_time = ai_q.response_time_seconds or 0
                     

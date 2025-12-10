@@ -12,7 +12,7 @@ from django.conf import settings
 # Configure Gemini - Get API key from Django settings
 api_key = getattr(settings, 'GEMINI_API_KEY', '')
 if api_key:
-    genai.configure(api_key=AIzaSyCY5Xv8t5WXibdnMsSkL-MixHsB-rc0EDM)
+    genai.configure(api_key="AIzaSyCY5Xv8t5WXibdnMsSkL-MixHsB-rc0EDM")
 else:
     print("⚠️ WARNING: GEMINI_API_KEY not set. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env file")
 

@@ -4549,8 +4549,46 @@ def verify_id(request):
             print("AI OCR was skipped, proceeding with face count verification only")
         elif not name_verified:
             return JsonResponse({'status': 'error', 'message': f"Could not reliably read the name from the ID card. Extracted: '{name}'. Please try again."})
-        elif session.candidate_name.lower().split()[0] not in name.lower():
-             return JsonResponse({'status': 'error', 'message': f"Name on ID ('{name}') does not match the registered name ('{session.candidate_name}')."})
+        else:
+            # Enhanced name matching: Check if candidate name matches ID name
+            candidate_name_lower = session.candidate_name.lower().strip()
+            extracted_name_lower = name.lower().strip()
+            
+            # Split names into words for comparison
+            candidate_words = set(candidate_name_lower.split())
+            extracted_words = set(extracted_name_lower.split())
+            
+            # Remove common words that might appear in names but aren't part of the actual name
+            common_words = {'mr', 'mrs', 'miss', 'ms', 'dr', 'prof', 'sir', 'madam', 'jr', 'sr', 'ii', 'iii', 'iv'}
+            candidate_words = candidate_words - common_words
+            extracted_words = extracted_words - common_words
+            
+            # Check if at least 2 words match (to handle cases like "John Doe" vs "John Michael Doe")
+            # Or if all candidate name words are present in extracted name
+            matching_words = candidate_words.intersection(extracted_words)
+            
+            # Require at least 2 matching words OR all candidate name words must be present
+            if len(matching_words) < 2 and not candidate_words.issubset(extracted_words):
+                # Additional check: try matching without middle names
+                candidate_first_last = [w for w in candidate_name_lower.split() if w not in common_words][:2]  # First and last name only
+                extracted_first_last = [w for w in extracted_name_lower.split() if w not in common_words][:2]
+                
+                if len(candidate_first_last) >= 2 and len(extracted_first_last) >= 2:
+                    # Check if first and last name match
+                    if candidate_first_last[0] == extracted_first_last[0] and candidate_first_last[-1] == extracted_first_last[-1]:
+                        print(f"✅ Name verified: First and last name match ({candidate_first_last[0]} {candidate_first_last[-1]})")
+                    else:
+                        return JsonResponse({
+                            'status': 'error', 
+                            'message': f"Name verification failed. Name on ID ('{name}') does not match the registered candidate name ('{session.candidate_name}'). Please ensure you are using the correct ID card."
+                        })
+                else:
+                    return JsonResponse({
+                        'status': 'error', 
+                        'message': f"Name verification failed. Name on ID ('{name}') does not match the registered candidate name ('{session.candidate_name}'). Please ensure you are using the correct ID card."
+                    })
+            else:
+                print(f"✅ Name verified: {len(matching_words)} matching words found between '{session.candidate_name}' and '{name}'")
 
         session.id_verification_status = 'Verified'
         session.save()

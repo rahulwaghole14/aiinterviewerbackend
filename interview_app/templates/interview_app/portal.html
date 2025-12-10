@@ -1523,7 +1523,8 @@
     let currentUtterance = ''; // Current interim (for display only)
     let lastReceivedText = ''; // Synced with: accumulatedTranscript
     
-    const DEEPGRAM_API_KEY = '6690abf90d1c62c6b70ed632900b2c093bc06d79'; // Hardcoded API key
+    // Get Deepgram API key from Django settings (passed via template context)
+    const DEEPGRAM_API_KEY = '{{ DEEPGRAM_API_KEY|default:"" }}';
     
     // ✅ MONITOR SILENCE INDEPENDENTLY (don't rely on Deepgram)
     let silenceCheckInterval = null;

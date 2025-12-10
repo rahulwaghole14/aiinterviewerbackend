@@ -114,7 +114,7 @@ try:
     active_key = getattr(dj_settings, 'GEMINI_API_KEY', '')
     # Fallback to hardcoded key if env key is not available
     if not active_key:
-        active_key = "AIzaSyALc4F87QUPBxqLLczo7bACCSR6UHWriqo"
+        active_key = "AIzaSyCY5Xv8t5WXibdnMsSkL-MixHsB-rc0EDM"
         print("⚠️ WARNING: GEMINI_API_KEY not set in environment, using hardcoded key")
     
     if active_key:

@@ -883,6 +883,11 @@ class InterviewSerializer(serializers.ModelSerializer):
                         created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
                 else:
                     # For TECHNICAL and BEHAVIORAL questions
+                    # Initialize answer_text to avoid UnboundLocalError
+                    answer_text = None
+                    created_at = None
+                    response_time = 0
+                    
                     if interviewee_a:
                         # Use the separate Interviewee record
                         answer_text = interviewee_a.transcribed_answer or ''
@@ -927,6 +932,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                                     answer_text = answer_text.replace('A:', '').strip()
                                 if answer_text == "None":
                                     answer_text = "None"
+                            else:
+                                # Ultimate fallback: no answer available
+                                answer_text = ''
                             else:
                                 answer_text = None
                             created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None

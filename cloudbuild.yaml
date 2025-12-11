@@ -1,0 +1,117 @@
+# Google Cloud Build configuration for Frontend Deployment
+# This file is in the root directory so Cloud Build can automatically detect it
+#
+# Usage:
+#   gcloud builds submit --config=cloudbuild.yaml \
+#     --substitutions=_GCS_BUCKET_NAME=your-bucket-name,_BACKEND_URL=https://your-backend.run.app
+
+steps:
+  # Step 1: Install Node.js dependencies
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['install']
+    dir: 'frontend'
+    id: 'install-dependencies'
+    waitFor: ['-']
+
+  # Step 2: Build the frontend application
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['run', 'build']
+    dir: 'frontend'
+    env:
+      - 'VITE_API_URL=${_BACKEND_URL}'
+      - 'NODE_ENV=production'
+    id: 'build-frontend'
+    waitFor: ['install-dependencies']
+
+  # Step 3: Upload all built files to GCS bucket
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - '-m'
+      - 'cp'
+      - '-r'
+      - 'frontend/dist/*'
+      - 'gs://${_GCS_BUCKET_NAME}/'
+    id: 'upload-files'
+    waitFor: ['build-frontend']
+
+  # Step 4: Set correct content types for HTML files
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - '-m'
+      - 'setmeta'
+      - '-h'
+      - 'Content-Type:text/html'
+      - 'gs://${_GCS_BUCKET_NAME}/*.html'
+    id: 'set-html-content-type'
+    waitFor: ['upload-files']
+
+  # Step 5: Set correct content types for JavaScript files
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - '-m'
+      - 'setmeta'
+      - '-h'
+      - 'Content-Type:application/javascript'
+      - 'gs://${_GCS_BUCKET_NAME}/assets/*.js'
+    id: 'set-js-content-type'
+    waitFor: ['upload-files']
+    ignoreErrors: true
+
+  # Step 6: Set correct content types for CSS files
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - '-m'
+      - 'setmeta'
+      - '-h'
+      - 'Content-Type:text/css'
+      - 'gs://${_GCS_BUCKET_NAME}/assets/*.css'
+    id: 'set-css-content-type'
+    waitFor: ['upload-files']
+    ignoreErrors: true
+
+  # Step 7: Configure bucket for static website hosting
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - 'web'
+      - 'set'
+      - '-m'
+      - 'index.html'
+      - '-e'
+      - 'index.html'
+      - 'gs://${_GCS_BUCKET_NAME}'
+    id: 'configure-website-hosting'
+    waitFor: ['set-html-content-type']
+
+  # Step 8: Set bucket permissions (public read)
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args:
+      - 'iam'
+      - 'ch'
+      - 'allUsers:objectViewer'
+      - 'gs://${_GCS_BUCKET_NAME}'
+    id: 'set-bucket-permissions'
+    waitFor: ['configure-website-hosting']
+
+# Substitutions (default values - can be overridden)
+substitutions:
+  _GCS_BUCKET_NAME: 'ai-interviewer-frontend'
+  _BACKEND_URL: 'https://aiinterviewerbackend-2.onrender.com'
+
+# Build options
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+# Timeout for the entire build (10 minutes)
+timeout: '600s'
+
+# Images to be pushed to the registry (none for frontend)
+images: []
+
+# Tags for the build
+tags:
+  - 'frontend'
+  - 'gcs-deploy'
+

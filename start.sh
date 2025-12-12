@@ -1,11 +1,29 @@
 #!/bin/bash
-# Startup script for Render deployment
-# This ensures the correct WSGI application is used
 
-echo "🚀 Starting Django application..."
-echo "WSGI Module: interview_app.wsgi:application"
-echo "Settings Module: interview_app.settings"
+# Get port from environment variable (Cloud Run sets this)
+PORT="${PORT:-8080}"
 
-# Ensure we're using the correct WSGI application
-exec gunicorn interview_app.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120
+echo "🚀 Starting Django Backend on port $PORT"
+echo "📋 Environment check:"
+echo "   PORT=$PORT"
+echo "   DATABASE_URL=${DATABASE_URL:0:50}..." # Show first 50 chars only
 
+# Run migrations (non-blocking - continue even if some fail)
+echo "📊 Running database migrations..."
+if python manage.py migrate --noinput; then
+    echo "✅ Migrations completed successfully"
+else
+    echo "⚠️ Warning: Some migrations failed, but continuing..."
+fi
+
+# Start Gunicorn
+echo "🌐 Starting Gunicorn server on 0.0.0.0:$PORT"
+exec gunicorn interview_app.wsgi:application \
+    --bind "0.0.0.0:$PORT" \
+    --workers 2 \
+    --timeout 120 \
+    --worker-class sync \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info \
+    --preload

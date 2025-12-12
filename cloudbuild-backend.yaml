@@ -1,0 +1,86 @@
+# Google Cloud Build configuration for Backend Deployment to Cloud Run
+# This file automates building Django backend and deploying to Cloud Run with Cloud SQL
+
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_IMAGE_NAME}'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    id: 'build-image'
+
+  # Step 2: Push Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_IMAGE_NAME}'
+    id: 'push-image'
+    waitFor: ['build-image']
+
+  # Step 3: Deploy to Cloud Run with Cloud SQL connection
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - '${_IMAGE_NAME}'
+      - '--platform'
+      - 'managed'
+      - '--region'
+      - '${_REGION}'
+      - '--allow-unauthenticated'
+      - '--add-cloudsql-instances'
+      - '${_CLOUD_SQL_CONNECTION_NAME}'
+      - '--set-env-vars'
+      - 'DJANGO_SECRET_KEY=${_DJANGO_SECRET_KEY},DATABASE_URL=${_DATABASE_URL},USE_POSTGRESQL=True,GEMINI_API_KEY=${_GEMINI_API_KEY},DEEPGRAM_API_KEY=${_DEEPGRAM_API_KEY},BACKEND_URL=${_BACKEND_URL},DJANGO_DEBUG=False'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '300'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '0'
+      - '--port'
+      - '8080'
+    id: 'deploy-cloud-run'
+    waitFor: ['push-image']
+
+# Substitutions (default values - override in trigger)
+substitutions:
+  _SERVICE_NAME: 'ai-interviewer-backend'
+  _REGION: 'asia-south2'
+  _IMAGE_NAME: 'gcr.io/${PROJECT_ID}/${_SERVICE_NAME}'
+  _CLOUD_SQL_CONNECTION_NAME: 'PROJECT_ID:REGION:INSTANCE_NAME'
+  _DJANGO_SECRET_KEY: 'change-me-in-production'
+  _DATABASE_URL: 'postgresql://user:password@/dbname?host=/cloudsql/PROJECT_ID:REGION:INSTANCE_NAME'
+  _GEMINI_API_KEY: ''
+  _DEEPGRAM_API_KEY: ''
+  _BACKEND_URL: 'https://${_SERVICE_NAME}-${PROJECT_NUMBER}.${_REGION}.run.app'
+
+# Build options
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+# Timeout for the entire build (20 minutes)
+timeout: '1200s'
+
+# Images to be pushed
+images:
+  - '${_IMAGE_NAME}'
+
+# Tags for the build
+tags:
+  - 'backend'
+  - 'cloud-run'
+  - 'django'
+

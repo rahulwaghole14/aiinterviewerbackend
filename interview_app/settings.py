@@ -110,28 +110,40 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_POSTGRESQL = os.environ.get("USE_POSTGRESQL", "True").lower() == "true"
 
 if USE_POSTGRESQL and DATABASE_URL:
-    # PostgreSQL configuration (currently disabled)
-    # Parse DATABASE_URL (format: postgresql://user:password@host:port/dbname)
+    # PostgreSQL configuration
+    # Supports both Cloud SQL Unix socket and regular TCP connections
     try:
         # Try using dj-database-url if available
         try:
             import dj_database_url
-            # Configure database with SSL support for Render.com
+            # Configure database with SSL support
             db_config = dj_database_url.config(
                 default=DATABASE_URL, 
                 conn_max_age=600,
                 conn_health_checks=True
             )
-            # For Render.com databases, ensure SSL is properly configured
-            if 'render.com' in DATABASE_URL.lower():
+            
+            # Cloud SQL Unix socket connection (format: postgresql://user:password@/dbname?host=/cloudsql/...)
+            if '/cloudsql/' in DATABASE_URL:
+                # Cloud SQL via Unix socket - no SSL needed
                 if 'OPTIONS' not in db_config:
                     db_config['OPTIONS'] = {}
-                # Render.com requires SSL but may need specific handling
+                # Remove SSL for Unix socket connections
+                db_config['OPTIONS'].pop('sslmode', None)
+                print("[OK] Using Cloud SQL via Unix socket")
+            # Render.com or other cloud databases
+            elif 'render.com' in DATABASE_URL.lower():
+                if 'OPTIONS' not in db_config:
+                    db_config['OPTIONS'] = {}
+                # Render.com requires SSL
                 db_config['OPTIONS']['sslmode'] = 'require'
+                print("[OK] Using PostgreSQL database from DATABASE_URL (Render.com)")
+            else:
+                print("[OK] Using PostgreSQL database from DATABASE_URL (dj-database-url)")
+            
             DATABASES = {
                 "default": db_config
             }
-            print("[OK] Using PostgreSQL database from DATABASE_URL (dj-database-url)")
         except ImportError:
             # Fallback: Parse DATABASE_URL manually
             from urllib.parse import urlparse, parse_qs
@@ -158,12 +170,17 @@ if USE_POSTGRESQL and DATABASE_URL:
                 "connect_timeout": 10,
             }
             
-            # Add SSL configuration if sslmode is in URL or for cloud databases
-            if 'sslmode' in db_url.query.lower() or 'render.com' in db_url.hostname.lower():
+            # Cloud SQL Unix socket connection (no SSL needed)
+            if '/cloudsql/' in DATABASE_URL:
+                # Cloud SQL via Unix socket - no SSL
+                print("[OK] Using Cloud SQL via Unix socket (manual parsing)")
+            # Add SSL configuration for other cloud databases
+            elif 'sslmode' in db_url.query.lower() or 'render.com' in (db_url.hostname or '').lower():
                 # Render.com and most cloud providers require SSL
                 database_options.update({
                     'sslmode': 'require',
                 })
+                print("[OK] Using PostgreSQL with SSL (manual parsing)")
             
             DATABASES = {
                 "default": {

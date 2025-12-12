@@ -264,7 +264,9 @@ def create_interview_invite(request):
             scheduled_at=aware_datetime
         )
 
-        interview_url = request.build_absolute_uri(f"/?session_key={session.session_key}")
+        # Use utility function to get correct Cloud Run URL
+        from interview_app.utils import get_interview_url
+        interview_url = get_interview_url(session.session_key, request)
 
         try:
             # Use same reliable email sending approach as test_email_sending_live.py
@@ -413,9 +415,9 @@ def generate_interview_link(request):
                 status='SCHEDULED'
             )
             
-            # Generate interview link
-            base_url = request.build_absolute_uri('/')
-            interview_link = f"{base_url}?session_key={session.session_key}"
+            # Generate interview link using utility function
+            from interview_app.utils import get_interview_url
+            interview_link = get_interview_url(session.session_key, request)
             
             # Send email notification to candidate
             try:
@@ -1652,7 +1654,6 @@ def interview_portal(request):
             'interview_started': True,
             'candidate_name': session.candidate_name,
             'job_description': session.job_description,
-            'DEEPGRAM_API_KEY': settings.DEEPGRAM_API_KEY,  # Pass Deepgram API key from settings
         }
         return render(request, 'interview_app/portal.html', context)
     except Exception as e:
@@ -1667,7 +1668,6 @@ def interview_portal(request):
                 'spoken_questions_data': [],
                 'coding_questions_data': [],
                 'interview_started': True,
-                'DEEPGRAM_API_KEY': settings.DEEPGRAM_API_KEY,  # Pass Deepgram API key from settings
             }
             return render(request, 'interview_app/portal.html', context)
         except Exception as e:
@@ -3401,7 +3401,6 @@ def chatbot_standalone(request):
     session_key = request.GET.get('session_key', '')
     return render(request, 'interview_app/chatbot_direct_deepgram.html', {
         'session_key': session_key,
-        'DEEPGRAM_API_KEY': getattr(settings, 'DEEPGRAM_API_KEY', '')
     })
 
 @csrf_exempt

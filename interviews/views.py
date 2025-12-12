@@ -225,7 +225,8 @@ class PublicInterviewAccessView(APIView):
             )
 
             # Redirect to the actual AI interview portal
-            ai_interview_url = f"{request.build_absolute_uri('/')}interview_app/?session_key={short_session_key}"
+            from interview_app.utils import get_interview_url
+            ai_interview_url = get_interview_url(short_session_key, request)
             return redirect(ai_interview_url)
 
             # Log the access attempt
@@ -1710,9 +1711,9 @@ class InterviewScheduleViewSet(DataIsolationMixin, viewsets.ModelViewSet):
             interview.session_key = session_key
             interview.save(update_fields=['session_key'])
             
-            # Generate interview link
-            base_url = request.build_absolute_uri('/').rstrip('/')
-            interview_link = f"{base_url}/?session_key={session_key}"
+            # Generate interview link using utility function
+            from interview_app.utils import get_interview_url
+            interview_link = get_interview_url(session_key, request)
             
             # Send email notification using NotificationService
             email_sent = False

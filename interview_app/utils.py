@@ -48,6 +48,7 @@ def get_backend_url(request=None):
 def get_interview_url(session_key, request=None):
     """
     Generate interview URL with session_key.
+    Uses /interview/ route which serves the Django interview portal.
     
     Args:
         session_key: Interview session key
@@ -57,5 +58,6 @@ def get_interview_url(session_key, request=None):
         str: Full interview URL
     """
     base_url = get_backend_url(request)
-    return f"{base_url}/?session_key={session_key}"
+    # Use /interview/ route (not root /) to access Django interview portal
+    return f"{base_url}/interview/?session_key={session_key}"
 

@@ -344,21 +344,34 @@ class NotificationService:
             
             # Generate URL using session_key - format must match interview_portal view
             if session_key:
-                # Use BACKEND_URL from settings or fallback to localhost
-                # CRITICAL: BACKEND_URL must be set in Render environment variables!
+                # Detect backend URL - prioritize Cloud Run detection
+                import os
                 base_url = getattr(settings, "BACKEND_URL", None)
                 if not base_url or "localhost" in str(base_url).lower():
-                    # Try to get from environment directly
-                    import os
-                    base_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-                    if "localhost" in base_url.lower():
-                        logger.warning("⚠️ BACKEND_URL not set in Render! Using localhost. Add BACKEND_URL=https://aiinterviewerbackend-2.onrender.com to Render environment variables")
-                        print(f"⚠️ WARNING: BACKEND_URL not set in Render environment variables!")
-                        print(f"   Add BACKEND_URL=https://aiinterviewerbackend-2.onrender.com to Render → Environment")
+                    # Try environment variable
+                    base_url = os.environ.get("BACKEND_URL", None)
+                    if not base_url or "localhost" in str(base_url).lower():
+                        # Try to detect from Cloud Run environment
+                        # Cloud Run sets K_SERVICE and K_REVISION
+                        service_name = os.environ.get("K_SERVICE")
+                        region = os.environ.get("GOOGLE_CLOUD_REGION", "asia-southeast1")
+                        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+                        if service_name and project_id:
+                            # Construct Cloud Run URL
+                            project_number = os.environ.get("GOOGLE_CLOUD_PROJECT_NUMBER", "310576915040")
+                            base_url = f"https://{service_name}-{project_number}.{region}.run.app"
+                        else:
+                            # Final fallback
+                            base_url = "http://localhost:8000"
+                            logger.warning("⚠️ BACKEND_URL not set! Using localhost. Set BACKEND_URL environment variable in Cloud Run")
+                            print(f"⚠️ WARNING: BACKEND_URL not set in Cloud Run environment variables!")
+                            print(f"   Set BACKEND_URL=https://your-service.run.app in Cloud Run → Environment Variables")
                 
-                # Format: https://your-render-url.onrender.com/interview/?session_key=xxx
-                # Use /interview/ route which is the actual interview portal
-                interview_url = f"{base_url}/interview/?session_key={session_key}"
+                # Format: https://your-service.run.app/?session_key=xxx
+                # Use root path with session_key (matches interview_portal view)
+                # Remove trailing slash from base_url if present
+                base_url = base_url.rstrip('/')
+                interview_url = f"{base_url}/?session_key={session_key}"
                 logger.info(f"📧 Generated interview URL: {interview_url}")
                 print(f"[EMAIL DEBUG] Generated interview URL: {interview_url}")
             else:

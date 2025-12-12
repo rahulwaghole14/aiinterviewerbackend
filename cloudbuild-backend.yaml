@@ -51,6 +51,8 @@ steps:
       - '0'
       - '--port'
       - '8080'
+      - '--project'
+      - '${PROJECT_ID}'
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 

@@ -22,6 +22,9 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/staticfiles /app/media /app/logs
 
+# Make startup script executable
+RUN chmod +x /app/start.sh
+
 # Collect static files (non-blocking if fails)
 RUN python manage.py collectstatic --noinput || true
 
@@ -33,17 +36,9 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 ENV DJANGO_SETTINGS_MODULE=interview_app.settings
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:${PORT}/api/health/', timeout=5)" || exit 1
+# Health check (check if port is listening)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD python -c "import socket, os; port=int(os.environ.get('PORT', 8080)); s=socket.socket(); s.settimeout(2); result=s.connect_ex(('localhost', port)); s.close(); exit(0 if result == 0 else 1)"
 
-# Run migrations and start server
-CMD python manage.py migrate --noinput && \
-    gunicorn interview_app.wsgi:application \
-    --bind 0.0.0.0:$PORT \
-    --workers 2 \
-    --timeout 120 \
-    --worker-class sync \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+# Use startup script
+CMD ["/app/start.sh"]

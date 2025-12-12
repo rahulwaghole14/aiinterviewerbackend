@@ -488,36 +488,12 @@ class Interview(models.Model):
         if not self.interview_link:
             return None
 
-        # Try to get base URL from request first (most accurate)
-        if request:
-            base_url = request.build_absolute_uri('/').rstrip('/')
-        else:
-            # Use backend URL from settings or environment
-            base_url = getattr(settings, "BACKEND_URL", None)
-            if not base_url or "localhost" in str(base_url).lower():
-                # Try environment variable
-                import os
-                base_url = os.environ.get("BACKEND_URL", None)
-                if not base_url or "localhost" in str(base_url).lower():
-                    # Try to detect from Cloud Run environment
-                    # Cloud Run sets K_SERVICE and K_REVISION
-                    service_name = os.environ.get("K_SERVICE")
-                    region = os.environ.get("GOOGLE_CLOUD_REGION", "asia-southeast1")
-                    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
-                    if service_name and project_id:
-                        # Construct Cloud Run URL
-                        project_number = os.environ.get("GOOGLE_CLOUD_PROJECT_NUMBER", "310576915040")
-                        base_url = f"https://{service_name}-{project_number}.{region}.run.app"
-                    else:
-                        # Final fallback
-                        base_url = "http://localhost:8000"
+        # Use utility function for consistent URL generation
+        from interview_app.utils import get_interview_url
         
-        # Ensure base_url doesn't have trailing slash
-        base_url = base_url.rstrip('/')
-
         # Use session_key if available, otherwise fall back to interview_link
         session_key = self.session_key if self.session_key else self.interview_link
-        return f"{base_url}/?session_key={session_key}"
+        return get_interview_url(session_key, request)
 
     def __str__(self):
         return f"AI Interview - {self.candidate.full_name} ({self.status})"

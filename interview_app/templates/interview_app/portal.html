@@ -1523,8 +1523,7 @@
     let currentUtterance = ''; // Current interim (for display only)
     let lastReceivedText = ''; // Synced with: accumulatedTranscript
     
-    // Get Deepgram API key from Django settings (passed via template context)
-    const DEEPGRAM_API_KEY = '{{ DEEPGRAM_API_KEY|default:"" }}';
+    const DEEPGRAM_API_KEY = '6690abf90d1c62c6b70ed632900b2c093bc06d79'; // Hardcoded API key
     
     // ✅ MONITOR SILENCE INDEPENDENTLY (don't rely on Deepgram)
     let silenceCheckInterval = null;
@@ -2066,17 +2065,36 @@
                     startVerificationCamera();
                 }, 500);
             } else {
-                statusEl.innerText = "Camera detected. Waiting for video stream...";
-                feedEl.src = `{% url 'video_feed' %}?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
-                console.log('📺 Video feed URL set:', feedEl.src);
+            statusEl.innerText = "Camera detected. Waiting for video stream...";
+            feedEl.src = `{% url 'video_feed' %}?session_key=${SESSION_KEY}&t=${new Date().getTime()}`;
+            console.log('📺 Video feed URL set:', feedEl.src);
+            
+            let feedLoaded = false;
+            
+            feedEl.onload = async () => {
+                console.log('✅ Video feed loaded successfully');
+                if (feedLoaded) return; // Prevent multiple calls
+                feedLoaded = true;
                 
-                let feedLoaded = false;
-                
-                feedEl.onload = async () => {
-                    console.log('✅ Video feed loaded successfully');
-                    if (feedLoaded) return; // Prevent multiple calls
+                statusEl.innerText = "Camera check successful!";
+                // DON'T release camera here - it needs to stay alive for the interview!
+                setTimeout(() => {
+                    document.getElementById('camera-check-screen').style.display = 'none';
+                    document.getElementById('id-verification-screen').style.display = 'block';
+                    startVerificationCamera();
+                }, 1000);
+            };
+            
+            feedEl.onerror = (e) => { 
+                console.error('❌ Video feed error:', e);
+                throw new Error("Could not display video feed."); 
+            };
+            
+            // Fallback timeout in case onload doesn't fire
+            setTimeout(async () => {
+                if (!feedLoaded) {
+                    console.log('⏰ Video feed timeout - proceeding anyway');
                     feedLoaded = true;
-                    
                     statusEl.innerText = "Camera check successful!";
                     // DON'T release camera here - it needs to stay alive for the interview!
                     setTimeout(() => {
@@ -2084,27 +2102,8 @@
                         document.getElementById('id-verification-screen').style.display = 'block';
                         startVerificationCamera();
                     }, 1000);
-                };
-                
-                feedEl.onerror = (e) => { 
-                    console.error('❌ Video feed error:', e);
-                    throw new Error("Could not display video feed."); 
-                };
-                
-                // Fallback timeout in case onload doesn't fire
-                setTimeout(async () => {
-                    if (!feedLoaded) {
-                        console.log('⏰ Video feed timeout - proceeding anyway');
-                        feedLoaded = true;
-                        statusEl.innerText = "Camera check successful!";
-                        // DON'T release camera here - it needs to stay alive for the interview!
-                        setTimeout(() => {
-                            document.getElementById('camera-check-screen').style.display = 'none';
-                            document.getElementById('id-verification-screen').style.display = 'block';
-                            startVerificationCamera();
-                        }, 1000);
-                    }
-                }, 3000); // 3 second timeout
+                }
+            }, 3000); // 3 second timeout
             }
         } catch (err) {
             statusEl.innerText = `Error: ${err.message}`;
@@ -2209,44 +2208,44 @@
                 statusEl.style.color = "red";
             });
         } else {
-            console.log('🎥 Starting verification camera (using backend feed)...');
-            statusEl.innerText = "Initializing camera...";
-            statusEl.style.color = "";
+        console.log('🎥 Starting verification camera (using backend feed)...');
+        statusEl.innerText = "Initializing camera...";
+        statusEl.style.color = "";
+        
+        // Use backend video feed instead of getUserMedia (avoids camera conflict)
+        const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
+        let frameUpdateInterval = null;
+        
+        const updateFrame = () => {
+            if (interviewEnded) {
+                if (frameUpdateInterval) clearInterval(frameUpdateInterval);
+                return;
+            }
             
-            // Use backend video feed instead of getUserMedia (avoids camera conflict)
-            const frameUrl = `{% url 'video_frame' %}?session_key=${SESSION_KEY}`;
-            let frameUpdateInterval = null;
-            
-            const updateFrame = () => {
-                if (interviewEnded) {
-                    if (frameUpdateInterval) clearInterval(frameUpdateInterval);
-                    return;
+            const url = `${frameUrl}&t=${Date.now()}&cache=${Math.random()}`;
+            imgEl.onload = () => {
+                console.log('✅ Verification frame loaded');
+                if (statusEl.innerText === "Initializing camera...") {
+                    statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                    statusEl.style.color = "green";
                 }
-                
-                const url = `${frameUrl}&t=${Date.now()}&cache=${Math.random()}`;
-                imgEl.onload = () => {
-                    console.log('✅ Verification frame loaded');
-                    if (statusEl.innerText === "Initializing camera...") {
-                        statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
-                        statusEl.style.color = "green";
-                    }
-                };
-                imgEl.onerror = () => {
-                    console.warn('⚠️ Failed to load verification frame');
-                };
-                imgEl.src = url;
             };
-            
-            // Start polling for frames every 500ms (~2fps - sufficient for verification, reduces load)
-            frameUpdateInterval = setInterval(updateFrame, 500);
-            updateFrame(); // Start immediately
-            
-            console.log('✅ Verification camera feed started (backend video)');
-            statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
-            statusEl.style.color = "green";
-            
-            // Store interval so we can clear it later
-            window._verificationFrameInterval = frameUpdateInterval;
+            imgEl.onerror = () => {
+                console.warn('⚠️ Failed to load verification frame');
+            };
+            imgEl.src = url;
+        };
+        
+        // Start polling for frames every 500ms (~2fps - sufficient for verification, reduces load)
+        frameUpdateInterval = setInterval(updateFrame, 500);
+        updateFrame(); // Start immediately
+        
+        console.log('✅ Verification camera feed started (backend video)');
+        statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+        statusEl.style.color = "green";
+        
+        // Store interval so we can clear it later
+        window._verificationFrameInterval = frameUpdateInterval;
         }
     }
 
@@ -2359,31 +2358,31 @@
             imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         } else {
             // Check if image is loaded (backend feed)
-            if (!imgEl || !imgEl.complete || !imgEl.naturalWidth) {
-                statusEl.innerText = "Error: Camera not ready. Please wait for camera to initialize.";
-                statusEl.style.color = "red";
-                console.error('❌ Image not loaded - complete:', imgEl?.complete, 'naturalWidth:', imgEl?.naturalWidth);
-                return;
-            }
-            
-            if (imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
-                statusEl.innerText = "Error: Image dimensions invalid. Please wait a moment and try again.";
-                statusEl.style.color = "red";
-                console.error('❌ Invalid image dimensions');
-                return;
-            }
-            
-            statusEl.innerText = "Processing, please hold still...";
-            statusEl.style.color = "";
-            
-            // Use the canvas element or create one to capture the image
-            const canvas = canvasEl || document.createElement('canvas');
-            canvas.width = imgEl.naturalWidth;
-            canvas.height = imgEl.naturalHeight;
-            const ctx = canvas.getContext('2d');
-            
-            // Draw the current frame from the backend feed
-            ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+        if (!imgEl || !imgEl.complete || !imgEl.naturalWidth) {
+            statusEl.innerText = "Error: Camera not ready. Please wait for camera to initialize.";
+            statusEl.style.color = "red";
+            console.error('❌ Image not loaded - complete:', imgEl?.complete, 'naturalWidth:', imgEl?.naturalWidth);
+            return;
+        }
+        
+        if (imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
+            statusEl.innerText = "Error: Image dimensions invalid. Please wait a moment and try again.";
+            statusEl.style.color = "red";
+            console.error('❌ Invalid image dimensions');
+            return;
+        }
+        
+        statusEl.innerText = "Processing, please hold still...";
+        statusEl.style.color = "";
+        
+        // Use the canvas element or create one to capture the image
+        const canvas = canvasEl || document.createElement('canvas');
+        canvas.width = imgEl.naturalWidth;
+        canvas.height = imgEl.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw the current frame from the backend feed
+        ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
             imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         }
         const formData = new FormData();
@@ -3102,54 +3101,54 @@
     
     async function connectDeepgram(stream) {
         const sampleRate = audioContext.sampleRate || 16000;
-        // ✅ Simplified Deepgram WebSocket URL with only specified parameters
-        // Using raw transcript mode: no smart_format, no punctuate
-        // Takes words as-is from speech-to-text
-        //
-        // vad_turnoff=1000: Voice Activity Detection turn-off delay of 1 second
-        // Reduced to 1s to prevent aggressive VAD while maintaining responsiveness
-        // This prevents VAD from cutting off speech during brief pauses
-        //
-        // interim_results=true: Enables real-time partial transcripts
-        // Essential for showing live transcription as user speaks
-        //
-        // filler_words=true: Captures hesitation words ("um", "uh", "ah", "hmm", etc.)
-        //
-        // no_delay=false: Allows Deepgram to buffer and process audio properly
-        //
-        // Connect to Deepgram DIRECTLY - MATCH ORIGINAL index.html
-        const wsUrl = `wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false`;
+        // ✅ Use Django WebSocket proxy instead of direct Deepgram connection
+        // This keeps API key secure on backend and works better with Cloud Run
+        const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProto}//${window.location.host}/dg_ws`;
         
-        console.log('🔧 Deepgram configured with simplified settings:');
-        console.log('   - model: general');
-        console.log('   - encoding: linear16');
+        console.log('🔧 Connecting to Django Deepgram proxy:', wsUrl);
         console.log('   - sample_rate:', sampleRate);
-        console.log('   - channels: 1');
-        console.log('   - interim_results: true');
-        console.log('   - smart_format: false');
-        console.log('   - punctuate: false');
-        console.log('   - endpointing: 5000ms');
+        console.log('   - model: nova-3');
+        console.log('   - language: en-IN');
         
         return new Promise((resolve, reject) => {
             deepgramWS = new WebSocket(wsUrl);
             deepgramWS.binaryType = 'arraybuffer';
             
             deepgramWS.onopen = () => {
-                console.log('✅ Deepgram WebSocket connected');
+                console.log('✅ Connected to Django Deepgram proxy');
+                // Send config first (required by Django proxy)
+                const config = {
+                    sample_rate: sampleRate,
+                    model: 'nova-3',
+                    language: 'en-IN'
+                };
+                deepgramWS.send(JSON.stringify(config));
+                console.log('📤 Sent config to proxy:', config);
                 resolve();
             };
             
             deepgramWS.onmessage = (event) => {
+                // Check if it's a Connected message from proxy
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'Connected') {
+                        console.log('✅ Proxy confirmed connection');
+                        return;
+                    }
+                } catch (e) {
+                    // Not JSON, treat as Deepgram message
+                }
                 handleDeepgramMessage(event);
             };
             
             deepgramWS.onerror = (error) => {
-                console.error('Deepgram WebSocket error:', error);
+                console.error('❌ Deepgram WebSocket proxy error:', error);
                 reject(error);
             };
             
-            deepgramWS.onclose = () => {
-                console.log('Deepgram WebSocket closed');
+            deepgramWS.onclose = (event) => {
+                console.log('🔌 Deepgram WebSocket proxy closed:', event.code, event.reason);
             };
         });
     }
@@ -4591,8 +4590,8 @@
             startBrowserFeed(proctoringFeed, 'Technical Interview');
             startBrowserFeed(proctoringFeed2, 'Coding Round');
         } else {
-            startBackendFeed(proctoringFeed, 'Technical Interview', 'proctoring-feed-canvas');
-            startBackendFeed(proctoringFeed2, 'Coding Round', 'proctoring-feed-canvas-2');
+        startBackendFeed(proctoringFeed, 'Technical Interview', 'proctoring-feed-canvas');
+        startBackendFeed(proctoringFeed2, 'Coding Round', 'proctoring-feed-canvas-2');
         }
         
         // Start timestamp updates when proctoring starts

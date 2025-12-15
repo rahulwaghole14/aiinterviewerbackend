@@ -271,7 +271,7 @@ class InterviewAudioRecorder {
         if (!this.isRecording && !hasChunks) {
             console.warn('⚠️ Audio recording not in progress and no chunks to process');
             // Still return stored path if available
-            return { success: true, audioPath: window.uploadedAudioPath || null, audioStopTimestamp: audioStopTimestamp };
+            return { success: true, audioPath: window.uploadedAudioPath || null, audioStopTimestamp: this.audioStopTimestamp || null };
         }
         
         try {

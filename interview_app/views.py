@@ -3239,18 +3239,39 @@ def check_camera(request):
 def activate_proctoring_camera(request):
     """Explicitly activate YOLO model, proctoring warnings, and video recording when technical interview starts"""
     try:
-        data = json.loads(request.body)
+        # If this instance is running without a server-attached camera (e.g. Cloud Run),
+        # treat proctoring activation as a no-op and rely on browser-based proctoring only.
+        # This avoids 500 errors like "Camera not opened" when no hardware is available.
+        try:
+            data = json.loads(request.body or "{}")
+        except Exception:
+            data = {}
+
         session_key = data.get('session_key')
-        
         if not session_key:
             return JsonResponse({'status': 'error', 'message': 'session_key required'}, status=400)
-        
+
         # Get or create camera for this session
-        camera = get_camera_for_session(session_key)
-        
-        if not camera:
-            return JsonResponse({'status': 'error', 'message': 'Could not create camera'}, status=500)
-        
+        try:
+            camera = get_camera_for_session(session_key)
+        except Exception as e:
+            # On platforms without camera (like Cloud Run), fall back to browser-only proctoring
+            print(f"⚠️ activate_proctoring_camera: no server camera available ({e}), using browser-only proctoring.")
+            return JsonResponse({
+                'status': 'ok',
+                'message': 'Browser-only proctoring active (no server camera available)',
+                'server_camera': False
+            })
+
+        if not camera or not hasattr(camera, 'video'):
+            # Same fallback: allow frontend to continue with browser-only proctoring
+            print("⚠️ activate_proctoring_camera: camera object missing or has no video handle; using browser-only proctoring.")
+            return JsonResponse({
+                'status': 'ok',
+                'message': 'Browser-only proctoring active (no usable server camera)',
+                'server_camera': False
+            })
+
         # Ensure camera is running
         if hasattr(camera, 'video') and camera.video.isOpened():
             # Activate YOLO model and proctoring (only now, not during identity verification)
@@ -3299,7 +3320,7 @@ def activate_proctoring_camera(request):
                             print(f"✅ Frame capture loop started")
                 except Exception as e:
                     print(f"⚠️ Error restarting frame capture loop: {e}")
-            
+
             # CRITICAL: Calculate synchronized start time for perfect video/audio synchronization
             # This ensures both video and audio start at the EXACT same moment (no trimming needed)
             import time

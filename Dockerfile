@@ -4,11 +4,35 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and language runtimes/compilers for coding round
+# - gcc/g++       : C / C++
+# - postgresql    : DB client
+# - openjdk       : Java (javac/java)
+# - nodejs/npm    : JavaScript (node)
+# - golang        : Go (go)
+# - php-cli       : PHP
+# - ruby-full     : Ruby
+# - dotnet-sdk    : C# (dotnet)
 RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    apt-transport-https \
     gcc \
+    g++ \
+    make \
     postgresql-client \
     libpq-dev \
+    openjdk-17-jdk-headless \
+    nodejs \
+    npm \
+    golang-go \
+    php-cli \
+    ruby-full \
+    && curl https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
+    && dpkg -i /tmp/packages-microsoft-prod.deb \
+    && rm /tmp/packages-microsoft-prod.deb \
+    && apt-get update && apt-get install -y dotnet-sdk-8.0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

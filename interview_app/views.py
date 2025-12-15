@@ -622,8 +622,40 @@ def synthesize_speech(text, lang_code, accent_tld, output_path):
         print(f"🎤 Google Cloud TTS: Synthesizing '{text[:50]}...'")
         
         # Ensure credentials are set
-        credentials_path = os.path.join(settings.BASE_DIR, "ringed-reach-471807-m3-cf0ec93e3257.json")
-        if os.path.exists(credentials_path):
+        # Priority 1: Check GOOGLE_APPLICATION_CREDENTIALS environment variable (from Cloud Run secret mount)
+        credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        
+        # Priority 2: Try Secret Manager if env var not set
+        if not credentials_path or not os.path.exists(credentials_path):
+            try:
+                from google.cloud import secretmanager
+                client = secretmanager.SecretManagerServiceClient()
+                project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "eastern-team-480811-e6")
+                secret_name = f"projects/{project_id}/secrets/my-service-key/versions/latest"
+                response = client.access_secret_version(request={"name": secret_name})
+                credentials_json = response.payload.data.decode("UTF-8")
+                
+                # Write to temp file
+                import tempfile
+                temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+                temp_file.write(credentials_json)
+                temp_file.close()
+                
+                credentials_path = temp_file.name
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+                print(f"✅ Loaded credentials from Secret Manager: {credentials_path}")
+            except Exception as e:
+                print(f"⚠️ Could not load from Secret Manager: {e}")
+                # Priority 3: Fallback to hardcoded path
+                credentials_path = os.path.join(settings.BASE_DIR, "ringed-reach-471807-m3-cf0ec93e3257.json")
+                if os.path.exists(credentials_path):
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+                    print(f"✅ Using fallback credentials path: {credentials_path}")
+                else:
+                    print(f"❌ Google Cloud credentials not found in any location")
+                    raise Exception("Google Cloud credentials not found")
+        
+        if credentials_path and os.path.exists(credentials_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
             print(f"✅ Google Cloud credentials set: {credentials_path}")
         else:

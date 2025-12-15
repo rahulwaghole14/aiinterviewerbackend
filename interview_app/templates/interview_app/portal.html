@@ -1411,6 +1411,17 @@
     const THINKING_TIME = 20, ANSWERING_TIME = 60, REVIEW_TIME = 10, TERMINATION_TIME = 60;
     let hasStartedSpeaking = false;
     
+    // Browser-side proctoring (movement-based) state
+    // These warnings will be merged with backend warnings in the proctoring UI
+    let browserProctorWarnings = {
+        low_concentration: false,   // Little or no movement for a while
+    };
+    window._browserProctorWarnings = browserProctorWarnings;
+    let _lastBrowserProctorGray = null;
+    let _lastBrowserMotionTs = Date.now();
+    const BROWSER_LOW_MOTION_WINDOW_MS = 8000; // 8s of very low movement
+    const BROWSER_MOTION_DIFF_THRESH = 6.0;    // Tunable motion threshold (mean abs diff)
+    
     // Audio Recorder - Records microphone + TTS audio (video handled by backend)
     let audioRecorder = null;
     let uploadedAudioPath = null; // Store uploaded audio path for merging
@@ -4488,7 +4499,7 @@
                     canvasEl.width = videoEl.videoWidth || 640;
                     canvasEl.height = videoEl.videoHeight || 480;
                     
-                    // Update img element with frames from video
+                    // Update img element with frames from video and run lightweight browser-side proctoring
                     const updateFrame = () => {
                         if (interviewEnded) {
                             stream.getTracks().forEach(track => track.stop());
@@ -4501,6 +4512,51 @@
                         imgElement.style.display = 'block';
                         imgElement.style.opacity = '1';
                         imgElement.style.backgroundColor = 'transparent';
+                        
+                        // --- Browser-side movement-based proctoring (no server camera required) ---
+                        try {
+                            // Downscale for cheaper motion analysis
+                            const ANALYSIS_WIDTH = 160;
+                            const ANALYSIS_HEIGHT = 120;
+                            const analysisCanvas = canvasEl;
+                            const analysisCtx = ctx;
+                            
+                            // Draw a smaller version for analysis only
+                            analysisCtx.drawImage(videoEl, 0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT);
+                            const frameData = analysisCtx.getImageData(0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT).data;
+                            
+                            // Convert to grayscale and compute mean absolute difference vs previous frame
+                            const gray = new Uint8Array(ANALYSIS_WIDTH * ANALYSIS_HEIGHT);
+                            for (let i = 0, j = 0; i < frameData.length; i += 4, j++) {
+                                const r = frameData[i];
+                                const g = frameData[i + 1];
+                                const b = frameData[i + 2];
+                                // Simple luminance
+                                gray[j] = (0.299 * r + 0.587 * g + 0.114 * b) | 0;
+                            }
+                            
+                            const now = Date.now();
+                            if (_lastBrowserProctorGray && _lastBrowserProctorGray.length === gray.length) {
+                                let diffSum = 0;
+                                for (let k = 0; k < gray.length; k += 4) { // sample every 4 pixels to reduce work
+                                    diffSum += Math.abs(gray[k] - _lastBrowserProctorGray[k]);
+                                }
+                                const sampledCount = gray.length / 4;
+                                const meanDiff = diffSum / sampledCount;
+                                
+                                // If motion is above threshold, update last motion timestamp
+                                if (meanDiff > BROWSER_MOTION_DIFF_THRESH) {
+                                    _lastBrowserMotionTs = now;
+                                }
+                                
+                                const noRecentMotion = (now - _lastBrowserMotionTs) >= BROWSER_LOW_MOTION_WINDOW_MS;
+                                browserProctorWarnings.low_concentration = noRecentMotion;
+                            }
+                            _lastBrowserProctorGray = gray;
+                        } catch (e) {
+                            // Motion detection is best-effort; failures should not break interview
+                            // console.debug('Browser proctoring analysis error:', e);
+                        }
                         
                         requestAnimationFrame(updateFrame);
                     };
@@ -4627,8 +4683,14 @@
                         console.error('❌ Failed to fetch proctoring status:', res.status);
                         return;
                     }
-                    const warnings = await res.json();
-                    console.log('📊 Warnings received:', warnings); // Debug: log all warnings
+                    let warnings = await res.json();
+                    console.log('📊 Warnings received (server):', warnings); // Debug: log all warnings
+                    
+                    // Merge browser-side movement-based warnings (if available)
+                    if (window._browserProctorWarnings) {
+                        warnings = Object.assign({}, warnings, window._browserProctorWarnings);
+                        console.log('📊 Combined warnings (server + browser):', warnings);
+                    }
                     
                     // Debounce absence warning - require it to be true for 2 consecutive checks (3 seconds total)
                     // This prevents rapid on/off flickering

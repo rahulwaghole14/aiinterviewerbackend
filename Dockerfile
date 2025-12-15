@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y \
     make \
     postgresql-client \
     libpq-dev \
-    openjdk-17-jdk-headless \
+    default-jdk-headless \
     nodejs \
     npm \
     golang-go \

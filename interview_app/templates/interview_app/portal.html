@@ -1415,6 +1415,9 @@
     // These warnings will be merged with backend warnings in the proctoring UI
     let browserProctorWarnings = {
         low_concentration: false,   // Little or no movement for a while
+        multiple_people: false,     // Reserved for future JS model
+        phone_detected: false,      // Reserved for future JS model
+        no_person: false,           // Reserved for future JS model
     };
     window._browserProctorWarnings = browserProctorWarnings;
     let _lastBrowserProctorGray = null;
@@ -4550,7 +4553,31 @@
                                 }
                                 
                                 const noRecentMotion = (now - _lastBrowserMotionTs) >= BROWSER_LOW_MOTION_WINDOW_MS;
+                                const prevLow = browserProctorWarnings.low_concentration;
                                 browserProctorWarnings.low_concentration = noRecentMotion;
+
+                                // When low_concentration flips from false -> true or true -> false,
+                                // send a lightweight browser-side proctoring event (no snapshot needed).
+                                if (browserProctorWarnings.low_concentration !== prevLow && typeof SESSION_KEY !== 'undefined' && SESSION_KEY) {
+                                    (async () => {
+                                        try {
+                                            await fetch("{% url 'browser_proctoring_event' %}", {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'X-CSRFToken': getCookie('csrftoken') || ''
+                                                },
+                                                body: JSON.stringify({
+                                                    session_key: SESSION_KEY,
+                                                    warning_type: 'low_concentration',
+                                                    active: browserProctorWarnings.low_concentration
+                                                })
+                                            });
+                                        } catch (e) {
+                                            console.warn('⚠️ Failed to send low_concentration browser event:', e);
+                                        }
+                                    })();
+                                }
                             }
                             _lastBrowserProctorGray = gray;
                         } catch (e) {

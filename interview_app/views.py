@@ -3133,6 +3133,75 @@ def get_proctoring_status(request):
     warnings.pop('_counts', None)
     return JsonResponse(warnings)
 
+
+@csrf_exempt
+@require_POST
+def browser_proctoring_event(request):
+    """
+    Lightweight endpoint for browser-based proctoring events.
+    The browser sends JSON like:
+      {
+        "session_key": "...",
+        "warning_type": "low_concentration" | "multiple_people" | "phone_detected" | "no_person" | "tab_switched",
+        "active": true/false,
+        "snapshot": "data:image/jpeg;base64,...." (optional)
+      }
+
+    When active=true, we log a WarningLog row and optionally save a snapshot image.
+    When active=false, we do not delete anything; frontend just hides the warning.
+    """
+    try:
+        data = json.loads(request.body or "{}")
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": f"Invalid JSON: {e}"}, status=400)
+
+    session_key = data.get("session_key")
+    warning_type = data.get("warning_type")
+    active = bool(data.get("active", True))
+    snapshot_b64 = data.get("snapshot")
+
+    if not session_key or not warning_type:
+        return JsonResponse(
+            {"status": "error", "message": "session_key and warning_type are required"},
+            status=400,
+        )
+
+    # We only log when the warning becomes active
+    if not active:
+        return JsonResponse({"status": "ok", "message": "inactive event ignored"})
+
+    try:
+        session = InterviewSession.objects.get(session_key=session_key)
+    except InterviewSession.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid session_key"}, status=404
+        )
+
+    warning_log = WarningLog(session=session, warning_type=warning_type)
+
+    # Optional snapshot image from browser (base64 data URL)
+    if snapshot_b64 and isinstance(snapshot_b64, str) and snapshot_b64.startswith("data:image"):
+        try:
+            import base64
+            from django.core.files.base import ContentFile
+            import uuid as _uuid
+
+            header, b64data = snapshot_b64.split(",", 1)
+            file_ext = "jpg"
+            if "png" in header:
+                file_ext = "png"
+            filename = f"{session.id}_{warning_type}_{_uuid.uuid4().hex}.{file_ext}"
+            decoded = base64.b64decode(b64data)
+            warning_log.snapshot = filename
+            warning_log.snapshot_image.save(filename, ContentFile(decoded), save=False)
+        except Exception as e:
+            # Snapshot is optional; log error but do not fail the request
+            print(f"⚠️ Failed to decode browser snapshot for proctoring event: {e}")
+
+    warning_log.save()
+
+    return JsonResponse({"status": "ok"})
+
 def video_frame(request):
     """Return a single JPEG frame (for polling-based display)"""
     session_key = request.GET.get('session_key')

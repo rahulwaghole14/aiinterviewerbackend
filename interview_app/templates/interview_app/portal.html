@@ -4516,74 +4516,11 @@
                         imgElement.style.opacity = '1';
                         imgElement.style.backgroundColor = 'transparent';
                         
-                        // --- Browser-side movement-based proctoring (no server camera required) ---
-                        try {
-                            // Downscale for cheaper motion analysis
-                            const ANALYSIS_WIDTH = 160;
-                            const ANALYSIS_HEIGHT = 120;
-                            const analysisCanvas = canvasEl;
-                            const analysisCtx = ctx;
-                            
-                            // Draw a smaller version for analysis only
-                            analysisCtx.drawImage(videoEl, 0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT);
-                            const frameData = analysisCtx.getImageData(0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT).data;
-                            
-                            // Convert to grayscale and compute mean absolute difference vs previous frame
-                            const gray = new Uint8Array(ANALYSIS_WIDTH * ANALYSIS_HEIGHT);
-                            for (let i = 0, j = 0; i < frameData.length; i += 4, j++) {
-                                const r = frameData[i];
-                                const g = frameData[i + 1];
-                                const b = frameData[i + 2];
-                                // Simple luminance
-                                gray[j] = (0.299 * r + 0.587 * g + 0.114 * b) | 0;
-                            }
-                            
-                            const now = Date.now();
-                            if (_lastBrowserProctorGray && _lastBrowserProctorGray.length === gray.length) {
-                                let diffSum = 0;
-                                for (let k = 0; k < gray.length; k += 4) { // sample every 4 pixels to reduce work
-                                    diffSum += Math.abs(gray[k] - _lastBrowserProctorGray[k]);
-                                }
-                                const sampledCount = gray.length / 4;
-                                const meanDiff = diffSum / sampledCount;
-                                
-                                // If motion is above threshold, update last motion timestamp
-                                if (meanDiff > BROWSER_MOTION_DIFF_THRESH) {
-                                    _lastBrowserMotionTs = now;
-                                }
-                                
-                                const noRecentMotion = (now - _lastBrowserMotionTs) >= BROWSER_LOW_MOTION_WINDOW_MS;
-                                const prevLow = browserProctorWarnings.low_concentration;
-                                browserProctorWarnings.low_concentration = noRecentMotion;
-
-                                // When low_concentration flips from false -> true or true -> false,
-                                // send a lightweight browser-side proctoring event (no snapshot needed).
-                                if (browserProctorWarnings.low_concentration !== prevLow && typeof SESSION_KEY !== 'undefined' && SESSION_KEY) {
-                                    (async () => {
-                                        try {
-                                            await fetch("{% url 'browser_proctoring_event' %}", {
-                                                method: 'POST',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                    'X-CSRFToken': getCookie('csrftoken') || ''
-                                                },
-                                                body: JSON.stringify({
-                                                    session_key: SESSION_KEY,
-                                                    warning_type: 'low_concentration',
-                                                    active: browserProctorWarnings.low_concentration
-                                                })
-                                            });
-                                        } catch (e) {
-                                            console.warn('⚠️ Failed to send low_concentration browser event:', e);
-                                        }
-                                    })();
-                                }
-                            }
-                            _lastBrowserProctorGray = gray;
-                        } catch (e) {
-                            // Motion detection is best-effort; failures should not break interview
-                            // console.debug('Browser proctoring analysis error:', e);
-                        }
+                        // --- (Disabled) Browser-side low-concentration proctoring ---
+                        // Previously, this block compared consecutive frames to infer motion and
+                        // set browserProctorWarnings.low_concentration + send events to backend.
+                        // You requested to rely only on YOLO/server-side low_concentration, so
+                        // this client-side low-concentration logic has been removed.
                         
                         requestAnimationFrame(updateFrame);
                     };

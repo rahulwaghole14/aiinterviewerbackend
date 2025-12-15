@@ -27,7 +27,7 @@ audio{width:100%;margin:10px 0;}
 
 <script>
 const SESSION_KEY="{{ session_key }}";
-const DEEPGRAM_API_KEY='{{ DEEPGRAM_API_KEY|default:"" }}';
+const DEEPGRAM_API_KEY='6690abf90d1c62c6b70ed632900b2c093bc06d79';
 
 let sid=null,listening=false,isFinalizing=false;
 let ws=null,audioContext=null,processor=null,source=null,streamRef=null;
@@ -187,16 +187,23 @@ async function beginRecord(){
     console.log('♻️ Reusing media stream source');
   }
   
-  // Connect to Deepgram DIRECTLY - MATCH ORIGINAL index.html
-  const sampleRate=audioContext.sampleRate;
-  const deepgramUrl=`wss://api.deepgram.com/v1/listen?model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false&utterance_end_ms=5000&endpointing=5000`;
+  // Connect to Deepgram via Django proxy (keeps API key on backend)
+  const sampleRate=audioContext.sampleRate || 16000;
+  const wsProto=location.protocol==='https:'?'wss:':'ws:';
+  const proxyUrl=`${wsProto}//${location.host}/dg_ws`;
   
-  console.log('🔗 Connecting directly to Deepgram (nova-3, en-IN)...');
-  ws=new WebSocket(deepgramUrl,['token',DEEPGRAM_API_KEY]);
+  console.log('🔗 Connecting to Deepgram proxy (nova-3, en-IN)...');
+  ws=new WebSocket(proxyUrl); // No subprotocol
   ws.binaryType='arraybuffer';
   
   ws.onopen=()=>{
-    console.log('✅ Connected to Deepgram!');
+    console.log('✅ Connected to Deepgram proxy!');
+    // Send config to proxy
+    ws.send(JSON.stringify({
+      sample_rate: sampleRate,
+      model: 'nova-3',
+      language: 'en-IN'
+    }));
     
     // Create gain node to amplify audio
     const gainNode=audioContext.createGain();

@@ -3110,7 +3110,8 @@
         console.log('   - language: en-IN');
         
         return new Promise((resolve, reject) => {
-            deepgramWS = new WebSocket(wsUrl);
+            // Use subprotocol 'token' to send API key (Deepgram recommended way)
+            deepgramWS = new WebSocket(wsUrl, ['token', DEEPGRAM_API_KEY]);
             deepgramWS.binaryType = 'arraybuffer';
             
             deepgramWS.onopen = () => {

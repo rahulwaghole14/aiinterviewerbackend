@@ -192,7 +192,8 @@ async function beginRecord(){
   const deepgramUrl=`wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false`;
   
   console.log('🔗 Connecting directly to Deepgram (nova-3, en-IN)...');
-  ws=new WebSocket(deepgramUrl); // No subprotocol
+  // Use subprotocol 'token' to send API key (Deepgram recommended way)
+  ws=new WebSocket(deepgramUrl, ['token', DEEPGRAM_API_KEY]);
   ws.binaryType='arraybuffer';
   
   ws.onopen=()=>{

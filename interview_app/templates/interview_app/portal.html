@@ -3101,12 +3101,10 @@
     
     async function connectDeepgram(stream) {
         const sampleRate = audioContext.sampleRate || 16000;
-        // ✅ Use Django WebSocket proxy instead of direct Deepgram connection
-        // This keeps API key secure on backend and works better with Cloud Run
-        const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProto}//${window.location.host}/dg_ws`;
+        // ✅ Connect directly to Deepgram using API key in URL (no subprotocol)
+        const wsUrl = `wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false`;
         
-        console.log('🔧 Connecting to Django Deepgram proxy:', wsUrl);
+        console.log('🔧 Connecting directly to Deepgram:', wsUrl);
         console.log('   - sample_rate:', sampleRate);
         console.log('   - model: nova-3');
         console.log('   - language: en-IN');
@@ -3116,39 +3114,21 @@
             deepgramWS.binaryType = 'arraybuffer';
             
             deepgramWS.onopen = () => {
-                console.log('✅ Connected to Django Deepgram proxy');
-                // Send config first (required by Django proxy)
-                const config = {
-                    sample_rate: sampleRate,
-                    model: 'nova-3',
-                    language: 'en-IN'
-                };
-                deepgramWS.send(JSON.stringify(config));
-                console.log('📤 Sent config to proxy:', config);
+                console.log('✅ Deepgram WebSocket connected (direct)');
                 resolve();
             };
             
             deepgramWS.onmessage = (event) => {
-                // Check if it's a Connected message from proxy
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'Connected') {
-                        console.log('✅ Proxy confirmed connection');
-                        return;
-                    }
-                } catch (e) {
-                    // Not JSON, treat as Deepgram message
-                }
                 handleDeepgramMessage(event);
             };
             
             deepgramWS.onerror = (error) => {
-                console.error('❌ Deepgram WebSocket proxy error:', error);
+                console.error('❌ Deepgram WebSocket error (direct):', error);
                 reject(error);
             };
             
             deepgramWS.onclose = (event) => {
-                console.log('🔌 Deepgram WebSocket proxy closed:', event.code, event.reason);
+                console.log('🔌 Deepgram WebSocket closed (direct):', event.code, event.reason);
             };
         });
     }

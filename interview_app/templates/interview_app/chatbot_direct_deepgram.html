@@ -187,23 +187,16 @@ async function beginRecord(){
     console.log('♻️ Reusing media stream source');
   }
   
-  // Connect to Deepgram via Django proxy (keeps API key on backend)
+  // Connect directly to Deepgram using API key in URL (no subprotocol)
   const sampleRate=audioContext.sampleRate || 16000;
-  const wsProto=location.protocol==='https:'?'wss:':'ws:';
-  const proxyUrl=`${wsProto}//${location.host}/dg_ws`;
+  const deepgramUrl=`wss://api.deepgram.com/v1/listen?token=${DEEPGRAM_API_KEY}&model=nova-3&language=en-IN&encoding=linear16&sample_rate=${sampleRate}&channels=1&interim_results=true&punctuate=false&smart_format=false`;
   
-  console.log('🔗 Connecting to Deepgram proxy (nova-3, en-IN)...');
-  ws=new WebSocket(proxyUrl); // No subprotocol
+  console.log('🔗 Connecting directly to Deepgram (nova-3, en-IN)...');
+  ws=new WebSocket(deepgramUrl); // No subprotocol
   ws.binaryType='arraybuffer';
   
   ws.onopen=()=>{
-    console.log('✅ Connected to Deepgram proxy!');
-    // Send config to proxy
-    ws.send(JSON.stringify({
-      sample_rate: sampleRate,
-      model: 'nova-3',
-      language: 'en-IN'
-    }));
+    console.log('✅ Connected to Deepgram (direct)!');
     
     // Create gain node to amplify audio
     const gainNode=audioContext.createGain();

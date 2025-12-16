@@ -221,7 +221,7 @@ def generate_proctoring_pdf(evaluation, output_path=None):
                 return None
             
             interview_id = evaluation.interview.id if evaluation.interview else 'unknown'
-            filename = f"proctoring_report_{interview_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            filename = f"proctoring_report_{interview_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             output_path = os.path.join(pdf_dir, filename)
             print(f"📄 PDF will be saved to: {output_path}")
         
@@ -238,7 +238,7 @@ def generate_proctoring_pdf(evaluation, output_path=None):
         try:
             from interview_app.gcs_storage import upload_pdf_to_gcs
             interview_id = evaluation.interview.id if evaluation.interview else 'unknown'
-            gcs_file_path = f"proctoring_pdfs/proctoring_report_{interview_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            gcs_file_path = f"proctoring_pdfs/proctoring_report_{interview_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             gcs_url = upload_pdf_to_gcs(pdf_bytes, gcs_file_path)
             if gcs_url:
                 print(f"✅ PDF uploaded to GCS: {gcs_url}")

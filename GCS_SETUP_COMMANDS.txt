@@ -1,0 +1,31 @@
+# Step 1: Grant yourself Storage Admin role
+gcloud projects add-iam-policy-binding eastern-team-480811-e6 \
+    --member="user:rsl.jayshree1803@gmail.com" \
+    --role="roles/storage.admin"
+
+# Step 2: Create the bucket
+export PROJECT_ID="eastern-team-480811-e6"
+export BUCKET_NAME="ai-interview-pdfs-${PROJECT_ID}"
+
+gsutil mb -p ${PROJECT_ID} -l asia-southeast1 gs://${BUCKET_NAME}
+
+# Step 3: Make bucket publicly readable
+gsutil iam ch allUsers:objectViewer gs://${BUCKET_NAME}
+
+# Step 4: Get project number and grant Cloud Run service account permissions
+PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
+echo "Project Number: ${PROJECT_NUMBER}"
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/storage.objectAdmin"
+
+# Step 5: Set Cloud Run environment variable
+gcloud run services update talaroai \
+  --region asia-southeast1 \
+  --update-env-vars="GCS_BUCKET_NAME=${BUCKET_NAME}" \
+  --project=${PROJECT_ID}
+
+# Step 6: Verify bucket was created
+gsutil ls gs://${BUCKET_NAME}
+

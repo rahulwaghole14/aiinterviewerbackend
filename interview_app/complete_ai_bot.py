@@ -833,7 +833,7 @@ def is_question_similar(new_question: str, existing_questions: list, threshold: 
     return False
 
 
-def _shape_question(text: str, ensure_intro: bool = False) -> str:
+def _shape_question(text: str, ensure_intro: bool = False, session=None) -> str:
     """Ensure a single, concise question with a trailing question mark.
     CRITICAL: Extract only the FIRST question if multiple questions are present.
     """
@@ -864,15 +864,40 @@ def _shape_question(text: str, ensure_intro: bool = False) -> str:
             cleaned = cleaned + "?"
     
     if ensure_intro:
-        # Don't use fixed fallback - let LLM generate the question
-        # Just ensure it's a question format
+        # Remove unwanted phrases that LLM might add
+        unwanted_phrases = [
+            "okay, i understand",
+            "okay i understand",
+            "i understand",
+            "let's begin",
+            "let's start",
+            "let's get started",
+            "i'm ready",
+            "ready to begin"
+        ]
+        for phrase in unwanted_phrases:
+            if phrase in cleaned.lower():
+                # Remove the phrase and everything before it
+                idx = cleaned.lower().find(phrase)
+                if idx >= 0:
+                    # Find the next sentence/question after the phrase
+                    remaining = cleaned[idx + len(phrase):].strip()
+                    # Remove leading punctuation and capitalize first letter
+                    remaining = remaining.lstrip(".,;: ")
+                    if remaining:
+                        remaining = remaining[0].upper() + remaining[1:] if len(remaining) > 1 else remaining.upper()
+                        cleaned = remaining
+                        print(f"⚠️ Removed unwanted phrase '{phrase}' from introduction question")
+        
+        # Ensure it's a question format
         intro_keywords = ("introduce yourself", "introduction", "background", "yourself", "tell me about yourself", "hi", "hello")
         if not any(kw in cleaned.lower() for kw in intro_keywords):
-            # If it doesn't look like an intro, add a gentle prefix but keep LLM-generated content
-            if not cleaned.lower().startswith(("hi", "hello")):
-                # Try to preserve the LLM question but ensure it's an intro format
-                # Don't replace with fixed question - just ensure it's formatted properly
-                pass  # Let the LLM question stand as-is
+            # If it doesn't look like an intro, use a fallback
+            candidate_first_name = "there"
+            if session and hasattr(session, 'candidate_name') and session.candidate_name:
+                candidate_first_name = session.candidate_name.split()[0]
+            cleaned = f"Hi {candidate_first_name}, could you please introduce yourself and tell me about your technical background?"
+            print(f"⚠️ Generated question didn't look like intro, using fallback")
     
     return cleaned
 
@@ -930,6 +955,8 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "5. Address the candidate by their first name ({candidate_first_name}).\n"
             "6. Keep it warm, professional, and conversational.\n"
             "7. Ask ONLY ONE question.\n\n"
+            "8. while asking the question do not expose any word which is shows you use the job description to ask the question\n"
+        
             "CORRECT EXAMPLES:\n"
             f"- 'Hi {candidate_first_name}, could you please introduce yourself and tell me about your technical background?'\n"
             f"- 'Hello {candidate_first_name}, to get started, could you briefly introduce yourself and highlight one technical experience you are proud of?'\n"
@@ -1037,7 +1064,7 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         # CRITICAL: Shape the question to ensure only ONE question is returned
         # This is especially important when candidate's answer is "No answer provided"
         ensure_intro = (question_type == "introduction")
-        generated_question = _shape_question(generated_question, ensure_intro=ensure_intro)
+        generated_question = _shape_question(generated_question, ensure_intro=ensure_intro, session=session)
         
         # Check if this question is similar to previously asked questions (only if not allowing elaboration)
         if not allow_elaboration and session.asked_questions:

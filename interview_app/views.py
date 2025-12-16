@@ -3215,7 +3215,7 @@ def detect_yolo_browser_frame(request):
         if yolo_key not in _yolo_model_cache:
             try:
                 import onnxruntime as ort
-                from django.conf import settings
+                # settings already imported at top of file
                 from pathlib import Path
                 
                 model_path = Path(settings.BASE_DIR) / 'yolov8m.onnx'
@@ -5071,6 +5071,66 @@ def ai_transcript_pdf(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': f'PDF generation failed: {str(e)}'}, status=500)
+
+@csrf_exempt
+def download_proctoring_pdf(request, session_id):
+    """Download proctoring warnings PDF for a given session"""
+    try:
+        from .models import InterviewSession
+        from evaluation.models import Evaluation
+        from interviews.models import Interview
+        from django.http import FileResponse, Http404
+        import os
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(id=session_id)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        
+        # Get interview
+        try:
+            interview = Interview.objects.get(session_key=session.session_key)
+        except Interview.DoesNotExist:
+            return JsonResponse({'error': 'Interview not found'}, status=404)
+        
+        # Get evaluation
+        try:
+            evaluation = Evaluation.objects.get(interview=interview)
+        except Evaluation.DoesNotExist:
+            return JsonResponse({'error': 'Evaluation not found. Please wait for evaluation to be generated.'}, status=404)
+        
+        # Get PDF path from evaluation details
+        if not evaluation.details or not isinstance(evaluation.details, dict):
+            return JsonResponse({'error': 'Evaluation details not found'}, status=404)
+        
+        proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+        if not proctoring_pdf_path:
+            # Try to generate PDF if it doesn't exist
+            from evaluation.services import create_evaluation_from_session
+            evaluation = create_evaluation_from_session(session.session_key)
+            if evaluation and evaluation.details:
+                proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+        
+        if not proctoring_pdf_path:
+            return JsonResponse({'error': 'Proctoring PDF not found. No warnings were detected during the interview.'}, status=404)
+        
+        # Get full path to PDF
+        pdf_full_path = os.path.join(settings.MEDIA_ROOT, proctoring_pdf_path.lstrip('/'))
+        
+        if not os.path.exists(pdf_full_path):
+            return JsonResponse({'error': f'PDF file not found at {pdf_full_path}'}, status=404)
+        
+        # Serve PDF file
+        response = FileResponse(open(pdf_full_path, 'rb'), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="proctoring_report_{session_id}.pdf"'
+        return response
+        
+    except Exception as e:
+        print(f"❌ Error downloading proctoring PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Failed to download PDF: {str(e)}'}, status=500)
 
 @csrf_exempt
 @require_POST

@@ -3166,6 +3166,7 @@ def detect_yolo_browser_frame(request):
         import numpy as np
         from django.core.files.base import ContentFile
         from .models import InterviewSession, WarningLog
+        from django.conf import settings  # Import settings here
         
         data = json.loads(request.body)
         session_key = data.get('session_key')

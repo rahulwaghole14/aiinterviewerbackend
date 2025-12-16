@@ -4782,14 +4782,29 @@
                             li.style.textAlign = 'center';
                             li.style.fontWeight = '600';
                             li.style.fontSize = '0.9rem';
+
                             // Always add to both lists if they exist (for visibility)
                             if (list && isSpokenVisible) {
-                                list.appendChild(li.cloneNode(true));
+                                const techNode = li.cloneNode(true);
+                                list.appendChild(techNode);
                                 console.log(`⚠️ Warning added to technical list: ${warningFriendlyMap[key]}`);
+                                // Auto-remove after 2 seconds
+                                setTimeout(() => {
+                                    if (techNode && techNode.parentNode) {
+                                        techNode.parentNode.removeChild(techNode);
+                                    }
+                                }, 2000);
                             }
                             if (list2 && isCodingVisible) {
-                                list2.appendChild(li.cloneNode(true));
+                                const codingNode = li.cloneNode(true);
+                                list2.appendChild(codingNode);
                                 console.log(`⚠️ Warning added to coding list: ${warningFriendlyMap[key]}`);
+                                // Auto-remove after 2 seconds
+                                setTimeout(() => {
+                                    if (codingNode && codingNode.parentNode) {
+                                        codingNode.parentNode.removeChild(codingNode);
+                                    }
+                                }, 2000);
                             }
                             warningCount++;
                         }

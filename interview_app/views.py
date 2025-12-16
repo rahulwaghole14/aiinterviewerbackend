@@ -4036,21 +4036,61 @@ def ai_start(request):
         jd_text = "Technical Interview Position - Software Development Role"
         print(f"   Using fallback job description: {jd_text}")
     
-    # Call AI bot to start interview with question count from scheduler
-    print(f"\n{'='*60}")
-    print(f"🎯🎯🎯 FINAL: Starting interview with question_count={question_count}")
-    print(f"   Candidate: {candidate_name}")
-    print(f"   JD length: {len(jd_text)}")
-    print(f"   JD preview: {jd_text[:200]}...")
-    print(f"{'='*60}\n")
+    # CRITICAL: Check if a session already exists for this session_key before creating a new one
+    existing_session_id = None
+    if django_session and session_key:
+        for sid, sess in sessions.items():
+            if hasattr(sess, 'django_session_key') and sess.django_session_key == session_key:
+                existing_session_id = sid
+                print(f"✅ Found existing session in memory for session_key {session_key}: {sid}")
+                break
     
-    # Final check before calling start_interview
-    if not jd_text or not jd_text.strip():
-        error_msg = "Job description is required but could not be retrieved. Please ensure the interview session has a valid job description."
-        print(f"❌ {error_msg}")
-        return JsonResponse({"error": error_msg}, status=400)
-    
-    result = start_interview(candidate_name, jd_text, max_questions=question_count)
+    if existing_session_id:
+        # Reuse existing session
+        ai_session = sessions[existing_session_id]
+        # Get the last question from database or use the last active question
+        last_question = ai_session.last_active_question_text
+        if not last_question:
+            # Try to get from database
+            last_question_obj = InterviewQuestion.objects.filter(
+                session=django_session,
+                role='AI'
+            ).order_by('-order').first()
+            if last_question_obj:
+                last_question = last_question_obj.question_text
+                ai_session.last_active_question_text = last_question
+        
+        # Get current question number from database
+        existing_questions = InterviewQuestion.objects.filter(
+            session=django_session,
+            role='AI'
+        ).count()
+        ai_session.current_question_number = existing_questions
+        
+        result = {
+            "session_id": existing_session_id,
+            "question": last_question or "Please continue with your answer.",
+            "audio_url": "",  # No audio for resumed session
+            "question_number": ai_session.current_question_number,
+            "max_questions": ai_session.max_questions
+        }
+        print(f"✅ Reusing existing session: {existing_session_id}, current_question_number={ai_session.current_question_number}")
+    else:
+        # Call AI bot to start interview with question count from scheduler
+        print(f"\n{'='*60}")
+        print(f"🎯🎯🎯 FINAL: Starting interview with question_count={question_count}")
+        print(f"   Candidate: {candidate_name}")
+        print(f"   JD length: {len(jd_text)}")
+        print(f"   JD preview: {jd_text[:200]}...")
+        print(f"{'='*60}\n")
+        
+        # Final check before calling start_interview
+        if not jd_text or not jd_text.strip():
+            error_msg = "Job description is required but could not be retrieved. Please ensure the interview session has a valid job description."
+            print(f"❌ {error_msg}")
+            return JsonResponse({"error": error_msg}, status=400)
+        
+        result = start_interview(candidate_name, jd_text, max_questions=question_count)
     print(f"✅ Interview started, returned max_questions={result.get('max_questions', 'N/A')}")
     
     # Verify the session has the correct max_questions
@@ -4444,35 +4484,61 @@ def ai_upload_answer(request):
                 # If we found Django session, try to recreate AI session from database
                 if django_session:
                     print(f"✅ Found Django session, attempting to restore AI session from database...")
-                    # Try to get job description and candidate name from Django session
-                    jd_text = django_session.job_description or ""
-                    candidate_name = django_session.candidate_name or "Candidate"
                     
-                    if jd_text:
-                        # Recreate session using start_interview logic
-                        from .complete_ai_bot import start_interview
-                        # Get max_questions from existing questions count or default to 4
-                        existing_questions = InterviewQuestion.objects.filter(session=django_session).count()
-                        max_questions = max(existing_questions + 1, 4)  # At least one more than existing
+                    # FIRST: Check if there's already a session in memory with this django_session_key
+                    existing_session_id = None
+                    for sid, sess in sessions.items():
+                        if hasattr(sess, 'django_session_key') and sess.django_session_key == django_session.session_key:
+                            existing_session_id = sid
+                            print(f"✅ Found existing session in memory: {sid}")
+                            break
+                    
+                    if existing_session_id:
+                        # Reuse existing session
+                        session_id = existing_session_id
+                        restored_session = sessions[session_id]
+                        # Update current_question_number based on existing questions
+                        existing_questions = InterviewQuestion.objects.filter(
+                            session=django_session,
+                            role='AI'  # Only count AI questions
+                        ).count()
+                        restored_session.current_question_number = existing_questions
+                        print(f"✅ Reusing existing session: {session_id}, current_question_number={restored_session.current_question_number}")
+                    else:
+                        # Create new session and restore state
+                        jd_text = django_session.job_description or ""
+                        candidate_name = django_session.candidate_name or "Candidate"
                         
-                        print(f"🔄 Restoring session with max_questions={max_questions}")
-                        restore_result = start_interview(candidate_name, jd_text, max_questions=max_questions)
-                        
-                        if 'session_id' in restore_result and 'error' not in restore_result:
-                            # Link restored session to Django session
-                            restored_session_id = restore_result['session_id']
-                            if restored_session_id in sessions:
-                                restored_session = sessions[restored_session_id]
-                                restored_session.django_session_key = django_session.session_key
-                                # Update current_question_number based on existing questions
-                                restored_session.current_question_number = existing_questions + 1
-                                print(f"✅ Session restored: {restored_session_id}, current_question_number={restored_session.current_question_number}")
-                                # Use restored session_id
-                                session_id = restored_session_id
+                        if jd_text:
+                            # Recreate session using start_interview logic
+                            from .complete_ai_bot import start_interview
+                            # Get max_questions from existing questions count or default to 4
+                            existing_questions = InterviewQuestion.objects.filter(
+                                session=django_session,
+                                role='AI'  # Only count AI questions
+                            ).count()
+                            max_questions = max(existing_questions + 1, 4)  # At least one more than existing
+                            
+                            print(f"🔄 Creating new session with max_questions={max_questions}")
+                            restore_result = start_interview(candidate_name, jd_text, max_questions=max_questions)
+                            
+                            if 'session_id' in restore_result and 'error' not in restore_result:
+                                # Link restored session to Django session
+                                restored_session_id = restore_result['session_id']
+                                if restored_session_id in sessions:
+                                    restored_session = sessions[restored_session_id]
+                                    restored_session.django_session_key = django_session.session_key
+                                    # Update current_question_number based on existing questions
+                                    restored_session.current_question_number = existing_questions
+                                    print(f"✅ Session restored: {restored_session_id}, current_question_number={restored_session.current_question_number}")
+                                    # Use restored session_id
+                                    session_id = restored_session_id
+                                else:
+                                    print(f"❌ Failed to restore session - restored session_id not in sessions dict")
                             else:
-                                print(f"❌ Failed to restore session - restored session_id not in sessions dict")
+                                print(f"❌ Failed to restore session: {restore_result.get('error', 'Unknown error')}")
                         else:
-                            print(f"❌ Failed to restore session: {restore_result.get('error', 'Unknown error')}")
+                            print(f"❌ Cannot restore session - no job description found")
                 else:
                     print(f"❌ Could not find Django session to restore from")
             except Exception as e:

@@ -386,6 +386,7 @@ async function finalize(){
   
   const resp=await api('/ai/upload_answer',{
     session_id:sid,
+    session_key:SESSION_KEY,  // CRITICAL: Include session_key for session restoration
     transcript:transcript||'[No speech detected]',
     question_number:1  // Will be tracked by backend
   });

@@ -54,8 +54,9 @@ RUN python manage.py collectstatic --noinput || true
 
 # Add YOLO model files (yolov8m.pt for reference, yolov8m.onnx for runtime)
 # Note: These files should be in the project root directory
-COPY yolov8m.pt /app/yolov8m.pt || true # Use || true to not fail if file is missing
-COPY yolov8m.onnx /app/yolov8m.onnx || true # Use || true to not fail if file is missing
+# Using shell form to handle missing files gracefully
+RUN if [ -f yolov8m.pt ]; then cp yolov8m.pt /app/yolov8m.pt; else echo "⚠️ yolov8m.pt not found, skipping"; fi
+RUN if [ -f yolov8m.onnx ]; then cp yolov8m.onnx /app/yolov8m.onnx; else echo "⚠️ yolov8m.onnx not found, skipping"; fi
 
 # Expose port (Cloud Run uses PORT env variable)
 EXPOSE 8080

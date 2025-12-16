@@ -25,7 +25,7 @@ _input_name = None
 _output_names = None
 
 # YOLOv8 input/output details
-_MODEL_INPUT_SIZE = 640  # YOLOv8n expects 640x640 input
+_MODEL_INPUT_SIZE = 640  # YOLOv8m expects 640x640 input
 _CONFIDENCE_THRESHOLD = 0.25
 _IOU_THRESHOLD = 0.45
 
@@ -73,21 +73,21 @@ def _load_onnx_model():
     try:
         # Use Path object for better cross-platform compatibility
         # Look for .onnx file first, then fallback to .pt (for conversion)
-        model_path = Path(settings.BASE_DIR) / 'yolov8n.onnx'
-        print(f"🔍 Loading YOLOv8 ONNX model from: {model_path}")
+        model_path = Path(settings.BASE_DIR) / 'yolov8m.onnx'
+        print(f"🔍 Loading YOLOv8m ONNX model from: {model_path}")
         print(f"🔍 BASE_DIR: {settings.BASE_DIR}")
         print(f"🔍 Model path exists: {model_path.exists()}")
         
         if not model_path.exists():
             # Fallback: try current directory
-            fallback_path = Path('yolov8n.onnx')
+            fallback_path = Path('yolov8m.onnx')
             print(f"🔍 Trying fallback path: {fallback_path} (exists: {fallback_path.exists()})")
             if fallback_path.exists():
                 model_path = fallback_path
             else:
-                print(f"⚠️ YOLOv8 ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8n.onnx'} or {fallback_path}")
-                print(f"⚠️ Please ensure yolov8n.onnx is in the project root directory")
-                print(f"ℹ️ You can convert yolov8n.pt to .onnx using: yolo export model=yolov8n.pt format=onnx")
+                print(f"⚠️ YOLOv8m ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8m.onnx'} or {fallback_path}")
+                print(f"⚠️ Please ensure yolov8m.onnx is in the project root directory")
+                print(f"ℹ️ You can convert yolov8m.pt to .onnx using: yolo export model=yolov8m.pt format=onnx")
                 _onnx_session = None
                 _YOLO_AVAILABLE = False
                 return False
@@ -103,7 +103,7 @@ def _load_onnx_model():
         
         print(f"✅ YOLOv8 ONNX model loaded successfully from: {model_path}")
         print(f"   Input: {_input_name}, Outputs: {_output_names}")
-        print(f"⚠️ NOTE: Standard YOLOv8n (COCO) detects 'person' class, not faces specifically.")
+        print(f"⚠️ NOTE: Standard YOLOv8m (COCO) detects 'person' class, not faces specifically.")
         print(f"⚠️ For face detection, you may need a face-specific YOLOv8 model.")
         _YOLO_AVAILABLE = True
         return True
@@ -139,7 +139,7 @@ def _postprocess_output(outputs, img_shape, input_size=640, conf_threshold=0.25,
     if len(outputs) == 0:
         return []
     
-    predictions = outputs[0]  # Shape: [1, 84, 8400] for YOLOv8n
+    predictions = outputs[0]  # Shape: [1, 84, 8400] for YOLOv8m
     
     # Handle different output shapes
     if len(predictions.shape) == 3:
@@ -267,7 +267,7 @@ def detect_face_with_yolo(image_input):
 
     if img is None:
         raise ValueError("Image not found or invalid format.")
-    
+
     original_shape = img.shape
     
     # Lazy load model on first use

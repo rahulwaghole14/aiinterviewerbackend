@@ -1271,22 +1271,22 @@ class SimpleRealVideoCamera:
             from pathlib import Path
             try:
                 # Load YOLO ONNX model only when technical interview starts
-                # Use absolute path from BASE_DIR: BASE_DIR/yolov8n.onnx
-                model_path = Path(settings.BASE_DIR) / 'yolov8n.onnx'
-                print(f"🔍 Looking for YOLOv8 ONNX model at: {model_path}")
+                # Use absolute path from BASE_DIR: BASE_DIR/yolov8m.onnx
+                model_path = Path(settings.BASE_DIR) / 'yolov8m.onnx'
+                print(f"🔍 Looking for YOLOv8m ONNX model at: {model_path}")
                 print(f"🔍 BASE_DIR: {settings.BASE_DIR}")
                 print(f"🔍 Model path exists: {model_path.exists()}")
                 
                 if not model_path.exists():
                     # Fallback: try current directory
-                    fallback_path = Path('yolov8n.onnx')
+                    fallback_path = Path('yolov8m.onnx')
                     print(f"🔍 Trying fallback path: {fallback_path} (exists: {fallback_path.exists()})")
                     if fallback_path.exists():
                         model_path = fallback_path
                     else:
-                        print(f"⚠️ YOLOv8 ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8n.onnx'} or {fallback_path}")
+                        print(f"⚠️ YOLOv8m ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8m.onnx'} or {fallback_path}")
                         print(f"⚠️ Proctoring will use Haar cascade fallback (camera feed will still work)")
-                        print(f"ℹ️ You can convert yolov8n.pt to .onnx using: yolo export model=yolov8n.pt format=onnx")
+                        print(f"ℹ️ You can convert yolov8m.pt to .onnx using: yolo export model=yolov8m.pt format=onnx")
                         self._yolo = None
                         # Don't return False - continue with Haar cascade
                         # Start video recording anyway
@@ -1299,16 +1299,16 @@ class SimpleRealVideoCamera:
                 self._yolo_input_name = self._yolo.get_inputs()[0].name
                 self._yolo_output_names = [output.name for output in self._yolo.get_outputs()]
                 
-                print(f"✅ YOLOv8 ONNX model loaded successfully from: {model_path}")
+                print(f"✅ YOLOv8m ONNX model loaded successfully from: {model_path}")
                 print(f"   Input: {self._yolo_input_name}, Outputs: {self._yolo_output_names}")
                 
                 self._yolo_loaded = True
-                print(f"✅ YOLOv8 ONNX model loaded and proctoring activated for session {self.session_id}")
+                print(f"✅ YOLOv8m ONNX model loaded and proctoring activated for session {self.session_id}")
                 # Start video recording when proctoring starts
                 self.start_video_recording()
                 return True
             except Exception as e:
-                print(f"⚠️ Could not load yolov8n.onnx: {e}")
+                print(f"⚠️ Could not load yolov8m.onnx: {e}")
                 print(f"⚠️ Proctoring will use Haar cascade fallback (camera feed will still work)")
                 import traceback
                 traceback.print_exc()

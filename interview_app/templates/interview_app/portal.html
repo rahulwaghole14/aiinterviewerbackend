@@ -2279,7 +2279,7 @@
         PROCTOR_ONLY = true;
         console.log('%c✅ Setting PROCTOR_ONLY = true to disable old interview system', 'background: #222; color: #bada55; font-size: 14px;');
         
-        // ACTIVATE YOLOv8n detection when technical interview starts
+        // ACTIVATE YOLOv8m detection when technical interview starts
         // This also starts video recording and returns the exact start timestamp
         fetch("{% url 'activate_proctoring_camera' %}", {
             method: 'POST',
@@ -2289,7 +2289,7 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                console.log('✅ YOLOv8n detection activated for technical interview:', data);
+                console.log('✅ YOLOv8m detection activated for technical interview:', data);
                 
                 // Get video start timestamp for audio synchronization
                 const videoStartTimestamp = data.video_start_timestamp;
@@ -2317,13 +2317,13 @@
                        startAudioRecording();
                    }
             } else {
-                console.warn('⚠️ Failed to activate YOLOv8n:', data.message);
+                console.warn('⚠️ Failed to activate YOLOv8m:', data.message);
                 // CRITICAL: Don't start audio without video timestamp - wait for video to start
                 console.warn('⚠️ Not starting audio recording - waiting for video timestamp');
             }
         })
         .catch(error => {
-            console.error('❌ Error activating YOLOv8n:', error);
+            console.error('❌ Error activating YOLOv8m:', error);
             // CRITICAL: Don't start audio without video timestamp - wait for video to start
             console.warn('⚠️ Not starting audio recording - waiting for video timestamp');
         });

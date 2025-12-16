@@ -3201,9 +3201,9 @@ def detect_yolo_browser_frame(request):
                 from django.conf import settings
                 from pathlib import Path
                 
-                model_path = Path(settings.BASE_DIR) / 'yolov8n.onnx'
+                model_path = Path(settings.BASE_DIR) / 'yolov8m.onnx'
                 if not model_path.exists():
-                    model_path = Path('yolov8n.onnx')
+                    model_path = Path('yolov8m.onnx')
                 
                 if model_path.exists():
                     providers = ['CPUExecutionProvider']

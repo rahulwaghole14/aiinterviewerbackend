@@ -618,10 +618,22 @@ class InterviewSerializer(serializers.ModelSerializer):
                 print(f"📋 Question order sequence: {[f'Q{q.order}({q.question_level})' for q in question_list]}")
             
             print(f"✅ Found {questions.count()} questions for session {session.session_key}")
-            # Debug: Print all questions with their order and answers
+            # Debug: Print all questions with their order, role, conversation_sequence, and answers
             for q in questions:
                 answer_display = q.transcribed_answer[:50] if q.transcribed_answer else '(NULL)'
-                print(f"   Q{q.order}: {q.question_text[:50]}... | Answer: {answer_display}... | Type: {q.question_type} | Level: {q.question_level}")
+                role_display = q.role or '(no role)'
+                seq_display = q.conversation_sequence if q.conversation_sequence is not None else '(no seq)'
+                print(f"   Q{q.order} (seq:{seq_display}, role:{role_display}): {q.question_text[:50] if q.question_text else '(no text)'}... | Answer: {answer_display}... | Type: {q.question_type} | Level: {q.question_level}")
+            
+            # Also log all INTERVIEWEE records separately for debugging
+            interviewee_records = InterviewQuestion.objects.filter(
+                session=session,
+                role='INTERVIEWEE'
+            ).order_by('order', 'conversation_sequence')
+            print(f"📋 Found {interviewee_records.count()} INTERVIEWEE records:")
+            for ir in interviewee_records:
+                answer_display = ir.transcribed_answer[:50] if ir.transcribed_answer else '(NULL)'
+                print(f"   INTERVIEWEE Order {ir.order} (seq:{ir.conversation_sequence}, level:{ir.question_level}): Answer: {answer_display}...")
             
             # Import CodeSubmission model
             from interview_app.models import CodeSubmission
@@ -888,6 +900,8 @@ class InterviewSerializer(serializers.ModelSerializer):
                     created_at = None
                     response_time = 0
                     
+                    # CRITICAL: Try multiple methods to find the answer
+                    # Method 1: Use the paired interviewee_a if available
                     if interviewee_a:
                         # Use the separate Interviewee record
                         answer_text = interviewee_a.transcribed_answer or ''
@@ -904,43 +918,71 @@ class InterviewSerializer(serializers.ModelSerializer):
                         
                         created_at = interviewee_a.session.created_at if hasattr(interviewee_a.session, 'created_at') else None
                         response_time = interviewee_a.response_time_seconds or 0
-                    else:
-                        # Fallback: Try to find interviewee response by order and role
-                        if not answer_text:
-                            try:
+                        print(f"✅ Found answer from paired interviewee_a for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
+                    
+                    # Method 2: Try to find interviewee response by order, role, and question_level
+                    if not answer_text or (answer_text and answer_text.strip() == ''):
+                        try:
+                            # First try: exact match by order, role, and question_level
+                            missed_interviewee = InterviewQuestion.objects.filter(
+                                session=session,
+                                order=ai_q.order,
+                                role='INTERVIEWEE',
+                                question_level='INTERVIEWEE_RESPONSE'
+                            ).first()
+                            
+                            # Second try: if not found, try by order and role only (ignore question_level)
+                            if not missed_interviewee:
                                 missed_interviewee = InterviewQuestion.objects.filter(
                                     session=session,
                                     order=ai_q.order,
-                                    role='INTERVIEWEE',
-                                    question_level='INTERVIEWEE_RESPONSE'
+                                    role='INTERVIEWEE'
+                                ).exclude(
+                                    question_level='CANDIDATE_QUESTION'  # Exclude candidate questions
                                 ).first()
-                                if missed_interviewee:
-                                    answer_text = missed_interviewee.transcribed_answer or ''
-                                    if answer_text.strip().startswith('A:'):
-                                        answer_text = answer_text.replace('A:', '').strip()
-                                    created_at = missed_interviewee.session.created_at if hasattr(missed_interviewee.session, 'created_at') else None
-                                    response_time = missed_interviewee.response_time_seconds or 0
-                                    print(f"✅ Found missed interviewee response for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
-                            except Exception as e:
-                                print(f"⚠️ Error looking for missed interviewee response: {e}")
-                        
-                        # Final fallback: use transcribed_answer from the question record
-                        if not answer_text:
-                            if ai_q.transcribed_answer is not None:
-                                answer_text = ai_q.transcribed_answer
+                            
+                            # Third try: if still not found, try by conversation_sequence (even sequence = interviewee)
+                            if not missed_interviewee and ai_q.conversation_sequence is not None:
+                                # Interviewee responses have even conversation_sequence (2, 4, 6...)
+                                # AI questions have odd conversation_sequence (1, 3, 5...)
+                                interviewee_sequence = ai_q.conversation_sequence + 1
+                                missed_interviewee = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    conversation_sequence=interviewee_sequence,
+                                    role='INTERVIEWEE'
+                                ).first()
+                            
+                            if missed_interviewee:
+                                answer_text = missed_interviewee.transcribed_answer or ''
                                 if answer_text.strip().startswith('A:'):
                                     answer_text = answer_text.replace('A:', '').strip()
-                                if answer_text == "None":
-                                    answer_text = "None"
-                            else:
-                                # Ultimate fallback: no answer available
+                                created_at = missed_interviewee.session.created_at if hasattr(missed_interviewee.session, 'created_at') else None
+                                response_time = missed_interviewee.response_time_seconds or 0
+                                print(f"✅ Found missed interviewee response for order {ai_q.order} (sequence {missed_interviewee.conversation_sequence}): {answer_text[:50] if answer_text else 'No answer'}...")
+                        except Exception as e:
+                            print(f"⚠️ Error looking for missed interviewee response: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    
+                    # Method 3: Final fallback - use transcribed_answer from the AI question record itself
+                    if not answer_text or (answer_text and answer_text.strip() == ''):
+                        if ai_q.transcribed_answer is not None and ai_q.transcribed_answer.strip():
+                            answer_text = ai_q.transcribed_answer
+                            if answer_text.strip().startswith('A:'):
+                                answer_text = answer_text.replace('A:', '').strip()
+                            if answer_text == "None" or answer_text.lower() == "none":
                                 answer_text = ''
-                        
-                        # Set created_at and response_time if not already set
-                        if created_at is None:
-                            created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                        if response_time == 0:
-                            response_time = ai_q.response_time_seconds or 0
+                            print(f"✅ Using transcribed_answer from AI question record for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
+                        else:
+                            # Ultimate fallback: no answer available
+                            answer_text = ''
+                            print(f"⚠️ No answer found for order {ai_q.order}, question ID {ai_q.id}")
+                    
+                    # Set created_at and response_time if not already set
+                    if created_at is None:
+                        created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
+                    if response_time == 0:
+                        response_time = ai_q.response_time_seconds or 0
                     
                     # Format the answer
                     if answer_text is None:

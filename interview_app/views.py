@@ -2786,6 +2786,17 @@ def interview_complete(request):
         except Exception as e:
             print(f"⚠️ Error releasing camera for session {session_key}: {e}")
         
+        # CRITICAL: Update Interview status to COMPLETED if not already set
+        try:
+            from interviews.models import Interview
+            interview = Interview.objects.filter(session_key=session_key).first()
+            if interview and interview.status != Interview.Status.COMPLETED:
+                interview.status = Interview.Status.COMPLETED
+                interview.save(update_fields=['status'])
+                print(f"✅ Interview {interview.id} status updated to COMPLETED")
+        except Exception as e:
+            print(f"⚠️ Error updating Interview status: {e}")
+        
         # Create evaluation and generate PDF in background (don't wait for it)
         import threading
         def generate_evaluation_background():
@@ -2794,7 +2805,12 @@ def interview_complete(request):
                 print(f"🔄 Starting background evaluation generation for session {session_key}")
                 evaluation = create_evaluation_from_session(session_key)
                 if evaluation:
-                    print(f"✅ Background evaluation completed for session {session_key}")
+                    print(f"✅ Background evaluation completed for session {session_key}, evaluation ID: {evaluation.id}")
+                    # Verify details were saved
+                    if evaluation.details and isinstance(evaluation.details, dict):
+                        print(f"   ✅ Evaluation details saved with keys: {list(evaluation.details.keys())}")
+                    else:
+                        print(f"   ⚠️ WARNING: Evaluation created but details are missing!")
                 else:
                     print(f"⚠️ Background evaluation not created for session {session_key}")
             except Exception as e:

@@ -392,6 +392,21 @@ async function finalize(){
   
   console.log('📥 Response:', resp);
   
+  // Handle error response (session_id failed, etc.)
+  if(resp.error){
+    console.error('❌ Error from /ai/upload_answer:', resp.error);
+    document.getElementById('st').innerText='❌ Error: '+resp.error+'. Please refresh the page.';
+    isFinalizing=false;
+    // Try to restart after 3 seconds
+    setTimeout(()=>{
+      document.getElementById('st').innerText='🔄 Retrying...';
+      setTimeout(()=>{
+        location.reload();
+      },1000);
+    },3000);
+    return;
+  }
+  
   // Handle acknowledge (no speech detected) - just restart recording
   if(resp.acknowledge){
     console.log('⚠️ Acknowledge response - no speech detected, retrying...');

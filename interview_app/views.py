@@ -4157,10 +4157,82 @@ def ai_upload_answer(request):
                     import traceback
                     traceback.print_exc()
         
+        # Validate session_id before calling upload_answer
+        if not session_id:
+            print(f"❌ ERROR: session_id is missing from request")
+            return JsonResponse({"error": "session_id is required"}, status=400)
+        
+        # CRITICAL: If session_id not in memory sessions, try to restore from Django session
+        if session_id not in sessions:
+            print(f"⚠️ WARNING: session_id '{session_id}' not found in memory sessions dict")
+            print(f"   Available sessions: {list(sessions.keys())[:5]}...")  # Show first 5 for debugging
+            
+            # Try to restore session from Django database
+            try:
+                # Find Django session by session_key (might be stored in InterviewSession)
+                django_session = None
+                if request.body:
+                    try:
+                        data = json.loads(request.body.decode('utf-8'))
+                        session_key = data.get('session_key') or request.GET.get('session_key')
+                        if session_key:
+                            django_session = DjangoSession.objects.filter(session_key=session_key).first()
+                    except:
+                        pass
+                
+                # If we found Django session, try to recreate AI session from database
+                if django_session:
+                    print(f"✅ Found Django session, attempting to restore AI session from database...")
+                    # Try to get job description and candidate name from Django session
+                    jd_text = django_session.job_description or ""
+                    candidate_name = django_session.candidate_name or "Candidate"
+                    
+                    if jd_text:
+                        # Recreate session using start_interview logic
+                        from .complete_ai_bot import start_interview
+                        # Get max_questions from existing questions count or default to 4
+                        existing_questions = InterviewQuestion.objects.filter(session=django_session).count()
+                        max_questions = max(existing_questions + 1, 4)  # At least one more than existing
+                        
+                        print(f"🔄 Restoring session with max_questions={max_questions}")
+                        restore_result = start_interview(candidate_name, jd_text, max_questions=max_questions)
+                        
+                        if 'session_id' in restore_result and 'error' not in restore_result:
+                            # Link restored session to Django session
+                            restored_session_id = restore_result['session_id']
+                            if restored_session_id in sessions:
+                                restored_session = sessions[restored_session_id]
+                                restored_session.django_session_key = django_session.session_key
+                                # Update current_question_number based on existing questions
+                                restored_session.current_question_number = existing_questions + 1
+                                print(f"✅ Session restored: {restored_session_id}, current_question_number={restored_session.current_question_number}")
+                                # Use restored session_id
+                                session_id = restored_session_id
+                            else:
+                                print(f"❌ Failed to restore session - restored session_id not in sessions dict")
+                        else:
+                            print(f"❌ Failed to restore session: {restore_result.get('error', 'Unknown error')}")
+                else:
+                    print(f"❌ Could not find Django session to restore from")
+            except Exception as e:
+                print(f"⚠️ Error attempting to restore session: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # If still not found after restore attempt, return error
+            if session_id not in sessions:
+                print(f"❌ ERROR: session_id '{session_id}' still not found after restore attempt")
+                return JsonResponse({"error": "Invalid session ID. Please refresh the page and start a new interview."}, status=400)
+        
         result = upload_answer(session_id, transcript)
         
+        # Check if upload_answer returned an error
+        if 'error' in result:
+            print(f"❌ ERROR from upload_answer: {result.get('error')}")
+            return JsonResponse(result, status=400)
+        
         # Handle candidate questions and AI answers - save them to database
-        if 'error' not in result and session_id and session_id in sessions:
+        if session_id and session_id in sessions:
             ai_session = sessions[session_id]
             if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
                 try:

@@ -73,3 +73,5 @@ print("\n3. Verify connection:")
 print("   python test_new_postgresql.py")
 print("=" * 60)
 
+
+

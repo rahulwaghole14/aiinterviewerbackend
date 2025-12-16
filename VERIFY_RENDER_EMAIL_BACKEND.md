@@ -79,3 +79,4 @@ django.core.mail.backends.smtp.EmailBackend
 ✅ **Verify it's set correctly on Render dashboard**
 ✅ **Make sure it's NOT set to `console` backend**
 
+

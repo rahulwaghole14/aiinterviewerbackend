@@ -18,3 +18,5 @@ class DisableCSRFForAPI(MiddlewareMixin):
             setattr(request, '_dont_enforce_csrf_checks', True)
         return None
 
+
+

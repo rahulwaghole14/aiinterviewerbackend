@@ -21,3 +21,5 @@ except ImportError as e:
 
 print("✅ ai_platform.wsgi compatibility module loaded - redirecting to interview_app.wsgi")
 
+
+

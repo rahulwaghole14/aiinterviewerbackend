@@ -2,7 +2,7 @@
 
 -- DROP DATABASE IF EXISTS ai_db;
 
-CREATE DATABASE ai_db
+CREATE DATABASE ai_interview_platform_db
     WITH
     OWNER = postgres
     ENCODING = 'UTF8'

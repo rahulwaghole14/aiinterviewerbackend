@@ -36,3 +36,4 @@ print("   ❌ django.core.mail.backends.locmem.EmailBackend")
 print("\n4. Save changes - Render will automatically redeploy")
 print("=" * 70)
 
+

@@ -84,3 +84,4 @@ Make sure ALL these are set in Render:
 - **NO trailing slash** (e.g., `https://aiinterviewerbackend-2.onrender.com` not `https://aiinterviewerbackend-2.onrender.com/`)
 - Email will only work if EMAIL_BACKEND is `smtp.EmailBackend` (not `console`)
 
+

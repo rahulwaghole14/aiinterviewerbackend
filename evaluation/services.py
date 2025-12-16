@@ -535,8 +535,8 @@ def create_evaluation_from_session(session_key: str):
             except Exception as pdf_error:
                 print(f"⚠️ Error saving PDF to database: {pdf_error}")
                 # Still save the URL in details
-                evaluation.details = details
-                evaluation.save(update_fields=['details'])
+            evaluation.details = details
+            evaluation.save(update_fields=['details'])
             print(f"✅ Evaluation updated with PDF URL")
         else:
             print(f"⚠️ No proctoring PDF generated (warnings: {len(proctoring_warnings)})")

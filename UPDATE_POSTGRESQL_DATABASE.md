@@ -146,3 +146,5 @@ SELECT COUNT(*) FROM authapp_customuser;  -- Check if admin user exists
 
 Once you update the `.env` file and run migrations, all your data will be stored in the new PostgreSQL database!
 
+
+

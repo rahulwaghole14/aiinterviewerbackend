@@ -79,3 +79,5 @@ class Command(BaseCommand):
                     self.style.SUCCESS(f'  Activated: {updated_count} companies')
                 )
 
+
+

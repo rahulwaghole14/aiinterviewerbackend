@@ -3250,25 +3250,50 @@ def detect_yolo_browser_frame(request):
                 )
                 
                 # Post-process outputs
-                predictions = outputs[0][0] if len(outputs) > 0 else []
-                conf_threshold = 0.35
+                # YOLOv8 ONNX output format: [batch, features, anchors] = [1, 84, 8400]
+                # where 84 = 4 (bbox coords) + 80 (class scores), 8400 = anchor points
+                conf_threshold = 0.25  # Lower threshold for better detection
                 
-                for pred in predictions:
-                    if len(pred) < 5:
-                        continue
-                    x_center, y_center, width, height = pred[0:4]
-                    class_scores = pred[4:]
-                    max_score = np.max(class_scores)
-                    max_class = np.argmax(class_scores)
+                if len(outputs) > 0:
+                    predictions = outputs[0]  # Shape: [1, 84, 8400]
                     
-                    if max_score < conf_threshold:
-                        continue
+                    # Handle different output shapes
+                    if len(predictions.shape) == 3:
+                        # Standard YOLOv8 format: [batch, features, anchors]
+                        # Transpose to [anchors, features] for easier processing
+                        predictions = predictions[0].transpose(1, 0)  # [8400, 84]
+                    elif len(predictions.shape) == 2:
+                        # Already in [anchors, features] format
+                        predictions = predictions
+                    else:
+                        print(f"⚠️ Unexpected YOLO output shape: {predictions.shape}")
+                        predictions = []
                     
-                    # Count persons (class 0) and phones (classes 67, 77)
-                    if max_class == 0:  # person
-                        person_count += 1
-                    elif max_class in [67, 77]:  # cell phone, mobile phone
-                        phone_count += 1
+                    # Process each prediction
+                    for pred in predictions:
+                        if len(pred) < 5:
+                            continue
+                        
+                        # Get box coordinates (normalized, center format)
+                        x_center, y_center, width, height = pred[0:4]
+                        
+                        # Get class scores (rest of the array)
+                        class_scores = pred[4:]
+                        max_score = np.max(class_scores)
+                        max_class = np.argmax(class_scores)
+                        
+                        # Filter by confidence threshold
+                        if max_score < conf_threshold:
+                            continue
+                        
+                        # Count persons (class 0) and phones (classes 67, 77)
+                        if max_class == 0:  # person
+                            person_count += 1
+                        elif max_class in [67, 77]:  # cell phone, mobile phone
+                            phone_count += 1
+                else:
+                    print(f"⚠️ No YOLO outputs received")
+                    predictions = []
                 
                 has_person = person_count >= 1
                 multiple_people = person_count >= 2

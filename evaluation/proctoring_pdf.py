@@ -126,9 +126,41 @@ def generate_proctoring_pdf(evaluation, output_path=None):
                 # Get full path to snapshot
                 snapshot_path = os.path.join(settings.MEDIA_ROOT, 'proctoring_snaps', snapshot)
                 
+                # If file doesn't exist, try to get from snapshot_image field (fallback)
                 if not os.path.exists(snapshot_path):
-                    print(f"⚠️ Snapshot not found: {snapshot_path}")
-                    continue
+                    # Try to get from WarningLog's snapshot_image field
+                    snapshot_image_path = None
+                    try:
+                        from interview_app.models import WarningLog
+                        warning_type = warning.get('warning_type')
+                        timestamp_str = warning.get('timestamp', '')
+                        # Try to find the WarningLog entry
+                        # Note: We need the session, but we can try to find it from evaluation
+                        if evaluation.interview:
+                            from interview_app.models import InterviewSession
+                            try:
+                                session = InterviewSession.objects.filter(
+                                    interview__id=evaluation.interview.id
+                                ).first()
+                                if session:
+                                    warning_log = WarningLog.objects.filter(
+                                        session=session,
+                                        warning_type=warning_type,
+                                        snapshot=snapshot
+                                    ).first()
+                                    if warning_log and warning_log.snapshot_image:
+                                        snapshot_image_path = warning_log.snapshot_image.path
+                            except Exception as e:
+                                print(f"⚠️ Error accessing snapshot_image field: {e}")
+                    except Exception as e:
+                        print(f"⚠️ Error trying snapshot_image fallback: {e}")
+                    
+                    if snapshot_image_path and os.path.exists(snapshot_image_path):
+                        snapshot_path = snapshot_image_path
+                        print(f"✅ Using snapshot_image field: {snapshot_path}")
+                    else:
+                        print(f"⚠️ Snapshot not found: {snapshot_path}")
+                        continue
                 
                 try:
                     # Check if we need a new page

@@ -4,6 +4,7 @@ Generate PDF with proctoring warnings and snapshot images
 import os
 from datetime import datetime
 from django.conf import settings
+from django.utils import timezone
 from PIL import Image
 try:
     from fpdf import FPDF
@@ -224,16 +225,43 @@ def generate_proctoring_pdf(evaluation, output_path=None):
             output_path = os.path.join(pdf_dir, filename)
             print(f"📄 PDF will be saved to: {output_path}")
         
-        # Save PDF
-        pdf.output(output_path)
-        print(f"✅ Proctoring PDF generated and saved: {output_path}")
-        
-        # Verify file exists
-        if os.path.exists(output_path):
-            file_size = os.path.getsize(output_path)
-            print(f"✅ PDF file verified: {file_size} bytes")
+        # Generate PDF bytes
+        pdf_output = pdf.output(dest='S')
+        if isinstance(pdf_output, str):
+            pdf_bytes = pdf_output.encode('latin-1')
         else:
-            print(f"⚠️ WARNING: PDF file not found at {output_path}")
+            pdf_bytes = bytes(pdf_output)
+        print(f"✅ Proctoring PDF generated: {len(pdf_bytes)} bytes")
+        
+        # Upload to Google Cloud Storage if configured
+        gcs_url = None
+        try:
+            from interview_app.gcs_storage import upload_pdf_to_gcs
+            interview_id = evaluation.interview.id if evaluation.interview else 'unknown'
+            gcs_file_path = f"proctoring_pdfs/proctoring_report_{interview_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            gcs_url = upload_pdf_to_gcs(pdf_bytes, gcs_file_path)
+            if gcs_url:
+                print(f"✅ PDF uploaded to GCS: {gcs_url}")
+        except Exception as e:
+            print(f"⚠️ Error uploading to GCS (will save locally): {e}")
+        
+        # Also save locally as fallback
+        try:
+            pdf.output(output_path)
+            print(f"✅ Proctoring PDF saved locally: {output_path}")
+            
+            # Verify file exists
+            if os.path.exists(output_path):
+                file_size = os.path.getsize(output_path)
+                print(f"✅ PDF file verified: {file_size} bytes")
+            else:
+                print(f"⚠️ WARNING: PDF file not found at {output_path}")
+        except Exception as e:
+            print(f"⚠️ Error saving PDF locally: {e}")
+        
+        # Return GCS URL if available, otherwise return relative path
+        if gcs_url:
+            return {'gcs_url': gcs_url, 'local_path': os.path.relpath(output_path, settings.MEDIA_ROOT).replace('\\', '/')}
         
         # Return relative path for URL (e.g., "proctoring_pdfs/filename.pdf")
         relative_path = os.path.relpath(output_path, settings.MEDIA_ROOT).replace('\\', '/')

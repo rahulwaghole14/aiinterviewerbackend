@@ -802,32 +802,65 @@ def text_to_speech(text, filename):
 
 
 # ------------------ Question Generation (from app.py lines 641-684) ------------------
-def is_question_similar(new_question: str, existing_questions: list, threshold: float = 0.7) -> bool:
-    """Check if a new question is similar to any previously asked questions."""
+def is_question_similar(new_question: str, existing_questions: list, threshold: float = 0.4) -> bool:
+    """Check if a new question is similar to any previously asked questions.
+    
+    Uses stricter threshold (0.4 instead of 0.7) to catch more duplicates.
+    Also checks for topic similarity and key technical terms overlap.
+    """
     if not existing_questions:
         return False
     
     new_q_normalized = " ".join(new_question.lower().split())
     
-    # Simple word overlap check
-    new_words = set(new_q_normalized.split())
+    # Remove common stop words for better comparison
+    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom', 'where', 'when', 'why', 'how', 'you', 'your', 'can', 'you', 'tell', 'me', 'about', 'describe', 'explain'}
+    
+    new_words = set(word for word in new_q_normalized.split() if word not in stop_words and len(word) > 2)
     
     for existing_q in existing_questions:
-        existing_words = set(existing_q.split())
+        if not existing_q:
+            continue
+            
+        existing_normalized = " ".join(existing_q.lower().split())
+        
+        # Exact match check (after normalization)
+        if new_q_normalized == existing_normalized:
+            print(f"⚠️ Exact match detected: '{new_question[:80]}...' == '{existing_q[:80]}...'")
+            return True
+        
+        # Check if questions are very similar (substring match)
+        if len(new_q_normalized) > 20 and len(existing_normalized) > 20:
+            # Check if one question contains most of the other
+            if new_q_normalized in existing_normalized or existing_normalized in new_q_normalized:
+                print(f"⚠️ Substring match detected: '{new_question[:80]}...' contains/is contained in '{existing_q[:80]}...'")
+                return True
+        
+        existing_words = set(word for word in existing_normalized.split() if word not in stop_words and len(word) > 2)
         if len(existing_words) == 0:
             continue
         
-        # Calculate word overlap ratio
+        # Calculate word overlap ratio (stricter threshold)
         overlap = len(new_words.intersection(existing_words))
         total_unique = len(new_words.union(existing_words))
         similarity = overlap / total_unique if total_unique > 0 else 0
         
-        # Also check if the normalized questions are very similar (exact match after normalization)
-        if new_q_normalized == existing_q:
-            return True
+        # Check for key technical terms overlap (if both questions have technical terms)
+        technical_terms = {'python', 'java', 'javascript', 'react', 'node', 'sql', 'database', 'api', 'algorithm', 'data', 'structure', 'design', 'pattern', 'system', 'architecture', 'cloud', 'aws', 'docker', 'kubernetes', 'microservice', 'api', 'rest', 'graphql', 'testing', 'unit', 'integration', 'deployment', 'ci', 'cd', 'git', 'version', 'control', 'agile', 'scrum', 'framework', 'library', 'tool', 'technology', 'stack', 'frontend', 'backend', 'full', 'stack', 'devops', 'security', 'performance', 'optimization', 'scalability', 'experience', 'project', 'team', 'lead', 'mentor', 'code', 'review', 'debug', 'troubleshoot', 'problem', 'solve', 'challenge', 'implement', 'develop', 'build', 'create', 'design', 'manage', 'maintain', 'improve', 'enhance', 'optimize', 'refactor', 'test', 'deploy', 'monitor', 'analyze', 'evaluate'}
         
-        # Check if key question words match (more than threshold similarity)
+        new_tech_terms = new_words.intersection(technical_terms)
+        existing_tech_terms = existing_words.intersection(technical_terms)
+        
+        # If both questions share significant technical terms, they're likely similar
+        if len(new_tech_terms) > 0 and len(existing_tech_terms) > 0:
+            tech_overlap = len(new_tech_terms.intersection(existing_tech_terms))
+            if tech_overlap >= 2:  # If 2+ technical terms overlap, likely similar
+                print(f"⚠️ Technical terms overlap detected ({tech_overlap} terms): '{new_question[:80]}...' vs '{existing_q[:80]}...'")
+                return True
+        
+        # Check if key question words match (stricter threshold: 0.4 instead of 0.7)
         if similarity >= threshold:
+            print(f"⚠️ Word similarity detected ({similarity:.2f} >= {threshold}): '{new_question[:80]}...' vs '{existing_q[:80]}...'")
             return True
     
     return False
@@ -984,13 +1017,18 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "- General conversation topics\n"
             "- Questions about salary, benefits, or company culture\n"
             "- Any non-technical questions\n\n"
-            "CRITICAL - QUESTION UNIQUENESS (READ CAREFULLY):\n"
+            "CRITICAL - QUESTION UNIQUENESS (READ CAREFULLY - THIS IS MANDATORY):\n"
             "- The candidate has ALREADY answered the previous question. Do NOT ask that question again.\n"
             "- You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NEVER been asked before.\n"
-            "- Check the list of previously asked questions above - DO NOT repeat ANY of them.\n"
+            "- Check the list of previously asked questions above - DO NOT repeat ANY of them, even with different wording.\n"
             "- DO NOT ask the same question with different wording - it's still the SAME question.\n"
-            "- DO NOT ask about the same topic that was already covered - move to a DIFFERENT topic.\n"
-            "- Each question MUST be unique and cover a DIFFERENT technical aspect.\n\n"
+            "- DO NOT ask about the same topic, technology, skill, or technical area that was already covered.\n"
+            "- DO NOT use the same technical terms, concepts, or keywords from previous questions.\n"
+            "- Each question MUST be unique and cover a COMPLETELY DIFFERENT technical aspect.\n"
+            "- Move to a NEW technical area, skill, or technology from the job description.\n"
+            "- Think of a DIFFERENT angle, perspective, or use case that hasn't been discussed.\n"
+            "- If a topic was already covered, ask about a DIFFERENT aspect of that topic OR move to a NEW topic entirely.\n"
+            "- REMEMBER: Every single question must be UNIQUE. No exceptions. No repeats. No similar questions.\n\n"
             "Based on the candidate's last answer, ask a relevant TECHNICAL follow-up question grounded in the JD. "
             "CRITICAL RULES:\n"
             "1. NEVER repeat the previous question - the candidate has already answered it.\n"
@@ -1032,13 +1070,18 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "- General conversation topics\n"
             "- Questions about salary, benefits, or company culture\n"
             "- Any non-technical questions\n\n"
-            "CRITICAL - QUESTION UNIQUENESS (READ CAREFULLY):\n"
+            "CRITICAL - QUESTION UNIQUENESS (READ CAREFULLY - THIS IS MANDATORY):\n"
             "- The candidate has ALREADY answered the previous question. Do NOT ask that question again.\n"
             "- You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NEVER been asked before.\n"
-            "- Check the list of previously asked questions above - DO NOT repeat ANY of them.\n"
+            "- Check the list of previously asked questions above - DO NOT repeat ANY of them, even with different wording.\n"
             "- DO NOT ask the same question with different wording - it's still the SAME question.\n"
-            "- DO NOT ask about the same topic that was already covered - move to a DIFFERENT topic.\n"
-            "- Each question MUST be unique and cover a DIFFERENT technical aspect.\n\n"
+            "- DO NOT ask about the same topic, technology, skill, or technical area that was already covered.\n"
+            "- DO NOT use the same technical terms, concepts, or keywords from previous questions.\n"
+            "- Each question MUST be unique and cover a COMPLETELY DIFFERENT technical aspect.\n"
+            "- Move to a NEW technical area, skill, or technology from the job description.\n"
+            "- Think of a DIFFERENT angle, perspective, or use case that hasn't been discussed.\n"
+            "- If a topic was already covered, ask about a DIFFERENT aspect of that topic OR move to a NEW topic entirely.\n"
+            "- REMEMBER: Every single question must be UNIQUE. No exceptions. No repeats. No similar questions.\n\n"
             f"Ask the next TECHNICAL interview question (question {session.current_question_number + 1} of {session.max_questions}). "
             "CRITICAL RULES - READ CAREFULLY:\n"
             "1. NEVER repeat the previous question - the candidate has already answered it.\n"
@@ -1066,7 +1109,7 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         ensure_intro = (question_type == "introduction")
         generated_question = _shape_question(generated_question, ensure_intro=ensure_intro, session=session)
         
-        # Check if this question is similar to previously asked questions (only if not allowing elaboration)
+        # Check if this question is similar to previously asked questions (ALWAYS check, except for elaboration)
         if not allow_elaboration and session.asked_questions:
             if is_question_similar(generated_question, session.asked_questions):
                 print(f"⚠️ Generated question is similar to previous questions. Retrying... (attempt {attempt + 1}/{max_retries})")
@@ -1075,26 +1118,32 @@ def generate_question(session, question_type="introduction", last_answer_text=No
                 if attempt < max_retries - 1:
                     # Add STRONG instruction to generate a different question
                     prompt += f"\n\n{'='*80}\n"
-                    prompt += f"❌ ERROR: The question you just generated is TOO SIMILAR to questions already asked.\n"
+                    prompt += f"❌ ERROR: The question you just generated is TOO SIMILAR or IDENTICAL to questions already asked.\n"
                     prompt += f"Generated question: '{generated_question}'\n"
-                    prompt += f"This question is similar to one of the {len(session.asked_questions)} previously asked questions.\n"
-                    prompt += f"CRITICAL: You MUST generate a COMPLETELY DIFFERENT question.\n"
+                    prompt += f"This question is similar/identical to one of the {len(session.asked_questions)} previously asked questions.\n"
+                    prompt += f"CRITICAL: You MUST generate a COMPLETELY DIFFERENT question on a COMPLETELY DIFFERENT topic.\n\n"
                     prompt += f"DO NOT:\n"
                     prompt += f"- Ask the same question with different wording (it's still the SAME question)\n"
-                    prompt += f"- Ask about the same topic (even with different words)\n"
+                    prompt += f"- Ask about the same topic or technical area (even with different words)\n"
                     prompt += f"- Ask a similar question (it's still a REPEAT)\n"
+                    prompt += f"- Use the same technical terms or concepts\n"
                     prompt += f"- Say 'Thanks for asking' and repeat the question (this is WRONG)\n"
+                    prompt += f"- Ask about the same skill, technology, or experience area\n\n"
                     prompt += f"DO:\n"
                     prompt += f"- Choose a COMPLETELY DIFFERENT topic from the job description\n"
-                    prompt += f"- Ask about a DIFFERENT technical aspect or skill that hasn't been covered\n"
+                    prompt += f"- Ask about a DIFFERENT technical aspect, skill, or technology that hasn't been covered\n"
+                    prompt += f"- Use DIFFERENT technical terms and concepts\n"
                     prompt += f"- Ensure your question is UNIQUE and has NOT been asked before\n"
-                    prompt += f"- Move to a NEW technical area from the job description\n"
+                    prompt += f"- Move to a NEW technical area from the job description that hasn't been discussed\n"
+                    prompt += f"- Think of a DIFFERENT angle or perspective on the candidate's experience\n\n"
                     prompt += f"Generate a NEW question NOW that is COMPLETELY DIFFERENT from all previously asked questions.\n"
-                    prompt += f"REMEMBER: Each question must be UNIQUE. Do NOT repeat any question.\n"
+                    prompt += f"REMEMBER: Each question must be UNIQUE. Do NOT repeat any question, topic, or technical area.\n"
                     prompt += f"{'='*80}\n"
                     continue
                 else:
                     print(f"⚠️ Could not generate a unique question after {max_retries} attempts. Using generated question anyway.")
+                    # Even if we can't generate a unique question, log it as a warning
+                    print(f"⚠️ WARNING: Using potentially duplicate question: '{generated_question[:100]}...'")
         
         # Additional check: ensure the question is not identical to the last active question
         if session.last_active_question_text:

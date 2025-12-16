@@ -5038,7 +5038,33 @@ def ai_transcript_pdf(request):
             
             # Generate PDF
             from .comprehensive_pdf import ai_comprehensive_pdf_django
+            from .gcs_storage import upload_pdf_to_gcs
+            from django.utils import timezone
             pdf_bytes = ai_comprehensive_pdf_django(session_key)
+            
+            # Upload to GCS if configured (optional - PDF is still served directly)
+            if pdf_bytes:
+                try:
+                    gcs_file_path = f"evaluation_pdfs/qna_evaluation_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    gcs_url = upload_pdf_to_gcs(pdf_bytes, gcs_file_path)
+                    if gcs_url:
+                        print(f"✅ Q&A PDF uploaded to GCS: {gcs_url}")
+                        # Store GCS URL in evaluation details for later retrieval
+                        try:
+                            from evaluation.models import Evaluation
+                            from interviews.models import Interview
+                            interview = Interview.objects.get(session_key=session_key)
+                            evaluation = Evaluation.objects.filter(interview=interview).first()
+                            if evaluation:
+                                if not evaluation.details:
+                                    evaluation.details = {}
+                                evaluation.details['qna_pdf_gcs_url'] = gcs_url
+                                evaluation.save(update_fields=['details'])
+                                print(f"✅ Q&A PDF GCS URL stored in evaluation")
+                        except Exception as e:
+                            print(f"⚠️ Could not store GCS URL in evaluation: {e}")
+                except Exception as e:
+                    print(f"⚠️ Error uploading Q&A PDF to GCS (will serve directly): {e}")
             
         elif session_id:
             # Get session_key from session_id
@@ -5074,12 +5100,13 @@ def ai_transcript_pdf(request):
 
 @csrf_exempt
 def download_proctoring_pdf(request, session_id):
-    """Download proctoring warnings PDF for a given session"""
+    """Download proctoring warnings PDF for a given session (from GCS or local)"""
     try:
         from .models import InterviewSession
         from evaluation.models import Evaluation
         from interviews.models import Interview
-        from django.http import FileResponse, Http404
+        from django.http import FileResponse, Http404, HttpResponseRedirect, HttpResponse
+        from .gcs_storage import download_pdf_from_gcs, get_gcs_signed_url
         import os
         
         # Get session
@@ -5104,18 +5131,37 @@ def download_proctoring_pdf(request, session_id):
         if not evaluation.details or not isinstance(evaluation.details, dict):
             return JsonResponse({'error': 'Evaluation details not found'}, status=404)
         
+        # Check for GCS URL first (preferred)
+        gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
+        if gcs_url and isinstance(gcs_url, str) and gcs_url.startswith('http'):
+            # If it's a GCS public URL, redirect to it
+            if 'storage.googleapis.com' in gcs_url:
+                print(f"✅ Redirecting to GCS URL: {gcs_url}")
+                return HttpResponseRedirect(gcs_url)
+        
+        # Try to download from GCS using file path
         proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+        if proctoring_pdf_path and 'proctoring_pdfs/' in proctoring_pdf_path:
+            pdf_bytes = download_pdf_from_gcs(proctoring_pdf_path)
+            if pdf_bytes:
+                response = HttpResponse(pdf_bytes, content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="proctoring_report_{session_id}.pdf"'
+                return response
+        
         if not proctoring_pdf_path:
             # Try to generate PDF if it doesn't exist
             from evaluation.services import create_evaluation_from_session
             evaluation = create_evaluation_from_session(session.session_key)
             if evaluation and evaluation.details:
                 proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+                gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
+                if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
+                    return HttpResponseRedirect(gcs_url)
         
         if not proctoring_pdf_path:
             return JsonResponse({'error': 'Proctoring PDF not found. No warnings were detected during the interview.'}, status=404)
         
-        # Get full path to PDF
+        # Fallback to local file system
         pdf_full_path = os.path.join(settings.MEDIA_ROOT, proctoring_pdf_path.lstrip('/'))
         
         if not os.path.exists(pdf_full_path):

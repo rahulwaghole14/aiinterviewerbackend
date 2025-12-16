@@ -407,18 +407,32 @@ def create_evaluation_from_session(session_key: str):
                         self.created_at = timezone.now()
                 
                 temp_evaluation = TempEvaluation(interview, details)
-                proctoring_pdf_path = generate_proctoring_pdf(temp_evaluation)
-                if proctoring_pdf_path:
-                    # Add PDF path to details
-                    details['proctoring_pdf'] = proctoring_pdf_path
-                    # Ensure MEDIA_URL doesn't have double slashes
-                    media_url = settings.MEDIA_URL.rstrip('/')
-                    pdf_path = proctoring_pdf_path.lstrip('/')
-                    details['proctoring_pdf_url'] = f"{media_url}/{pdf_path}"
-                    print(f"✅ Proctoring PDF generated: {proctoring_pdf_path}")
-                    print(f"✅ Proctoring PDF URL: {details['proctoring_pdf_url']}")
+                proctoring_pdf_result = generate_proctoring_pdf(temp_evaluation)
+                if proctoring_pdf_result:
+                    # Handle both GCS URL dict and local path string
+                    if isinstance(proctoring_pdf_result, dict):
+                        # GCS upload successful
+                        local_path = proctoring_pdf_result.get('local_path', '')
+                        gcs_url = proctoring_pdf_result.get('gcs_url', '')
+                        proctoring_pdf_path = local_path  # Store local path for later use
+                        details['proctoring_pdf'] = local_path
+                        details['proctoring_pdf_gcs_url'] = gcs_url
+                        details['proctoring_pdf_url'] = gcs_url  # Use GCS URL as primary
+                        print(f"✅ Proctoring PDF uploaded to GCS: {gcs_url}")
+                        print(f"✅ Proctoring PDF local path: {local_path}")
+                    else:
+                        # Local storage only
+                        proctoring_pdf_path = proctoring_pdf_result
+                        details['proctoring_pdf'] = proctoring_pdf_path
+                        # Ensure MEDIA_URL doesn't have double slashes
+                        media_url = settings.MEDIA_URL.rstrip('/')
+                        pdf_path = proctoring_pdf_path.lstrip('/')
+                        details['proctoring_pdf_url'] = f"{media_url}/{pdf_path}"
+                        print(f"✅ Proctoring PDF generated (local): {proctoring_pdf_path}")
+                        print(f"✅ Proctoring PDF URL: {details['proctoring_pdf_url']}")
                 else:
                     print(f"⚠️ Proctoring PDF generation returned None")
+                    proctoring_pdf_path = None
             except Exception as e:
                 print(f"⚠️ Error generating proctoring PDF: {e}")
                 import traceback
@@ -510,10 +524,13 @@ def create_evaluation_from_session(session_key: str):
         print(f"   - AI Analysis Keys: {list(details.get('ai_analysis', {}).keys())}")
         print(f"   - Proctoring Keys: {list(details.get('proctoring', {}).keys())}")
         
+        # Save PDF file to database if local path exists (optional - for backup)
         if proctoring_pdf_path:
             print(f"✅ Proctoring PDF saved at: {proctoring_pdf_path}")
             print(f"✅ Proctoring PDF URL: {details.get('proctoring_pdf_url')}")
-            # Save PDF file to database
+            if details.get('proctoring_pdf_gcs_url'):
+                print(f"✅ Proctoring PDF GCS URL: {details.get('proctoring_pdf_gcs_url')}")
+            
             try:
                 from django.core.files.base import ContentFile
                 import os
@@ -535,9 +552,9 @@ def create_evaluation_from_session(session_key: str):
             except Exception as pdf_error:
                 print(f"⚠️ Error saving PDF to database: {pdf_error}")
                 # Still save the URL in details
-            evaluation.details = details
-            evaluation.save(update_fields=['details'])
-            print(f"✅ Evaluation updated with PDF URL")
+                evaluation.details = details
+                evaluation.save(update_fields=['details'])
+                print(f"✅ Evaluation updated with PDF URL")
         else:
             print(f"⚠️ No proctoring PDF generated (warnings: {len(proctoring_warnings)})")
         

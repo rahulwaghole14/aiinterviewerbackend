@@ -64,6 +64,7 @@ numpy==1.26.4
 # openai-whisper==20231117
 opencv-python-headless==4.9.0.80
 google-cloud-texttospeech==2.16.3
+google-cloud-storage==2.18.2
 
 # Computer Vision and Audio Processing (Optional - Comment out if causing issues)
 # ultralytics==8.1.28  # Replaced with onnxruntime for lower memory usage

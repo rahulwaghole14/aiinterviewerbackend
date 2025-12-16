@@ -253,6 +253,10 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Google Cloud Storage configuration
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", None)  # e.g., "your-project-pdfs"
+GCS_USE_SIGNED_URLS = os.environ.get("GCS_USE_SIGNED_URLS", "false").lower() == "true"  # Use signed URLs for private access
+
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

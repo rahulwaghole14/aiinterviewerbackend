@@ -4107,11 +4107,18 @@ def ai_start(request):
                 ai_session.last_active_question_text = last_question
         
         # Get current question number from database
-        existing_questions = InterviewQuestion.objects.filter(
+        # CRITICAL: Only count MAIN questions (exclude follow-ups, closing, candidate questions)
+        # This ensures sequential numbering: 1, 2, 3, 4...
+        existing_main_questions = InterviewQuestion.objects.filter(
             session=django_session,
-            role='AI'
+            role='AI',
+            question_level='MAIN'  # Only count MAIN questions for sequential numbering
+        ).exclude(
+            question_type='CODING'  # Exclude coding questions from technical question count
         ).count()
-        ai_session.current_question_number = existing_questions
+        # current_question_number should be 1-indexed, so if we have 2 MAIN questions, next is question 3
+        ai_session.current_question_number = existing_main_questions + 1
+        print(f"📊 Question numbering: Found {existing_main_questions} MAIN questions, setting current_question_number={ai_session.current_question_number}")
         
         result = {
             "session_id": existing_session_id,
@@ -4543,12 +4550,18 @@ def ai_upload_answer(request):
                         # Reuse existing session
                         session_id = existing_session_id
                         restored_session = sessions[session_id]
-                        # Update current_question_number based on existing questions
-                        existing_questions = InterviewQuestion.objects.filter(
+                        # Update current_question_number based on existing MAIN questions
+                        # CRITICAL: Only count MAIN questions (exclude follow-ups, closing, candidate questions)
+                        existing_main_questions = InterviewQuestion.objects.filter(
                             session=django_session,
-                            role='AI'  # Only count AI questions
+                            role='AI',
+                            question_level='MAIN'  # Only count MAIN questions for sequential numbering
+                        ).exclude(
+                            question_type='CODING'  # Exclude coding questions from technical question count
                         ).count()
-                        restored_session.current_question_number = existing_questions
+                        # current_question_number should be 1-indexed, so if we have 2 MAIN questions, next is question 3
+                        restored_session.current_question_number = existing_main_questions + 1
+                        print(f"📊 Question numbering (restore): Found {existing_main_questions} MAIN questions, setting current_question_number={restored_session.current_question_number}")
                         print(f"✅ Reusing existing session: {session_id}, current_question_number={restored_session.current_question_number}")
                     else:
                         # Create new session and restore state
@@ -4574,8 +4587,18 @@ def ai_upload_answer(request):
                                 if restored_session_id in sessions:
                                     restored_session = sessions[restored_session_id]
                                     restored_session.django_session_key = django_session.session_key
-                                    # Update current_question_number based on existing questions
-                                    restored_session.current_question_number = existing_questions
+                                    # Update current_question_number based on existing MAIN questions
+                                    # CRITICAL: Only count MAIN questions (exclude follow-ups, closing, candidate questions)
+                                    existing_main_questions = InterviewQuestion.objects.filter(
+                                        session=django_session,
+                                        role='AI',
+                                        question_level='MAIN'  # Only count MAIN questions for sequential numbering
+                                    ).exclude(
+                                        question_type='CODING'  # Exclude coding questions from technical question count
+                                    ).count()
+                                    # current_question_number should be 1-indexed, so if we have 2 MAIN questions, next is question 3
+                                    restored_session.current_question_number = existing_main_questions + 1
+                                    print(f"📊 Question numbering (new session restore): Found {existing_main_questions} MAIN questions, setting current_question_number={restored_session.current_question_number}")
                                     print(f"✅ Session restored: {restored_session_id}, current_question_number={restored_session.current_question_number}")
                                     # Use restored session_id
                                     session_id = restored_session_id

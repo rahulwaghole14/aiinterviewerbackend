@@ -1312,11 +1312,13 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 if should_follow_up:
                     next_q_text = generate_question(session, "follow_up", last_answer_text=transcript)
                     session.follow_up_questions_count += 1
+                    # Follow-up questions don't increment question number - they're part of the same question
                 else:
                     next_q_text = generate_question(session, "regular", last_answer_text=transcript)
                     session.regular_questions_count += 1
+                    # Only MAIN questions increment the question number
+                    session.current_question_number += 1
                 session.add_interviewer_message(next_q_text)
-                session.current_question_number += 1
                 session.awaiting_answer = True
                 session.last_active_question_text = next_q_text
                 audio_url = text_to_speech(next_q_text, f"q{session.current_question_number}.mp3")
@@ -1599,8 +1601,10 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     else:
                         next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
             
-            # Increment question number and add to conversation
-            session.current_question_number += 1
+            # Only increment question number for MAIN questions (not follow-ups)
+            # Follow-ups are part of the same question, so they keep the same number
+            if not should_follow_up:
+                session.current_question_number += 1
             session.add_interviewer_message(next_question)
             session.awaiting_answer = True
             session.last_active_question_text = next_question
@@ -1797,10 +1801,17 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             if normalized_final in session.asked_questions:
                 print(f"❌ ERROR: Even after regeneration, question is still duplicate!")
         
-        # Increment question number FIRST (so it reflects the question we're about to ask)
-        new_question_number = session.current_question_number + 1
-        session.current_question_number = new_question_number
-        print(f"🤖 Generated NEW question {new_question_number}/{session.max_questions}: '{next_question[:100]}...'")
+        # CRITICAL: Only increment question number for MAIN questions (not follow-ups)
+        # Follow-ups are part of the same question, so they should keep the same number
+        if not should_follow_up:
+            # This is a MAIN question - increment the question number
+            new_question_number = session.current_question_number + 1
+            session.current_question_number = new_question_number
+            print(f"🤖 Generated NEW MAIN question {new_question_number}/{session.max_questions}: '{next_question[:100]}...'")
+        else:
+            # This is a FOLLOW-UP question - keep the same question number
+            new_question_number = session.current_question_number
+            print(f"🤖 Generated FOLLOW-UP question (still question {new_question_number}/{session.max_questions}): '{next_question[:100]}...'")
         print(f"📋 Total asked questions before adding this: {len(session.asked_questions)}")
         print(f"📊 Question number set to: {new_question_number}")
         

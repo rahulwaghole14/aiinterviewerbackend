@@ -3388,6 +3388,11 @@ def detect_yolo_browser_frame(request):
         # Update state
         _last_detection_state[session_key] = current_state
         
+        # Debug logging (only log occasionally to avoid spam)
+        import random
+        if random.random() < 0.01:  # Log 1% of requests for debugging
+            print(f"🔍 YOLO Detection Debug: person_count={person_count}, phone_count={phone_count}, no_person={no_person}, has_person={has_person}")
+        
         return JsonResponse({
             'phone_detected': phone_detected,
             'multiple_people': multiple_people,

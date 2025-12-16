@@ -864,9 +864,15 @@ def _shape_question(text: str, ensure_intro: bool = False) -> str:
             cleaned = cleaned + "?"
     
     if ensure_intro:
-        intro_keywords = ("introduce yourself", "introduction", "background", "yourself", "tell me about yourself")
+        # Don't use fixed fallback - let LLM generate the question
+        # Just ensure it's a question format
+        intro_keywords = ("introduce yourself", "introduction", "background", "yourself", "tell me about yourself", "hi", "hello")
         if not any(kw in cleaned.lower() for kw in intro_keywords):
-            cleaned = "To get started, could you briefly introduce yourself and highlight one experience you are proud of?"
+            # If it doesn't look like an intro, add a gentle prefix but keep LLM-generated content
+            if not cleaned.lower().startswith(("hi", "hello")):
+                # Try to preserve the LLM question but ensure it's an intro format
+                # Don't replace with fixed question - just ensure it's formatted properly
+                pass  # Let the LLM question stand as-is
     
     return cleaned
 
@@ -910,8 +916,11 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         previously_asked += "="*80 + "\n\n"
     
     if question_type == "introduction":
+        # Extract first name from candidate name
+        candidate_first_name = session.candidate_name.split()[0] if session.candidate_name else "there"
+        
         prompt = (
-            f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. The candidate's name is {session.candidate_name}.\n\n"
+            f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. The candidate's name is {session.candidate_name}, and you should address them by their first name ({candidate_first_name}) in your question.\n\n"
             f"Job Description Context: {jd_context}\n\n"
             "CRITICAL: This is a TECHNICAL INTERVIEW. You MUST ask ONLY technical questions related to the job description.\n"
             "DO NOT ask:\n"
@@ -926,9 +935,11 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "- DO NOT ask the same question with slightly different wording\n"
             "- DO NOT ask about the same topic that was already covered\n"
             "- You MUST ask a NEW question on a DIFFERENT technical topic or aspect\n\n"
+            f"IMPORTANT: Address the candidate by their first name ({candidate_first_name}) in your question. "
             "Ask a warm, professional TECHNICAL introduction question to start the interview. "
             "The question should be related to technical skills, experience, or knowledge mentioned in the job description. "
-            "Keep it conversational and friendly, but TECHNICAL. Ask only one concise, single-line TECHNICAL question."
+            "Keep it conversational and friendly, but TECHNICAL. Ask only one concise, single-line TECHNICAL question. "
+            f"Example format: 'Hi {candidate_first_name}, [technical introduction question]?' or '{candidate_first_name}, [technical introduction question]?'"
         )
     
     elif question_type == "follow_up":

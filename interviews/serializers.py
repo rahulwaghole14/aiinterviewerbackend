@@ -184,14 +184,28 @@ class InterviewSerializer(serializers.ModelSerializer):
                 try:
                     from evaluation.services import create_evaluation_from_session
                     print(f"🔄 Evaluation missing for completed interview {obj.id}, creating now...")
+                    print(f"   Session key: {obj.session_key}")
                     evaluation = create_evaluation_from_session(obj.session_key)
                     if evaluation:
                         # Refresh obj to get the new evaluation
                         obj.refresh_from_db()
-                        evaluation = obj.evaluation
-                        print(f"✅ Created missing evaluation for interview {obj.id}")
+                        try:
+                            evaluation = obj.evaluation
+                            print(f"✅ Created missing evaluation for interview {obj.id}, evaluation ID: {evaluation.id}")
+                            # Verify details exist
+                            if evaluation.details and isinstance(evaluation.details, dict):
+                                print(f"   ✅ Evaluation details exist with keys: {list(evaluation.details.keys())}")
+                            else:
+                                print(f"   ⚠️ Evaluation created but details are missing or invalid")
+                        except Exception as refresh_error:
+                            print(f"   ⚠️ Error refreshing evaluation: {refresh_error}")
+                            evaluation = None
+                    else:
+                        print(f"   ⚠️ Evaluation creation returned None for interview {obj.id}")
                 except Exception as e:
                     print(f"⚠️ Could not create missing evaluation for interview {obj.id}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     evaluation = None
             
             if evaluation:
@@ -984,13 +998,25 @@ class InterviewSerializer(serializers.ModelSerializer):
                     if response_time == 0:
                         response_time = ai_q.response_time_seconds or 0
                     
-                    # Format the answer
+                    # Format the answer - ensure we always have something to display
                     if answer_text is None:
                         answer_text = 'No answer provided'
                     elif isinstance(answer_text, str):
                         stripped = answer_text.strip()
-                        if stripped == '':
+                        if stripped == '' or stripped.lower() == 'none':
                             answer_text = 'No answer provided'
+                        # Remove any "A:" prefix that might be left
+                        if answer_text.startswith('A:'):
+                            answer_text = answer_text[2:].strip()
+                    
+                    # CRITICAL: If answer_text is still empty after all fallbacks, log a warning
+                    if not answer_text or answer_text.strip() == '':
+                        print(f"⚠️ WARNING: No answer found for question order {ai_q.order}, ID {ai_q.id}, question: {ai_q.question_text[:50]}...")
+                        print(f"   - AI question transcribed_answer: {ai_q.transcribed_answer[:50] if ai_q.transcribed_answer else '(NULL)'}")
+                        print(f"   - Interviewee record exists: {bool(interviewee_a)}")
+                        if interviewee_a:
+                            print(f"   - Interviewee transcribed_answer: {interviewee_a.transcribed_answer[:50] if interviewee_a.transcribed_answer else '(NULL)'}")
+                        answer_text = 'No answer provided'  # Final fallback
                 
                 # Create Q&A item in old format (question_text and answer together)
                 # IMPORTANT: Preserve the original question_type from database (not the uppercased version)

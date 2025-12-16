@@ -25,6 +25,7 @@ urlpatterns = [
     path('transcribe/', views.transcribe_audio, name='transcribe_audio'),
     path('check_camera/', views.check_camera, name='check_camera'),
     path('api/proctoring/event/', views.browser_proctoring_event, name='browser_proctoring_event'),
+    path('api/proctoring/detect_yolo/', views.detect_yolo_browser_frame, name='detect_yolo_browser_frame'),
     path('activate_proctoring/', views.activate_proctoring_camera, name='activate_proctoring_camera'),
     path('end_session/', views.end_interview_session, name='end_interview_session'),
     path('release_camera/', views.release_camera, name='release_camera'),

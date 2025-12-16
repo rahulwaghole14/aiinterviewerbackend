@@ -3136,6 +3136,256 @@ def get_proctoring_status(request):
 
 @csrf_exempt
 @require_POST
+def detect_yolo_browser_frame(request):
+    """
+    Accept browser camera frames and run YOLO detection for:
+    - Phone detection
+    - Multiple people detection
+    - No person detection
+    - Low concentration (motion-based)
+    """
+    try:
+        import json
+        import base64
+        import numpy as np
+        from django.core.files.base import ContentFile
+        from .models import InterviewSession, WarningLog
+        
+        data = json.loads(request.body)
+        session_key = data.get('session_key')
+        frame_base64 = data.get('frame')  # Base64 encoded image
+        
+        if not session_key or not frame_base64:
+            return JsonResponse({'error': 'session_key and frame required'}, status=400)
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(session_key=session_key)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        
+        # Decode base64 image
+        try:
+            # Remove data URL prefix if present
+            if ',' in frame_base64:
+                frame_base64 = frame_base64.split(',')[1]
+            
+            image_data = base64.b64decode(frame_base64)
+            nparr = np.frombuffer(image_data, np.uint8)
+            
+            if not CV2_AVAILABLE or cv2 is None:
+                return JsonResponse({
+                    'error': 'OpenCV not available',
+                    'phone_detected': False,
+                    'multiple_people': False,
+                    'no_person': False,
+                    'low_concentration': False
+                }, status=503)
+            
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                return JsonResponse({'error': 'Invalid image data'}, status=400)
+        except Exception as e:
+            print(f"❌ Error decoding frame: {e}")
+            return JsonResponse({'error': f'Failed to decode image: {str(e)}'}, status=400)
+        
+        # Initialize YOLO model if not already loaded
+        global _yolo_model_cache
+        if '_yolo_model_cache' not in globals():
+            _yolo_model_cache = {}
+        
+        yolo_key = 'default'
+        if yolo_key not in _yolo_model_cache:
+            try:
+                import onnxruntime as ort
+                from django.conf import settings
+                from pathlib import Path
+                
+                model_path = Path(settings.BASE_DIR) / 'yolov8n.onnx'
+                if not model_path.exists():
+                    model_path = Path('yolov8n.onnx')
+                
+                if model_path.exists():
+                    providers = ['CPUExecutionProvider']
+                    _yolo_model_cache[yolo_key] = {
+                        'session': ort.InferenceSession(str(model_path), providers=providers),
+                        'input_name': None,
+                        'output_names': None
+                    }
+                    _yolo_model_cache[yolo_key]['input_name'] = _yolo_model_cache[yolo_key]['session'].get_inputs()[0].name
+                    _yolo_model_cache[yolo_key]['output_names'] = [o.name for o in _yolo_model_cache[yolo_key]['session'].get_outputs()]
+                    print(f"✅ YOLO model loaded for browser frame detection")
+                else:
+                    _yolo_model_cache[yolo_key] = None
+                    print(f"⚠️ YOLO model not found at {model_path}")
+            except Exception as e:
+                print(f"⚠️ Failed to load YOLO model: {e}")
+                _yolo_model_cache[yolo_key] = None
+        
+        yolo_info = _yolo_model_cache.get(yolo_key)
+        
+        # Initialize detection results
+        person_count = 0
+        phone_count = 0
+        has_person = False
+        multiple_people = False
+        phone_detected = False
+        no_person = False
+        
+        # Run YOLO detection if available
+        if yolo_info and yolo_info is not None:
+            try:
+                # Preprocess frame for ONNX model
+                input_size = 640  # YOLOv8 standard input size
+                frame_resized = cv2.resize(frame, (input_size, input_size))
+                frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+                frame_normalized = frame_rgb.astype(np.float32) / 255.0
+                frame_transposed = np.transpose(frame_normalized, (2, 0, 1))
+                frame_batch = np.expand_dims(frame_transposed, axis=0)
+                
+                # Run inference
+                outputs = yolo_info['session'].run(
+                    yolo_info['output_names'],
+                    {yolo_info['input_name']: frame_batch}
+                )
+                
+                # Post-process outputs
+                predictions = outputs[0][0] if len(outputs) > 0 else []
+                conf_threshold = 0.35
+                
+                for pred in predictions:
+                    if len(pred) < 5:
+                        continue
+                    x_center, y_center, width, height = pred[0:4]
+                    class_scores = pred[4:]
+                    max_score = np.max(class_scores)
+                    max_class = np.argmax(class_scores)
+                    
+                    if max_score < conf_threshold:
+                        continue
+                    
+                    # Count persons (class 0) and phones (classes 67, 77)
+                    if max_class == 0:  # person
+                        person_count += 1
+                    elif max_class in [67, 77]:  # cell phone, mobile phone
+                        phone_count += 1
+                
+                has_person = person_count >= 1
+                multiple_people = person_count >= 2
+                phone_detected = phone_count >= 1
+                no_person = person_count == 0
+                
+            except Exception as e:
+                print(f"⚠️ YOLO detection error: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Motion detection for low concentration (compare with previous frame)
+        low_concentration = False
+        if has_person:  # Only check motion if person is present
+            global _last_browser_frame_gray
+            if '_last_browser_frame_gray' not in globals():
+                _last_browser_frame_gray = {}
+            
+            gray_small = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray_small = cv2.resize(gray_small, (160, 120))
+            
+            frame_key = session_key
+            if frame_key in _last_browser_frame_gray:
+                diff = cv2.absdiff(gray_small, _last_browser_frame_gray[frame_key])
+                mean_diff = np.mean(diff)
+                MOTION_LOW_THRESH = 2.5
+                
+                if mean_diff < MOTION_LOW_THRESH:
+                    # Low motion detected - check if it's been low for a while
+                    import time
+                    if frame_key not in globals().get('_low_motion_start', {}):
+                        globals().setdefault('_low_motion_start', {})[frame_key] = time.time()
+                    
+                    low_motion_duration = time.time() - globals()['_low_motion_start'][frame_key]
+                    if low_motion_duration >= 8.0:  # 8 seconds of low motion
+                        low_concentration = True
+                else:
+                    # Motion detected - reset timer
+                    globals().setdefault('_low_motion_start', {})[frame_key] = None
+            
+            _last_browser_frame_gray[frame_key] = gray_small
+        
+        # Store previous state to detect changes (only log when state changes)
+        global _last_detection_state
+        if '_last_detection_state' not in globals():
+            _last_detection_state = {}
+        
+        prev_state = _last_detection_state.get(session_key, {})
+        current_state = {
+            'phone_detected': phone_detected,
+            'multiple_people': multiple_people,
+            'no_person': no_person,
+            'low_concentration': low_concentration
+        }
+        
+        # Log warnings to database only when state changes (to avoid spam)
+        warnings_to_log = []
+        if phone_detected and not prev_state.get('phone_detected', False):
+            warnings_to_log.append(('phone_detected', frame))
+        if multiple_people and not prev_state.get('multiple_people', False):
+            warnings_to_log.append(('multiple_people', frame))
+        if no_person and not prev_state.get('no_person', False):
+            warnings_to_log.append(('no_person', frame))
+        if low_concentration and not prev_state.get('low_concentration', False):
+            warnings_to_log.append(('low_concentration', frame))
+        
+        # Save snapshots and log warnings (async, non-blocking)
+        for warning_type, warning_frame in warnings_to_log:
+            try:
+                timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+                snapshot_filename = f"{session_key}_{warning_type}_{timestamp}.jpg"
+                
+                # Save snapshot
+                img_dir = os.path.join(settings.MEDIA_ROOT, "proctoring_snaps")
+                os.makedirs(img_dir, exist_ok=True)
+                img_path = os.path.join(img_dir, snapshot_filename)
+                cv2.imwrite(img_path, warning_frame)
+                
+                # Log to database
+                with open(img_path, 'rb') as f:
+                    image_file = ContentFile(f.read(), name=snapshot_filename)
+                    WarningLog.objects.create(
+                        session=session,
+                        warning_type=warning_type,
+                        snapshot=snapshot_filename,
+                        snapshot_image=image_file
+                    )
+                print(f"✅ Logged {warning_type} warning with snapshot")
+            except Exception as e:
+                print(f"⚠️ Error logging {warning_type} warning: {e}")
+        
+        # Update state
+        _last_detection_state[session_key] = current_state
+        
+        return JsonResponse({
+            'phone_detected': phone_detected,
+            'multiple_people': multiple_people,
+            'no_person': no_person,
+            'low_concentration': low_concentration,
+            'person_count': person_count,
+            'phone_count': phone_count
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in detect_yolo_browser_frame: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'error': str(e),
+            'phone_detected': False,
+            'multiple_people': False,
+            'no_person': False,
+            'low_concentration': False
+        }, status=500)
+
+@csrf_exempt
+@require_POST
 def browser_proctoring_event(request):
     """
     Lightweight endpoint for browser-based proctoring events.
@@ -4171,14 +4421,25 @@ def ai_upload_answer(request):
             try:
                 # Find Django session by session_key (might be stored in InterviewSession)
                 django_session = None
+                # Try to get session_key from request body first
                 if request.body:
                     try:
                         data = json.loads(request.body.decode('utf-8'))
-                        session_key = data.get('session_key') or request.GET.get('session_key')
+                        session_key = data.get('session_key')
                         if session_key:
                             django_session = DjangoSession.objects.filter(session_key=session_key).first()
-                    except:
-                        pass
+                            if django_session:
+                                print(f"✅ Found Django session from request body: {session_key}")
+                    except Exception as e:
+                        print(f"⚠️ Error parsing request body for session_key: {e}")
+                
+                # If not found in body, try GET parameter
+                if not django_session:
+                    session_key = request.GET.get('session_key')
+                    if session_key:
+                        django_session = DjangoSession.objects.filter(session_key=session_key).first()
+                        if django_session:
+                            print(f"✅ Found Django session from GET param: {session_key}")
                 
                 # If we found Django session, try to recreate AI session from database
                 if django_session:

@@ -1425,13 +1425,10 @@
     const BROWSER_LOW_MOTION_WINDOW_MS = 8000; // 8s of very low movement
     const BROWSER_MOTION_DIFF_THRESH = 6.0;    // Tunable motion threshold (mean abs diff)
     
-    // TensorFlow.js model for object detection (phones, people)
-    let tfModel = null;
-    let tfModelLoading = false;
-    let detectionCanvas = null;
-    let detectionCtx = null;
-    let lastDetectionTime = 0;
-    const DETECTION_INTERVAL_MS = 2000; // Run detection every 2 seconds
+    // YOLO detection state (server-side)
+    let lastYoloDetectionTime = 0;
+    const YOLO_DETECTION_INTERVAL_MS = 2000; // Run YOLO detection every 2 seconds
+    let yoloDetectionCanvas = null;
     
     // Audio Recorder - Records microphone + TTS audio (video handled by backend)
     let audioRecorder = null;
@@ -4510,147 +4507,64 @@
                     canvasEl.width = videoEl.videoWidth || 640;
                     canvasEl.height = videoEl.videoHeight || 480;
                     
-                    // Initialize TensorFlow.js model for object detection
-                    const initTFModel = async () => {
-                        if (tfModel || tfModelLoading) return;
-                        tfModelLoading = true;
-                        try {
-                            // Load TensorFlow.js and COCO-SSD model
-                            if (typeof tf === 'undefined') {
-                                const script = document.createElement('script');
-                                script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js';
-                                await new Promise((resolve, reject) => {
-                                    script.onload = resolve;
-                                    script.onerror = reject;
-                                    document.head.appendChild(script);
-                                });
-                            }
-                            if (typeof cocoSsd === 'undefined') {
-                                const script = document.createElement('script');
-                                script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js';
-                                await new Promise((resolve, reject) => {
-                                    script.onload = resolve;
-                                    script.onerror = reject;
-                                    document.head.appendChild(script);
-                                });
-                            }
-                            
-                            console.log('🤖 Loading TensorFlow.js COCO-SSD model...');
-                            tfModel = await cocoSsd.load();
-                            console.log('✅ TensorFlow.js model loaded successfully');
-                            
-                            // Create detection canvas
-                            detectionCanvas = document.createElement('canvas');
-                            detectionCanvas.width = 640;
-                            detectionCanvas.height = 480;
-                            detectionCtx = detectionCanvas.getContext('2d');
-                        } catch (error) {
-                            console.error('❌ Failed to load TensorFlow.js model:', error);
-                            tfModel = null;
-                        } finally {
-                            tfModelLoading = false;
-                        }
-                    };
+                    // Initialize YOLO detection canvas
+                    if (!yoloDetectionCanvas) {
+                        yoloDetectionCanvas = document.createElement('canvas');
+                        yoloDetectionCanvas.width = 640;
+                        yoloDetectionCanvas.height = 480;
+                    }
                     
-                    // Run object detection on video frame
-                    const runDetection = async (videoEl) => {
-                        if (!tfModel || !detectionCanvas || !detectionCtx || interviewEnded) return;
+                    // Run YOLO detection on video frame (server-side)
+                    const runYoloDetection = async (videoEl) => {
+                        if (interviewEnded || !SESSION_KEY) return;
                         
                         const now = Date.now();
-                        if (now - lastDetectionTime < DETECTION_INTERVAL_MS) return;
-                        lastDetectionTime = now;
+                        if (now - lastYoloDetectionTime < YOLO_DETECTION_INTERVAL_MS) return;
+                        lastYoloDetectionTime = now;
                         
                         try {
-                            // Draw video frame to detection canvas
-                            detectionCtx.drawImage(videoEl, 0, 0, detectionCanvas.width, detectionCanvas.height);
+                            // Draw video frame to canvas
+                            const ctx = yoloDetectionCanvas.getContext('2d');
+                            ctx.drawImage(videoEl, 0, 0, yoloDetectionCanvas.width, yoloDetectionCanvas.height);
                             
-                            // Run detection
-                            const predictions = await tfModel.detect(detectionCanvas);
+                            // Convert canvas to base64
+                            const frameBase64 = yoloDetectionCanvas.toDataURL('image/jpeg', 0.7);
                             
-                            // Reset warnings
-                            let phoneDetected = false;
-                            let personCount = 0;
-                            
-                            // Process predictions
-                            for (const pred of predictions) {
-                                const className = pred.class.toLowerCase();
-                                const score = pred.score;
-                                
-                                // Detect phones (cell phone, mobile phone)
-                                if ((className.includes('cell phone') || className.includes('mobile phone') || className.includes('phone')) && score > 0.5) {
-                                    phoneDetected = true;
-                                    console.log(`📱 Phone detected: ${className} (confidence: ${(score * 100).toFixed(1)}%)`);
-                                }
-                                
-                                // Count people (person class)
-                                if (className === 'person' && score > 0.5) {
-                                    personCount++;
-                                }
-                            }
-                            
-                            // Update warnings
-                            const prevPhone = browserProctorWarnings.phone_detected;
-                            const prevMultiple = browserProctorWarnings.multiple_people;
-                            const prevNoPerson = browserProctorWarnings.no_person;
-                            
-                            browserProctorWarnings.phone_detected = phoneDetected;
-                            browserProctorWarnings.multiple_people = personCount > 1;
-                            browserProctorWarnings.no_person = personCount === 0;
-                            
-                            // Send events to backend when warnings change
-                            if (phoneDetected !== prevPhone) {
-                                sendBrowserProctoringEvent('phone_detected', phoneDetected, detectionCanvas);
-                            }
-                            if ((personCount > 1) !== prevMultiple) {
-                                sendBrowserProctoringEvent('multiple_people', personCount > 1, detectionCanvas);
-                            }
-                            if ((personCount === 0) !== prevNoPerson) {
-                                sendBrowserProctoringEvent('no_person', personCount === 0, detectionCanvas);
-                            }
-                            
-                            // Log detection results
-                            if (phoneDetected || personCount > 1 || personCount === 0) {
-                                console.log(`🔍 Detection: ${personCount} person(s), phone: ${phoneDetected ? 'YES' : 'NO'}`);
-                            }
-                        } catch (error) {
-                            console.error('❌ Detection error:', error);
-                        }
-                    };
-                    
-                    // Send browser proctoring event to backend
-                    const sendBrowserProctoringEvent = async (warningType, active, canvas = null) => {
-                        if (!SESSION_KEY) return;
-                        
-                        try {
-                            let snapshotBase64 = null;
-                            if (canvas && active) {
-                                // Capture snapshot when warning becomes active
-                                snapshotBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                            }
-                            
-                            const response = await fetch('{% url "browser_proctoring_event" %}', {
+                            // Send frame to backend for YOLO detection
+                            const response = await fetch('{% url "detect_yolo_browser_frame" %}', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     session_key: SESSION_KEY,
-                                    warning_type: warningType,
-                                    active: active,
-                                    snapshot: snapshotBase64
+                                    frame: frameBase64
                                 })
                             });
                             
                             if (response.ok) {
-                                console.log(`✅ Browser proctoring event sent: ${warningType} = ${active}`);
+                                const result = await response.json();
+                                
+                                // Update browser warnings from YOLO results
+                                const prevPhone = browserProctorWarnings.phone_detected;
+                                const prevMultiple = browserProctorWarnings.multiple_people;
+                                const prevNoPerson = browserProctorWarnings.no_person;
+                                const prevLowConc = browserProctorWarnings.low_concentration;
+                                
+                                browserProctorWarnings.phone_detected = result.phone_detected || false;
+                                browserProctorWarnings.multiple_people = result.multiple_people || false;
+                                browserProctorWarnings.no_person = result.no_person || false;
+                                browserProctorWarnings.low_concentration = result.low_concentration || false;
+                                
+                                // Log detection results
+                                if (result.phone_detected || result.multiple_people || result.no_person || result.low_concentration) {
+                                    console.log(`🔍 YOLO Detection: ${result.person_count || 0} person(s), ${result.phone_count || 0} phone(s), low_concentration: ${result.low_concentration ? 'YES' : 'NO'}`);
+                                }
                             } else {
-                                console.error(`❌ Failed to send browser proctoring event: ${response.status}`);
+                                console.error(`❌ YOLO detection failed: ${response.status}`);
                             }
                         } catch (error) {
-                            console.error(`❌ Error sending browser proctoring event:`, error);
+                            console.error('❌ YOLO detection error:', error);
                         }
                     };
-                    
-                    // Initialize model on first frame
-                    initTFModel();
                     
                     // Update img element with frames from video and run lightweight browser-side proctoring
                     const updateFrame = () => {
@@ -4666,9 +4580,9 @@
                         imgElement.style.opacity = '1';
                         imgElement.style.backgroundColor = 'transparent';
                         
-                        // Run TensorFlow.js detection (async, non-blocking)
-                        if (tfModel && videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-                            runDetection(videoEl).catch(err => console.error('Detection error:', err));
+                        // Run YOLO detection (async, non-blocking, server-side)
+                        if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
+                            runYoloDetection(videoEl).catch(err => console.error('YOLO detection error:', err));
                         }
                         
                         requestAnimationFrame(updateFrame);

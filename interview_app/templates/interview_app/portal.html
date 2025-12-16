@@ -4747,9 +4747,16 @@
                     const list = document.getElementById('warnings-list');
                     const list2 = document.getElementById('warnings-list-2');
                     
-                    // Always clear and update both lists if elements exist - ensure fresh update
-                    if (list && isSpokenVisible) list.innerHTML = '';
-                    if (list2 && isCodingVisible) list2.innerHTML = '';
+                    // Initialize previous warnings state if not exists
+                    if (!window._previousWarnings) {
+                        window._previousWarnings = {};
+                    }
+                    
+                    // Track which warnings are currently showing (to avoid duplicates)
+                    if (!window._activeWarningNodes) {
+                        window._activeWarningNodes = new Set();
+                    }
+                    
                     let warningCount = 0;
                     // FRIENDLY NAMES MAP
                     const warningFriendlyMap = {
@@ -4762,6 +4769,8 @@
                       'excessive_noise': 'Excessive Noise',
                       'multiple_speakers': 'Multiple Speakers Detected'
                     };
+                    
+                    // Check each warning and only show if it's newly detected (transition from false to true)
                     for (const [key, value] of Object.entries(warnings)) {
                         if (value === true && (
                             key.endsWith('_warning') || 
@@ -4772,46 +4781,113 @@
                             key === 'tab_switched' ||
                             key === 'excessive_noise' ||
                             key === 'multiple_speakers')) {
-                            const li = document.createElement('li');
-                            li.textContent = warningFriendlyMap[key] || key.replace(/_/g, ' ').toUpperCase();
-                            li.style.backgroundColor = '#dc3545';
-                            li.style.color = 'white';
-                            li.style.padding = '0.75rem 1.5rem';
-                            li.style.borderRadius = '25px';
-                            li.style.marginBottom = '0.75rem';
-                            li.style.textAlign = 'center';
-                            li.style.fontWeight = '600';
-                            li.style.fontSize = '0.9rem';
+                            
+                            // CRITICAL: Only show warning if it's newly detected (was false, now true)
+                            const wasPreviouslyTrue = window._previousWarnings[key] === true;
+                            const isNewlyDetected = !wasPreviouslyTrue;
+                            
+                            // Also check if this warning is already showing (avoid duplicates)
+                            const warningId = `warning-${key}`;
+                            const isAlreadyShowing = window._activeWarningNodes.has(warningId);
+                            
+                            if (isNewlyDetected && !isAlreadyShowing) {
+                                // This is a new detection - show the warning
+                                const li = document.createElement('li');
+                                li.id = warningId; // Add ID for tracking
+                                li.textContent = warningFriendlyMap[key] || key.replace(/_/g, ' ').toUpperCase();
+                                li.style.backgroundColor = '#dc3545';
+                                li.style.color = 'white';
+                                li.style.padding = '0.75rem 1.5rem';
+                                li.style.borderRadius = '25px';
+                                li.style.marginBottom = '0.75rem';
+                                li.style.textAlign = 'center';
+                                li.style.fontWeight = '600';
+                                li.style.fontSize = '0.9rem';
 
-                            // Always add to both lists if they exist (for visibility)
-                            if (list && isSpokenVisible) {
-                                const techNode = li.cloneNode(true);
-                                list.appendChild(techNode);
-                                console.log(`⚠️ Warning added to technical list: ${warningFriendlyMap[key]}`);
-                                // Auto-remove after 2 seconds
-                                setTimeout(() => {
-                                    if (techNode && techNode.parentNode) {
-                                        techNode.parentNode.removeChild(techNode);
+                                // Add to both lists if they exist (for visibility)
+                                if (list && isSpokenVisible) {
+                                    const techNode = li.cloneNode(true);
+                                    techNode.id = warningId + '-tech';
+                                    list.appendChild(techNode);
+                                    window._activeWarningNodes.add(warningId + '-tech');
+                                    console.log(`⚠️ NEW warning detected and displayed: ${warningFriendlyMap[key]}`);
+                                    
+                                    // Auto-remove after 2 seconds
+                                    setTimeout(() => {
+                                        if (techNode && techNode.parentNode) {
+                                            techNode.parentNode.removeChild(techNode);
+                                            window._activeWarningNodes.delete(warningId + '-tech');
+                                            console.log(`✅ Warning removed after 2 seconds: ${warningFriendlyMap[key]}`);
+                                        }
+                                    }, 2000);
+                                }
+                                if (list2 && isCodingVisible) {
+                                    const codingNode = li.cloneNode(true);
+                                    codingNode.id = warningId + '-coding';
+                                    list2.appendChild(codingNode);
+                                    window._activeWarningNodes.add(warningId + '-coding');
+                                    
+                                    // Auto-remove after 2 seconds
+                                    setTimeout(() => {
+                                        if (codingNode && codingNode.parentNode) {
+                                            codingNode.parentNode.removeChild(codingNode);
+                                            window._activeWarningNodes.delete(warningId + '-coding');
+                                        }
+                                    }, 2000);
+                                }
+                                warningCount++;
+                            } else if (wasPreviouslyTrue && !value) {
+                                // Warning state changed from true to false - remove if still showing
+                                const techNodeId = warningId + '-tech';
+                                const codingNodeId = warningId + '-coding';
+                                
+                                if (list && isSpokenVisible) {
+                                    const existingNode = document.getElementById(techNodeId);
+                                    if (existingNode && existingNode.parentNode) {
+                                        existingNode.parentNode.removeChild(existingNode);
+                                        window._activeWarningNodes.delete(techNodeId);
                                     }
-                                }, 2000);
+                                }
+                                if (list2 && isCodingVisible) {
+                                    const existingNode = document.getElementById(codingNodeId);
+                                    if (existingNode && existingNode.parentNode) {
+                                        existingNode.parentNode.removeChild(existingNode);
+                                        window._activeWarningNodes.delete(codingNodeId);
+                                    }
+                                }
+                            }
+                            
+                            // Update previous state for next iteration
+                            window._previousWarnings[key] = value;
+                        } else if (window._previousWarnings[key] === true && value === false) {
+                            // Warning cleared - remove from tracking
+                            const warningId = `warning-${key}`;
+                            const techNodeId = warningId + '-tech';
+                            const codingNodeId = warningId + '-coding';
+                            
+                            if (list && isSpokenVisible) {
+                                const existingNode = document.getElementById(techNodeId);
+                                if (existingNode && existingNode.parentNode) {
+                                    existingNode.parentNode.removeChild(existingNode);
+                                    window._activeWarningNodes.delete(techNodeId);
+                                }
                             }
                             if (list2 && isCodingVisible) {
-                                const codingNode = li.cloneNode(true);
-                                list2.appendChild(codingNode);
-                                console.log(`⚠️ Warning added to coding list: ${warningFriendlyMap[key]}`);
-                                // Auto-remove after 2 seconds
-                                setTimeout(() => {
-                                    if (codingNode && codingNode.parentNode) {
-                                        codingNode.parentNode.removeChild(codingNode);
-                                    }
-                                }, 2000);
+                                const existingNode = document.getElementById(codingNodeId);
+                                if (existingNode && existingNode.parentNode) {
+                                    existingNode.parentNode.removeChild(existingNode);
+                                    window._activeWarningNodes.delete(codingNodeId);
+                                }
                             }
-                            warningCount++;
+                            
+                            // Update previous state
+                            window._previousWarnings[key] = false;
                         }
                     }
+                    
                     // Log warning count for debugging
                     if (warningCount > 0) {
-                        console.log(`📊 Total warnings displayed: ${warningCount} (Technical: ${isSpokenVisible}, Coding: ${isCodingVisible})`);
+                        console.log(`📊 New warnings displayed this cycle: ${warningCount} (Technical: ${isSpokenVisible}, Coding: ${isCodingVisible})`);
                     }
                 } catch (fetchError) {
                     // Handle AbortError gracefully - just skip this iteration

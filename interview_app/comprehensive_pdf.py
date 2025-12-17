@@ -159,30 +159,114 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
         pdf.cell(usable_width, 8, _sanitize_for_pdf("Technical Q&A Transcript"), ln=True)
         pdf.ln(3)
         
-        if ai_session and ai_session.conversation_history:
-            pdf.set_font("Arial", size=11)
-            for msg in ai_session.conversation_history:
-                role = "Interviewer" if msg.get("role") == "interviewer" else "Candidate"
-                text = msg.get("text", "")
-                
-                # Role header
-                pdf.set_font("Arial", "B", 11)
-                try:
-                    pdf.multi_cell(usable_width, 6, _sanitize_for_pdf(role + ":"), align='L')
-                except:
-                    pdf.cell(usable_width, 6, _sanitize_for_pdf(role + ":"), ln=True)
-                
-                # Message text
-                pdf.set_font("Arial", size=10)  # Slightly smaller for better fit
-                safe_text = _sanitize_for_pdf(_wrap_long_words(text, max_len=60))
-                try:
-                    pdf.multi_cell(usable_width, 5, safe_text, align='L')
-                except Exception as e:
-                    # Fallback: truncate and use cell instead
-                    truncated = safe_text[:200] + "..." if len(safe_text) > 200 else safe_text
-                    pdf.cell(usable_width, 5, truncated, ln=True)
-                pdf.ln(2)
-        else:
+        # Use database InterviewQuestion records (same as serializer) for accurate Q&A pairing
+        from .models import InterviewQuestion
+        from django.db.models import Max
+        
+        # Get all questions ordered by conversation_sequence and order (same logic as serializer)
+        questions = InterviewQuestion.objects.filter(
+            session=session
+        ).order_by(
+            'conversation_sequence',
+            'order',
+            'id'
+        )
+        
+        # Group questions by order to pair AI questions with Interviewee answers
+        questions_by_order = {}
+        for q in questions:
+            order_key = q.order
+            if order_key not in questions_by_order:
+                questions_by_order[order_key] = {'ai': None, 'interviewee': None}
+            
+            # Check if this is an AI question or Interviewee answer
+            if q.role == 'AI' and q.question_text:
+                questions_by_order[order_key]['ai'] = q
+            elif q.role == 'INTERVIEWEE' and (q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE'):
+                if not questions_by_order[order_key]['interviewee']:
+                    questions_by_order[order_key]['interviewee'] = q
+                elif q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
+                    # Prefer record with transcribed_answer
+                    questions_by_order[order_key]['interviewee'] = q
+            elif not q.role and q.question_text:
+                # Old format: question_text exists, treat as AI question
+                questions_by_order[order_key]['ai'] = q
+        
+        # Sort by order and display Q&A pairs
+        sorted_orders = sorted(questions_by_order.keys())
+        has_qa = False
+        
+        for order_key in sorted_orders:
+            q_pair = questions_by_order[order_key]
+            ai_q = q_pair['ai']
+            interviewee_a = q_pair['interviewee']
+            
+            # Skip if no AI question
+            if not ai_q:
+                continue
+            
+            # Skip CODING questions (handled separately)
+            if ai_q.question_type == 'CODING':
+                continue
+            
+            has_qa = True
+            
+            # Question text
+            question_text = ai_q.question_text or ''
+            if question_text.strip().startswith('Q:'):
+                question_text = question_text.replace('Q:', '').strip()
+            
+            # Answer text - use same logic as serializer
+            answer_text = 'No answer provided'
+            if interviewee_a:
+                answer_text = interviewee_a.transcribed_answer or ''
+                if answer_text.strip().startswith('A:'):
+                    answer_text = answer_text.replace('A:', '').strip()
+            
+            # If no separate interviewee record, try transcribed_answer from AI question itself
+            if not answer_text or answer_text == 'No answer provided':
+                if ai_q.transcribed_answer:
+                    answer_text = ai_q.transcribed_answer
+                    if answer_text.strip().startswith('A:'):
+                        answer_text = answer_text.replace('A:', '').strip()
+            
+            # Format answer
+            if not answer_text or answer_text.strip() == '' or answer_text.lower() == 'none':
+                answer_text = 'No answer provided'
+            
+            # Display Question
+            pdf.set_font("Arial", "B", 11)
+            try:
+                pdf.multi_cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), align='L')
+            except:
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), ln=True)
+            
+            pdf.set_font("Arial", size=10)
+            safe_question = _sanitize_for_pdf(_wrap_long_words(question_text, max_len=60))
+            try:
+                pdf.multi_cell(usable_width, 5, safe_question, align='L')
+            except Exception as e:
+                truncated = safe_question[:200] + "..." if len(safe_question) > 200 else safe_question
+                pdf.cell(usable_width, 5, truncated, ln=True)
+            pdf.ln(2)
+            
+            # Display Answer
+            pdf.set_font("Arial", "B", 11)
+            try:
+                pdf.multi_cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), align='L')
+            except:
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), ln=True)
+            
+            pdf.set_font("Arial", size=10)
+            safe_answer = _sanitize_for_pdf(_wrap_long_words(answer_text, max_len=60))
+            try:
+                pdf.multi_cell(usable_width, 5, safe_answer, align='L')
+            except Exception as e:
+                truncated = safe_answer[:200] + "..." if len(safe_answer) > 200 else safe_answer
+                pdf.cell(usable_width, 5, truncated, ln=True)
+            pdf.ln(3)
+        
+        if not has_qa:
             pdf.set_font("Arial", "I", 11)
             pdf.cell(usable_width, 6, _sanitize_for_pdf("No Q&A transcript available"), ln=True)
         

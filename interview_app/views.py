@@ -5200,18 +5200,19 @@ def download_proctoring_pdf(request, session_id):
             pdf_bytes = download_pdf_from_gcs(proctoring_pdf_path)
             if pdf_bytes:
                 response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                response['Content-Disposition'] = f'attachment; filename="proctoring_report_{session_id}.pdf"'
+                response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
                 return response
         
         if not proctoring_pdf_path:
             # Try to generate PDF if it doesn't exist
-            from evaluation.services import create_evaluation_from_session
-            evaluation = create_evaluation_from_session(session.session_key)
-            if evaluation and evaluation.details:
-                proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
-                gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
-                if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
-                    return HttpResponseRedirect(gcs_url)
+            if session and session.session_key:
+                from evaluation.services import create_evaluation_from_session
+                evaluation = create_evaluation_from_session(session.session_key)
+                if evaluation and evaluation.details:
+                    proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+                    gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
+                    if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
+                        return HttpResponseRedirect(gcs_url)
         
         if not proctoring_pdf_path:
             return JsonResponse({'error': 'Proctoring PDF not found. No warnings were detected during the interview.'}, status=404)
@@ -5224,7 +5225,7 @@ def download_proctoring_pdf(request, session_id):
         
         # Serve PDF file
         response = FileResponse(open(pdf_full_path, 'rb'), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="proctoring_report_{session_id}.pdf"'
+        response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
         return response
         
     except Exception as e:

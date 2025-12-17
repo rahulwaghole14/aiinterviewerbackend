@@ -149,16 +149,9 @@ class PublicInterviewAccessView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Check if interview can be started
-            now = timezone.now()
-            if interview.started_at and now < interview.started_at:
-                return Response(
-                    {
-                        "error": f'Interview starts at {interview.started_at.strftime("%I:%M %p")}. Please wait.',
-                        "status": "not_started",
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            # REMOVED: Blocking access before scheduled time
+            # The link is valid for 24 hours from scheduled time, so candidates can access it anytime within that window
+            # The expiration check (24 hours) is already handled in validate_interview_link()
 
             # Check if user wants JSON response (for API calls)
             if request.headers.get("Accept") == "application/json":

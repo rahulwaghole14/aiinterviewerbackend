@@ -6988,7 +6988,46 @@ def upload_interview_video(request):
         
         # Save video file
         video_filename = f"interview_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.webm"
-        session.interview_video.save(video_filename, video_file, save=True)
+        video_path = session.interview_video.save(video_filename, video_file, save=True)
+        session.save()
+        
+        print(f"✅ Video saved to InterviewSession: {video_path}")
+        
+        # Upload to Google Cloud Storage if configured
+        gcs_video_url = None
+        try:
+            from .gcs_storage import upload_video_to_gcs
+            import os
+            
+            # Get full path to video file
+            if hasattr(session.interview_video, 'path'):
+                video_full_path = session.interview_video.path
+            else:
+                video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
+            
+            if os.path.exists(video_full_path):
+                # Generate GCS file path
+                gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
+                
+                # Determine content type
+                content_type = 'video/webm'
+                if video_filename.lower().endswith('.mp4'):
+                    content_type = 'video/mp4'
+                
+                # Upload to GCS
+                gcs_video_url = upload_video_to_gcs(video_full_path, gcs_video_path, content_type)
+                if gcs_video_url:
+                    print(f"✅ Video uploaded to GCS: {gcs_video_url}")
+                    # Store GCS URL in video_gcs_url field
+                    session.video_gcs_url = gcs_video_url
+                    session.save(update_fields=['video_gcs_url'])
+                    print(f"✅ GCS video URL saved: {gcs_video_url}")
+            else:
+                print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
+        except Exception as gcs_error:
+            print(f"⚠️ Error uploading video to GCS (non-critical): {gcs_error}")
+            import traceback
+            traceback.print_exc()
         
         # Parse and store question timestamps if provided
         try:

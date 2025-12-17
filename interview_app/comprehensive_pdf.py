@@ -283,7 +283,8 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
         pdf.ln(3)
         
         # Generate Gemini analysis for technical Q&A
-        if ai_session and ai_session.conversation_history:
+        # Use database Q&A data (same as PDF generation above)
+        if has_qa:
             try:
                 import google.generativeai as genai
                 from django.conf import settings
@@ -294,11 +295,37 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     raise ValueError("GEMINI_API_KEY not set in environment")
                 model = genai.GenerativeModel('gemini-2.0-flash')
                 
-                # Build conversation context
-                conversation_text = "\n".join([
-                    f"{msg.get('role', 'unknown').upper()}: {msg.get('text', '')}"
-                    for msg in ai_session.conversation_history
-                ])
+                # Build conversation context from database Q&A pairs
+                conversation_lines = []
+                for order_key in sorted_orders:
+                    q_pair = questions_by_order[order_key]
+                    ai_q = q_pair['ai']
+                    interviewee_a = q_pair['interviewee']
+                    
+                    if not ai_q or ai_q.question_type == 'CODING':
+                        continue
+                    
+                    question_text = ai_q.question_text or ''
+                    if question_text.strip().startswith('Q:'):
+                        question_text = question_text.replace('Q:', '').strip()
+                    
+                    answer_text = 'No answer provided'
+                    if interviewee_a:
+                        answer_text = interviewee_a.transcribed_answer or ''
+                        if answer_text.strip().startswith('A:'):
+                            answer_text = answer_text.replace('A:', '').strip()
+                    elif ai_q.transcribed_answer:
+                        answer_text = ai_q.transcribed_answer
+                        if answer_text.strip().startswith('A:'):
+                            answer_text = answer_text.replace('A:', '').strip()
+                    
+                    if not answer_text or answer_text.strip() == '':
+                        answer_text = 'No answer provided'
+                    
+                    conversation_lines.append(f"INTERVIEWER: {question_text}")
+                    conversation_lines.append(f"CANDIDATE: {answer_text}")
+                
+                conversation_text = "\n".join(conversation_lines)
                 
                 technical_prompt = f"""
                 Analyze this technical interview transcript and provide a comprehensive evaluation.

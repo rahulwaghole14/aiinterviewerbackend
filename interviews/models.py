@@ -500,19 +500,9 @@ class Interview(models.Model):
             # Allow access up to 24 hours after interview ends
             interview_end = self.ended_at + timedelta(hours=24)
 
-            if now < interview_start:
-                # Format time in IST for better user experience
-                try:
-                    import pytz
-                    ist = pytz.timezone('Asia/Kolkata')
-                    started_at_ist = self.started_at.astimezone(ist)
-                    time_str = started_at_ist.strftime('%B %d, %Y at %I:%M %p IST')
-                except:
-                    time_str = self.started_at.strftime('%B %d, %Y at %I:%M %p')
-                return (
-                    False,
-                    f"Interview hasn't started yet. Please join at {time_str}",
-                )
+            # REMOVED: Blocking access before scheduled time - allow access anytime within 24 hours
+            # The link is valid for 24 hours from scheduled time, so candidates can access it early
+            # Only check if link has expired (after 24 hours)
 
             if now > interview_end:
                 return False, "Interview link has expired (valid for 24 hours after interview end)"

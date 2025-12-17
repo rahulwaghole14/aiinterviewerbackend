@@ -753,37 +753,36 @@ def interview_portal(request):
     if session.scheduled_at:
         now = timezone.now()
         start_time = session.scheduled_at
-        grace_period = timedelta(minutes=10)
-        expiry_time = start_time + grace_period
+        # Link valid for 24 hours from scheduled time (not just 10 minutes)
+        validity_period = timedelta(hours=24)
+        expiry_time = start_time + validity_period
         
         # Debug time comparison
         print(f"DEBUG: Time comparison - Now: {now}, Start: {start_time}, Expiry: {expiry_time}")
         print(f"DEBUG: Now < Start: {now < start_time}, Now > Expiry: {now > expiry_time}")
         
-        # Case 1: The user is too early.
-        # Add a small buffer (30 seconds) to account for timezone differences and network delays
-        buffer_time = timedelta(seconds=30)
+        # Case 1: The user is too early (optional - allow access anytime within 24 hours)
+        # Only show countdown if more than 1 hour before scheduled time
+        buffer_time = timedelta(hours=1)
         if now < (start_time - buffer_time):
             start_time_local = start_time.astimezone(pytz.timezone('Asia/Kolkata'))
-            print(f"DEBUG: User too early, showing countdown. Start time local: {start_time_local}")
-            # We pass all necessary context for the countdown timer here.
-            return render(request, 'interview_app/invalid_link.html', {
-                'page_title': 'Interview Not Started',
-                'error': f"Your interview has not started yet. Please use the link at the scheduled time:",
-                'scheduled_time_str': start_time_local.strftime('%Y-%m-%d %I:%M %p IST'),
-                'start_time_iso': start_time.isoformat() # This is crucial for the JS countdown
-            })
-        # Case 2: The user is too late.
+            print(f"DEBUG: User accessing early (more than 1 hour before), showing countdown. Start time local: {start_time_local}")
+            # Allow access but show countdown
+            # Don't block - just show informational message
+            pass  # Allow access even if early
+        
+        # Case 2: The user is too late (after 24 hours from scheduled time)
         if now > expiry_time:
             session.status = 'EXPIRED'
             session.save()
             return render(request, 'interview_app/invalid_link.html', {
                 'page_title': 'Interview Link Expired',
-                'error': 'This interview link has expired because the 10-minute grace period after the scheduled time has passed.'
+                'error': 'This interview link has expired. The link is valid for 24 hours from the scheduled time.'
             })
     else:
-        # Case 3: The session has no scheduled time (should not happen in normal flow).
-         return render(request, 'interview_app/invalid_link.html', {'error': 'This interview session is invalid as it does not have a scheduled time.'})
+        # Case 3: The session has no scheduled time - allow access (flexible scheduling)
+        print("DEBUG: Session has no scheduled_at, allowing access for flexible scheduling")
+        pass  # Allow access even without scheduled time
     # If the user is within the valid time window, proceed with the interview setup.
     try:
         # Initialize variables

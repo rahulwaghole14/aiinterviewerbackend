@@ -4244,17 +4244,22 @@ def ai_upload_answer(request):
     try:
         # Support both multipart and JSON
         session_id = request.POST.get('session_id')
+        session_key = request.POST.get('session_key')
         if not session_id and request.body:
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('session_id')
+            session_key = data.get('session_key') or session_key
             transcript = data.get('transcript', '')
         else:
+            session_key = request.POST.get('session_key') or session_key
             transcript = (request.POST.get('transcript') or '').strip()
         
         print(f"\n{'='*60}")
         print(f"📝 AI_UPLOAD_ANSWER called")
         print(f"   Session ID: {session_id}")
+        print(f"   Session Key: {session_key}")
         print(f"   Transcript: {transcript[:100] if transcript else 'Empty'}...")
+        print(f"   Transcript length: {len(transcript) if transcript else 0}")
         print(f"{'='*60}")
         
         # Save answer to database if session exists
@@ -4303,10 +4308,23 @@ def ai_upload_answer(request):
                     # Determine answer text:
                     # - If transcript exists and is valid, use it (even if it's "no")
                     # - If transcript is empty or invalid, use "No answer provided"
-                    if transcript and transcript.strip() and not transcript.startswith("[") and not transcript.startswith("[No speech"):
-                        answer_text = transcript.strip()
+                    # IMPORTANT: Clean transcript to remove common prefixes and invalid markers
+                    cleaned_transcript = transcript.strip() if transcript else ''
+                    
+                    # Remove common invalid markers
+                    invalid_markers = ['[No speech detected]', '[No speech', 'No speech detected', 'No speech']
+                    is_invalid = False
+                    for marker in invalid_markers:
+                        if cleaned_transcript.startswith(marker) or cleaned_transcript == marker:
+                            is_invalid = True
+                            break
+                    
+                    if cleaned_transcript and not is_invalid and len(cleaned_transcript) > 0:
+                        answer_text = cleaned_transcript
+                        print(f"✅ Using valid transcript as answer: {answer_text[:50]}...")
                     else:
                         answer_text = 'No answer provided'
+                        print(f"⚠️ Transcript is empty or invalid, using 'No answer provided'")
                     
                     # IMPORTANT: Always save answers for pre-closing and closing questions
                     is_special_question = is_pre_closing_question or is_closing_question
@@ -4355,8 +4373,23 @@ def ai_upload_answer(request):
                                 print(f"✅ Found question as last (closing?): order {question_obj.order}")
                         
                         if question_obj:
-                            # Always save for pre-closing and closing questions, or if there's an actual answer
-                            if is_special_question or answer_text != 'No answer provided':
+                            # CRITICAL: Always save answers for ALL questions (including technical questions)
+                            # This ensures answers appear in candidate details even if transcript is empty
+                            # Determine question type
+                            is_technical_question = question_obj.question_type and question_obj.question_type.upper() in ['TECHNICAL', 'BEHAVIORAL']
+                            
+                            # ALWAYS save answers for technical/behavioral questions
+                            # Also save for special questions (pre-closing/closing) or if there's an actual answer
+                            should_save = is_special_question or answer_text != 'No answer provided' or is_technical_question
+                            
+                            print(f"📝 Answer save decision for order {question_obj.order}:")
+                            print(f"   - Question type: {question_obj.question_type}")
+                            print(f"   - Is technical: {is_technical_question}")
+                            print(f"   - Is special: {is_special_question}")
+                            print(f"   - Answer text: '{answer_text[:50]}...'")
+                            print(f"   - Should save: {should_save}")
+                            
+                            if should_save:
                                 # IMPORTANT: Save Interviewee answer as a SEPARATE record with role='INTERVIEWEE'
                                 # Get the maximum conversation_sequence to ensure sequential indexing
                                 from django.db.models import Max

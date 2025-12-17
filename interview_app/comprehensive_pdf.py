@@ -1,18 +1,15 @@
 """
 Comprehensive PDF generation including Q&A and Coding Round results
+Uses fpdf2 for PDF generation
 """
 try:
-    # Try fpdf2 first (preferred, more maintained)
     from fpdf2 import FPDF
-    print("✅ Using fpdf2 for PDF generation")
+    print("✅ Using fpdf2 for comprehensive PDF generation")
 except ImportError:
-    try:
-        # Fallback to fpdf
-        from fpdf import FPDF
-        print("✅ Using fpdf for PDF generation")
-    except ImportError:
-        FPDF = None
-        print("❌ Neither fpdf2 nor fpdf is available. Install with: pip install fpdf2")
+    FPDF = None
+    print("❌ fpdf2 is not available. Install with: pip install fpdf2")
+    import traceback
+    traceback.print_exc()
 
 from .models import InterviewSession, CodeSubmission
 

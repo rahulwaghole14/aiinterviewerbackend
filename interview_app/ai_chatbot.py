@@ -420,7 +420,7 @@ class ChatBotManager:
 
     def transcript_pdf_bytes(self, session_id: str) -> bytes:
         try:
-            from fpdf import FPDF  # type: ignore
+            from fpdf2 import FPDF  # type: ignore
         except Exception:
             return b""
 

@@ -1,5 +1,6 @@
 """
 Generate PDF with proctoring warnings and snapshot images
+Uses fpdf2 for PDF generation
 """
 import os
 from datetime import datetime
@@ -7,17 +8,13 @@ from django.conf import settings
 from django.utils import timezone
 from PIL import Image
 try:
-    # Try fpdf2 first (preferred, more maintained)
     from fpdf2 import FPDF
     print("✅ Using fpdf2 for proctoring PDF generation")
 except ImportError:
-    try:
-        # Fallback to fpdf
-        from fpdf import FPDF
-        print("✅ Using fpdf for proctoring PDF generation")
-    except ImportError:
-        FPDF = None
-        print("❌ Neither fpdf2 nor fpdf is available. Install with: pip install fpdf2")
+    FPDF = None
+    print("❌ fpdf2 is not available. Install with: pip install fpdf2")
+    import traceback
+    traceback.print_exc()
 
 
 def generate_proctoring_pdf(evaluation, output_path=None):

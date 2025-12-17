@@ -89,27 +89,78 @@ class ComprehensiveEvaluationService:
                             'answer': q.transcribed_answer
                         })
             
-            # Process coding questions
-            for q in all_questions:
-                if q.question_type == 'CODING' and q.question_text:
-                    # Get coding submission if exists
-                    try:
-                        code_submission = CodeSubmission.objects.filter(
+            # Process coding questions - collect ALL coding submissions
+            # First, get all coding submissions for this session
+            all_code_submissions = CodeSubmission.objects.filter(session=session).order_by('created_at')
+            print(f"🔍 Found {all_code_submissions.count()} code submissions for session {session_key}")
+            
+            # Map submissions to questions
+            for code_submission in all_code_submissions:
+                try:
+                    # Try to find the corresponding question
+                    question = None
+                    if code_submission.question_id:
+                        # Try to get question by ID (as string or UUID)
+                        try:
+                            question = InterviewQuestion.objects.get(id=code_submission.question_id)
+                        except InterviewQuestion.DoesNotExist:
+                            # Try as string
+                            try:
+                                question = InterviewQuestion.objects.get(id=str(code_submission.question_id))
+                            except InterviewQuestion.DoesNotExist:
+                                pass
+                    
+                    # If question not found by ID, try to find any CODING question for this session
+                    if not question:
+                        coding_questions = InterviewQuestion.objects.filter(
                             session=session,
-                            question_id=str(q.id)
-                        ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            coding_submissions.append({
-                                'question': q.question_text,
-                                'code': code_submission.submitted_code,
-                                'language': code_submission.language,
-                                'test_results': code_submission.output_log or 'No test results',
-                                'passed_tests': code_submission.passed_count or 0,
-                                'total_tests': code_submission.total_count or 0
-                            })
-                    except Exception as e:
-                        print(f"⚠️ Error fetching code submission for question {q.id}: {e}")
+                            question_type='CODING'
+                        ).order_by('order', 'id')
+                        # Match by order or just use first coding question
+                        if coding_questions.exists():
+                            question = coding_questions.first()
+                    
+                    question_text = question.question_text if question and question.question_text else f"Coding Challenge {len(coding_submissions) + 1}"
+                    
+                    coding_submissions.append({
+                        'question': question_text,
+                        'code': code_submission.submitted_code or '',
+                        'language': code_submission.language or 'Unknown',
+                        'test_results': code_submission.output_log or 'No test results',
+                        'passed_tests': code_submission.passed_count or 0,
+                        'total_tests': code_submission.total_count or 0,
+                        'passed_all_tests': code_submission.passed_all_tests or False
+                    })
+                    print(f"✅ Added coding submission: {question_text[:50]}... ({code_submission.language}, {code_submission.passed_count}/{code_submission.total_count} tests passed)")
+                except Exception as e:
+                    print(f"⚠️ Error processing code submission {code_submission.id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Also check for coding questions that might not have submissions yet
+            for q in all_questions:
+                if q.question_type == 'CODING':
+                    # Check if we already have a submission for this question
+                    has_submission = False
+                    for sub in coding_submissions:
+                        if sub.get('question') == q.question_text:
+                            has_submission = True
+                            break
+                    
+                    # If no submission found, still include the question (candidate might not have submitted)
+                    if not has_submission and q.question_text:
+                        coding_submissions.append({
+                            'question': q.question_text,
+                            'code': 'No code submitted',
+                            'language': q.coding_language or 'Unknown',
+                            'test_results': 'No submission received',
+                            'passed_tests': 0,
+                            'total_tests': 0,
+                            'passed_all_tests': False
+                        })
+                        print(f"⚠️ Coding question found but no submission: {q.question_text[:50]}...")
+            
+            print(f"📊 Total coding submissions/challenges collected: {len(coding_submissions)}")
             
             # Fallback: If no interviewee answers found, try to get from questions with transcribed_answer
             if not technical_qa and not behavioral_qa:
@@ -319,7 +370,7 @@ Provide your evaluation in this EXACT format (use the exact section headers):
 [2-3 sentences analyzing communication skills, clarity, professionalism, and behavioral responses]
 
 === CODING ANALYSIS ===
-[2-3 sentences analyzing coding skills, code quality, and problem-solving approach. If no coding challenges, state "No coding challenges were part of this interview."]
+[2-3 sentences analyzing coding skills, code quality, problem-solving approach, algorithm efficiency, and code structure. If coding challenges were provided, analyze the submitted code in detail. If no coding challenges were provided, state "No coding challenges were part of this interview."]
 
 === DETAILED FEEDBACK ===
 [3-4 sentences providing comprehensive feedback on overall performance, highlighting key observations and areas for development]

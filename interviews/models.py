@@ -122,17 +122,43 @@ class InterviewSlot(models.Model):
                 raise ValidationError(_("End time must be after start time"))
 
     def get_full_start_datetime(self):
-        """Combine interview_date and start_time to get full datetime"""
+        """Combine interview_date and start_time to get full datetime in IST, then convert to UTC"""
         if self.interview_date and self.start_time:
-            dt = timezone.datetime.combine(self.interview_date, self.start_time)
-            return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+            # Create datetime in IST timezone first
+            try:
+                import pytz
+                ist = pytz.timezone('Asia/Kolkata')
+                # Combine date and time as naive datetime
+                dt_naive = datetime.combine(self.interview_date, self.start_time)
+                # Localize to IST
+                dt_ist = ist.localize(dt_naive)
+                # Convert to UTC for storage
+                dt_utc = dt_ist.astimezone(timezone.utc)
+                return dt_utc
+            except ImportError:
+                # Fallback if pytz not available
+                dt = timezone.datetime.combine(self.interview_date, self.start_time)
+                return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
         return None
 
     def get_full_end_datetime(self):
-        """Combine interview_date and end_time to get full datetime"""
+        """Combine interview_date and end_time to get full datetime in IST, then convert to UTC"""
         if self.interview_date and self.end_time:
-            dt = timezone.datetime.combine(self.interview_date, self.end_time)
-            return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+            # Create datetime in IST timezone first
+            try:
+                import pytz
+                ist = pytz.timezone('Asia/Kolkata')
+                # Combine date and time as naive datetime
+                dt_naive = datetime.combine(self.interview_date, self.end_time)
+                # Localize to IST
+                dt_ist = ist.localize(dt_naive)
+                # Convert to UTC for storage
+                dt_utc = dt_ist.astimezone(timezone.utc)
+                return dt_utc
+            except ImportError:
+                # Fallback if pytz not available
+                dt = timezone.datetime.combine(self.interview_date, self.end_time)
+                return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
         return None
 
     def save(self, *args, **kwargs):
@@ -144,14 +170,10 @@ class InterviewSlot(models.Model):
         if not self.interview_date or not self.start_time:
             return False
 
-        # Combine date and time to create full datetime for comparison
-        slot_datetime = timezone.datetime.combine(self.interview_date, self.start_time)
-        # Make it timezone-aware
-        slot_datetime = (
-            timezone.make_aware(slot_datetime)
-            if timezone.is_naive(slot_datetime)
-            else slot_datetime
-        )
+        # Use get_full_start_datetime() which handles IST timezone correctly
+        slot_datetime = self.get_full_start_datetime()
+        if not slot_datetime:
+            return False
 
         return (
             self.status == self.Status.AVAILABLE

@@ -191,3 +191,58 @@ def delete_pdf_from_gcs(file_path: str) -> bool:
         print(f"❌ Error deleting from GCS: {e}")
         return False
 
+
+def upload_video_to_gcs(video_file_path: str, gcs_file_path: str, content_type: str = 'video/mp4') -> Optional[str]:
+    """
+    Upload video file to Google Cloud Storage
+    
+    Args:
+        video_file_path: Local path to video file
+        gcs_file_path: Path within bucket (e.g., 'videos/interview_123.mp4')
+        content_type: MIME type (default: 'video/mp4')
+    
+    Returns:
+        GCS public URL if successful, None otherwise
+    """
+    if not GCS_AVAILABLE:
+        print("⚠️ GCS not available, skipping video upload")
+        return None
+    
+    bucket_name = get_gcs_bucket_name()
+    if not bucket_name:
+        print("⚠️ GCS_BUCKET_NAME not configured, skipping video upload")
+        return None
+    
+    import os
+    if not os.path.exists(video_file_path):
+        print(f"⚠️ Video file not found: {video_file_path}")
+        return None
+    
+    try:
+        client = get_gcs_client()
+        if not client:
+            return None
+        
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(gcs_file_path)
+        
+        # Upload video file
+        blob.upload_from_filename(video_file_path, content_type=content_type)
+        
+        # Make blob publicly readable
+        blob.make_public()
+        
+        # Get public URL
+        public_url = blob.public_url
+        print(f"✅ Video uploaded to GCS: {public_url}")
+        return public_url
+        
+    except GoogleCloudError as e:
+        print(f"❌ GCS video upload error: {e}")
+        return None
+    except Exception as e:
+        print(f"❌ Error uploading video to GCS: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+

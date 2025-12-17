@@ -102,7 +102,7 @@ def generate_proctoring_pdf(evaluation, output_path=None):
         if hasattr(evaluation, 'created_at') and evaluation.created_at:
             pdf.cell(0, 5, f"Interview Date: {evaluation.created_at.strftime('%Y-%m-%d %H:%M:%S')}", ln=1, align="L")
         else:
-            from django.utils import timezone
+            # Use module-level timezone import (already imported at top)
             pdf.cell(0, 5, f"Report Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=1, align="L")
         
         pdf.cell(0, 5, f"Total Warnings: {len(warnings)}", ln=1, align="L")

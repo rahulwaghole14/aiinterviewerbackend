@@ -324,19 +324,19 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 technical_analysis = technical_response.text if technical_response.text else "Analysis unavailable"
                 
                 pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 7, _sanitize_for_pdf("Technical Interview Analysis"), ln=True)
+                pdf.cell(usable_width, 7, _sanitize_for_pdf("Technical Interview Analysis"), ln=True)
                 pdf.ln(2)
                 pdf.set_font("Arial", size=10)
                 analysis_text = _sanitize_for_pdf(_wrap_long_words(technical_analysis, max_len=70))
                 try:
-                    pdf.multi_cell(0, 5, analysis_text, align='L')
+                    pdf.multi_cell(usable_width, 5, analysis_text, align='L')
                 except:
-                    pdf.cell(0, 5, _sanitize_for_pdf(technical_analysis[:500] + "..."), ln=True)
+                    pdf.cell(usable_width, 5, _sanitize_for_pdf(technical_analysis[:500] + "..."), ln=True)
                 pdf.ln(5)
             except Exception as e:
                 print(f"⚠️ Error generating technical analysis: {e}")
                 pdf.set_font("Arial", "I", 11)
-                pdf.cell(0, 6, _sanitize_for_pdf("Technical analysis unavailable"), ln=True)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Technical analysis unavailable"), ln=True)
         
         # Generate Gemini analysis for coding round
         if coding_submissions.exists():

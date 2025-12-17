@@ -128,15 +128,16 @@ class InterviewSlot(models.Model):
             try:
                 import pytz
                 ist = pytz.timezone('Asia/Kolkata')
+                utc = pytz.UTC
                 # Combine date and time as naive datetime
                 dt_naive = datetime.combine(self.interview_date, self.start_time)
                 # Localize to IST
                 dt_ist = ist.localize(dt_naive)
                 # Convert to UTC for storage
-                dt_utc = dt_ist.astimezone(timezone.utc)
+                dt_utc = dt_ist.astimezone(utc)
                 return dt_utc
             except ImportError:
-                # Fallback if pytz not available
+                # Fallback if pytz not available - use Django's timezone
                 dt = timezone.datetime.combine(self.interview_date, self.start_time)
                 return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
         return None
@@ -148,15 +149,16 @@ class InterviewSlot(models.Model):
             try:
                 import pytz
                 ist = pytz.timezone('Asia/Kolkata')
+                utc = pytz.UTC
                 # Combine date and time as naive datetime
                 dt_naive = datetime.combine(self.interview_date, self.end_time)
                 # Localize to IST
                 dt_ist = ist.localize(dt_naive)
                 # Convert to UTC for storage
-                dt_utc = dt_ist.astimezone(timezone.utc)
+                dt_utc = dt_ist.astimezone(utc)
                 return dt_utc
             except ImportError:
-                # Fallback if pytz not available
+                # Fallback if pytz not available - use Django's timezone
                 dt = timezone.datetime.combine(self.interview_date, self.end_time)
                 return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
         return None

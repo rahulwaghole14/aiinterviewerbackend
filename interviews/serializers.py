@@ -714,10 +714,16 @@ class InterviewSerializer(serializers.ModelSerializer):
                             # This ensures all questions have corresponding answers displayed
                             if not questions_by_order[order_key]['interviewee']:
                                 questions_by_order[order_key]['interviewee'] = q
+                                print(f"✅ Added INTERVIEWEE record to order {order_key}: {q.transcribed_answer[:50] if q.transcribed_answer else 'No answer'}...")
                             else:
                                 # If there's already an interviewee record, prefer the one with transcribed_answer
                                 if q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
                                     questions_by_order[order_key]['interviewee'] = q
+                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} with one that has answer: {q.transcribed_answer[:50]}...")
+                                elif q.transcribed_answer and len(q.transcribed_answer) > len(questions_by_order[order_key]['interviewee'].transcribed_answer or ''):
+                                    # Prefer longer answer if both have answers
+                                    questions_by_order[order_key]['interviewee'] = q
+                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} with longer answer: {q.transcribed_answer[:50]}...")
                 elif q.question_text and q.question_text.strip():
                     # Old format: question_text exists, treat as AI question
                     # But check role first - if role is INTERVIEWEE, it's a candidate question

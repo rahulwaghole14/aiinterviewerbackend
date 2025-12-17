@@ -125,31 +125,38 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
         # Get coding submissions
         coding_submissions = CodeSubmission.objects.filter(session=session).order_by('created_at')
         
-        # Create PDF
+        # Create PDF with proper margins to prevent content overflow
         pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_auto_page_break(auto=True, margin=20)  # Increased bottom margin
         pdf.add_page()
-        pdf.set_left_margin(15)
-        pdf.set_right_margin(15)
+        # Set margins: left, top, right (in mm)
+        pdf.set_left_margin(20)  # Increased from 15 to 20mm
+        pdf.set_right_margin(20)  # Increased from 15 to 20mm
+        pdf.set_top_margin(20)  # Set top margin
+        pdf.set_auto_page_break(auto=True, margin=20)  # Ensure bottom margin
+        
+        # Calculate usable width (page width - left margin - right margin)
+        # Standard A4 page width is 210mm
+        usable_width = 210 - 20 - 20  # 170mm usable width
         
         # === HEADER ===
         pdf.set_font("Arial", "B", 18)
-        pdf.cell(0, 12, _sanitize_for_pdf("AI Interview Report"), ln=True, align='C')
+        pdf.cell(usable_width, 12, _sanitize_for_pdf("AI Interview Report"), ln=True, align='C')
         pdf.ln(5)
         
         # === CANDIDATE INFO ===
         pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 8, _sanitize_for_pdf("Candidate Information"), ln=True)
+        pdf.cell(usable_width, 8, _sanitize_for_pdf("Candidate Information"), ln=True)
         pdf.set_font("Arial", size=11)
-        pdf.cell(0, 6, _sanitize_for_pdf(f"Name: {session.candidate_name}"), ln=True)
-        pdf.cell(0, 6, _sanitize_for_pdf(f"Email: {session.candidate_email or 'N/A'}"), ln=True)
-        pdf.cell(0, 6, _sanitize_for_pdf(f"Date: {session.created_at.strftime('%Y-%m-%d %H:%M')}"), ln=True)
-        pdf.cell(0, 6, _sanitize_for_pdf(f"Session ID: {session.id}"), ln=True)
+        pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Name: {session.candidate_name}"), ln=True)
+        pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Email: {session.candidate_email or 'N/A'}"), ln=True)
+        pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Date: {session.created_at.strftime('%Y-%m-%d %H:%M')}"), ln=True)
+        pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Session ID: {session.id}"), ln=True)
         pdf.ln(8)
         
         # === TECHNICAL Q&A SECTION ===
         pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 8, _sanitize_for_pdf("Technical Q&A Transcript"), ln=True)
+        pdf.cell(usable_width, 8, _sanitize_for_pdf("Technical Q&A Transcript"), ln=True)
         pdf.ln(3)
         
         if ai_session and ai_session.conversation_history:
@@ -161,31 +168,37 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 # Role header
                 pdf.set_font("Arial", "B", 11)
                 try:
-                    pdf.multi_cell(0, 6, _sanitize_for_pdf(role + ":"), align='L')
+                    pdf.multi_cell(usable_width, 6, _sanitize_for_pdf(role + ":"), align='L')
                 except:
-                    pdf.cell(0, 6, _sanitize_for_pdf(role + ":"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(role + ":"), ln=True)
                 
                 # Message text
                 pdf.set_font("Arial", size=10)  # Slightly smaller for better fit
                 safe_text = _sanitize_for_pdf(_wrap_long_words(text, max_len=60))
                 try:
-                    pdf.multi_cell(0, 5, safe_text, align='L')
+                    pdf.multi_cell(usable_width, 5, safe_text, align='L')
                 except Exception as e:
                     # Fallback: truncate and use cell instead
                     truncated = safe_text[:200] + "..." if len(safe_text) > 200 else safe_text
-                    pdf.cell(0, 5, truncated, ln=True)
+                    pdf.cell(usable_width, 5, truncated, ln=True)
                 pdf.ln(2)
         else:
             pdf.set_font("Arial", "I", 11)
-            pdf.cell(0, 6, _sanitize_for_pdf("No Q&A transcript available"), ln=True)
+            pdf.cell(usable_width, 6, _sanitize_for_pdf("No Q&A transcript available"), ln=True)
         
         pdf.ln(5)
         
         # === CODING ROUND SECTION ===
         if coding_submissions.exists():
             pdf.add_page()  # New page for coding
+            # Reset margins on new page
+            pdf.set_left_margin(20)
+            pdf.set_right_margin(20)
+            pdf.set_top_margin(20)
+            usable_width = 210 - 20 - 20  # Recalculate for new page
+            
             pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 8, _sanitize_for_pdf("Coding Challenge Results"), ln=True)
+            pdf.cell(usable_width, 8, _sanitize_for_pdf("Coding Challenge Results"), ln=True)
             pdf.ln(3)
             
             for idx, submission in enumerate(coding_submissions, 1):
@@ -199,14 +212,14 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 
                 # Challenge header
                 pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 7, _sanitize_for_pdf(f"Challenge {idx}: {question_text[:60]}"), ln=True)
+                pdf.cell(usable_width, 7, _sanitize_for_pdf(f"Challenge {idx}: {question_text[:60]}"), ln=True)
                 pdf.ln(2)
                 
                 # Language and status
                 pdf.set_font("Arial", size=11)
-                pdf.cell(0, 6, _sanitize_for_pdf(f"Language: {submission.language}"), ln=True)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Language: {submission.language}"), ln=True)
                 status_text = "All Tests Passed" if submission.passed_all_tests else "Some Tests Failed"
-                pdf.cell(0, 6, _sanitize_for_pdf(f"Status: {status_text}"), ln=True)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Status: {status_text}"), ln=True)
                 pdf.ln(2)
                 
                 # Gemini evaluation if available
@@ -216,51 +229,57 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     total_tests = submission.gemini_evaluation.get('total_tests', 0)
                     
                     pdf.set_font("Arial", "B", 11)
-                    pdf.cell(0, 6, _sanitize_for_pdf(f"AI Score: {gemini_score}/100"), ln=True)
-                    pdf.cell(0, 6, _sanitize_for_pdf(f"Tests Passed: {passed_tests}/{total_tests}"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"AI Score: {gemini_score}/100"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Tests Passed: {passed_tests}/{total_tests}"), ln=True)
                     pdf.ln(2)
                 
                 # Submitted code
                 pdf.set_font("Arial", "B", 11)
-                pdf.cell(0, 6, _sanitize_for_pdf("Submitted Code:"), ln=True)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Submitted Code:"), ln=True)
                 pdf.set_font("Courier", size=8)  # Smaller font for code
                 code_lines = submission.submitted_code.split('\n')[:30]  # Limit to 30 lines
                 for line in code_lines:
                     safe_line = _sanitize_for_pdf(_wrap_long_words(line, max_len=80))  # Wrap long lines
                     try:
-                        pdf.multi_cell(0, 4, safe_line, align='L')
+                        pdf.multi_cell(usable_width, 4, safe_line, align='L')
                     except Exception as e:
                         # Skip lines that are too long to render
                         pdf.set_font("Arial", "I", 8)
-                        pdf.cell(0, 4, _sanitize_for_pdf("... (line too long to display)"), ln=True)
+                        pdf.cell(usable_width, 4, _sanitize_for_pdf("... (line too long to display)"), ln=True)
                         pdf.set_font("Courier", size=8)
                 
                 if len(submission.submitted_code.split('\n')) > 30:
                     pdf.set_font("Arial", "I", 9)
-                    pdf.cell(0, 5, _sanitize_for_pdf("... (code truncated)"), ln=True)
+                    pdf.cell(usable_width, 5, _sanitize_for_pdf("... (code truncated)"), ln=True)
                 
                 pdf.ln(3)
                 
                 # Test results / Output log
                 if submission.output_log:
                     pdf.set_font("Arial", "B", 11)
-                    pdf.cell(0, 6, _sanitize_for_pdf("Test Results:"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Test Results:"), ln=True)
                     pdf.set_font("Arial", size=9)
                     log_lines = submission.output_log.split('\n')[:20]  # Limit output
                     for line in log_lines:
                         safe_line = _sanitize_for_pdf(_wrap_long_words(line, max_len=70))
                         try:
-                            pdf.multi_cell(0, 5, safe_line, align='L')
+                            pdf.multi_cell(usable_width, 5, safe_line, align='L')
                         except Exception as e:
                             # Skip lines that cause rendering errors
-                            pdf.cell(0, 5, _sanitize_for_pdf("... (line skipped)"), ln=True)
+                            pdf.cell(usable_width, 5, _sanitize_for_pdf("... (line skipped)"), ln=True)
                 
                 pdf.ln(5)
         
         # === GEMINI AI ANALYSIS ===
         pdf.add_page()
+        # Reset margins on new page
+        pdf.set_left_margin(20)
+        pdf.set_right_margin(20)
+        pdf.set_top_margin(20)
+        usable_width = 210 - 20 - 20  # Recalculate for new page
+        
         pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 8, _sanitize_for_pdf("AI Analysis & Evaluation"), ln=True)
+        pdf.cell(usable_width, 8, _sanitize_for_pdf("AI Analysis & Evaluation"), ln=True)
         pdf.ln(3)
         
         # Generate Gemini analysis for technical Q&A
@@ -361,38 +380,38 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 coding_analysis = coding_response.text if coding_response.text else "Analysis unavailable"
                 
                 pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 7, _sanitize_for_pdf("Coding Challenge Analysis"), ln=True)
+                pdf.cell(usable_width, 7, _sanitize_for_pdf("Coding Challenge Analysis"), ln=True)
                 pdf.ln(2)
                 pdf.set_font("Arial", size=10)
                 analysis_text = _sanitize_for_pdf(_wrap_long_words(coding_analysis, max_len=70))
                 try:
-                    pdf.multi_cell(0, 5, analysis_text, align='L')
+                    pdf.multi_cell(usable_width, 5, analysis_text, align='L')
                 except:
-                    pdf.cell(0, 5, _sanitize_for_pdf(coding_analysis[:500] + "..."), ln=True)
+                    pdf.cell(usable_width, 5, _sanitize_for_pdf(coding_analysis[:500] + "..."), ln=True)
             except Exception as e:
                 print(f"⚠️ Error generating coding analysis: {e}")
                 pdf.set_font("Arial", "I", 11)
-                pdf.cell(0, 6, _sanitize_for_pdf("Coding analysis unavailable"), ln=True)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Coding analysis unavailable"), ln=True)
         
         # === OVERALL EVALUATION ===
         if session.overall_performance_feedback or session.overall_performance_score:
             pdf.ln(5)
             pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 7, _sanitize_for_pdf("Overall Performance Summary"), ln=True)
+            pdf.cell(usable_width, 7, _sanitize_for_pdf("Overall Performance Summary"), ln=True)
             pdf.ln(2)
             
             if session.overall_performance_score:
                 pdf.set_font("Arial", "B", 11)
-                pdf.cell(0, 6, _sanitize_for_pdf(f"Overall Score: {session.overall_performance_score:.1f}/100"), ln=True)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Overall Score: {session.overall_performance_score:.1f}/100"), ln=True)
                 pdf.ln(2)
             
             if session.overall_performance_feedback:
                 pdf.set_font("Arial", size=10)
                 feedback_text = _sanitize_for_pdf(_wrap_long_words(session.overall_performance_feedback))
                 try:
-                    pdf.multi_cell(0, 6, feedback_text, align='L')
+                    pdf.multi_cell(usable_width, 6, feedback_text, align='L')
                 except:
-                    pdf.cell(0, 6, _sanitize_for_pdf(feedback_text[:300] + "..."), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(feedback_text[:300] + "..."), ln=True)
         
         # Generate PDF bytes
         data = pdf.output(dest='S')

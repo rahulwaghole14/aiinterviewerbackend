@@ -421,8 +421,16 @@ class ChatBotManager:
     def transcript_pdf_bytes(self, session_id: str) -> bytes:
         try:
             from fpdf2 import FPDF  # type: ignore
-        except Exception:
-            return b""
+        except ImportError as e:
+            print(f"❌ fpdf2 import failed in transcript_pdf_bytes: {e}")
+            try:
+                from fpdf import FPDF  # type: ignore
+                print("✅ Using fpdf (fallback) for transcript PDF generation")
+            except ImportError as e2:
+                print(f"❌ fpdf import also failed: {e2}")
+                import traceback
+                traceback.print_exc()
+                return b""
 
         if not session_id or session_id not in self.sessions:
             return b""

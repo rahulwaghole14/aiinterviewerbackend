@@ -7,14 +7,24 @@ from datetime import datetime
 from django.conf import settings
 from django.utils import timezone
 from PIL import Image
+# Import FPDF at module level with fallback
+FPDF = None
 try:
-    from fpdf2 import FPDF
+    from fpdf2 import FPDF as FPDF2
+    FPDF = FPDF2
     print("✅ Using fpdf2 for proctoring PDF generation")
-except ImportError:
-    FPDF = None
-    print("❌ fpdf2 is not available. Install with: pip install fpdf2")
-    import traceback
-    traceback.print_exc()
+except ImportError as e:
+    print(f"❌ fpdf2 import failed: {e}")
+    try:
+        # Fallback to fpdf (older package)
+        from fpdf import FPDF as FPDF1
+        FPDF = FPDF1
+        print("✅ Using fpdf (fallback) for proctoring PDF generation")
+    except ImportError as e2:
+        print(f"❌ fpdf import also failed: {e2}")
+        print("   Please ensure fpdf2 is installed: pip install fpdf2")
+        import traceback
+        traceback.print_exc()
 
 
 def generate_proctoring_pdf(evaluation, output_path=None):
@@ -28,6 +38,26 @@ def generate_proctoring_pdf(evaluation, output_path=None):
     Returns:
         str: Relative path to generated PDF file (for URL generation)
     """
+    # Try to import FPDF at runtime if not already imported
+    global FPDF
+    if FPDF is None:
+        try:
+            from fpdf2 import FPDF as FPDF2
+            FPDF = FPDF2
+            print("✅ Runtime import: Using fpdf2 for proctoring PDF generation")
+        except ImportError as e:
+            print(f"❌ Runtime fpdf2 import failed: {e}")
+            try:
+                from fpdf import FPDF as FPDF1
+                FPDF = FPDF1
+                print("✅ Runtime import: Using fpdf (fallback) for proctoring PDF generation")
+            except ImportError as e2:
+                print(f"❌ Runtime fpdf import also failed: {e2}")
+                print("   Please ensure fpdf2 is installed: pip install fpdf2")
+                import traceback
+                traceback.print_exc()
+                return None
+    
     if FPDF is None:
         print("❌ FPDF not available - neither fpdf2 nor fpdf could be imported")
         print("   Please ensure fpdf2 is installed: pip install fpdf2")

@@ -462,6 +462,16 @@ Be specific, constructive, and professional. Base your scores on the actual cont
                 if match:
                     result[key] = match.group(1).strip()
             
+            # CRITICAL: If coding submissions exist but coding_analysis is empty or says "No coding challenges",
+            # generate a fallback analysis from the coding submissions
+            if coding_submissions and (not result.get('coding_analysis') or 
+                                      'no coding challenges' in result.get('coding_analysis', '').lower()):
+                print(f"⚠️ Coding submissions exist but AI didn't analyze them. Generating fallback analysis...")
+                fallback_analysis = self._generate_coding_analysis_fallback(coding_submissions)
+                if fallback_analysis:
+                    result['coding_analysis'] = fallback_analysis
+                    print(f"✅ Generated fallback coding analysis: {fallback_analysis[:100]}...")
+            
             # Extract recommendation
             recommendation_match = re.search(r'=== RECOMMENDATION ===\s*(STRONG_HIRE|HIRE|MAYBE|NO_HIRE)', response_text, re.IGNORECASE)
             if recommendation_match:
@@ -575,6 +585,36 @@ Be specific, constructive, and professional. Base your scores on the actual cont
         correct_count = int(score_ratio * total_questions)
         
         return max(0, min(correct_count, total_questions))
+    
+    def _generate_coding_analysis_fallback(self, coding_submissions: list) -> str:
+        """Generate a fallback coding analysis when AI doesn't provide one"""
+        if not coding_submissions:
+            return "No coding challenges were part of this interview."
+        
+        analysis_parts = []
+        total_challenges = len(coding_submissions)
+        passed_challenges = sum(1 for sub in coding_submissions if sub.get('passed_all_tests', False))
+        languages_used = list(set([sub.get('language', 'Unknown') for sub in coding_submissions if sub.get('language')]))
+        
+        analysis_parts.append(f"The candidate completed {total_challenges} coding challenge(s).")
+        
+        if passed_challenges > 0:
+            analysis_parts.append(f"{passed_challenges} out of {total_challenges} challenge(s) passed all test cases.")
+        else:
+            analysis_parts.append("No challenges passed all test cases.")
+        
+        if languages_used:
+            analysis_parts.append(f"Languages used: {', '.join(languages_used)}.")
+        
+        # Add details about each submission
+        for i, sub in enumerate(coding_submissions, 1):
+            passed = sub.get('passed_tests', 0)
+            total = sub.get('total_tests', 0)
+            language = sub.get('language', 'Unknown')
+            if total > 0:
+                analysis_parts.append(f"Challenge {i} ({language}): {passed}/{total} tests passed.")
+        
+        return " ".join(analysis_parts)
 
 
 # Create a singleton instance for backward compatibility

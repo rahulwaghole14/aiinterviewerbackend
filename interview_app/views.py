@@ -76,21 +76,18 @@ from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
 from django.core.mail import send_mail
 # WeasyPrint import with fallback (optional dependency)
-try:
-    # WeasyPrint import - make it optional to avoid startup failures if system libraries are missing
+# WeasyPrint requires system libraries (pango, cairo, etc.) which may not be available
+# Make it optional so the app can start even if WeasyPrint dependencies are missing
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
+    print("✅ WeasyPrint imported successfully")
 except (ImportError, OSError) as e:
     WEASYPRINT_AVAILABLE = False
     HTML = None
     print(f"⚠️ WeasyPrint not available (optional): {e}")
     print("   PDF generation will use fpdf2 instead")
-    WEASYPRINT_AVAILABLE = True
-except ImportError:
-    HTML = None
-    WEASYPRINT_AVAILABLE = False
-    print("⚠️ Warning: weasyprint not available. PDF generation features will be disabled.")
+    print("   This is normal if system libraries (pango, cairo) are not installed")
 
 # from .camera import VideoCamera
 # from .simple_camera import SimpleVideoCamera as VideoCamera

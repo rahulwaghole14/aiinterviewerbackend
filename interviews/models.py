@@ -396,10 +396,13 @@ class Interview(models.Model):
 
         session_key = uuid.uuid4().hex
 
-        # Set expiration to 2 hours after interview end time
-        self.link_expires_at = (
-            self.ended_at + timedelta(hours=2) if self.ended_at else None
-        )
+        # Set expiration to 24 hours after interview end time (or 24 hours from now if no end time)
+        if self.ended_at:
+            self.link_expires_at = self.ended_at + timedelta(hours=24)
+        elif self.started_at:
+            self.link_expires_at = self.started_at + timedelta(hours=24)
+        else:
+            self.link_expires_at = timezone.now() + timedelta(hours=24)
         self.interview_link = link_token
         self.session_key = session_key
         self.save()
@@ -466,20 +469,29 @@ class Interview(models.Model):
         if self.link_expires_at and timezone.now() > self.link_expires_at:
             return False, "Interview link has expired"
 
-        # Check if it's within the interview window (15 minutes before to 2 hours after)
+        # Check if it's within the interview window (15 minutes before to 24 hours after)
         now = timezone.now()
         if self.started_at and self.ended_at:
             interview_start = self.started_at - timedelta(minutes=15)
-            interview_end = self.ended_at + timedelta(hours=2)
+            # Allow access up to 24 hours after interview ends
+            interview_end = self.ended_at + timedelta(hours=24)
 
             if now < interview_start:
+                # Format time in IST for better user experience
+                try:
+                    import pytz
+                    ist = pytz.timezone('Asia/Kolkata')
+                    started_at_ist = self.started_at.astimezone(ist)
+                    time_str = started_at_ist.strftime('%B %d, %Y at %I:%M %p IST')
+                except:
+                    time_str = self.started_at.strftime('%B %d, %Y at %I:%M %p')
                 return (
                     False,
-                    f"Interview hasn't started yet. Please join at {self.started_at.strftime('%B %d, %Y at %I:%M %p')}",
+                    f"Interview hasn't started yet. Please join at {time_str}",
                 )
 
             if now > interview_end:
-                return False, "Interview has ended"
+                return False, "Interview link has expired (valid for 24 hours after interview end)"
 
         return True, "Link is valid"
 

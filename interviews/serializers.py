@@ -943,6 +943,8 @@ class InterviewSerializer(serializers.ModelSerializer):
                     # Method 2: Try to find interviewee response by order, role, and question_level
                     if not answer_text or (answer_text and answer_text.strip() == ''):
                         try:
+                            print(f"🔍 Method 2: Searching for interviewee response for order {ai_q.order}, question ID {ai_q.id}...")
+                            
                             # First try: exact match by order, role, and question_level
                             missed_interviewee = InterviewQuestion.objects.filter(
                                 session=session,
@@ -950,6 +952,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 role='INTERVIEWEE',
                                 question_level='INTERVIEWEE_RESPONSE'
                             ).first()
+                            
+                            if missed_interviewee:
+                                print(f"✅ Method 2.1: Found by exact match (order={ai_q.order}, role=INTERVIEWEE, level=INTERVIEWEE_RESPONSE)")
                             
                             # Second try: if not found, try by order and role only (ignore question_level)
                             if not missed_interviewee:
@@ -960,6 +965,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 ).exclude(
                                     question_level='CANDIDATE_QUESTION'  # Exclude candidate questions
                                 ).first()
+                                
+                                if missed_interviewee:
+                                    print(f"✅ Method 2.2: Found by order and role (order={ai_q.order}, role=INTERVIEWEE)")
                             
                             # Third try: if still not found, try by conversation_sequence (even sequence = interviewee)
                             if not missed_interviewee and ai_q.conversation_sequence is not None:
@@ -971,6 +979,21 @@ class InterviewSerializer(serializers.ModelSerializer):
                                     conversation_sequence=interviewee_sequence,
                                     role='INTERVIEWEE'
                                 ).first()
+                                
+                                if missed_interviewee:
+                                    print(f"✅ Method 2.3: Found by conversation_sequence (seq={interviewee_sequence})")
+                            
+                            # Fourth try: find any INTERVIEWEE record with same order (most permissive)
+                            if not missed_interviewee:
+                                all_interviewees = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    order=ai_q.order,
+                                    role='INTERVIEWEE'
+                                ).order_by('-id')  # Get most recent
+                                
+                                if all_interviewees.exists():
+                                    missed_interviewee = all_interviewees.first()
+                                    print(f"✅ Method 2.4: Found by order only (order={ai_q.order}, found {all_interviewees.count()} records, using most recent)")
                             
                             if missed_interviewee:
                                 answer_text = missed_interviewee.transcribed_answer or ''
@@ -979,6 +1002,16 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 created_at = missed_interviewee.session.created_at if hasattr(missed_interviewee.session, 'created_at') else None
                                 response_time = missed_interviewee.response_time_seconds or 0
                                 print(f"✅ Found missed interviewee response for order {ai_q.order} (sequence {missed_interviewee.conversation_sequence}): {answer_text[:50] if answer_text else 'No answer'}...")
+                            else:
+                                print(f"⚠️ Method 2: No interviewee response found for order {ai_q.order}, question ID {ai_q.id}")
+                                # Log all interviewee records for this session to help debug
+                                all_interviewees = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    role='INTERVIEWEE'
+                                ).order_by('order', 'conversation_sequence')
+                                print(f"   Total INTERVIEWEE records in session: {all_interviewees.count()}")
+                                for ir in all_interviewees[:10]:  # Show first 10
+                                    print(f"   - Order {ir.order}, Seq {ir.conversation_sequence}, Level {ir.question_level}, Answer: {ir.transcribed_answer[:30] if ir.transcribed_answer else '(NULL)'}...")
                         except Exception as e:
                             print(f"⚠️ Error looking for missed interviewee response: {e}")
                             import traceback

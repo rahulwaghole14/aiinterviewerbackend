@@ -77,7 +77,15 @@ from django.utils.safestring import mark_safe
 from django.core.mail import send_mail
 # WeasyPrint import with fallback (optional dependency)
 try:
+    # WeasyPrint import - make it optional to avoid startup failures if system libraries are missing
+try:
     from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError) as e:
+    WEASYPRINT_AVAILABLE = False
+    HTML = None
+    print(f"⚠️ WeasyPrint not available (optional): {e}")
+    print("   PDF generation will use fpdf2 instead")
     WEASYPRINT_AVAILABLE = True
 except ImportError:
     HTML = None

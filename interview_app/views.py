@@ -218,6 +218,46 @@ def release_camera_for_session(session_key, audio_file_path=None):
                     session.interview_video = video_path
                     session.save()
                     print(f"✅ Video path saved to InterviewSession: {video_path}")
+                    
+                    # Upload video to Google Cloud Storage if configured
+                    try:
+                        from .gcs_storage import upload_video_to_gcs
+                        import os
+                        from django.utils import timezone
+                        
+                        # Get full path to video file
+                        if os.path.isabs(video_path):
+                            video_full_path = video_path
+                        else:
+                            video_full_path = os.path.join(settings.MEDIA_ROOT, video_path.lstrip('/'))
+                        
+                        if os.path.exists(video_full_path):
+                            # Generate GCS file path
+                            video_filename = os.path.basename(video_full_path)
+                            gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
+                            
+                            # Determine content type based on file extension
+                            content_type = 'video/mp4'
+                            if video_filename.lower().endswith('.webm'):
+                                content_type = 'video/webm'
+                            elif video_filename.lower().endswith('.mov'):
+                                content_type = 'video/quicktime'
+                            
+                            # Upload to GCS
+                            gcs_video_url = upload_video_to_gcs(video_full_path, gcs_video_path, content_type)
+                            if gcs_video_url:
+                                print(f"✅ Video uploaded to GCS: {gcs_video_url}")
+                                # Store GCS URL in video_gcs_url field
+                                session.video_gcs_url = gcs_video_url
+                                session.save(update_fields=['video_gcs_url'])
+                                print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                        else:
+                            print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
+                    except Exception as gcs_error:
+                        print(f"⚠️ Error uploading video to GCS (non-critical): {gcs_error}")
+                        import traceback
+                        traceback.print_exc()
+                        
                 except Exception as e:
                     print(f"❌ Error saving video path to InterviewSession: {e}")
             
@@ -4996,6 +5036,21 @@ def ai_upload_answer(request):
                             question_type_label = 'pre-closing' if is_pre_closing else 'closing' if is_closing_question else 'regular'
                             print(f"✅ Created new AI {question_type_label} question: conversation_sequence {ai_sequence}, role=AI, order {new_order}: {next_question_text[:50]}...")
                             
+                            # CRITICAL: Recalculate question_number from database AFTER saving the question
+                            # This ensures accurate sequential numbering: 1, 2, 3, 4...
+                            existing_main_questions = InterviewQuestion.objects.filter(
+                                session=django_session,
+                                role='AI',
+                                question_level='MAIN'  # Only count MAIN questions
+                            ).exclude(
+                                question_type='CODING'  # Exclude coding questions
+                            ).count()
+                            
+                            # Update both the AI session and the result with the correct question_number
+                            ai_session.current_question_number = existing_main_questions
+                            result['question_number'] = existing_main_questions
+                            print(f"📊 Question numbering (after save): Found {existing_main_questions} MAIN questions in database, updated question_number={existing_main_questions}")
+                            
                             # If interview is completed and we just created the closing question,
                             # OR if this is a pre-closing/closing question, try to save the answer if transcript is available
                             if result.get('completed') or is_closing_question or is_pre_closing:
@@ -5018,12 +5073,36 @@ def ai_upload_answer(request):
                 except Exception as e:
                     print(f"⚠️ Error creating question in database: {e}")
         
+        # CRITICAL: Before returning, recalculate question_number from database to ensure accuracy
+        # This handles cases where question was saved but question_number wasn't updated
+        if 'error' not in result and not result.get('completed') and session_id and session_id in sessions:
+            ai_session = sessions[session_id]
+            if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
+                try:
+                    django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
+                    # Count MAIN questions (excluding CODING) to get accurate question number
+                    existing_main_questions = InterviewQuestion.objects.filter(
+                        session=django_session,
+                        role='AI',
+                        question_level='MAIN'
+                    ).exclude(
+                        question_type='CODING'
+                    ).count()
+                    
+                    # Update question_number in result and session
+                    result['question_number'] = existing_main_questions
+                    ai_session.current_question_number = existing_main_questions
+                    print(f"📊 Final question_number check: {existing_main_questions} MAIN questions, question_number={existing_main_questions}")
+                except Exception as e:
+                    print(f"⚠️ Error recalculating question_number: {e}")
+        
         if 'error' in result:
             print(f"❌ Error: {result['error']}")
         else:
             print(f"✅ Success - Completed: {result.get('completed', False)}")
             if not result.get('completed'):
                 print(f"✅ Next question: {result.get('next_question', 'N/A')[:100]}...")
+                print(f"✅ Question number: {result.get('question_number', 'N/A')} of {result.get('max_questions', 'N/A')}")
                 print(f"✅ Audio URL: {result.get('audio_url', 'NOT PROVIDED')}")
                 if not result.get('audio_url'):
                     print(f"⚠️ WARNING: No audio URL returned for next question!")

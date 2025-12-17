@@ -5138,7 +5138,10 @@ def ai_transcript_pdf(request):
 
 @csrf_exempt
 def download_proctoring_pdf(request, session_id):
-    """Download proctoring warnings PDF for a given session (from GCS or local)"""
+    """Download proctoring warnings PDF for a given session (from GCS or local)
+    
+    Accepts either interview.id (UUID) or session.id (UUID) as session_id parameter
+    """
     try:
         from .models import InterviewSession
         from evaluation.models import Evaluation
@@ -5147,16 +5150,30 @@ def download_proctoring_pdf(request, session_id):
         from .gcs_storage import download_pdf_from_gcs, get_gcs_signed_url
         import os
         
-        # Get session
+        # Try to get interview first (if session_id is actually interview.id)
+        interview = None
+        session = None
         try:
-            session = InterviewSession.objects.get(id=session_id)
-        except InterviewSession.DoesNotExist:
-            return JsonResponse({'error': 'Session not found'}, status=404)
-        
-        # Get interview
-        try:
-            interview = Interview.objects.get(session_key=session.session_key)
+            interview = Interview.objects.get(id=session_id)
+            # Get session from interview's session_key
+            if interview.session_key:
+                try:
+                    session = InterviewSession.objects.get(session_key=interview.session_key)
+                except InterviewSession.DoesNotExist:
+                    print(f"⚠️ Session not found for interview {interview.id} with session_key {interview.session_key}")
         except Interview.DoesNotExist:
+            # If not found as interview, try as session ID
+            try:
+                session = InterviewSession.objects.get(id=session_id)
+                # Get interview from session
+                try:
+                    interview = Interview.objects.get(session_key=session.session_key)
+                except Interview.DoesNotExist:
+                    print(f"⚠️ Interview not found for session {session_id}")
+            except InterviewSession.DoesNotExist:
+                return JsonResponse({'error': 'Session or Interview not found'}, status=404)
+        
+        if not interview:
             return JsonResponse({'error': 'Interview not found'}, status=404)
         
         # Get evaluation

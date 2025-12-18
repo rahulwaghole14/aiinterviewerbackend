@@ -268,6 +268,13 @@ class InterviewSerializer(serializers.ModelSerializer):
                         # Transform evaluation.details to ai_result format
                         # Get proctoring PDF URL from details
                         proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
+                        proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
+                        
+                        # Ensure GCS URL is absolute (starts with http)
+                        if proctoring_pdf_gcs_url and not proctoring_pdf_gcs_url.startswith('http'):
+                            print(f"   ⚠️ GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
+                            proctoring_pdf_gcs_url = None
+                        
                         if not proctoring_pdf_url:
                             # Try to construct URL from relative path
                             proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
@@ -281,6 +288,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                         proctoring_warnings = evaluation.details.get('proctoring', {}).get('warnings', [])
                         print(f"   - Proctoring warnings count: {len(proctoring_warnings)}")
                         print(f"   - Proctoring PDF URL: {proctoring_pdf_url}")
+                        print(f"   - Proctoring PDF GCS URL: {proctoring_pdf_gcs_url}")
                         
                         # Check if coding score needs to be corrected based on actual test results
                         coding_score = ai_analysis.get('coding_score', 0)
@@ -367,6 +375,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                         'total_completion_time': self._calculate_total_completion_time(evaluation.details, obj),
                         'problem_solving_score': ai_analysis.get('problem_solving_score', (ai_analysis.get('technical_score', 0) + ai_analysis.get('coding_score', 0)) / 2) / 10.0,
                             'proctoring_pdf_url': proctoring_pdf_url,  # Add proctoring PDF URL
+                            'proctoring_pdf_gcs_url': proctoring_pdf_gcs_url,  # Add GCS URL (absolute URL only)
                             'proctoring_warnings': proctoring_warnings,  # Add proctoring warnings
                         }
                         print(f"✅ Returning AI result with {len(proctoring_warnings)} proctoring warnings")
@@ -1469,6 +1478,12 @@ class InterviewSerializer(serializers.ModelSerializer):
                     pass
             
             # Return video URL if session exists and has video
+            # Priority 1: Check for GCS URL (preferred)
+            if session and session.video_gcs_url:
+                print(f"✅ Returning GCS video URL: {session.video_gcs_url}")
+                return session.video_gcs_url
+            
+            # Priority 2: Check for local video file
             if session and session.interview_video:
                 # Verify the video file actually exists and is a merged video
                 try:

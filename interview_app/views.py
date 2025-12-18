@@ -5357,9 +5357,19 @@ def download_proctoring_pdf(request, session_id):
                                     response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
                                     return response
                         except Exception as e:
-                            print(f"⚠️ Error downloading from GCS: {e}, falling back to redirect")
-                        # Fallback: redirect to GCS URL
-                        return HttpResponseRedirect(gcs_url)
+                            print(f"⚠️ Error downloading from GCS: {e}")
+                        
+                        # Fallback: fetch directly from GCS URL using urllib
+                        if gcs_url:
+                            try:
+                                from urllib.request import urlopen
+                                with urlopen(gcs_url, timeout=10) as response:
+                                    pdf_bytes = response.read()
+                                    http_response = HttpResponse(pdf_bytes, content_type='application/pdf')
+                                    http_response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
+                                    return http_response
+                            except Exception as fetch_error:
+                                print(f"⚠️ Error fetching PDF from GCS URL: {fetch_error}")
         
         if not proctoring_pdf_path:
             return JsonResponse({'error': 'Proctoring PDF not found. No warnings were detected during the interview.'}, status=404)
@@ -7031,100 +7041,6 @@ def upload_interview_audio(request):
 
 @csrf_exempt
 @require_POST
-def upload_interview_video(request):
-    """Upload complete interview video (camera + microphone + TTS audio)"""
-    try:
-        session_key = request.POST.get('session_key')
-        video_file = request.FILES.get('video')
-        question_timestamps = request.POST.get('question_timestamps', '[]')
-        duration = request.POST.get('duration', '0')
-        
-        if not session_key or not video_file:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Missing required data: session_key and video file'
-            }, status=400)
-        
-        # Get session
-        try:
-            session = InterviewSession.objects.get(session_key=session_key)
-        except InterviewSession.DoesNotExist:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Session not found'
-            }, status=404)
-        
-        # Save video file
-        video_filename = f"interview_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.webm"
-        video_path = session.interview_video.save(video_filename, video_file, save=True)
-        session.save()
-        
-        print(f"✅ Video saved to InterviewSession: {video_path}")
-        
-        # Upload to Google Cloud Storage if configured
-        gcs_video_url = None
-        try:
-            from .gcs_storage import upload_video_to_gcs
-            import os
-            
-            # Get full path to video file
-            if hasattr(session.interview_video, 'path'):
-                video_full_path = session.interview_video.path
-            else:
-                video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
-            
-            if os.path.exists(video_full_path):
-                # Generate GCS file path
-                gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
-                
-                # Determine content type
-                content_type = 'video/webm'
-                if video_filename.lower().endswith('.mp4'):
-                    content_type = 'video/mp4'
-                
-                # Upload to GCS
-                gcs_video_url = upload_video_to_gcs(video_full_path, gcs_video_path, content_type)
-                if gcs_video_url:
-                    print(f"✅ Video uploaded to GCS: {gcs_video_url}")
-                    # Store GCS URL in video_gcs_url field
-                    session.video_gcs_url = gcs_video_url
-                    session.save(update_fields=['video_gcs_url'])
-                    print(f"✅ GCS video URL saved: {gcs_video_url}")
-            else:
-                print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
-        except Exception as gcs_error:
-            print(f"⚠️ Error uploading video to GCS (non-critical): {gcs_error}")
-            import traceback
-            traceback.print_exc()
-        
-        # Parse and store question timestamps if provided
-        try:
-            timestamps = json.loads(question_timestamps) if question_timestamps else []
-            if timestamps:
-                # Store timestamps in session metadata (could use a JSONField if available)
-                print(f"📝 Stored {len(timestamps)} question timestamps for video")
-        except Exception as e:
-            print(f"⚠️ Could not parse question timestamps: {e}")
-        
-        print(f"✅ Interview video saved: {session.interview_video.name} ({video_file.size / 1024 / 1024:.2f} MB)")
-        
-        return JsonResponse({
-            'status': 'success',
-            'message': 'Video uploaded successfully',
-            'video_url': session.interview_video.url if session.interview_video else None,
-            'video_size_mb': round(video_file.size / 1024 / 1024, 2)
-        })
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'status': 'error',
-            'message': f'Error uploading video: {str(e)}'
-        }, status=500)
-
-
-@csrf_exempt
 def upload_interview_video(request):
     """Upload screen recording video and save to GCS"""
     if request.method != 'POST':

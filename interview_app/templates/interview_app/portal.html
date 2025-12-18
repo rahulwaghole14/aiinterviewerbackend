@@ -2262,14 +2262,19 @@
             screenStatusEl.textContent = '✅';
             screenStatusEl.style.color = '#28a745';
             
-            // Stop the stream immediately - we'll start recording later
+            // Stop the test stream immediately - we'll start recording with combined streams
             stream.getTracks().forEach(track => track.stop());
             
-            // Initialize screen recorder
-            screenRecorder = new InterviewScreenRecorder(SESSION_KEY);
+            // Initialize screen recorder if not already initialized
+            if (!screenRecorder) {
+                screenRecorder = new InterviewScreenRecorder(SESSION_KEY);
+            }
             
-            // Start recording
-            await screenRecorder.startRecording();
+            // Start recording (this will request screen, camera, and microphone)
+            const recordingStarted = await screenRecorder.startRecording();
+            if (!recordingStarted) {
+                throw new Error('Failed to start screen recording');
+            }
             
             requestScreenBtn.disabled = false;
             requestScreenBtn.textContent = '🖥️ Request Screen Recording Permission';

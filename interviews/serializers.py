@@ -298,8 +298,11 @@ class InterviewSerializer(serializers.ModelSerializer):
                         print(f"   - Proctoring PDF URL: {proctoring_pdf_url}")
                         print(f"   - Proctoring PDF GCS URL: {proctoring_pdf_gcs_url}")
                         # Ensure proctoring_pdf_url is not set if we have a valid GCS URL (to prevent confusion)
+                        # But keep proctoring_pdf_url if GCS URL is not available (for fallback)
                         if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://'):
-                            proctoring_pdf_url = None  # Don't use proctoring_pdf_url if we have a valid GCS URL
+                            # Use GCS URL as primary, but keep proctoring_pdf_url for backward compatibility
+                            # Don't clear it, just prioritize GCS URL in frontend
+                            pass
                         
                         # Check if coding score needs to be corrected based on actual test results
                         coding_score = ai_analysis.get('coding_score', 0)

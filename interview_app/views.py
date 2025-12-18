@@ -5269,37 +5269,49 @@ def download_proctoring_pdf(request, session_id):
         proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
         
         # If GCS URL exists, extract file path and download from GCS
-        if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
-            print(f"✅ Found GCS URL: {gcs_url}")
-            # Extract file path from GCS URL
-            # URL format: https://storage.googleapis.com/BUCKET_NAME/path/to/file.pdf
-            try:
-                from urllib.parse import urlparse
-                parsed_url = urlparse(gcs_url)
-                # Extract path after bucket name (remove leading /)
-                gcs_file_path = parsed_url.path.lstrip('/')
-                # Remove bucket name from path (first segment)
-                path_parts = gcs_file_path.split('/', 1)
-                if len(path_parts) > 1:
-                    gcs_file_path = path_parts[1]  # Get path after bucket name
-                    print(f"✅ Extracted GCS file path: {gcs_file_path}")
-                    pdf_bytes = download_pdf_from_gcs(gcs_file_path)
-                    if pdf_bytes:
-                        print(f"✅ Downloaded PDF from GCS: {len(pdf_bytes)} bytes")
-                        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                        response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                        return response
-                    else:
-                        print(f"⚠️ Failed to download from GCS, trying direct URL redirect as fallback")
-                        # Fallback: redirect to GCS URL
-                        return HttpResponseRedirect(gcs_url)
+        if gcs_url and isinstance(gcs_url, str):
+            # Normalize GCS URL - ensure it starts with https://
+            if not gcs_url.startswith('http'):
+                # If URL doesn't start with http, it might be a relative path
+                # Try to construct full GCS URL
+                if gcs_url.startswith('storage.googleapis.com'):
+                    gcs_url = f"https://{gcs_url}"
+                elif 'storage.googleapis.com' in gcs_url:
+                    # Already contains domain, just add https://
+                    gcs_url = f"https://{gcs_url.lstrip('/')}"
                 else:
-                    print(f"⚠️ Could not parse GCS URL path, trying redirect")
+                    # Not a valid GCS URL, skip to file path method
+                    gcs_url = None
+            
+            if gcs_url and 'storage.googleapis.com' in gcs_url:
+                print(f"✅ Found GCS URL: {gcs_url}")
+                # Extract file path from GCS URL
+                # URL format: https://storage.googleapis.com/BUCKET_NAME/path/to/file.pdf
+                try:
+                    from urllib.parse import urlparse
+                    parsed_url = urlparse(gcs_url)
+                    # Extract path after bucket name (remove leading /)
+                    gcs_file_path = parsed_url.path.lstrip('/')
+                    # Remove bucket name from path (first segment)
+                    path_parts = gcs_file_path.split('/', 1)
+                    if len(path_parts) > 1:
+                        gcs_file_path = path_parts[1]  # Get path after bucket name
+                        print(f"✅ Extracted GCS file path: {gcs_file_path}")
+                        pdf_bytes = download_pdf_from_gcs(gcs_file_path)
+                        if pdf_bytes:
+                            print(f"✅ Downloaded PDF from GCS: {len(pdf_bytes)} bytes")
+                            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+                            response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
+                            return response
+                    # If download fails, redirect to GCS URL (fallback)
+                    print(f"⚠️ Failed to download from GCS, redirecting to GCS URL")
                     return HttpResponseRedirect(gcs_url)
-            except Exception as e:
-                print(f"⚠️ Error extracting GCS file path: {e}, trying redirect")
-                # Fallback: redirect to GCS URL
-                return HttpResponseRedirect(gcs_url)
+                except Exception as e:
+                    print(f"⚠️ Error extracting GCS file path: {e}, redirecting to GCS URL")
+                    import traceback
+                    traceback.print_exc()
+                    # Fallback: redirect to GCS URL
+                    return HttpResponseRedirect(gcs_url)
         
         # Try to download from GCS using file path
         if proctoring_pdf_path and 'proctoring_pdfs/' in proctoring_pdf_path:

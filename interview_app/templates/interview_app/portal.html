@@ -2303,8 +2303,31 @@
         }
     }
     
-    function proceedToVerification() {
+    async function proceedToVerification() {
         console.log('✅ Proceeding to verification...');
+        
+        // Ensure screen recording is started if screen permission was granted
+        const screenStatusEl = document.getElementById('screen-status');
+        if (screenStatusEl && screenStatusEl.textContent === '✅') {
+            if (!screenRecorder || !screenRecorder.isRecording) {
+                console.log('🖥️ Starting screen recording before proceeding...');
+                if (!screenRecorder) {
+                    screenRecorder = new InterviewScreenRecorder(SESSION_KEY);
+                }
+                try {
+                    const recordingStarted = await screenRecorder.startRecording();
+                    if (recordingStarted) {
+                        console.log('✅ Screen recording started successfully');
+                    } else {
+                        console.warn('⚠️ Screen recording failed to start');
+                    }
+                } catch (err) {
+                    console.error('⚠️ Failed to start screen recording:', err);
+                }
+            } else {
+                console.log('✅ Screen recording already active');
+            }
+        }
         
         // Hide permission check screen and show camera check screen
         const permissionScreen = document.getElementById('permission-check-screen');

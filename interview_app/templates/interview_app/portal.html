@@ -1162,6 +1162,18 @@
                         </div>
                         <div id="network-status" style="font-size: 1.5rem;">⏳</div>
                     </div>
+                    
+                    <!-- Screen Recording Permission -->
+                    <div class="permission-item" id="screen-permission-item" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span style="font-size: 2rem;">🖥️</span>
+                            <div style="text-align: left;">
+                                <h3 style="margin: 0; font-size: 1.2rem; color: var(--text-primary);">Screen Recording</h3>
+                                <p style="margin: 0.3rem 0 0 0; color: var(--text-secondary); font-size: 0.95rem;">Required to record your screen during the interview</p>
+                            </div>
+                        </div>
+                        <div id="screen-status" style="font-size: 1.5rem;">⏳</div>
+                    </div>
                 </div>
                 
                 <div id="permission-error-message" style="display: none; background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 1rem; margin: 1.5rem 0; color: #856404;"></div>
@@ -1733,6 +1745,7 @@
         
         // Permission check button handlers
         const requestBtn = document.getElementById('request-permissions-btn');
+        const requestScreenBtn = document.getElementById('request-screen-permission-btn');
         const proceedBtn = document.getElementById('proceed-to-verification-btn');
         
         if (requestBtn) {
@@ -1744,6 +1757,17 @@
             console.log('✅ Request permissions button handler attached');
         } else {
             console.error('❌ Request permissions button not found!');
+        }
+        
+        if (requestScreenBtn) {
+            requestScreenBtn.addEventListener('click', (e) => {
+                console.log('🖥️ Request Screen Permission button clicked');
+                e.preventDefault();
+                requestScreenPermission();
+            });
+            console.log('✅ Request screen permission button handler attached');
+        } else {
+            console.warn('⚠️ Request screen permission button not found');
         }
         
         if (proceedBtn) {
@@ -1996,34 +2020,281 @@
         const cameraStatus = cameraStatusEl.textContent.trim();
         const micStatus = micStatusEl.textContent.trim();
         const networkStatus = networkStatusEl.textContent.trim();
+        const screenStatusEl = document.getElementById('screen-status');
+        const screenStatus = screenStatusEl ? screenStatusEl.textContent.trim() : '⏳';
         
         console.log('📊 Permission status:', {
             camera: cameraStatus,
             mic: micStatus,
-            network: networkStatus
+            network: networkStatus,
+            screen: screenStatus
         });
         
-        const allGranted = cameraStatus === '✅' && micStatus === '✅' && networkStatus === '✅';
+        const basicPermissionsGranted = cameraStatus === '✅' && micStatus === '✅' && networkStatus === '✅';
+        const screenPermissionGranted = screenStatus === '✅';
         
         const proceedBtn = document.getElementById('proceed-to-verification-btn');
         const requestBtn = document.getElementById('request-permissions-btn');
+        const requestScreenBtn = document.getElementById('request-screen-permission-btn');
         
-        if (allGranted) {
+        if (basicPermissionsGranted && screenPermissionGranted) {
             if (proceedBtn) {
-            proceedBtn.style.display = 'inline-block';
+                proceedBtn.style.display = 'inline-block';
                 proceedBtn.style.animation = 'fadeInUp 0.5s ease-out';
             }
-            if (requestBtn) {
-                requestBtn.style.display = 'none';
-            }
+            if (requestBtn) requestBtn.style.display = 'none';
+            if (requestScreenBtn) requestScreenBtn.style.display = 'none';
             console.log('✅ All permissions granted - showing proceed button');
+        } else if (basicPermissionsGranted && !screenPermissionGranted) {
+            if (proceedBtn) proceedBtn.style.display = 'none';
+            if (requestBtn) requestBtn.style.display = 'none';
+            if (requestScreenBtn) {
+                requestScreenBtn.style.display = 'inline-block';
+                requestScreenBtn.style.animation = 'fadeInUp 0.5s ease-out';
+            }
+            console.log('✅ Basic permissions granted - showing screen recording button');
         } else {
             if (proceedBtn) proceedBtn.style.display = 'none';
+            if (requestScreenBtn) requestScreenBtn.style.display = 'none';
             if (requestBtn) {
                 requestBtn.style.display = 'inline-block';
                 requestBtn.style.animation = 'fadeInUp 0.5s ease-out';
             }
             console.log('⚠️ Some permissions not granted - showing request button');
+        }
+    }
+    
+    // Screen Recording Class
+    class InterviewScreenRecorder {
+        constructor(sessionKey) {
+            this.sessionKey = sessionKey;
+            this.screenStream = null;
+            this.cameraStream = null;
+            this.microphoneStream = null;
+            this.mediaRecorder = null;
+            this.recordedChunks = [];
+            this.isRecording = false;
+        }
+        
+        async startRecording() {
+            if (this.isRecording) {
+                console.warn('⚠️ Screen recording already in progress');
+                return false;
+            }
+            
+            try {
+                console.log('🖥️ Starting screen recording...');
+                
+                // Get screen, camera, and microphone streams
+                this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        mediaSource: 'screen',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: true // Capture system audio if available
+                });
+                
+                // Get camera stream
+                this.cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 }
+                    }
+                });
+                
+                // Get microphone stream
+                this.microphoneStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                // Combine all streams
+                const combinedStream = new MediaStream();
+                
+                // Add screen video track
+                this.screenStream.getVideoTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+                
+                // Add camera video track (picture-in-picture)
+                this.cameraStream.getVideoTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+                
+                // Add microphone audio track
+                this.microphoneStream.getAudioTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+                
+                // Add screen audio if available
+                if (this.screenStream.getAudioTracks().length > 0) {
+                    this.screenStream.getAudioTracks().forEach(track => {
+                        combinedStream.addTrack(track);
+                    });
+                }
+                
+                // Create MediaRecorder
+                const options = {
+                    mimeType: 'video/webm;codecs=vp9,opus',
+                    videoBitsPerSecond: 5000000, // 5 Mbps for screen recording
+                    audioBitsPerSecond: 192000
+                };
+                
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options.mimeType = 'video/webm;codecs=vp8,opus';
+                }
+                
+                this.mediaRecorder = new MediaRecorder(combinedStream, options);
+                this.recordedChunks = [];
+                
+                this.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        this.recordedChunks.push(event.data);
+                        console.log(`📹 Screen recording chunk: ${event.data.size} bytes`);
+                    }
+                };
+                
+                this.mediaRecorder.onstop = () => {
+                    console.log('🛑 Screen recording stopped');
+                    this.uploadRecording();
+                };
+                
+                this.mediaRecorder.start(1000); // Collect data every second
+                this.isRecording = true;
+                
+                console.log('✅ Screen recording started');
+                return true;
+                
+            } catch (error) {
+                console.error('❌ Error starting screen recording:', error);
+                this.cleanup();
+                return false;
+            }
+        }
+        
+        async stopRecording() {
+            if (!this.isRecording || !this.mediaRecorder) {
+                console.warn('⚠️ No active screen recording to stop');
+                return;
+            }
+            
+            try {
+                console.log('🛑 Stopping screen recording...');
+                this.mediaRecorder.stop();
+                this.isRecording = false;
+                this.cleanup();
+            } catch (error) {
+                console.error('❌ Error stopping screen recording:', error);
+                this.cleanup();
+            }
+        }
+        
+        cleanup() {
+            if (this.screenStream) {
+                this.screenStream.getTracks().forEach(track => track.stop());
+                this.screenStream = null;
+            }
+            if (this.cameraStream) {
+                this.cameraStream.getTracks().forEach(track => track.stop());
+                this.cameraStream = null;
+            }
+            if (this.microphoneStream) {
+                this.microphoneStream.getTracks().forEach(track => track.stop());
+                this.microphoneStream = null;
+            }
+        }
+        
+        async uploadRecording() {
+            if (this.recordedChunks.length === 0) {
+                console.warn('⚠️ No recording chunks to upload');
+                return;
+            }
+            
+            try {
+                console.log('📤 Uploading screen recording...');
+                const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+                
+                const formData = new FormData();
+                formData.append('video', blob, `screen_recording_${this.sessionKey}_${Date.now()}.webm`);
+                formData.append('session_key', this.sessionKey);
+                
+                const response = await fetch('{% url "upload_interview_video" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('✅ Screen recording uploaded successfully:', result);
+                } else {
+                    console.error('❌ Failed to upload screen recording:', response.status);
+                }
+            } catch (error) {
+                console.error('❌ Error uploading screen recording:', error);
+            }
+        }
+    }
+    
+    // Global screen recorder instance
+    let screenRecorder = null;
+    
+    async function requestScreenPermission() {
+        const errorEl = document.getElementById('permission-error-message');
+        const screenStatusEl = document.getElementById('screen-status');
+        const requestScreenBtn = document.getElementById('request-screen-permission-btn');
+        
+        errorEl.style.display = 'none';
+        requestScreenBtn.disabled = true;
+        requestScreenBtn.textContent = '⏳ Requesting...';
+        
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
+            });
+            
+            screenStatusEl.textContent = '✅';
+            screenStatusEl.style.color = '#28a745';
+            
+            // Stop the stream immediately - we'll start recording later
+            stream.getTracks().forEach(track => track.stop());
+            
+            // Initialize screen recorder
+            screenRecorder = new InterviewScreenRecorder(SESSION_KEY);
+            
+            // Start recording
+            await screenRecorder.startRecording();
+            
+            requestScreenBtn.disabled = false;
+            requestScreenBtn.textContent = '🖥️ Request Screen Recording Permission';
+            
+            // Update UI
+            updatePermissionStatus();
+            
+        } catch (err) {
+            console.error('Screen permission error:', err);
+            requestScreenBtn.disabled = false;
+            requestScreenBtn.textContent = '🖥️ Request Screen Recording Permission';
+            
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                screenStatusEl.textContent = '❌';
+                screenStatusEl.style.color = '#dc3545';
+                errorEl.textContent = 'Screen recording permission denied. Please allow screen sharing to continue.';
+                errorEl.style.display = 'block';
+            } else {
+                screenStatusEl.textContent = '❌';
+                screenStatusEl.style.color = '#dc3545';
+                errorEl.textContent = `Failed to get screen recording permission: ${err.message}`;
+                errorEl.style.display = 'block';
+            }
+            
+            updatePermissionStatus();
         }
     }
     
@@ -3974,6 +4245,12 @@
         
         if (!confirm(confirmationMessage)) return;
 
+        // Stop screen recording if active
+        if (screenRecorder && screenRecorder.isRecording) {
+            console.log('🛑 Stopping screen recording before submission...');
+            await screenRecorder.stopRecording();
+        }
+
         const submitBtn = document.getElementById('submit-code-btn');
         const originalText = submitBtn.innerText;
         submitBtn.disabled = true;
@@ -4075,6 +4352,17 @@
                 console.log('✅ Camera and microphone released after coding submission');
             } catch (error) {
                 console.log('Error releasing media resources:', error);
+            }
+            
+            // Stop screen recording on final submission
+            if (isFinalSubmission && screenRecorder && screenRecorder.isRecording) {
+                console.log('🛑 Stopping screen recording after final submission...');
+                try {
+                    await screenRecorder.stopRecording();
+                    console.log('✅ Screen recording stopped and uploaded');
+                } catch (error) {
+                    console.error('❌ Error stopping screen recording:', error);
+                }
             }
             
             // Small delay to show result, then proceed

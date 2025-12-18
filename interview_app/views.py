@@ -7103,4 +7103,105 @@ def upload_interview_video(request):
         }, status=500)
 
 
+@csrf_exempt
+def upload_interview_video(request):
+    """Upload screen recording video and save to GCS"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+    
+    try:
+        session_key = request.POST.get('session_key')
+        video_file = request.FILES.get('video')
+        
+        if not session_key:
+            return JsonResponse({'error': 'session_key is required'}, status=400)
+        
+        if not video_file:
+            return JsonResponse({'error': 'video file is required'}, status=400)
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(session_key=session_key)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        
+        # Save video file locally first
+        import os
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        
+        video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos')
+        os.makedirs(video_dir, exist_ok=True)
+        
+        video_filename = f"screen_recording_{session.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.webm"
+        video_path = os.path.join(video_dir, video_filename)
+        
+        # Save video file
+        with open(video_path, 'wb') as f:
+            for chunk in video_file.chunks():
+                f.write(chunk)
+        
+        print(f"✅ Screen recording saved locally: {video_path}")
+        
+        # Save to InterviewSession
+        relative_path = f"interview_videos/{video_filename}"
+        session.interview_video = relative_path
+        session.save()
+        print(f"✅ Video path saved to InterviewSession: {relative_path}")
+        
+        # Upload to Google Cloud Storage if configured
+        try:
+            from .gcs_storage import upload_video_to_gcs
+            
+            # Determine content type
+            content_type = 'video/webm'
+            if video_filename.lower().endswith('.mp4'):
+                content_type = 'video/mp4'
+            elif video_filename.lower().endswith('.mov'):
+                content_type = 'video/quicktime'
+            
+            # Generate GCS file path
+            gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
+            
+            # Upload to GCS
+            gcs_video_url = upload_video_to_gcs(video_path, gcs_video_path, content_type)
+            if gcs_video_url:
+                print(f"✅ Screen recording uploaded to GCS: {gcs_video_url}")
+                # Store GCS URL in video_gcs_url field
+                session.video_gcs_url = gcs_video_url
+                session.save(update_fields=['video_gcs_url'])
+                print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Screen recording uploaded successfully',
+                    'video_url': gcs_video_url,
+                    'local_path': relative_path
+                })
+            else:
+                print(f"⚠️ GCS upload failed, returning local path")
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Screen recording saved locally',
+                    'local_path': relative_path
+                })
+        except Exception as gcs_error:
+            print(f"⚠️ Error uploading to GCS (non-critical): {gcs_error}")
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Screen recording saved locally (GCS upload failed)',
+                'local_path': relative_path
+            })
+        
+    except Exception as e:
+        print(f"❌ Error uploading screen recording: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error uploading video: {str(e)}'
+        }, status=500)
+
 # Video recording functionality removed

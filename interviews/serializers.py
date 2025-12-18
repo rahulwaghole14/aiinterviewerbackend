@@ -270,10 +270,18 @@ class InterviewSerializer(serializers.ModelSerializer):
                         proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
                         proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
                         
-                        # Ensure GCS URL is absolute (starts with http)
-                        if proctoring_pdf_gcs_url and not proctoring_pdf_gcs_url.startswith('http'):
-                            print(f"   ⚠️ GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
-                            proctoring_pdf_gcs_url = None
+                        # Ensure GCS URL is absolute (starts with https://)
+                        if proctoring_pdf_gcs_url:
+                            if not proctoring_pdf_gcs_url.startswith('https://'):
+                                if proctoring_pdf_gcs_url.startswith('http://'):
+                                    # Upgrade to https
+                                    proctoring_pdf_gcs_url = proctoring_pdf_gcs_url.replace('http://', 'https://')
+                                elif proctoring_pdf_gcs_url.startswith('storage.googleapis.com'):
+                                    # Add https:// prefix
+                                    proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url}"
+                                else:
+                                    print(f"   ⚠️ GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
+                                    proctoring_pdf_gcs_url = None
                         
                         if not proctoring_pdf_url:
                             # Try to construct URL from relative path

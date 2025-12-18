@@ -5303,15 +5303,25 @@ def download_proctoring_pdf(request, session_id):
                             response = HttpResponse(pdf_bytes, content_type='application/pdf')
                             response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
                             return response
-                    # If download fails, redirect to GCS URL (fallback)
-                    print(f"⚠️ Failed to download from GCS, redirecting to GCS URL")
-                    return HttpResponseRedirect(gcs_url)
+                    # If download fails, try to fetch PDF directly from GCS URL
+                    print(f"⚠️ Failed to download from GCS using file path, trying direct fetch from URL")
+                    try:
+                        import requests
+                        pdf_response = requests.get(gcs_url, timeout=10)
+                        if pdf_response.status_code == 200:
+                            pdf_bytes = pdf_response.content
+                            print(f"✅ Fetched PDF directly from GCS URL: {len(pdf_bytes)} bytes")
+                            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+                            response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
+                            return response
+                    except Exception as fetch_error:
+                        print(f"⚠️ Error fetching PDF from GCS URL: {fetch_error}")
+                        # Continue to try file path method
                 except Exception as e:
-                    print(f"⚠️ Error extracting GCS file path: {e}, redirecting to GCS URL")
+                    print(f"⚠️ Error extracting GCS file path: {e}")
                     import traceback
                     traceback.print_exc()
-                    # Fallback: redirect to GCS URL
-                    return HttpResponseRedirect(gcs_url)
+                    # Continue to try file path method
         
         # Try to download from GCS using file path
         if proctoring_pdf_path and 'proctoring_pdfs/' in proctoring_pdf_path:

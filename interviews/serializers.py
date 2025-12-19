@@ -272,19 +272,24 @@ class InterviewSerializer(serializers.ModelSerializer):
                         
                         # Ensure GCS URL is absolute (starts with https://)
                         if proctoring_pdf_gcs_url:
-                            # CRITICAL: Remove any baseURL that might have been accidentally prepended
-                            # Check if the URL contains both baseURL and storage.googleapis.com
+                            # CRITICAL: Always extract GCS URL if storage.googleapis.com is present
+                            # This handles cases where baseURL was concatenated incorrectly
+                            # Pattern examples:
+                            # - https://talaroai-...run.apphttps//storage.googleapis.com/...
+                            # - talaroai-...run.apphttps//storage.googleapis.com/...
+                            # - https://talaroai-...run.app/storage.googleapis.com/...
                             if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
                                 # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
                                 gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
                                 if gcs_index != -1:
                                     proctoring_pdf_gcs_url = proctoring_pdf_gcs_url[gcs_index:]
-                                    print(f"   [OK] Cleaned GCS URL (removed baseURL prefix): {proctoring_pdf_gcs_url}")
+                                    print(f"   [OK] Cleaned GCS URL (extracted from malformed URL): {proctoring_pdf_gcs_url}")
                             
-                            # Remove any malformed prefixes (like https://https:// or double slashes)
+                            # Remove any malformed prefixes (like https://https://, https//, or double slashes)
                             import re
                             proctoring_pdf_gcs_url = re.sub(r'^https?://https?://', 'https://', proctoring_pdf_gcs_url)
                             proctoring_pdf_gcs_url = re.sub(r'^https?://+', 'https://', proctoring_pdf_gcs_url)
+                            proctoring_pdf_gcs_url = re.sub(r'^https?\/\/+', 'https://', proctoring_pdf_gcs_url)  # Handle https// pattern
                             
                             # Normalize URL - ensure it starts with https://
                             if not proctoring_pdf_gcs_url.startswith('https://'):
@@ -310,6 +315,13 @@ class InterviewSerializer(serializers.ModelSerializer):
                                     proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url[gcs_index:]}"
                                 else:
                                     proctoring_pdf_gcs_url = None
+                            
+                            # Final check: Ensure URL is clean and valid
+                            if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
+                                print(f"   [OK] Final GCS URL: {proctoring_pdf_gcs_url}")
+                            else:
+                                print(f"   [WARN] GCS URL validation failed, setting to None")
+                                proctoring_pdf_gcs_url = None
                         
                         if not proctoring_pdf_url:
                             # Try to construct URL from relative path

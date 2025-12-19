@@ -2272,10 +2272,48 @@
         requestScreenBtn.textContent = '⏳ Requesting...';
         
         try {
+            // Request screen sharing - FORCE FULL SCREEN ONLY
+            // Note: Browser picker will still show all options, but we'll verify and reject window/tab selections
             const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true
+                video: {
+                    displaySurface: 'monitor', // Request monitor/full screen only
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 30 }
+                },
+                audio: true,
+                preferCurrentTab: false // Prefer full screen over current tab
             });
+            
+            // CRITICAL: Verify that user selected "Entire Screen" (not Window or Tab)
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                const settings = videoTrack.getSettings();
+                const displaySurface = settings.displaySurface;
+                
+                // If user selected window or browser tab instead of full screen, reject
+                if (displaySurface && displaySurface !== 'monitor') {
+                    console.warn('⚠️ User selected ' + displaySurface + ' instead of full screen. Rejecting...');
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    let errorMsg = 'Please select "Entire Screen" option. ';
+                    if (displaySurface === 'window') {
+                        errorMsg += 'Window recording is not allowed. Please select "Entire Screen" instead.';
+                    } else if (displaySurface === 'browser') {
+                        errorMsg += 'Tab recording is not allowed. Please select "Entire Screen" instead.';
+                    } else {
+                        errorMsg += 'Only full screen recording is allowed for this interview.';
+                    }
+                    
+                    errorEl.textContent = errorMsg;
+                    errorEl.style.display = 'block';
+                    requestScreenBtn.disabled = false;
+                    requestScreenBtn.textContent = '🖥️ Request Screen Recording Permission';
+                    return;
+                }
+                
+                console.log('✅ Full screen recording confirmed:', displaySurface || 'monitor');
+            }
             
             screenStatusEl.textContent = '✅';
             screenStatusEl.style.color = '#28a745';

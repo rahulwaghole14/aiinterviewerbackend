@@ -279,7 +279,12 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
                                 if gcs_index != -1:
                                     proctoring_pdf_gcs_url = proctoring_pdf_gcs_url[gcs_index:]
-                                    print(f"   🔧 Cleaned GCS URL (removed baseURL prefix): {proctoring_pdf_gcs_url}")
+                                    print(f"   [OK] Cleaned GCS URL (removed baseURL prefix): {proctoring_pdf_gcs_url}")
+                            
+                            # Remove any malformed prefixes (like https://https:// or double slashes)
+                            import re
+                            proctoring_pdf_gcs_url = re.sub(r'^https?://https?://', 'https://', proctoring_pdf_gcs_url)
+                            proctoring_pdf_gcs_url = re.sub(r'^https?://+', 'https://', proctoring_pdf_gcs_url)
                             
                             # Normalize URL - ensure it starts with https://
                             if not proctoring_pdf_gcs_url.startswith('https://'):
@@ -293,7 +298,17 @@ class InterviewSerializer(serializers.ModelSerializer):
                                     # Fix double slash
                                     proctoring_pdf_gcs_url = f"https:{proctoring_pdf_gcs_url}"
                                 else:
-                                    print(f"   ⚠️ GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
+                                    print(f"   [WARN] GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
+                                    proctoring_pdf_gcs_url = None
+                            
+                            # Final validation: Ensure it's a proper GCS URL format
+                            if proctoring_pdf_gcs_url and not proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
+                                print(f"   [WARN] GCS URL format invalid, cleaning: {proctoring_pdf_gcs_url}")
+                                # Try to extract valid GCS URL
+                                if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
+                                    gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
+                                    proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url[gcs_index:]}"
+                                else:
                                     proctoring_pdf_gcs_url = None
                         
                         if not proctoring_pdf_url:
@@ -1935,32 +1950,6 @@ class RecurringSlotSerializer(serializers.Serializer):
     break_duration = serializers.IntegerField(default=15, min_value=0, max_value=60)
     max_candidates_per_slot = serializers.IntegerField(
         default=1, min_value=1, max_value=10
-    )
-    ai_configuration = serializers.JSONField(required=False, default=dict)
-    notes = serializers.CharField(required=False, allow_blank=True)
-
-    def validate(self, data):
-        if data["start_date"] > data["end_date"]:
-            raise serializers.ValidationError(
-                "Start date must be before or equal to end date"
-            )
-        if data["start_time"] >= data["end_time"]:
-            raise serializers.ValidationError("End time must be after start time")
-        return data
-
-    )
-    ai_configuration = serializers.JSONField(required=False, default=dict)
-    notes = serializers.CharField(required=False, allow_blank=True)
-
-    def validate(self, data):
-        if data["start_date"] > data["end_date"]:
-            raise serializers.ValidationError(
-                "Start date must be before or equal to end date"
-            )
-        if data["start_time"] >= data["end_time"]:
-            raise serializers.ValidationError("End time must be after start time")
-        return data
-
     )
     ai_configuration = serializers.JSONField(required=False, default=dict)
     notes = serializers.CharField(required=False, allow_blank=True)

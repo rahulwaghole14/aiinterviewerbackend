@@ -56,6 +56,7 @@ urlpatterns = [
     path('ai/repeat', views.ai_repeat, name='ai_repeat'),
     path('ai/transcript_pdf', views.ai_transcript_pdf, name='ai_transcript_pdf'),
     path('api/proctoring/pdf/<uuid:session_id>/', views.download_proctoring_pdf, name='download_proctoring_pdf'),
+    path('api/proctoring/pdf/', views.download_proctoring_pdf, name='download_proctoring_pdf_query'),
 
 
     # Auth endpoints namespace

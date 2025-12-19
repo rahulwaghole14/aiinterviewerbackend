@@ -7,7 +7,7 @@ try:
 except ImportError:
     whisper = None
     WHISPER_AVAILABLE = False
-    print("⚠️ Warning: openai-whisper not available. Whisper transcription features will be disabled.")
+    print("[WARN] Warning: openai-whisper not available. Whisper transcription features will be disabled.")
 import PyPDF2
 import docx
 import re
@@ -81,11 +81,11 @@ from django.core.mail import send_mail
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
-    print("✅ WeasyPrint imported successfully")
+    print("[OK] WeasyPrint imported successfully")
 except (ImportError, OSError) as e:
     WEASYPRINT_AVAILABLE = False
     HTML = None
-    print(f"⚠️ WeasyPrint not available (optional): {e}")
+    print(f"[WARN] WeasyPrint not available (optional): {e}")
     print("   PDF generation will use fpdf2 instead")
     print("   This is normal if system libraries (pango, cairo) are not installed")
 
@@ -5219,10 +5219,13 @@ def ai_transcript_pdf(request):
         return JsonResponse({'error': f'PDF generation failed: {str(e)}'}, status=500)
 
 @csrf_exempt
-def download_proctoring_pdf(request, session_id):
+def download_proctoring_pdf(request, session_id=None):
     """Download proctoring warnings PDF for a given session (from GCS or local)
     
-    Accepts either interview.id (UUID) or session.id (UUID) as session_id parameter
+    Accepts either:
+    - interview.id (UUID) as path parameter: /api/proctoring/pdf/<uuid:session_id>/
+    - session_key as query parameter: /api/proctoring/pdf/?session_key=xxx
+    - interview.id as query parameter: /api/proctoring/pdf/?interview_id=xxx
     """
     try:
         from .models import InterviewSession
@@ -5232,28 +5235,65 @@ def download_proctoring_pdf(request, session_id):
         from .gcs_storage import download_pdf_from_gcs, get_gcs_signed_url
         import os
         
-        # Try to get interview first (if session_id is actually interview.id)
+        # Support query parameters (like AI analysis PDF)
+        session_key = request.GET.get('session_key', '')
+        interview_id_param = request.GET.get('interview_id', '')
+        
+        # Determine which identifier to use
+        identifier = None
+        identifier_type = None
+        
+        if session_id:
+            # Path parameter provided
+            identifier = session_id
+            identifier_type = 'path_uuid'
+        elif interview_id_param:
+            # Query parameter: interview_id
+            identifier = interview_id_param
+            identifier_type = 'query_interview_id'
+        elif session_key:
+            # Query parameter: session_key
+            identifier = session_key
+            identifier_type = 'query_session_key'
+        else:
+            return JsonResponse({'error': 'No session_id, interview_id, or session_key provided'}, status=400)
+        
+        # Try to get interview first
         interview = None
         session = None
-        try:
-            interview = Interview.objects.get(id=session_id)
-            # Get session from interview's session_key
-            if interview.session_key:
-                try:
-                    session = InterviewSession.objects.get(session_key=interview.session_key)
-                except InterviewSession.DoesNotExist:
-                    print(f"⚠️ Session not found for interview {interview.id} with session_key {interview.session_key}")
-        except Interview.DoesNotExist:
-            # If not found as interview, try as session ID
+        
+        if identifier_type == 'query_session_key':
+            # Get session from session_key, then get interview
             try:
-                session = InterviewSession.objects.get(id=session_id)
-                # Get interview from session
+                session = InterviewSession.objects.get(session_key=identifier)
                 try:
                     interview = Interview.objects.get(session_key=session.session_key)
                 except Interview.DoesNotExist:
-                    print(f"⚠️ Interview not found for session {session_id}")
+                    pass
             except InterviewSession.DoesNotExist:
-                return JsonResponse({'error': 'Session or Interview not found'}, status=404)
+                pass
+        else:
+            # Try to get interview first (if identifier is interview.id)
+            try:
+                interview = Interview.objects.get(id=identifier)
+                # Get session from interview's session_key
+                if interview.session_key:
+                    try:
+                        session = InterviewSession.objects.get(session_key=interview.session_key)
+                    except InterviewSession.DoesNotExist:
+                        print(f"⚠️ Session not found for interview {interview.id} with session_key {interview.session_key}")
+            except Interview.DoesNotExist:
+                # If not found as interview, try as session ID
+                if identifier_type == 'path_uuid':
+                    try:
+                        session = InterviewSession.objects.get(id=identifier)
+                        # Get interview from session
+                        try:
+                            interview = Interview.objects.get(session_key=session.session_key)
+                        except Interview.DoesNotExist:
+                            print(f"⚠️ Interview not found for session {identifier}")
+                    except InterviewSession.DoesNotExist:
+                        return JsonResponse({'error': 'Session or Interview not found'}, status=404)
         
         if not interview:
             return JsonResponse({'error': 'Interview not found'}, status=404)

@@ -271,14 +271,25 @@ def generate_proctoring_pdf(evaluation, output_path=None):
         # Upload to Google Cloud Storage if configured
         gcs_url = None
         try:
-            from interview_app.gcs_storage import upload_pdf_to_gcs
+            from interview_app.gcs_storage import upload_pdf_to_gcs, get_gcs_bucket_name, GCS_AVAILABLE
+            print(f"📤 Attempting to upload proctoring PDF to GCS...")
+            print(f"   GCS Available: {GCS_AVAILABLE}")
+            print(f"   GCS Bucket Name: {get_gcs_bucket_name()}")
+            print(f"   PDF Size: {len(pdf_bytes)} bytes")
+            
             interview_id = evaluation.interview.id if evaluation.interview else 'unknown'
             gcs_file_path = f"proctoring_pdfs/proctoring_report_{interview_id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            print(f"   GCS File Path: {gcs_file_path}")
+            
             gcs_url = upload_pdf_to_gcs(pdf_bytes, gcs_file_path)
             if gcs_url:
                 print(f"✅ PDF uploaded to GCS: {gcs_url}")
+            else:
+                print(f"⚠️ GCS upload returned None - check GCS configuration and permissions")
         except Exception as e:
             print(f"⚠️ Error uploading to GCS (will save locally): {e}")
+            import traceback
+            traceback.print_exc()
         
         # Also save locally as fallback
         try:

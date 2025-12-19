@@ -691,6 +691,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                 orders = [q.order for q in question_list]
                 if len(set(orders)) != len(orders):
                     print(f"⚠️ WARNING: Duplicate order values detected! Orders: {orders}")
+                    # Log detailed info for debugging
+                    for q in question_list:
+                        print(f"   Order {q.order}, Seq {q.conversation_sequence}, Type {q.question_type}, Level {q.question_level}, Role {q.role}")
                 # Log order sequence for debugging
                 print(f"📋 Question order sequence: {[f'Q{q.order}({q.question_level})' for q in question_list]}")
             
@@ -733,17 +736,22 @@ class InterviewSerializer(serializers.ModelSerializer):
                     continue
                 
                 # For non-coding questions, group by order (they may share same order if AI and Interviewee)
+                # CRITICAL: Use a composite key (order, conversation_sequence) to handle duplicate orders
+                # This ensures questions with same order but different sequences are handled separately
                 order_key = q.order
-                if order_key not in questions_by_order:
-                    questions_by_order[order_key] = {'ai': None, 'interviewee': None, 'conversation_sequence': None, 'order': order_key}
+                seq_key = q.conversation_sequence if q.conversation_sequence is not None else -1
+                composite_key = (order_key, seq_key)  # Use tuple as key to handle duplicates
+                
+                if composite_key not in questions_by_order:
+                    questions_by_order[composite_key] = {'ai': None, 'interviewee': None, 'conversation_sequence': seq_key if seq_key != -1 else None, 'order': order_key}
                 
                 # Update conversation_sequence if available (use the AI question's sequence)
                 if q.conversation_sequence is not None:
-                    if questions_by_order[order_key]['conversation_sequence'] is None:
-                        questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
+                    if questions_by_order[composite_key]['conversation_sequence'] is None:
+                        questions_by_order[composite_key]['conversation_sequence'] = q.conversation_sequence
                     elif q.role and q.role.upper() == 'AI':
                         # Prefer AI question's conversation_sequence for ordering
-                        questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
+                        questions_by_order[composite_key]['conversation_sequence'] = q.conversation_sequence
                 
                 # Check if this is an AI question/response or Interviewee answer/question
                 has_role = q.role is not None and q.role.strip()
@@ -752,7 +760,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                         # AI question or AI response to candidate question
                         # IMPORTANT: Only add if it's not a candidate question incorrectly saved
                         if q.question_level != 'CANDIDATE_QUESTION':
-                            questions_by_order[order_key]['ai'] = q
+                            questions_by_order[composite_key]['ai'] = q
                         else:
                             # This shouldn't happen, but if AI record has CANDIDATE_QUESTION level, skip it
                             print(f"⚠️ Skipping AI record with CANDIDATE_QUESTION level: {q.id}")
@@ -762,7 +770,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                             # The AI's response (if exists) should be in question section
                             # IMPORTANT: Candidate questions should have empty question_text and text in transcribed_answer
                             if not q.question_text or not q.question_text.strip():
-                                questions_by_order[order_key]['interviewee'] = q
+                                questions_by_order[composite_key]['interviewee'] = q
                             else:
                                 # Candidate question incorrectly has question_text - move it to transcribed_answer
                                 print(f"⚠️ Candidate question {q.id} has question_text, should be in transcribed_answer")
@@ -770,80 +778,132 @@ class InterviewSerializer(serializers.ModelSerializer):
                                     q.transcribed_answer = q.question_text
                                     q.question_text = ''
                                     q.save(update_fields=['question_text', 'transcribed_answer'])
-                                questions_by_order[order_key]['interviewee'] = q
+                                questions_by_order[composite_key]['interviewee'] = q
                         elif q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE':
                             # Regular candidate answer (including "No answer provided")
                             # IMPORTANT: Include all INTERVIEWEE_RESPONSE records, even if transcribed_answer is empty
                             # This ensures all questions have corresponding answers displayed
-                            if not questions_by_order[order_key]['interviewee']:
-                                questions_by_order[order_key]['interviewee'] = q
-                                print(f"✅ Added INTERVIEWEE record to order {order_key}: {q.transcribed_answer[:50] if q.transcribed_answer else 'No answer'}...")
+                            if not questions_by_order[composite_key]['interviewee']:
+                                questions_by_order[composite_key]['interviewee'] = q
+                                print(f"✅ Added INTERVIEWEE record to order {order_key} (seq {seq_key}): {q.transcribed_answer[:50] if q.transcribed_answer else 'No answer'}...")
                             else:
                                 # If there's already an interviewee record, prefer the one with transcribed_answer
-                                if q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
-                                    questions_by_order[order_key]['interviewee'] = q
-                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} with one that has answer: {q.transcribed_answer[:50]}...")
-                                elif q.transcribed_answer and len(q.transcribed_answer) > len(questions_by_order[order_key]['interviewee'].transcribed_answer or ''):
+                                if q.transcribed_answer and not questions_by_order[composite_key]['interviewee'].transcribed_answer:
+                                    questions_by_order[composite_key]['interviewee'] = q
+                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} (seq {seq_key}) with one that has answer: {q.transcribed_answer[:50]}...")
+                                elif q.transcribed_answer and len(q.transcribed_answer) > len(questions_by_order[composite_key]['interviewee'].transcribed_answer or ''):
                                     # Prefer longer answer if both have answers
-                                    questions_by_order[order_key]['interviewee'] = q
-                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} with longer answer: {q.transcribed_answer[:50]}...")
+                                    questions_by_order[composite_key]['interviewee'] = q
+                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} (seq {seq_key}) with longer answer: {q.transcribed_answer[:50]}...")
                 elif q.question_text and q.question_text.strip():
                     # Old format: question_text exists, treat as AI question
                     # But check role first - if role is INTERVIEWEE, it's a candidate question
                     if q.role and q.role.upper() == 'INTERVIEWEE':
                         # This is a candidate question in old format - move to interviewee
                         if q.question_level == 'CANDIDATE_QUESTION':
-                            questions_by_order[order_key]['interviewee'] = q
+                            questions_by_order[composite_key]['interviewee'] = q
                         else:
-                            questions_by_order[order_key]['ai'] = q
+                            questions_by_order[composite_key]['ai'] = q
                     else:
-                        questions_by_order[order_key]['ai'] = q
+                        questions_by_order[composite_key]['ai'] = q
             
             # Now create Q&A pairs from grouped questions - sort by conversation_sequence first, then order
+            # CRITICAL: Handle duplicate orders by using conversation_sequence as primary sort key
+            # Since we're using composite keys (order, sequence), extract order and sequence for sorting
             sorted_order_keys = sorted(questions_by_order.keys(), key=lambda k: (
-                questions_by_order[k].get('conversation_sequence') if questions_by_order[k].get('conversation_sequence') is not None else 999999,
-                questions_by_order[k].get('order', 0)
+                questions_by_order[k].get('conversation_sequence') if questions_by_order[k].get('conversation_sequence') is not None else (999999 + questions_by_order[k].get('order', 0)),
+                questions_by_order[k].get('order', 0),
+                k[1] if isinstance(k, tuple) else -1  # Use sequence from composite key if available
             ))
+            
+            # Log the sorted sequence for debugging
+            print(f"📋 Sorted order keys (composite): {sorted_order_keys}")
+            for composite_key in sorted_order_keys:
+                q_pair = questions_by_order[composite_key]
+                ai_q = q_pair.get('ai')
+                seq = q_pair.get('conversation_sequence', 'None')
+                order_val = q_pair.get('order', 'None')
+                print(f"   Order {order_val}, Seq {seq}, AI: {ai_q.id if ai_q else 'None'}, Interviewee: {q_pair.get('interviewee').id if q_pair.get('interviewee') else 'None'}")
             
             # Before processing, check for any AI questions without interviewee answers
             # and try to find their corresponding interviewee responses
-            for order_key in sorted_order_keys:
-                q_pair = questions_by_order[order_key]
+            for composite_key in sorted_order_keys:
+                q_pair = questions_by_order[composite_key]
+                order_val = q_pair.get('order', 0)
+                seq_val = q_pair.get('conversation_sequence')
+                
                 if q_pair['ai'] and not q_pair['interviewee']:
-                    # Try to find interviewee response for this order
+                    # Try to find interviewee response for this order and sequence
                     try:
-                        missed_interviewee = InterviewQuestion.objects.filter(
-                            session=session,
-                            order=order_key,
-                            role='INTERVIEWEE',
-                            question_level='INTERVIEWEE_RESPONSE'
-                        ).first()
+                        # First try by conversation_sequence (most accurate)
+                        missed_interviewee = None
+                        if seq_val is not None:
+                            # Interviewee responses typically have sequence = AI sequence + 1
+                            interviewee_seq = seq_val + 1
+                            missed_interviewee = InterviewQuestion.objects.filter(
+                                session=session,
+                                conversation_sequence=interviewee_seq,
+                                role='INTERVIEWEE',
+                                question_level='INTERVIEWEE_RESPONSE'
+                            ).first()
+                        
+                        # Fallback: try by order
+                        if not missed_interviewee:
+                            missed_interviewee = InterviewQuestion.objects.filter(
+                                session=session,
+                                order=order_val,
+                                role='INTERVIEWEE',
+                                question_level='INTERVIEWEE_RESPONSE'
+                            ).first()
+                        
                         if missed_interviewee:
                             q_pair['interviewee'] = missed_interviewee
-                            print(f"✅ Found missed interviewee response for order {order_key} during pairing: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
+                            print(f"✅ Found missed interviewee response for order {order_val} (seq {seq_val}) during pairing: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
                     except Exception as e:
-                        print(f"⚠️ Error finding missed interviewee response for order {order_key}: {e}")
+                        print(f"⚠️ Error finding missed interviewee response for order {order_val}: {e}")
             
-            for order_key in sorted_order_keys:
-                q_pair = questions_by_order[order_key]
+            for composite_key in sorted_order_keys:
+                q_pair = questions_by_order[composite_key]
                 ai_q = q_pair['ai']
                 interviewee_a = q_pair['interviewee']
                 
                 # Handle candidate questions: if no AI question but there's an interviewee with CANDIDATE_QUESTION
+                order_val = q_pair.get('order', 0)
                 if not ai_q and interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                    # Candidate asked a question - look for AI response in next order
-                    next_order = order_key + 1
-                    if next_order in questions_by_order and questions_by_order[next_order]['ai']:
-                        ai_response = questions_by_order[next_order]['ai']
-                        if ai_response.question_level == 'AI_RESPONSE':
-                            # Use AI response as question, candidate question as answer
-                            ai_q = ai_response
-                            # Don't process the AI response again when we get to its order
-                            questions_by_order[next_order]['processed'] = True
-                            print(f"✅ Paired candidate question (order {order_key}) with AI response (order {next_order})")
-                    else:
-                        # No AI response found yet - skip this for now, it will be processed when AI response is created
-                        print(f"⚠️ Candidate question at order {order_key} has no AI response yet, skipping")
+                    # Candidate asked a question - look for AI response in next sequence
+                    current_seq = q_pair.get('conversation_sequence')
+                    if current_seq is not None:
+                        # Look for AI response with next sequence
+                        next_seq = current_seq + 1
+                        # Find composite key with next sequence
+                        found_ai_response = None
+                        for next_key in sorted_order_keys:
+                            next_pair = questions_by_order[next_key]
+                            if next_pair.get('conversation_sequence') == next_seq and next_pair.get('ai'):
+                                found_ai_response = next_pair['ai']
+                                if found_ai_response.question_level == 'AI_RESPONSE':
+                                    ai_q = found_ai_response
+                                    questions_by_order[next_key]['processed'] = True
+                                    print(f"✅ Paired candidate question (order {order_val}, seq {current_seq}) with AI response (seq {next_seq})")
+                                    break
+                    
+                    # Fallback: try next order
+                    if not ai_q:
+                        next_order = order_val + 1
+                        # Find composite key with next order
+                        for next_key in sorted_order_keys:
+                            next_pair = questions_by_order[next_key]
+                            if next_pair.get('order') == next_order and next_pair.get('ai'):
+                                ai_response = next_pair['ai']
+                                if ai_response.question_level == 'AI_RESPONSE':
+                                    ai_q = ai_response
+                                    questions_by_order[next_key]['processed'] = True
+                                    print(f"✅ Paired candidate question (order {order_val}) with AI response (order {next_order})")
+                                    break
+                    
+                    if not ai_q:
+                        # No AI response found yet - skip this for now
+                        print(f"⚠️ Candidate question at order {order_val} has no AI response yet, skipping")
                         continue
                 
                 # Skip if no AI question (after trying to find AI response for candidate questions)

@@ -7145,6 +7145,16 @@ def upload_interview_video(request):
             gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
             
             # Upload to GCS
+            print(f"📤 Attempting to upload video to GCS: {video_path} -> {gcs_video_path}")
+            print(f"   File exists: {os.path.exists(video_path)}")
+            print(f"   File size: {os.path.getsize(video_path) if os.path.exists(video_path) else 'N/A'} bytes")
+            
+            # Check GCS configuration
+            from .gcs_storage import get_gcs_bucket_name, GCS_AVAILABLE
+            bucket_name = get_gcs_bucket_name()
+            print(f"   GCS Available: {GCS_AVAILABLE}")
+            print(f"   GCS Bucket Name: {bucket_name}")
+            
             gcs_video_url = upload_video_to_gcs(video_path, gcs_video_path, content_type)
             if gcs_video_url:
                 print(f"✅ Screen recording uploaded to GCS: {gcs_video_url}")
@@ -7164,11 +7174,13 @@ def upload_interview_video(request):
                     'local_path': relative_path
                 })
             else:
-                print(f"⚠️ GCS upload failed, returning local path")
+                print(f"⚠️ GCS upload failed - check logs above for details")
+                print(f"   Video saved locally at: {relative_path}")
                 return JsonResponse({
                     'status': 'success',
-                    'message': 'Screen recording saved locally',
-                    'local_path': relative_path
+                    'message': 'Screen recording saved locally (GCS upload failed - check server logs)',
+                    'local_path': relative_path,
+                    'warning': 'GCS upload failed - video saved locally only'
                 })
         except Exception as gcs_error:
             print(f"⚠️ Error uploading to GCS (non-critical): {gcs_error}")

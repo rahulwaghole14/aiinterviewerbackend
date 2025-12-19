@@ -2085,16 +2085,34 @@
             try {
                 console.log('🖥️ Starting screen recording...');
                 
-                // Get screen, camera, and microphone streams
+                // Get screen stream - FORCE FULL SCREEN ONLY (no window/tab options)
+                // Use preferCurrentTab: false to prioritize full screen selection
                 this.screenStream = await navigator.mediaDevices.getDisplayMedia({
                     video: {
-                        mediaSource: 'screen',
+                        displaySurface: 'monitor', // Request monitor/full screen only
                         width: { ideal: 1920 },
                         height: { ideal: 1080 },
                         frameRate: { ideal: 30 }
                     },
-                    audio: true // Capture system audio if available
+                    audio: true, // Capture system audio if available
+                    preferCurrentTab: false // Prefer full screen over current tab
                 });
+                
+                // Verify that full screen was selected (not window or tab)
+                const videoTrack = this.screenStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    const settings = videoTrack.getSettings();
+                    const displaySurface = settings.displaySurface;
+                    
+                    // If user selected window or browser tab instead of full screen, reject
+                    if (displaySurface && displaySurface !== 'monitor') {
+                        console.warn('⚠️ User selected ' + displaySurface + ' instead of full screen. Stopping stream...');
+                        this.screenStream.getTracks().forEach(track => track.stop());
+                        throw new Error('Please select "Entire Screen" option. Window or Tab recording is not allowed.');
+                    }
+                    
+                    console.log('✅ Full screen recording confirmed:', displaySurface || 'monitor');
+                }
                 
                 // Get camera stream
                 this.cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -4076,17 +4094,34 @@
         if (currentCodingQuestionIndex >= codingQuestions.length) {
             console.log("All coding challenges completed.");
             
+            // Stop screen recording if active
+            if (screenRecorder && screenRecorder.isRecording) {
+                console.log('🛑 Stopping screen recording before redirect...');
+                screenRecorder.stopRecording().catch(err => {
+                    console.error('❌ Error stopping screen recording:', err);
+                });
+            }
+            
             // Stop audio recording before redirecting
             if (audioRecorder && audioRecorder.isRecording) {
                 audioRecorder.stopRecording().then(() => {
                     console.log('✅ Audio recording stopped and uploaded');
-            window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                    // Wait a bit for screen recording to finish uploading
+                    setTimeout(() => {
+                        window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                    }, 2000);
                 }).catch(err => {
                     console.error('❌ Error stopping audio recording:', err);
-                    window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                    // Wait a bit for screen recording to finish uploading
+                    setTimeout(() => {
+                        window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                    }, 2000);
                 });
             } else {
-                window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                // Wait a bit for screen recording to finish uploading
+                setTimeout(() => {
+                    window.location.href = "{% url 'interview_complete' %}?session_key=" + SESSION_KEY;
+                }, 2000);
             }
             return;
         }

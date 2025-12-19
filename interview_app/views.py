@@ -26,7 +26,7 @@ try:
 except ImportError:
     TextBlob = None
     TEXTBLOB_AVAILABLE = False
-    print("⚠️ Warning: textblob not available. Text analysis features will be disabled.")
+    print("[WARN] Warning: textblob not available. Text analysis features will be disabled.")
 import subprocess
 import tempfile
 import psutil
@@ -35,12 +35,12 @@ import sqlite3
 # Google Cloud Text-to-Speech import with fallback
 try:
     from google.cloud import texttospeech
-    print("✅ Google Cloud Text-to-Speech imported successfully in views.py")
+    print("[OK] Google Cloud Text-to-Speech imported successfully in views.py")
 except ImportError as e:
-    print(f"❌ Warning: google-cloud-texttospeech not available in views.py: {e}")
+    print(f"[WARN] Warning: google-cloud-texttospeech not available in views.py: {e}")
     texttospeech = None
 except Exception as e:
-    print(f"❌ Unexpected error importing google-cloud-texttospeech in views.py: {e}")
+    print(f"[ERROR] Unexpected error importing google-cloud-texttospeech in views.py: {e}")
     texttospeech = None
 
 from collections import Counter
@@ -55,7 +55,7 @@ try:
 except ImportError:
     cv2 = None
     CV2_AVAILABLE = False
-    print("⚠️ Warning: opencv-python not available. Camera and image processing features will be disabled.")
+    print("[WARN] Warning: opencv-python not available. Camera and image processing features will be disabled.")
 import base64
 from django.utils import timezone
 from django.core.files.base import ContentFile
@@ -120,11 +120,11 @@ try:
     
     if active_key:
         genai.configure(api_key=active_key)
-        print("✅ Gemini API configured successfully in views.py")
+        print("[OK] Gemini API configured successfully in views.py")
     else:
-        print("⚠️ WARNING: GEMINI_API_KEY not set in environment. Please set GEMINI_API_KEY in .env file")
+        print("[WARN] WARNING: GEMINI_API_KEY not set in environment. Please set GEMINI_API_KEY in .env file")
 except Exception as e:
-    print(f"⚠️ WARNING: Could not configure Gemini API: {e}")
+    print(f"[WARN] WARNING: Could not configure Gemini API: {e}")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.
@@ -152,7 +152,7 @@ try:
     PYAudio_AVAILABLE = True
 except ImportError:
     PYAudio_AVAILABLE = False
-    print("⚠️ PyAudioAudioRecorder not available")
+    print("[WARN] PyAudioAudioRecorder not available")
 
 # Audio recorders dictionary (similar to CAMERAS)
 AUDIO_RECORDERS, audio_lock = {}, threading.Lock()
@@ -163,22 +163,22 @@ def get_camera_for_session(session_key):
     print(f"🔍 Getting camera for session_key: {session_key}")
     with camera_lock:
         if session_key in CAMERAS: 
-            print(f"✅ Found existing camera for session_key: {session_key}")
+            print(f"[OK] Found existing camera for session_key: {session_key}")
             return CAMERAS[session_key]
         try:
             print(f"🔍 Looking up InterviewSession for session_key: {session_key}")
             session_obj = InterviewSession.objects.get(session_key=session_key)
-            print(f"✅ Found InterviewSession: {session_obj.id}")
+            print(f"[OK] Found InterviewSession: {session_obj.id}")
             print(f"🎥 Creating VideoCamera for session_id: {session_obj.id}")
             camera_instance = VideoCamera(session_id=session_obj.id)
             CAMERAS[session_key] = camera_instance
-            print(f"✅ Camera created and stored for session_key: {session_key}")
+            print(f"[OK] Camera created and stored for session_key: {session_key}")
             return camera_instance
         except InterviewSession.DoesNotExist:
-            print(f"❌ Could not find session for session_key {session_key} to create camera.")
+            print(f"[ERROR] Could not find session for session_key {session_key} to create camera.")
             return None
         except Exception as e:
-            print(f"❌ Error creating camera instance: {e}")
+            print(f"[ERROR] Error creating camera instance: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -198,7 +198,7 @@ def release_camera_for_session(session_key, audio_file_path=None):
                 else:
                     audio_full_path = audio_file_path
                 if not os.path.exists(audio_full_path):
-                    print(f"⚠️ Audio file not found for merging: {audio_full_path}")
+                    print(f"[WARN] Audio file not found for merging: {audio_full_path}")
                     audio_full_path = None
             
             video_path = camera.cleanup()
@@ -217,7 +217,7 @@ def release_camera_for_session(session_key, audio_file_path=None):
                     session = InterviewSession.objects.get(session_key=session_key)
                     session.interview_video = video_path
                     session.save()
-                    print(f"✅ Video path saved to InterviewSession: {video_path}")
+                    print(f"[OK] Video path saved to InterviewSession: {video_path}")
                     
                     # Upload video to Google Cloud Storage if configured
                     try:
@@ -247,10 +247,14 @@ def release_camera_for_session(session_key, audio_file_path=None):
                             gcs_video_url = upload_video_to_gcs(video_full_path, gcs_video_path, content_type)
                             if gcs_video_url:
                                 print(f"✅ Video uploaded to GCS: {gcs_video_url}")
-                                # Store GCS URL in video_gcs_url field
-                                session.video_gcs_url = gcs_video_url
-                                session.save(update_fields=['video_gcs_url'])
-                                print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                                # Store GCS URL in video_gcs_url field (if field exists)
+                                if hasattr(session, 'video_gcs_url'):
+                                    session.video_gcs_url = gcs_video_url
+                                    session.save(update_fields=['video_gcs_url'])
+                                    print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                                else:
+                                    print(f"⚠️ video_gcs_url field not available (migration may not be applied): {gcs_video_url}")
+                                    print(f"   Please run: python manage.py migrate interview_app")
                         else:
                             print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
                     except Exception as gcs_error:
@@ -7104,10 +7108,14 @@ def upload_interview_video(request):
             gcs_video_url = upload_video_to_gcs(video_path, gcs_video_path, content_type)
             if gcs_video_url:
                 print(f"✅ Screen recording uploaded to GCS: {gcs_video_url}")
-                # Store GCS URL in video_gcs_url field
-                session.video_gcs_url = gcs_video_url
-                session.save(update_fields=['video_gcs_url'])
-                print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                # Store GCS URL in video_gcs_url field (if field exists)
+                if hasattr(session, 'video_gcs_url'):
+                    session.video_gcs_url = gcs_video_url
+                    session.save(update_fields=['video_gcs_url'])
+                    print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                else:
+                    print(f"⚠️ video_gcs_url field not available (migration may not be applied): {gcs_video_url}")
+                    print(f"   Please run: python manage.py migrate interview_app")
                 
                 return JsonResponse({
                     'status': 'success',

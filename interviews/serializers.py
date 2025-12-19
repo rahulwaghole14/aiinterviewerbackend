@@ -272,6 +272,16 @@ class InterviewSerializer(serializers.ModelSerializer):
                         
                         # Ensure GCS URL is absolute (starts with https://)
                         if proctoring_pdf_gcs_url:
+                            # CRITICAL: Remove any baseURL that might have been accidentally prepended
+                            # Check if the URL contains both baseURL and storage.googleapis.com
+                            if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
+                                # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
+                                gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
+                                if gcs_index != -1:
+                                    proctoring_pdf_gcs_url = proctoring_pdf_gcs_url[gcs_index:]
+                                    print(f"   🔧 Cleaned GCS URL (removed baseURL prefix): {proctoring_pdf_gcs_url}")
+                            
+                            # Normalize URL - ensure it starts with https://
                             if not proctoring_pdf_gcs_url.startswith('https://'):
                                 if proctoring_pdf_gcs_url.startswith('http://'):
                                     # Upgrade to https
@@ -279,6 +289,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 elif proctoring_pdf_gcs_url.startswith('storage.googleapis.com'):
                                     # Add https:// prefix
                                     proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url}"
+                                elif proctoring_pdf_gcs_url.startswith('//storage.googleapis.com'):
+                                    # Fix double slash
+                                    proctoring_pdf_gcs_url = f"https:{proctoring_pdf_gcs_url}"
                                 else:
                                     print(f"   ⚠️ GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
                                     proctoring_pdf_gcs_url = None
@@ -1493,12 +1506,12 @@ class InterviewSerializer(serializers.ModelSerializer):
             
             # Return video URL if session exists and has video
             # Priority 1: Check for GCS URL (preferred)
-            if session and session.video_gcs_url:
+            if session and hasattr(session, 'video_gcs_url') and session.video_gcs_url:
                 print(f"✅ Returning GCS video URL: {session.video_gcs_url}")
                 return session.video_gcs_url
             
             # Priority 2: Check for local video file
-            if session and session.interview_video:
+            if session and hasattr(session, 'interview_video') and session.interview_video:
                 # Verify the video file actually exists and is a merged video
                 try:
                     video_file_path = session.interview_video.path
@@ -1922,6 +1935,32 @@ class RecurringSlotSerializer(serializers.Serializer):
     break_duration = serializers.IntegerField(default=15, min_value=0, max_value=60)
     max_candidates_per_slot = serializers.IntegerField(
         default=1, min_value=1, max_value=10
+    )
+    ai_configuration = serializers.JSONField(required=False, default=dict)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        if data["start_date"] > data["end_date"]:
+            raise serializers.ValidationError(
+                "Start date must be before or equal to end date"
+            )
+        if data["start_time"] >= data["end_time"]:
+            raise serializers.ValidationError("End time must be after start time")
+        return data
+
+    )
+    ai_configuration = serializers.JSONField(required=False, default=dict)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        if data["start_date"] > data["end_date"]:
+            raise serializers.ValidationError(
+                "Start date must be before or equal to end date"
+            )
+        if data["start_time"] >= data["end_time"]:
+            raise serializers.ValidationError("End time must be after start time")
+        return data
+
     )
     ai_configuration = serializers.JSONField(required=False, default=dict)
     notes = serializers.CharField(required=False, allow_blank=True)

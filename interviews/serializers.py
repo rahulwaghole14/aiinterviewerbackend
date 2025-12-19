@@ -919,7 +919,8 @@ class InterviewSerializer(serializers.ModelSerializer):
                     continue
                 
                 # Skip if already processed (as part of candidate question handling)
-                if questions_by_order[order_key].get('processed'):
+                # CRITICAL: Use composite_key, not order_key, since we're using composite keys
+                if questions_by_order.get(composite_key, {}).get('processed'):
                     continue
                 
                 # Determine question type (case-insensitive)

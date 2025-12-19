@@ -2089,17 +2089,15 @@
                 // Use most restrictive constraints to limit picker to full screen only
                 this.screenStream = await navigator.mediaDevices.getDisplayMedia({
                     video: {
-                        displaySurface: 'monitor', // Request monitor/full screen only
+                        displaySurface: 'monitor', // Request monitor/full screen only - this should limit options
                         width: { ideal: 1920 },
                         height: { ideal: 1080 },
                         frameRate: { ideal: 30 }
                     },
                     audio: true, // Capture system audio if available
                     preferCurrentTab: false, // Prefer full screen over current tab
-                    // Exclude current browser tab from options
-                    selfBrowserSurface: 'exclude',
-                    // Prevent surface switching
-                    surfaceSwitching: 'exclude'
+                    // Exclude current browser tab from options (if supported by browser)
+                    selfBrowserSurface: 'exclude'
                 });
                 
                 // Verify that full screen was selected (not window or tab)
@@ -2246,7 +2244,7 @@
                 formData.append('video', blob, `screen_recording_${this.sessionKey}_${Date.now()}.webm`);
                 formData.append('session_key', this.sessionKey);
                 
-                const response = await fetch('{% url "upload_interview_video" %}', {
+                const response = await fetch('/ai/recording/upload_video/', {
                     method: 'POST',
                     body: formData
                 });
@@ -2280,17 +2278,15 @@
             // Use most restrictive constraints to limit picker to full screen only
             const stream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
-                    displaySurface: 'monitor', // Request monitor/full screen only
+                    displaySurface: 'monitor', // Request monitor/full screen only - this should limit options
                     width: { ideal: 1920 },
                     height: { ideal: 1080 },
                     frameRate: { ideal: 30 }
                 },
                 audio: true,
                 preferCurrentTab: false, // Prefer full screen over current tab
-                // Exclude current browser tab from options
-                selfBrowserSurface: 'exclude',
-                // Prevent surface switching
-                surfaceSwitching: 'exclude'
+                // Exclude current browser tab from options (if supported by browser)
+                selfBrowserSurface: 'exclude'
             });
             
             // CRITICAL: Verify that user selected "Entire Screen" (not Window or Tab)

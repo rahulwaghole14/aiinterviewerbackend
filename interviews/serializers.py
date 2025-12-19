@@ -272,6 +272,8 @@ class InterviewSerializer(serializers.ModelSerializer):
                         
                         # Ensure GCS URL is absolute (starts with https://)
                         if proctoring_pdf_gcs_url:
+                            original_url = proctoring_pdf_gcs_url
+                            
                             # CRITICAL: Always extract GCS URL if storage.googleapis.com is present
                             # This handles cases where baseURL was concatenated incorrectly
                             # Pattern examples:
@@ -283,7 +285,10 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
                                 if gcs_index != -1:
                                     proctoring_pdf_gcs_url = proctoring_pdf_gcs_url[gcs_index:]
-                                    print(f"   [OK] Cleaned GCS URL (extracted from malformed URL): {proctoring_pdf_gcs_url}")
+                                    if original_url != proctoring_pdf_gcs_url:
+                                        print(f"   [CLEAN] Extracted GCS URL from malformed URL")
+                                        print(f"   [CLEAN] Original: {original_url[:100]}...")
+                                        print(f"   [CLEAN] Extracted: {proctoring_pdf_gcs_url[:100]}...")
                             
                             # Remove any malformed prefixes (like https://https://, https//, or double slashes)
                             import re
@@ -303,24 +308,27 @@ class InterviewSerializer(serializers.ModelSerializer):
                                     # Fix double slash
                                     proctoring_pdf_gcs_url = f"https:{proctoring_pdf_gcs_url}"
                                 else:
-                                    print(f"   [WARN] GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url}")
+                                    print(f"   [WARN] GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url[:100]}...")
                                     proctoring_pdf_gcs_url = None
                             
                             # Final validation: Ensure it's a proper GCS URL format
                             if proctoring_pdf_gcs_url and not proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
-                                print(f"   [WARN] GCS URL format invalid, cleaning: {proctoring_pdf_gcs_url}")
+                                print(f"   [WARN] GCS URL format invalid, attempting final cleanup: {proctoring_pdf_gcs_url[:100]}...")
                                 # Try to extract valid GCS URL
                                 if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
                                     gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
                                     proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url[gcs_index:]}"
+                                    print(f"   [OK] Final cleanup successful: {proctoring_pdf_gcs_url[:100]}...")
                                 else:
+                                    print(f"   [WARN] storage.googleapis.com not found, setting to None")
                                     proctoring_pdf_gcs_url = None
                             
                             # Final check: Ensure URL is clean and valid
                             if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
-                                print(f"   [OK] Final GCS URL: {proctoring_pdf_gcs_url}")
+                                print(f"   [OK] Final GCS URL (clean): {proctoring_pdf_gcs_url[:100]}...")
                             else:
                                 print(f"   [WARN] GCS URL validation failed, setting to None")
+                                print(f"   [WARN] Original URL was: {original_url[:100]}...")
                                 proctoring_pdf_gcs_url = None
                         
                         if not proctoring_pdf_url:

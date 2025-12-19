@@ -2086,7 +2086,7 @@
                 console.log('🖥️ Starting screen recording...');
                 
                 // Get screen stream - FORCE FULL SCREEN ONLY (no window/tab options)
-                // Use preferCurrentTab: false to prioritize full screen selection
+                // Use most restrictive constraints to limit picker to full screen only
                 this.screenStream = await navigator.mediaDevices.getDisplayMedia({
                     video: {
                         displaySurface: 'monitor', // Request monitor/full screen only
@@ -2095,7 +2095,11 @@
                         frameRate: { ideal: 30 }
                     },
                     audio: true, // Capture system audio if available
-                    preferCurrentTab: false // Prefer full screen over current tab
+                    preferCurrentTab: false, // Prefer full screen over current tab
+                    // Exclude current browser tab from options
+                    selfBrowserSurface: 'exclude',
+                    // Prevent surface switching
+                    surfaceSwitching: 'exclude'
                 });
                 
                 // Verify that full screen was selected (not window or tab)
@@ -2273,7 +2277,7 @@
         
         try {
             // Request screen sharing - FORCE FULL SCREEN ONLY
-            // Note: Browser picker will still show all options, but we'll verify and reject window/tab selections
+            // Use most restrictive constraints to limit picker to full screen only
             const stream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
                     displaySurface: 'monitor', // Request monitor/full screen only
@@ -2282,7 +2286,11 @@
                     frameRate: { ideal: 30 }
                 },
                 audio: true,
-                preferCurrentTab: false // Prefer full screen over current tab
+                preferCurrentTab: false, // Prefer full screen over current tab
+                // Exclude current browser tab from options
+                selfBrowserSurface: 'exclude',
+                // Prevent surface switching
+                surfaceSwitching: 'exclude'
             });
             
             // CRITICAL: Verify that user selected "Entire Screen" (not Window or Tab)

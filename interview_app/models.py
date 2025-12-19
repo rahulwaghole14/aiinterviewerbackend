@@ -28,6 +28,7 @@ class InterviewSession(models.Model):
     id_card_image = models.ImageField(upload_to='id_cards/', null=True, blank=True)
     extracted_id_details = models.TextField(null=True, blank=True)
     interview_video = models.FileField(upload_to='interview_videos/', null=True, blank=True, help_text="Complete interview video with camera, TTS questions, and candidate speech")
+    video_gcs_url = models.URLField(max_length=500, null=True, blank=True, help_text="Google Cloud Storage URL for the interview video")
 
     def save(self, *args, **kwargs):
         if not self.session_key:
@@ -60,7 +61,7 @@ class InterviewQuestion(models.Model):
     question_type = models.CharField(max_length=50, choices=QUESTION_TYPE_CHOICES, default='TECHNICAL')
     
     audio_url = models.URLField(max_length=500, null=True, blank=True)
-    question_level = models.CharField(max_length=10, default='MAIN')
+    question_level = models.CharField(max_length=30, default='MAIN')  # Increased from 10 to 30 to accommodate 'INTERVIEWEE_RESPONSE'
     parent_question = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='follow_ups')
     transcribed_answer = models.TextField(null=True, blank=True)
     order = models.PositiveIntegerField()
@@ -121,4 +122,4 @@ class CodeSubmission(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Code submission by {self.session.candidate_name} for Q: {self.question_id}"
+        return f"Code submission for Q{self.question_id} ({self.language}) - {'Passed' if self.passed_all_tests else 'Failed'}"

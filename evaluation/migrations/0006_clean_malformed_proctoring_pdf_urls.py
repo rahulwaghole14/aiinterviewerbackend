@@ -54,8 +54,8 @@ def clean_proctoring_pdf_urls(apps, schema_editor):
                         details['proctoring_pdf_gcs_url'] = clean_url
                         updated = True
                         print(f"   [CLEAN] Evaluation {evaluation.id}: Cleaned GCS URL")
-                        print(f"   [CLEAN]   Original: {original_url[:100]}...")
-                        print(f"   [CLEAN]   Cleaned: {clean_url[:100]}...")
+                        print(f"   [CLEAN]   Original: {original_url[:100]}")
+                        print(f"   [CLEAN]   Cleaned: {clean_url[:100]}")
         
         # Clean proctoring_pdf_url (if it's a GCS URL)
         if 'proctoring_pdf_url' in details:
@@ -88,8 +88,8 @@ def clean_proctoring_pdf_urls(apps, schema_editor):
                         details['proctoring_pdf_url'] = clean_url
                         updated = True
                         print(f"   [CLEAN] Evaluation {evaluation.id}: Cleaned PDF URL")
-                        print(f"   [CLEAN]   Original: {original_url[:100]}...")
-                        print(f"   [CLEAN]   Cleaned: {clean_url[:100]}...")
+                        print(f"   [CLEAN]   Original: {original_url[:100]}")
+                        print(f"   [CLEAN]   Cleaned: {clean_url[:100]}")
         
         # Save if updated
         if updated:
@@ -101,7 +101,7 @@ def clean_proctoring_pdf_urls(apps, schema_editor):
                 error_count += 1
                 print(f"   [ERROR] Failed to update Evaluation {evaluation.id}: {e}")
     
-    print(f"\n✅ Migration completed:")
+    print(f"\n[OK] Migration completed:")
     print(f"   - Updated: {updated_count} evaluations")
     print(f"   - Errors: {error_count}")
 

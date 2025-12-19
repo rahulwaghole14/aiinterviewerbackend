@@ -224,17 +224,28 @@ def upload_video_to_gcs(video_file_path: str, gcs_file_path: str, content_type: 
             return None
         
         bucket = client.bucket(bucket_name)
+        # Ensure folder structure: interview_videos/ in bucket
+        # gcs_file_path should already include 'interview_videos/' prefix
         blob = bucket.blob(gcs_file_path)
         
-        # Upload video file
-        blob.upload_from_filename(video_file_path, content_type=content_type)
+        print(f"📤 Uploading video to GCS bucket: {bucket_name}")
+        print(f"📤 GCS file path: {gcs_file_path}")
+        print(f"📤 Local file path: {video_file_path}")
+        print(f"📤 Content type: {content_type}")
+        
+        # Upload video file with timeout
+        blob.upload_from_filename(video_file_path, content_type=content_type, timeout=300)
+        
+        print(f"✅ Video file uploaded to GCS blob")
         
         # Make blob publicly readable
         blob.make_public()
+        print(f"✅ Video blob made publicly readable")
         
         # Get public URL
         public_url = blob.public_url
         print(f"✅ Video uploaded to GCS: {public_url}")
+        print(f"✅ Video stored in folder: interview_videos/")
         return public_url
         
     except GoogleCloudError as e:

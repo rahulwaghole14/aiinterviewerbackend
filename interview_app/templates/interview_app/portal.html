@@ -2201,16 +2201,27 @@
         async stopRecording() {
             if (!this.isRecording || !this.mediaRecorder) {
                 console.warn('⚠️ No active screen recording to stop');
+                // Even if not recording, try to upload any existing chunks
+                if (this.recordedChunks.length > 0) {
+                    console.log('📤 Found existing chunks, uploading...');
+                    await this.uploadRecording();
+                }
                 return;
             }
             
             try {
                 console.log('🛑 Stopping screen recording...');
+                console.log(`📊 Recorded chunks: ${this.recordedChunks.length}, Total size: ${this.recordedChunks.reduce((sum, chunk) => sum + chunk.size, 0)} bytes`);
                 this.mediaRecorder.stop();
                 this.isRecording = false;
-                this.cleanup();
+                // Don't cleanup yet - wait for uploadRecording to complete
+                // uploadRecording() will be called automatically by onstop handler
             } catch (error) {
                 console.error('❌ Error stopping screen recording:', error);
+                // Try to upload anyway
+                if (this.recordedChunks.length > 0) {
+                    await this.uploadRecording();
+                }
                 this.cleanup();
             }
         }
@@ -2233,16 +2244,24 @@
         async uploadRecording() {
             if (this.recordedChunks.length === 0) {
                 console.warn('⚠️ No recording chunks to upload');
+                this.cleanup();
                 return;
             }
             
             try {
                 console.log('📤 Uploading screen recording...');
                 const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+                const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
+                console.log(`📦 Video blob size: ${fileSizeMB} MB`);
                 
                 const formData = new FormData();
-                formData.append('video', blob, `screen_recording_${this.sessionKey}_${Date.now()}.webm`);
+                const filename = `screen_recording_${this.sessionKey}_${Date.now()}.webm`;
+                formData.append('video', blob, filename);
                 formData.append('session_key', this.sessionKey);
+                
+                console.log(`📤 Uploading to: /ai/recording/upload_video/`);
+                console.log(`📤 Session key: ${this.sessionKey}`);
+                console.log(`📤 Filename: ${filename}`);
                 
                 const response = await fetch('/ai/recording/upload_video/', {
                     method: 'POST',
@@ -2254,16 +2273,30 @@
                     console.log('✅ Screen recording uploaded successfully:', result);
                     if (result.video_url) {
                         console.log('✅ Video GCS URL:', result.video_url);
+                        console.log('✅ Video saved to Google Cloud Storage');
                     } else if (result.local_path) {
                         console.log('⚠️ Video saved locally only:', result.local_path);
                         console.log('⚠️ GCS upload may have failed - check server logs');
+                        if (result.warning) {
+                            console.warn('⚠️ Warning:', result.warning);
+                        }
                     }
                 } else {
                     const errorText = await response.text();
                     console.error('❌ Failed to upload screen recording:', response.status, errorText);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        console.error('❌ Error details:', errorJson);
+                    } catch (e) {
+                        console.error('❌ Error response (not JSON):', errorText);
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error uploading screen recording:', error);
+                console.error('❌ Error stack:', error.stack);
+            } finally {
+                // Cleanup after upload attempt
+                this.cleanup();
             }
         }
     }

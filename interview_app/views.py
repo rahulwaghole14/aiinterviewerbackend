@@ -7141,8 +7141,11 @@ def upload_interview_video(request):
             elif video_filename.lower().endswith('.mov'):
                 content_type = 'video/quicktime'
             
-            # Generate GCS file path
+            # Generate GCS file path - ensure proper folder structure
+            # Store in interview_videos/ folder in bucket: ai-interview-pdfs-eastern-team-480811-e6
             gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
+            print(f"📁 GCS folder path: interview_videos/")
+            print(f"📁 Full GCS path: {gcs_video_path}")
             
             # Upload to GCS
             print(f"📤 Attempting to upload video to GCS: {video_path} -> {gcs_video_path}")

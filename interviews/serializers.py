@@ -292,9 +292,10 @@ class InterviewSerializer(serializers.ModelSerializer):
                             
                             # Remove any malformed prefixes (like https://https://, https//, or double slashes)
                             import re
+                            # CRITICAL: Handle https// pattern FIRST (missing colon) - must be before other patterns
+                            proctoring_pdf_gcs_url = re.sub(r'^https?\/\/', 'https://', proctoring_pdf_gcs_url)  # https// -> https:// (MUST BE FIRST)
                             proctoring_pdf_gcs_url = re.sub(r'^https?://https?://', 'https://', proctoring_pdf_gcs_url)
                             proctoring_pdf_gcs_url = re.sub(r'^https?://+', 'https://', proctoring_pdf_gcs_url)
-                            proctoring_pdf_gcs_url = re.sub(r'^https?\/\/+', 'https://', proctoring_pdf_gcs_url)  # Handle https// pattern
                             
                             # Normalize URL - ensure it starts with https://
                             if not proctoring_pdf_gcs_url.startswith('https://'):

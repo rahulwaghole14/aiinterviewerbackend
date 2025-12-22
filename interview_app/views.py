@@ -5361,34 +5361,51 @@ def download_proctoring_pdf(request, session_id=None):
         if not public_url and stored_gcs_url:
             import re
             original_url = stored_gcs_url.strip()
-            clean_url = original_url
             
             print(f"[CLEAN] Cleaning stored GCS URL: {original_url[:100]}...")
             
-            # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
-            if 'storage.googleapis.com' in clean_url:
-                gcs_index = clean_url.find('storage.googleapis.com')
+            # CRITICAL: Handle malformed patterns like:
+            # - https://talaroai-...run.apphttps//storage.googleapis.com/...
+            # - talaroai-...run.apphttps//storage.googleapis.com/...
+            # - run.apphttps//storage.googleapis.com/...
+            
+            # Step 1: Extract ONLY the GCS URL part (everything from storage.googleapis.com onwards)
+            clean_url = None
+            if 'storage.googleapis.com' in original_url:
+                gcs_index = original_url.find('storage.googleapis.com')
                 if gcs_index != -1:
-                    clean_url = clean_url[gcs_index:]
+                    # Extract everything from storage.googleapis.com onwards
+                    clean_url = original_url[gcs_index:]
                     print(f"[CLEAN] Extracted GCS part: {clean_url[:100]}...")
             
-            # Remove ALL malformed prefixes (https//, https://, http://, app URLs, etc.)
-            clean_url = re.sub(r'^https?\/\/', '', clean_url)  # Remove https// (MUST BE FIRST)
-            clean_url = re.sub(r'^https?:\/\/', '', clean_url)  # Remove https://
-            clean_url = re.sub(r'^http:\/\/', '', clean_url)  # Remove http://
+            # Step 2: Remove ALL malformed prefixes that might exist before storage.googleapis.com
+            if clean_url:
+                # Remove any remaining prefixes (shouldn't be any, but just in case)
+                clean_url = re.sub(r'^https?\/\/+', '', clean_url)  # Remove https// or https/// (MUST BE FIRST)
+                clean_url = re.sub(r'^https?:\/\/+', '', clean_url)  # Remove https:// or https:///
+                clean_url = re.sub(r'^http:\/\/+', '', clean_url)  # Remove http:// or http:///
+                
+                # Remove any app URL patterns that might have leaked through
+                # Pattern: anything ending with .app, .run, .com followed by https// or https://
+                clean_url = re.sub(r'^[^/]+\.(app|run|com)https?\/\/+', '', clean_url)
+                clean_url = re.sub(r'^[^/]+\.(app|run|com)https?:\/\/+', '', clean_url)
+                
+                # Ensure it starts with storage.googleapis.com
+                if not clean_url.startswith('storage.googleapis.com'):
+                    gcs_index = clean_url.find('storage.googleapis.com')
+                    if gcs_index != -1:
+                        clean_url = clean_url[gcs_index:]
+                        print(f"[CLEAN] Re-extracted GCS part: {clean_url[:100]}...")
+                    else:
+                        print(f"[ERROR] Cannot find storage.googleapis.com in cleaned URL")
+                        clean_url = None
             
-            # Ensure it starts with storage.googleapis.com
-            if not clean_url.startswith('storage.googleapis.com'):
-                gcs_index = clean_url.find('storage.googleapis.com')
-                if gcs_index != -1:
-                    clean_url = clean_url[gcs_index:]
-                else:
-                    clean_url = None
-            
-            # Construct clean URL with https:// prefix
+            # Step 3: Construct clean URL with https:// prefix
             if clean_url and clean_url.startswith('storage.googleapis.com'):
                 public_url = f"https://{clean_url}"
                 print(f"[OK] Cleaned stored GCS URL: {public_url[:100]}...")
+            else:
+                print(f"[ERROR] Failed to clean stored GCS URL, original was: {original_url[:100]}...")
         
         # Step 4: Return public URL to frontend (browser will open it)
         if public_url and public_url.startswith('https://storage.googleapis.com/'):

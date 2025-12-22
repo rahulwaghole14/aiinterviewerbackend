@@ -240,4 +240,3 @@ If deployment fails:
 2. Verify all environment variables are set correctly
 3. Ensure no typos in variable names or values
 4. Check that secrets are marked as "Secret"
-

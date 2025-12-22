@@ -37,9 +37,9 @@ _GEMINI_KEY = getattr(django_settings, 'GEMINI_API_KEY', '')
 if genai:
     try:
         genai.configure(api_key=_GEMINI_KEY)
-        print(f"✅ Gemini API configured successfully")
+        print(f"[OK] Gemini API configured successfully")
     except Exception as e:
-        print(f"❌ Gemini configuration failed: {e}")
+        print(f"[ERROR] Gemini configuration failed: {e}")
         pass
 
 
@@ -106,7 +106,7 @@ def _gemini_generate(prompt: str) -> str:
         resp = model.generate_content(prompt)
         return getattr(resp, "text", "") or "Could not generate a response."
     except Exception as e:
-        print(f"❌ Gemini error: {e}")
+        print(f"[ERROR] Gemini error: {e}")
         return f"[Gemini error: {str(e)}]"
 
 
@@ -285,7 +285,7 @@ class ChatBotManager:
 
         q = self._generate_question(session, qtype="introduction")
         if not q or "introduc" not in q.lower():
-            print(f"⚠️ Generated introduction question did not look like an intro. Using fallback prompt.")
+            print(f"[WARN] Generated introduction question did not look like an intro. Using fallback prompt.")
             q = intro_fallback
         else:
             q = q.strip()
@@ -376,7 +376,7 @@ class ChatBotManager:
         print(f"🤖 Generated question: {next_q[:100]}...")
         
         if not next_q or next_q.startswith("[Gemini error"):
-            print(f"❌ Question generation failed: {next_q}")
+            print(f"[ERROR] Question generation failed: {next_q}")
             return {
                 "transcript": transcript,
                 "completed": False,
@@ -390,7 +390,7 @@ class ChatBotManager:
         session.last_active_question_text = next_q
         session.question_asked_at = time.time()
         audio_url = _text_to_speech(next_q, f"q{session.current_question_number}.mp3")
-        print(f"✅ Question {session.current_question_number} generated successfully")
+        print(f"[OK] Question {session.current_question_number} generated successfully")
 
         return {
             "transcript": transcript,
@@ -422,12 +422,12 @@ class ChatBotManager:
         try:
             from fpdf2 import FPDF  # type: ignore
         except ImportError as e:
-            print(f"❌ fpdf2 import failed in transcript_pdf_bytes: {e}")
+            print(f"[ERROR] fpdf2 import failed in transcript_pdf_bytes: {e}")
             try:
                 from fpdf import FPDF  # type: ignore
-                print("✅ Using fpdf (fallback) for transcript PDF generation")
+                print("[OK] Using fpdf (fallback) for transcript PDF generation")
             except ImportError as e2:
-                print(f"❌ fpdf import also failed: {e2}")
+                print(f"[ERROR] fpdf import also failed: {e2}")
                 import traceback
                 traceback.print_exc()
                 return b""

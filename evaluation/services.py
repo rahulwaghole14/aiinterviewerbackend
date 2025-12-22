@@ -421,31 +421,45 @@ def create_evaluation_from_session(session_key: str):
                             original_url = gcs_url
                             clean_url = gcs_url.strip()
                             
-                            # Extract only the GCS URL part if malformed (contains app URL prefix)
+                            # CRITICAL: Extract ONLY the GCS URL part - remove ALL prefixes
+                            # Handle pattern: https://app-urlhttps//storage.googleapis.com/...
                             if 'storage.googleapis.com' in clean_url:
                                 gcs_index = clean_url.find('storage.googleapis.com')
                                 if gcs_index != -1:
+                                    # Extract everything from storage.googleapis.com onwards
                                     clean_url = clean_url[gcs_index:]
-                                    print(f"   [CLEAN] Extracted GCS URL from malformed URL: {original_url[:80]}... -> {clean_url[:80]}...")
+                                    print(f"   [CLEAN] Extracted GCS part: {clean_url[:80]}...")
                             
-                            # Remove malformed prefixes
-                            clean_url = re.sub(r'^https?\/\/+', 'https://', clean_url)
-                            clean_url = re.sub(r'^https?://https?://', 'https://', clean_url)
+                            # Remove ALL malformed prefixes (https//, https://, http://)
+                            clean_url = re.sub(r'^https?\/\/', '', clean_url)  # Remove https// (MUST BE FIRST)
+                            clean_url = re.sub(r'^https?:\/\/', '', clean_url)  # Remove https://
+                            clean_url = re.sub(r'^http:\/\/', '', clean_url)  # Remove http://
                             
-                            # Ensure it starts with https://
-                            if not clean_url.startswith('https://'):
-                                if clean_url.startswith('storage.googleapis.com'):
-                                    clean_url = f"https://{clean_url}"
+                            # Ensure it starts with storage.googleapis.com
+                            if not clean_url.startswith('storage.googleapis.com'):
+                                print(f"   [WARN] Invalid GCS URL format after extraction: {clean_url[:80]}...")
+                                # Try to find storage.googleapis.com again
+                                gcs_index = clean_url.find('storage.googleapis.com')
+                                if gcs_index != -1:
+                                    clean_url = clean_url[gcs_index:]
                                 else:
-                                    print(f"   [WARN] Invalid GCS URL format, using original: {clean_url}")
-                                    clean_url = gcs_url  # Fallback to original
+                                    print(f"   [ERROR] Cannot extract GCS URL, using original")
+                                    clean_url = original_url
                             
-                            # Final validation
+                            # Construct clean URL with https:// prefix
+                            if clean_url.startswith('storage.googleapis.com'):
+                                clean_url = f"https://{clean_url}"
+                            
+                            # Final validation - must be a proper GCS URL
                             if clean_url.startswith('https://storage.googleapis.com/'):
                                 gcs_url = clean_url
                                 print(f"   [OK] Cleaned GCS URL stored: {gcs_url[:80]}...")
                             else:
-                                print(f"   [WARN] GCS URL validation failed, storing original: {gcs_url[:80]}...")
+                                print(f"   [ERROR] GCS URL validation failed after cleaning")
+                                print(f"   [ERROR] Original: {original_url[:80]}...")
+                                print(f"   [ERROR] Cleaned: {clean_url[:80]}...")
+                                # Don't store invalid URL - set to None
+                                gcs_url = None
                         
                         proctoring_pdf_path = local_path  # Store local path for later use
                         details['proctoring_pdf'] = local_path

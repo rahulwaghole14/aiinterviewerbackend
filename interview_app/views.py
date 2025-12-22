@@ -5230,6 +5230,12 @@ def download_proctoring_pdf(request, session_id=None):
     Query parameter:
     - format=json: Returns JSON with GCS URL instead of downloading PDF
     """
+    print(f"[PROCTORING PDF API] ========== ENDPOINT HIT ==========")
+    print(f"[PROCTORING PDF API] Request method: {request.method}")
+    print(f"[PROCTORING PDF API] Path: {request.path}")
+    print(f"[PROCTORING PDF API] Query params: {request.GET}")
+    print(f"[PROCTORING PDF API] Path param (session_id): {session_id}")
+    print(f"[PROCTORING PDF API] ==================================")
     try:
         from .models import InterviewSession
         from evaluation.models import Evaluation

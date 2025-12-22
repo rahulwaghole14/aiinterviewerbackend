@@ -5312,20 +5312,58 @@ def download_proctoring_pdf(request, session_id=None):
         if not evaluation.details or not isinstance(evaluation.details, dict):
             return JsonResponse({'error': 'Evaluation details not found'}, status=404)
         
-        # CRITICAL: Always return JSON with clean GCS URL - never redirect or serve PDF directly
-        # Frontend will open the GCS URL directly in a new tab
+        # FLOW: Button Click → Backend API → Generate Public/Signed URL → Browser Opens File
+        # Step 1: Get file path from evaluation details
+        proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+        stored_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
         
-        # Get GCS URL from evaluation details
-        gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
+        print(f"[PROCTORING PDF] Generating public URL for proctoring PDF")
+        print(f"[PROCTORING PDF] File path: {proctoring_pdf_path}")
+        print(f"[PROCTORING PDF] Stored GCS URL: {stored_gcs_url}")
         
-        # CRITICAL: Extract and clean GCS URL - ensure it's a valid GCS URL
-        if gcs_url and isinstance(gcs_url, str):
+        # Step 2: Generate public URL from file path (preferred method - always clean)
+        public_url = None
+        if proctoring_pdf_path and 'proctoring_pdfs/' in proctoring_pdf_path:
+            try:
+                from .gcs_storage import get_gcs_bucket_name, get_gcs_client
+                from google.cloud import storage
+                
+                bucket_name = get_gcs_bucket_name()
+                if bucket_name:
+                    # Construct public URL directly from bucket name and file path
+                    # Format: https://storage.googleapis.com/BUCKET_NAME/path/to/file.pdf
+                    public_url = f"https://storage.googleapis.com/{bucket_name}/{proctoring_pdf_path}"
+                    
+                    # Verify the blob exists and is public
+                    try:
+                        client = get_gcs_client()
+                        if client:
+                            bucket = client.bucket(bucket_name)
+                            blob = bucket.blob(proctoring_pdf_path)
+                            if blob.exists():
+                                # Ensure blob is public
+                                blob.make_public()
+                                # Get the actual public URL
+                                public_url = blob.public_url
+                                print(f"[OK] Generated public URL from file path: {public_url[:100]}...")
+                            else:
+                                print(f"[WARN] Blob does not exist at path: {proctoring_pdf_path}")
+                                public_url = None
+                    except Exception as verify_error:
+                        print(f"[WARN] Error verifying blob, using constructed URL: {verify_error}")
+                        # Use constructed URL anyway
+            except Exception as e:
+                print(f"[ERROR] Error generating public URL from path: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Step 3: Fallback to stored GCS URL if public URL generation failed
+        if not public_url and stored_gcs_url:
             import re
-            original_url = gcs_url.strip()
+            original_url = stored_gcs_url.strip()
             clean_url = original_url
             
-            print(f"[CLEAN] Starting URL cleaning for proctoring PDF")
-            print(f"[CLEAN] Original URL: {original_url[:100]}...")
+            print(f"[CLEAN] Cleaning stored GCS URL: {original_url[:100]}...")
             
             # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
             if 'storage.googleapis.com' in clean_url:
@@ -5341,39 +5379,32 @@ def download_proctoring_pdf(request, session_id=None):
             
             # Ensure it starts with storage.googleapis.com
             if not clean_url.startswith('storage.googleapis.com'):
-                # Try to find storage.googleapis.com again
                 gcs_index = clean_url.find('storage.googleapis.com')
                 if gcs_index != -1:
                     clean_url = clean_url[gcs_index:]
-                    print(f"[CLEAN] Re-extracted GCS part: {clean_url[:100]}...")
                 else:
-                    print(f"[ERROR] Cannot extract valid GCS URL from: {original_url[:100]}...")
                     clean_url = None
             
             # Construct clean URL with https:// prefix
             if clean_url and clean_url.startswith('storage.googleapis.com'):
-                clean_url = f"https://{clean_url}"
-                
-                # Final validation - must be a proper GCS URL
-                if clean_url.startswith('https://storage.googleapis.com/'):
-                    print(f"[OK] Clean GCS URL ready: {clean_url[:100]}...")
-                    # ALWAYS return JSON with clean GCS URL - frontend will open it directly
-                    return JsonResponse({
-                        'status': 'success',
-                        'gcs_url': clean_url,
-                        'message': 'Proctoring PDF GCS URL retrieved successfully'
-                    })
-                else:
-                    print(f"[ERROR] GCS URL validation failed: {clean_url[:100]}...")
-            else:
-                print(f"[ERROR] GCS URL doesn't start with storage.googleapis.com: {clean_url}")
+                public_url = f"https://{clean_url}"
+                print(f"[OK] Cleaned stored GCS URL: {public_url[:100]}...")
         
-        # If no valid GCS URL found, return error (don't fallback to local PDF)
-        # Frontend expects only clean GCS URLs - no mixed URLs or local file serving
-        print(f"[ERROR] No valid GCS URL found for proctoring PDF")
+        # Step 4: Return public URL to frontend (browser will open it)
+        if public_url and public_url.startswith('https://storage.googleapis.com/'):
+            print(f"[SUCCESS] Returning public URL to frontend: {public_url[:100]}...")
+            return JsonResponse({
+                'status': 'success',
+                'gcs_url': public_url,
+                'url': public_url,  # Also include 'url' field for compatibility
+                'message': 'Proctoring PDF public URL generated successfully'
+            })
+        
+        # Step 5: If no URL can be generated, return error
+        print(f"[ERROR] Could not generate public URL for proctoring PDF")
         return JsonResponse({
             'status': 'error',
-            'error': 'Proctoring PDF GCS URL not found or invalid. PDF may not have been uploaded to GCS.',
+            'error': 'Proctoring PDF not found in GCS. PDF may not have been uploaded.',
             'message': 'Please ensure the proctoring PDF was uploaded to Google Cloud Storage.'
         }, status=404)
         

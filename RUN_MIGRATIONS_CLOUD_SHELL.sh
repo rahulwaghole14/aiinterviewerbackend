@@ -60,7 +60,7 @@ if gcloud run jobs describe run-migrations --region=${REGION} --project=${PROJEC
     --region=${REGION} \
     --project=${PROJECT_ID} \
     --set-env-vars="${ENV_VARS}" \
-    --add-cloudsql-instances=${CLOUD_SQL_CONNECTION_NAME} \
+    --set-cloudsql-instances=${CLOUD_SQL_CONNECTION_NAME} \
     --command="python" \
     --args="manage.py,migrate" \
     --max-retries=1 \
@@ -72,7 +72,7 @@ else
     --region=${REGION} \
     --project=${PROJECT_ID} \
     --set-env-vars="${ENV_VARS}" \
-    --add-cloudsql-instances=${CLOUD_SQL_CONNECTION_NAME} \
+    --set-cloudsql-instances=${CLOUD_SQL_CONNECTION_NAME} \
     --command="python" \
     --args="manage.py,migrate" \
     --max-retries=1 \

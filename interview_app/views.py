@@ -5226,6 +5226,9 @@ def download_proctoring_pdf(request, session_id=None):
     - interview.id (UUID) as path parameter: /api/proctoring/pdf/<uuid:session_id>/
     - session_key as query parameter: /api/proctoring/pdf/?session_key=xxx
     - interview.id as query parameter: /api/proctoring/pdf/?interview_id=xxx
+    
+    Query parameter:
+    - format=json: Returns JSON with GCS URL instead of downloading PDF
     """
     try:
         from .models import InterviewSession
@@ -5238,6 +5241,7 @@ def download_proctoring_pdf(request, session_id=None):
         # Support query parameters (like AI analysis PDF)
         session_key = request.GET.get('session_key', '')
         interview_id_param = request.GET.get('interview_id', '')
+        return_json = request.GET.get('format', '').lower() == 'json'  # Check if JSON format requested
         
         # Determine which identifier to use
         identifier = None
@@ -5313,6 +5317,7 @@ def download_proctoring_pdf(request, session_id=None):
         proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
         
         # CRITICAL: Extract clean GCS URL and return it as JSON for frontend to open directly
+        # Always return JSON if GCS URL exists (frontend will open it directly)
         if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
             import re
             original_url = gcs_url
@@ -5336,7 +5341,7 @@ def download_proctoring_pdf(request, session_id=None):
                 # Final validation
                 if clean_url.startswith('https://storage.googleapis.com/'):
                     print(f"[OK] Clean GCS URL: {clean_url[:80]}...")
-                    # Return JSON with clean GCS URL for frontend to open
+                    # Always return JSON with clean GCS URL for frontend to open directly
                     return JsonResponse({
                         'status': 'success',
                         'gcs_url': clean_url,

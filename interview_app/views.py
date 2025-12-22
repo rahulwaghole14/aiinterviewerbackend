@@ -5380,18 +5380,12 @@ def download_proctoring_pdf(request, session_id=None):
             
             # Step 2: Remove ALL malformed prefixes that might exist before storage.googleapis.com
             if clean_url:
-                # Remove any remaining prefixes (shouldn't be any, but just in case)
-                clean_url = re.sub(r'^https?\/\/+', '', clean_url)  # Remove https// or https/// (MUST BE FIRST)
-                clean_url = re.sub(r'^https?:\/\/+', '', clean_url)  # Remove https:// or https:///
-                clean_url = re.sub(r'^http:\/\/+', '', clean_url)  # Remove http:// or http:///
+                # CRITICAL: The extracted string should start with 'storage.googleapis.com'
+                # But if it doesn't, there might be leftover prefixes
                 
-                # Remove any app URL patterns that might have leaked through
-                # Pattern: anything ending with .app, .run, .com followed by https// or https://
-                clean_url = re.sub(r'^[^/]+\.(app|run|com)https?\/\/+', '', clean_url)
-                clean_url = re.sub(r'^[^/]+\.(app|run|com)https?:\/\/+', '', clean_url)
-                
-                # Ensure it starts with storage.googleapis.com
+                # First, ensure we start with storage.googleapis.com (should already be the case)
                 if not clean_url.startswith('storage.googleapis.com'):
+                    # Try to find storage.googleapis.com again
                     gcs_index = clean_url.find('storage.googleapis.com')
                     if gcs_index != -1:
                         clean_url = clean_url[gcs_index:]
@@ -5399,6 +5393,28 @@ def download_proctoring_pdf(request, session_id=None):
                     else:
                         print(f"[ERROR] Cannot find storage.googleapis.com in cleaned URL")
                         clean_url = None
+                
+                # Now remove any prefixes that might have leaked through
+                # This handles cases where the extraction didn't work perfectly
+                if clean_url:
+                    # Remove patterns like: run.apphttps//storage or run.apphttps://storage
+                    clean_url = re.sub(r'^[^/]*\.(app|run|com)https?\/\/+', '', clean_url)
+                    clean_url = re.sub(r'^[^/]*\.(app|run|com)https?:\/\/+', '', clean_url)
+                    
+                    # Remove any remaining https// or https:// prefixes
+                    clean_url = re.sub(r'^https?\/\/+', '', clean_url)  # Remove https// or https///
+                    clean_url = re.sub(r'^https?:\/\/+', '', clean_url)  # Remove https:// or https:///
+                    clean_url = re.sub(r'^http:\/\/+', '', clean_url)  # Remove http:// or http:///
+                    
+                    # Final check: must start with storage.googleapis.com
+                    if not clean_url.startswith('storage.googleapis.com'):
+                        gcs_index = clean_url.find('storage.googleapis.com')
+                        if gcs_index != -1:
+                            clean_url = clean_url[gcs_index:]
+                            print(f"[CLEAN] Final extraction: {clean_url[:100]}...")
+                        else:
+                            print(f"[ERROR] Final extraction failed, URL is: {clean_url[:100]}...")
+                            clean_url = None
             
             # Step 3: Construct clean URL with https:// prefix
             if clean_url and clean_url.startswith('storage.googleapis.com'):

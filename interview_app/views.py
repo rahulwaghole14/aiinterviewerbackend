@@ -5312,7 +5312,38 @@ def download_proctoring_pdf(request, session_id=None):
         gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
         proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
         
-        # If GCS URL exists, extract file path and download from GCS
+        # CRITICAL: Extract clean GCS URL and return it as JSON for frontend to open directly
+        if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
+            import re
+            original_url = gcs_url
+            clean_url = gcs_url.strip()
+            
+            # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
+            gcs_index = clean_url.find('storage.googleapis.com')
+            if gcs_index != -1:
+                clean_url = clean_url[gcs_index:]
+                print(f"[CLEAN] Extracted GCS part from: {original_url[:80]}...")
+            
+            # Remove malformed prefixes
+            clean_url = re.sub(r'^https?\/\/', '', clean_url)  # Remove https//
+            clean_url = re.sub(r'^https?:\/\/', '', clean_url)  # Remove https://
+            clean_url = re.sub(r'^http:\/\/', '', clean_url)  # Remove http://
+            
+            # Construct clean URL
+            if clean_url.startswith('storage.googleapis.com'):
+                clean_url = f"https://{clean_url}"
+                
+                # Final validation
+                if clean_url.startswith('https://storage.googleapis.com/'):
+                    print(f"[OK] Clean GCS URL: {clean_url[:80]}...")
+                    # Return JSON with clean GCS URL for frontend to open
+                    return JsonResponse({
+                        'status': 'success',
+                        'gcs_url': clean_url,
+                        'message': 'Proctoring PDF GCS URL retrieved successfully'
+                    })
+        
+        # If no clean GCS URL found, try to download and serve PDF
         if gcs_url and isinstance(gcs_url, str):
             # Normalize GCS URL - ensure it starts with https://
             if not gcs_url.startswith('http'):

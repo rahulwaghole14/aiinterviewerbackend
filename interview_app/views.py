@@ -5312,44 +5312,69 @@ def download_proctoring_pdf(request, session_id=None):
         if not evaluation.details or not isinstance(evaluation.details, dict):
             return JsonResponse({'error': 'Evaluation details not found'}, status=404)
         
-        # Check for GCS URL first (preferred)
-        gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
-        proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+        # CRITICAL: Always return JSON with clean GCS URL - never redirect or serve PDF directly
+        # Frontend will open the GCS URL directly in a new tab
         
-        # CRITICAL: Extract clean GCS URL and return it as JSON for frontend to open directly
-        # Always return JSON if GCS URL exists (frontend will open it directly)
-        if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
+        # Get GCS URL from evaluation details
+        gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
+        
+        # CRITICAL: Extract and clean GCS URL - ensure it's a valid GCS URL
+        if gcs_url and isinstance(gcs_url, str):
             import re
-            original_url = gcs_url
-            clean_url = gcs_url.strip()
+            original_url = gcs_url.strip()
+            clean_url = original_url
+            
+            print(f"[CLEAN] Starting URL cleaning for proctoring PDF")
+            print(f"[CLEAN] Original URL: {original_url[:100]}...")
             
             # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
-            gcs_index = clean_url.find('storage.googleapis.com')
-            if gcs_index != -1:
-                clean_url = clean_url[gcs_index:]
-                print(f"[CLEAN] Extracted GCS part from: {original_url[:80]}...")
+            if 'storage.googleapis.com' in clean_url:
+                gcs_index = clean_url.find('storage.googleapis.com')
+                if gcs_index != -1:
+                    clean_url = clean_url[gcs_index:]
+                    print(f"[CLEAN] Extracted GCS part: {clean_url[:100]}...")
             
-            # Remove malformed prefixes
-            clean_url = re.sub(r'^https?\/\/', '', clean_url)  # Remove https//
+            # Remove ALL malformed prefixes (https//, https://, http://, app URLs, etc.)
+            clean_url = re.sub(r'^https?\/\/', '', clean_url)  # Remove https// (MUST BE FIRST)
             clean_url = re.sub(r'^https?:\/\/', '', clean_url)  # Remove https://
             clean_url = re.sub(r'^http:\/\/', '', clean_url)  # Remove http://
             
-            # Construct clean URL
-            if clean_url.startswith('storage.googleapis.com'):
+            # Ensure it starts with storage.googleapis.com
+            if not clean_url.startswith('storage.googleapis.com'):
+                # Try to find storage.googleapis.com again
+                gcs_index = clean_url.find('storage.googleapis.com')
+                if gcs_index != -1:
+                    clean_url = clean_url[gcs_index:]
+                    print(f"[CLEAN] Re-extracted GCS part: {clean_url[:100]}...")
+                else:
+                    print(f"[ERROR] Cannot extract valid GCS URL from: {original_url[:100]}...")
+                    clean_url = None
+            
+            # Construct clean URL with https:// prefix
+            if clean_url and clean_url.startswith('storage.googleapis.com'):
                 clean_url = f"https://{clean_url}"
                 
-                # Final validation
+                # Final validation - must be a proper GCS URL
                 if clean_url.startswith('https://storage.googleapis.com/'):
-                    print(f"[OK] Clean GCS URL: {clean_url[:80]}...")
-                    # Always return JSON with clean GCS URL for frontend to open directly
+                    print(f"[OK] Clean GCS URL ready: {clean_url[:100]}...")
+                    # ALWAYS return JSON with clean GCS URL - frontend will open it directly
                     return JsonResponse({
                         'status': 'success',
                         'gcs_url': clean_url,
                         'message': 'Proctoring PDF GCS URL retrieved successfully'
                     })
+                else:
+                    print(f"[ERROR] GCS URL validation failed: {clean_url[:100]}...")
+            else:
+                print(f"[ERROR] GCS URL doesn't start with storage.googleapis.com: {clean_url}")
         
-        # If no clean GCS URL found, try to download and serve PDF
-        if gcs_url and isinstance(gcs_url, str):
+        # If no valid GCS URL found, return error (don't fallback to local PDF)
+        print(f"[ERROR] No valid GCS URL found for proctoring PDF")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Proctoring PDF GCS URL not found or invalid. PDF may not have been uploaded to GCS.',
+            'message': 'Please ensure the proctoring PDF was uploaded to Google Cloud Storage.'
+        }, status=404)
             # Normalize GCS URL - ensure it starts with https://
             if not gcs_url.startswith('http'):
                 # If URL doesn't start with http, it might be a relative path

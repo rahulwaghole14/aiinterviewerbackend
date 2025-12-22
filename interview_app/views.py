@@ -5369,126 +5369,13 @@ def download_proctoring_pdf(request, session_id=None):
                 print(f"[ERROR] GCS URL doesn't start with storage.googleapis.com: {clean_url}")
         
         # If no valid GCS URL found, return error (don't fallback to local PDF)
+        # Frontend expects only clean GCS URLs - no mixed URLs or local file serving
         print(f"[ERROR] No valid GCS URL found for proctoring PDF")
         return JsonResponse({
             'status': 'error',
             'error': 'Proctoring PDF GCS URL not found or invalid. PDF may not have been uploaded to GCS.',
             'message': 'Please ensure the proctoring PDF was uploaded to Google Cloud Storage.'
         }, status=404)
-            # Normalize GCS URL - ensure it starts with https://
-            if not gcs_url.startswith('http'):
-                # If URL doesn't start with http, it might be a relative path
-                # Try to construct full GCS URL
-                if gcs_url.startswith('storage.googleapis.com'):
-                    gcs_url = f"https://{gcs_url}"
-                elif 'storage.googleapis.com' in gcs_url:
-                    # Already contains domain, just add https://
-                    gcs_url = f"https://{gcs_url.lstrip('/')}"
-                else:
-                    # Not a valid GCS URL, skip to file path method
-                    gcs_url = None
-            
-            if gcs_url and 'storage.googleapis.com' in gcs_url:
-                print(f"✅ Found GCS URL: {gcs_url}")
-                # Extract file path from GCS URL
-                # URL format: https://storage.googleapis.com/BUCKET_NAME/path/to/file.pdf
-                try:
-                    from urllib.parse import urlparse
-                    parsed_url = urlparse(gcs_url)
-                    # Extract path after bucket name (remove leading /)
-                    gcs_file_path = parsed_url.path.lstrip('/')
-                    # Remove bucket name from path (first segment)
-                    path_parts = gcs_file_path.split('/', 1)
-                    if len(path_parts) > 1:
-                        gcs_file_path = path_parts[1]  # Get path after bucket name
-                        print(f"✅ Extracted GCS file path: {gcs_file_path}")
-                        pdf_bytes = download_pdf_from_gcs(gcs_file_path)
-                        if pdf_bytes:
-                            print(f"✅ Downloaded PDF from GCS: {len(pdf_bytes)} bytes")
-                            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                            response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                            return response
-                    # If download fails, try to fetch PDF directly from GCS URL using urllib
-                    print(f"⚠️ Failed to download from GCS using file path, trying direct fetch from URL")
-                    try:
-                        from urllib.request import urlopen
-                        with urlopen(gcs_url, timeout=10) as response:
-                            pdf_bytes = response.read()
-                            print(f"✅ Fetched PDF directly from GCS URL: {len(pdf_bytes)} bytes")
-                            http_response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                            http_response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                            return http_response
-                    except Exception as fetch_error:
-                        print(f"⚠️ Error fetching PDF from GCS URL: {fetch_error}")
-                        # Continue to try file path method
-                except Exception as e:
-                    print(f"⚠️ Error extracting GCS file path: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Continue to try file path method
-        
-        # Try to download from GCS using file path
-        if proctoring_pdf_path and 'proctoring_pdfs/' in proctoring_pdf_path:
-            print(f"✅ Trying to download from GCS using path: {proctoring_pdf_path}")
-            pdf_bytes = download_pdf_from_gcs(proctoring_pdf_path)
-            if pdf_bytes:
-                print(f"✅ Downloaded PDF from GCS: {len(pdf_bytes)} bytes")
-                response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                return response
-            else:
-                print(f"⚠️ Failed to download from GCS using path: {proctoring_pdf_path}")
-        
-        if not proctoring_pdf_path:
-            # Try to generate PDF if it doesn't exist
-            if session and session.session_key:
-                from evaluation.services import create_evaluation_from_session
-                evaluation = create_evaluation_from_session(session.session_key)
-                if evaluation and evaluation.details:
-                    proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
-                    gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
-                    if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
-                        # Try to download from GCS instead of redirecting
-                        try:
-                            from urllib.parse import urlparse
-                            parsed_url = urlparse(gcs_url)
-                            gcs_file_path = parsed_url.path.lstrip('/')
-                            path_parts = gcs_file_path.split('/', 1)
-                            if len(path_parts) > 1:
-                                gcs_file_path = path_parts[1]
-                                pdf_bytes = download_pdf_from_gcs(gcs_file_path)
-                                if pdf_bytes:
-                                    response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                                    response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                                    return response
-                        except Exception as e:
-                            print(f"⚠️ Error downloading from GCS: {e}")
-                        
-                        # Fallback: fetch directly from GCS URL using urllib
-                        if gcs_url:
-                            try:
-                                from urllib.request import urlopen
-                                with urlopen(gcs_url, timeout=10) as response:
-                                    pdf_bytes = response.read()
-                                    http_response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                                    http_response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                                    return http_response
-                            except Exception as fetch_error:
-                                print(f"⚠️ Error fetching PDF from GCS URL: {fetch_error}")
-        
-        if not proctoring_pdf_path:
-            return JsonResponse({'error': 'Proctoring PDF not found. No warnings were detected during the interview.'}, status=404)
-        
-        # Fallback to local file system
-        pdf_full_path = os.path.join(settings.MEDIA_ROOT, proctoring_pdf_path.lstrip('/'))
-        
-        if not os.path.exists(pdf_full_path):
-            return JsonResponse({'error': f'PDF file not found at {pdf_full_path}'}, status=404)
-        
-        # Serve PDF file
-        response = FileResponse(open(pdf_full_path, 'rb'), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-        return response
         
     except Exception as e:
         print(f"❌ Error downloading proctoring PDF: {e}")

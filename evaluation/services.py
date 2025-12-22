@@ -479,11 +479,51 @@ def create_evaluation_from_session(session_key: str):
                         details['proctoring_pdf'] = local_path
                         
                         # CRITICAL: Only store clean, validated GCS URL
-                        if gcs_url and isinstance(gcs_url, str) and gcs_url.startswith('https://storage.googleapis.com/'):
-                            details['proctoring_pdf_gcs_url'] = gcs_url
-                            details['proctoring_pdf_url'] = gcs_url  # Use GCS URL as primary
-                            print(f"✅ Proctoring PDF uploaded to GCS: {gcs_url}")
-                            print(f"✅ Proctoring PDF GCS URL stored in database: {gcs_url[:100]}...")
+                        # Clean any malformed URLs before saving
+                        clean_gcs_url = None
+                        if gcs_url and isinstance(gcs_url, str):
+                            # Remove any app domain prefixes that might have been concatenated
+                            import re
+                            original_url = gcs_url.strip()
+                            
+                            # Extract ONLY the GCS URL part (everything from storage.googleapis.com onwards)
+                            if 'storage.googleapis.com' in original_url:
+                                gcs_index = original_url.find('storage.googleapis.com')
+                                if gcs_index != -1:
+                                    clean_gcs_url = original_url[gcs_index:]
+                                    # Remove any malformed prefixes
+                                    clean_gcs_url = re.sub(r'^[^/]*\.(app|run|com)https?\/\/+', '', clean_gcs_url)
+                                    clean_gcs_url = re.sub(r'^[^/]*\.(app|run|com)https?:\/\/+', '', clean_gcs_url)
+                                    clean_gcs_url = re.sub(r'^https?\/\/+', '', clean_gcs_url)
+                                    clean_gcs_url = re.sub(r'^https?:\/\/+', '', clean_gcs_url)
+                                    
+                                    # Ensure it starts with storage.googleapis.com
+                                    if clean_gcs_url.startswith('storage.googleapis.com'):
+                                        clean_gcs_url = f"https://{clean_gcs_url}"
+                                        
+                                        # Final validation
+                                        if not clean_gcs_url.startswith('https://storage.googleapis.com/'):
+                                            clean_gcs_url = None
+                                    else:
+                                        clean_gcs_url = None
+                            
+                            if clean_gcs_url and clean_gcs_url.startswith('https://storage.googleapis.com/'):
+                                details['proctoring_pdf_gcs_url'] = clean_gcs_url
+                                details['proctoring_pdf_url'] = clean_gcs_url  # Use GCS URL as primary
+                                print(f"✅ Proctoring PDF uploaded to GCS: {clean_gcs_url}")
+                                print(f"✅ Proctoring PDF GCS URL stored in database: {clean_gcs_url[:100]}...")
+                                if clean_gcs_url != original_url:
+                                    print(f"⚠️ URL was cleaned: {original_url[:100]}... → {clean_gcs_url[:100]}...")
+                            else:
+                                # Don't store invalid URL - use local path only
+                                print(f"⚠️ GCS URL validation failed, storing local path only")
+                                print(f"⚠️ Invalid GCS URL was: {gcs_url}")
+                                details['proctoring_pdf_gcs_url'] = None
+                                # Use local path for proctoring_pdf_url
+                                from django.conf import settings
+                                media_url = settings.MEDIA_URL.rstrip('/')
+                                pdf_path = local_path.lstrip('/')
+                                details['proctoring_pdf_url'] = f"{media_url}/{pdf_path}"
                         else:
                             # Don't store invalid URL - use local path only
                             print(f"⚠️ GCS URL validation failed, storing local path only")

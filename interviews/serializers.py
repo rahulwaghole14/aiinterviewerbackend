@@ -772,21 +772,73 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
     
     def get_proctoring_pdf(self, obj):
-        """Get proctoring PDF URL from separate ProctoringPDF table"""
+        """Get proctoring PDF URL from separate ProctoringPDF table - ONLY clean GCS URLs"""
         try:
             from evaluation.models import ProctoringPDF
+            import re
             
             proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
-            if proctoring_pdf:
-                return {
-                    'gcs_url': proctoring_pdf.gcs_url,
-                    'local_path': proctoring_pdf.local_path,
-                    'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
-                    'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,
-                }
+            if proctoring_pdf and proctoring_pdf.gcs_url:
+                # CRITICAL: Clean the URL to remove any malformed prefixes
+                # Pattern: https://talaroai-...run.apphttps//storage.googleapis.com/...
+                original_url = proctoring_pdf.gcs_url.strip()
+                clean_url = original_url
+                
+                # Extract ONLY the GCS URL part (everything from storage.googleapis.com onwards)
+                if 'storage.googleapis.com' in original_url:
+                    gcs_index = original_url.find('storage.googleapis.com')
+                    if gcs_index != -1:
+                        # Extract everything from storage.googleapis.com onwards
+                        clean_url = original_url[gcs_index:]
+                        
+                        # Remove any malformed prefixes that might exist before storage.googleapis.com
+                        # Remove patterns like: run.apphttps//, https//, etc.
+                        clean_url = re.sub(r'^https?\/\/+', '', clean_url)  # Remove https// or https///
+                        clean_url = re.sub(r'^https?:\/\/+', '', clean_url)  # Remove https:// or https:///
+                        
+                        # Remove any app URL patterns that might have leaked through
+                        clean_url = re.sub(r'^[^/]+\.(app|run|com)https?\/\/+', '', clean_url)
+                        clean_url = re.sub(r'^[^/]+\.(app|run|com)https?:\/\/+', '', clean_url)
+                        
+                        # Ensure it starts with storage.googleapis.com
+                        if not clean_url.startswith('storage.googleapis.com'):
+                            gcs_index = clean_url.find('storage.googleapis.com')
+                            if gcs_index != -1:
+                                clean_url = clean_url[gcs_index:]
+                            else:
+                                clean_url = None
+                        
+                        # Construct clean URL with https:// prefix
+                        if clean_url and clean_url.startswith('storage.googleapis.com'):
+                            clean_url = f"https://{clean_url}"
+                        else:
+                            clean_url = None
+                else:
+                    # No storage.googleapis.com found - invalid URL
+                    clean_url = None
+                
+                # Only return if we have a valid clean GCS URL
+                if clean_url and clean_url.startswith('https://storage.googleapis.com/'):
+                    if clean_url != original_url:
+                        print(f"🔧 Cleaned proctoring PDF URL for interview {obj.id}")
+                        print(f"   Original: {original_url[:100]}...")
+                        print(f"   Cleaned: {clean_url[:100]}...")
+                    
+                    return {
+                        'gcs_url': clean_url,  # Return ONLY clean URL
+                        'local_path': proctoring_pdf.local_path,
+                        'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
+                        'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,
+                    }
+                else:
+                    print(f"⚠️ Invalid GCS URL in ProctoringPDF table for interview {obj.id}: {original_url[:100]}...")
+                    return None
+            
             return None
         except Exception as e:
             print(f"⚠️ Error getting proctoring PDF for interview {obj.id}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_interview_video(self, obj):

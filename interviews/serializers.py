@@ -700,6 +700,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             
             print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
             return qa_list
+        except TimeoutError as timeout_error:
             print(f"⚠️ Timeout getting Q&A for interview {obj.id}: {timeout_error}")
             return []  # Return empty list on timeout
         except Exception as e:

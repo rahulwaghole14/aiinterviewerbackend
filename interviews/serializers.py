@@ -611,6 +611,12 @@ class InterviewSerializer(serializers.ModelSerializer):
             # Fallback: Use InterviewQuestion table (old method) - OPTIMIZED with timeout protection
             print(f"⚠️ No TechnicalQA records found, falling back to InterviewQuestion table")
             
+            # CRITICAL: For now, return empty list if TechnicalQA doesn't exist
+            # The InterviewQuestion query is too complex and causes timeouts
+            # TODO: Migrate existing InterviewQuestion data to TechnicalQA table
+            print(f"⚠️ Skipping InterviewQuestion fallback to prevent timeout. TechnicalQA migration needed.")
+            return []
+            
             # Set query timeout to prevent worker timeout (30 seconds max)
             try:
                 with connection.cursor() as cursor:
@@ -1502,10 +1508,14 @@ class InterviewSerializer(serializers.ModelSerializer):
                     for db_q in db_coding:
                         print(f"      DB CODING Q: Order {db_q.order}, ID {db_q.id}, Text: {db_q.question_text[:50]}...")
             return qa_list
+        except TimeoutError as timeout_error:
+            print(f"⚠️ Timeout getting Q&A for interview {obj.id}: {timeout_error}")
+            return []  # Return empty list on timeout
         except Exception as e:
             print(f"⚠️ Error getting Q&A for interview {obj.id}: {e}")
             import traceback
             traceback.print_exc()
+            # CRITICAL: Return empty list on any error to prevent worker timeout
             return []
     
     def get_verification_id_image(self, obj):

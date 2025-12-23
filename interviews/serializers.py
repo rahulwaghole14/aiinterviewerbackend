@@ -591,55 +591,115 @@ class InterviewSerializer(serializers.ModelSerializer):
             from django.utils import timezone
             from django.db import connection
             
-            # CRITICAL: First try to get from TechnicalQA table (new separate table)
+            # CRITICAL: Get TECHNICAL questions from TechnicalQA table (new separate table)
+            # Get CODING questions from InterviewQuestion table (keep as before)
             technical_qa_list = TechnicalQA.objects.filter(interview=obj).order_by('question_number', 'order')
+            qa_list = []
+            
+            # Add technical questions from TechnicalQA table
             if technical_qa_list.exists():
-                print(f"✅ Found {technical_qa_list.count()} Q&A records in TechnicalQA table for interview {obj.id}")
-                qa_list = []
+                print(f"✅ Found {technical_qa_list.count()} technical Q&A records in TechnicalQA table for interview {obj.id}")
                 for qa in technical_qa_list:
-                    qa_list.append({
-                        'question_number': qa.question_number,
-                        'question': qa.question_text or '',
-                        'answer': qa.answer_text or qa.transcribed_answer or 'No answer provided',
-                        'question_type': qa.question_type or 'TECHNICAL',
-                        'response_time': qa.response_time_seconds or 0,
-                        'order': qa.order or qa.question_number,
-                    })
-                print(f"✅ Returning {len(qa_list)} Q&A pairs from TechnicalQA table")
-                return qa_list
+                    # Only add TECHNICAL questions, skip CODING (those come from InterviewQuestion)
+                    if qa.question_type != 'CODING':
+                        qa_list.append({
+                            'question_number': qa.question_number,
+                            'question': qa.question_text or '',
+                            'answer': qa.answer_text or qa.transcribed_answer or 'No answer provided',
+                            'question_type': qa.question_type or 'TECHNICAL',
+                            'response_time': qa.response_time_seconds or 0,
+                            'order': qa.order or qa.question_number,
+                        })
+                print(f"✅ Added {len(qa_list)} technical Q&A pairs from TechnicalQA table")
+            else:
+                print(f"⚠️ No TechnicalQA records found for interview {obj.id}")
             
-            # Fallback: Use InterviewQuestion table (old method) - OPTIMIZED with timeout protection
-            print(f"⚠️ No TechnicalQA records found, falling back to InterviewQuestion table")
-            
-            # CRITICAL: For now, return empty list if TechnicalQA doesn't exist
-            # The InterviewQuestion query is too complex and causes timeouts
-            # TODO: Migrate existing InterviewQuestion data to TechnicalQA table
-            print(f"⚠️ Skipping InterviewQuestion fallback to prevent timeout. TechnicalQA migration needed.")
-            return []
-            
-            # Set query timeout to prevent worker timeout (30 seconds max)
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute("SET statement_timeout = 30000")  # 30 seconds in milliseconds
-            except Exception as timeout_error:
-                print(f"⚠️ Could not set query timeout: {timeout_error}")
-            
-            # Find the session for this interview using session_key - use select_related/prefetch_related for optimization
+            # Now get CODING questions from InterviewQuestion table (keep as before)
+            # Find the session for this interview using session_key
             session = None
             if obj.session_key:
                 try:
-                    # Use only() to limit fields fetched
                     session = InterviewSession.objects.only('id', 'session_key', 'candidate_name').get(session_key=obj.session_key)
                     print(f"✅ Found session by session_key: {obj.session_key}")
                 except InterviewSession.DoesNotExist:
                     print(f"⚠️ Session not found by session_key: {obj.session_key}")
-                    return []  # Return empty list instead of continuing with complex query
                 except Exception as e:
                     print(f"⚠️ Error finding session: {e}")
-                    return []  # Return empty list on error
             
-            # If not found by session_key, try to find by candidate and recent date
-            if not session and obj.candidate:
+            # If session found, get CODING questions from InterviewQuestion
+            if session:
+                try:
+                    # Get CODING questions only
+                    coding_questions = InterviewQuestion.objects.filter(
+                        session=session,
+                        question_type='CODING'
+                    ).only(
+                        'id', 'question_text', 'question_type', 'order', 'conversation_sequence'
+                    ).order_by('order', 'id')
+                    
+                    if coding_questions.exists():
+                        print(f"✅ Found {coding_questions.count()} CODING questions in InterviewQuestion table")
+                        
+                        # Import CodeSubmission model
+                        from interview_app.models import CodeSubmission
+                        
+                        for coding_q in coding_questions:
+                            # Get answer from CodeSubmission
+                            answer_text = None
+                            created_at = None
+                            response_time = 0
+                            try:
+                                question_id_str = str(coding_q.id)
+                                code_submission = CodeSubmission.objects.filter(
+                                    session=session,
+                                    question_id=question_id_str
+                                ).order_by('-created_at').first()
+                                
+                                if code_submission:
+                                    answer_text = code_submission.submitted_code or 'No code submitted'
+                                    created_at = code_submission.created_at.isoformat() if code_submission.created_at else None
+                                    response_time = 0  # CodeSubmission doesn't have response_time
+                                    
+                                    # Add coding question to qa_list
+                                    qa_item = {
+                                        'question_number': coding_q.order + 1,  # Use order + 1 for question number
+                                        'question': coding_q.question_text or '',
+                                        'answer': answer_text,
+                                        'question_type': 'CODING',
+                                        'response_time': response_time,
+                                        'order': coding_q.order,
+                                        'code_submission': {
+                                            'submitted_code': code_submission.submitted_code,
+                                            'language': code_submission.language,
+                                            'passed_all_tests': code_submission.passed_all_tests,
+                                            'output_log': code_submission.output_log,
+                                            'gemini_evaluation': code_submission.gemini_evaluation,
+                                            'created_at': created_at,
+                                        }
+                                    }
+                                    qa_list.append(qa_item)
+                                    print(f"✅ Added CODING question {coding_q.order + 1} with code submission")
+                            except Exception as e:
+                                print(f"⚠️ Error fetching CodeSubmission for CODING question {coding_q.id}: {e}")
+                                # Still add the question even if submission not found
+                                qa_list.append({
+                                    'question_number': coding_q.order + 1,
+                                    'question': coding_q.question_text or '',
+                                    'answer': 'No code submitted',
+                                    'question_type': 'CODING',
+                                    'response_time': 0,
+                                    'order': coding_q.order,
+                                })
+                    else:
+                        print(f"⚠️ No CODING questions found in InterviewQuestion table")
+                except Exception as e:
+                    print(f"⚠️ Error fetching CODING questions: {e}")
+            
+            # Sort qa_list by order/question_number
+            qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))
+            
+            print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
+            return qa_list
                 try:
                     # Try to match by candidate email
                     sessions = InterviewSession.objects.filter(

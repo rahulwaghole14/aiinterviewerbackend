@@ -1492,18 +1492,23 @@ def interview_portal(request):
                     import traceback
                     traceback.print_exc()
                 
+                # CRITICAL: Generate EXACTLY question_count questions (excluding coding question)
+                # If question_count is 8, generate 7 technical + 1 introduction = 8 total
+                technical_questions_needed = max(1, question_count - 1)  # -1 for introduction
+                
                 master_prompt = (
-                    f"You are an expert Talaro interviewer.Your task is to generate {question_count} insightful interview 1-2 liner questions in {language_name}. "
+                    f"You are an expert Talaro interviewer. Your task is to generate EXACTLY {technical_questions_needed} technical interview questions (1-2 lines each) in {language_name}. "
                     f"The interview is for a '{session.job_description.splitlines()[0]}' role. "
-                    "starting from introduction question .Please base the questions on the provided job description and candidate's resume. "
-                    "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
-                    "Then, generate a mix of technical Questions. 70 percent from jd and 30 percent from resume"
-                    "dont add words in question like we taking reference according jd only question according to jd but dont need to explain we taking reference from jd"
-                    "You MUST format the output as Markdown. "
-                    "do not ask question repeatlt only when candidate answer then repherase with adding one line extra"
-                    "You MUST include '## Technical Questions'. "
-                    "Each question MUST start with a hyphen '-'. "
-                    "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
+                    "CRITICAL REQUIREMENTS:\n"
+                    f"1. Generate EXACTLY {technical_questions_needed} questions - NO MORE, NO LESS\n"
+                    "2. Start with a welcoming introduction question that references something specific from the candidate's resume\n"
+                    "3. Then generate technical questions based on job description (70% from JD, 30% from resume)\n"
+                    "4. Each question MUST be unique and cover different technical aspects\n"
+                    "5. Do NOT repeat questions or ask similar questions\n"
+                    "6. Do NOT add explanations like 'we are taking reference from JD' - just ask the question\n"
+                    "7. Format output as Markdown with '## Technical Questions' header\n"
+                    "8. Each question MUST start with a hyphen '-'\n"
+                    "9. Do NOT add introductions, greetings (beyond first question), or concluding remarks\n"
                     f"\n\n--- JOB DESCRIPTION ---\n{session.job_description}\n\n--- RESUME ---\n{session.resume_text}"
                 )
                 full_response = model.generate_content(master_prompt)
@@ -1515,6 +1520,17 @@ def interview_portal(request):
                     for line in lines:
                         if line.strip().startswith('-'):
                             all_questions.append({'type': category_name.strip(), 'text': line.strip().lstrip('- ').strip()})
+                
+                # CRITICAL: Limit to EXACTLY question_count questions (excluding coding)
+                # If we got more, take only the first question_count
+                # If we got less, that's okay (LLM might have generated fewer)
+                if len(all_questions) > question_count:
+                    print(f"⚠️ LLM generated {len(all_questions)} questions, but only {question_count} requested. Limiting to {question_count}.")
+                    all_questions = all_questions[:question_count]
+                elif len(all_questions) < question_count:
+                    print(f"⚠️ LLM generated only {len(all_questions)} questions, but {question_count} requested. This is acceptable.")
+                
+                print(f"✅ Generated {len(all_questions)} technical questions (requested: {question_count})")
                 
                 # Add dynamic coding questions based on job profile for production mode using Gemini API
                 job_title = None

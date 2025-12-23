@@ -100,6 +100,54 @@ class InterviewQuestion(models.Model):
     def __str__(self):
         return f"Q{self.order + 1} ({self.question_level}) for {self.session.candidate_name}"
 
+
+class TechnicalQA(models.Model):
+    """
+    Separate table for storing technical questions and answers in proper sequence
+    One record per question-answer pair
+    """
+    session = models.ForeignKey(InterviewSession, related_name='technical_qa', on_delete=models.CASCADE)
+    interview = models.ForeignKey('interviews.Interview', related_name='technical_qa', on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Question details
+    question_number = models.PositiveIntegerField(help_text="Sequential question number (1, 2, 3...)")
+    question_text = models.TextField(help_text="The question asked to the candidate")
+    question_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('INTRODUCTION', 'Introduction'),
+            ('TECHNICAL', 'Technical'),
+            ('BEHAVIORAL', 'Behavioral'),
+            ('CODING', 'Coding Challenge'),
+        ],
+        default='TECHNICAL'
+    )
+    
+    # Answer details
+    answer_text = models.TextField(null=True, blank=True, help_text="Candidate's transcribed answer")
+    transcribed_answer = models.TextField(null=True, blank=True, help_text="Alternative field for transcribed answer")
+    
+    # Metadata
+    order = models.PositiveIntegerField(help_text="Order in sequence (same as question_number)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Performance metrics
+    response_time_seconds = models.FloatField(null=True, blank=True)
+    words_per_minute = models.IntegerField(null=True, blank=True)
+    filler_word_count = models.IntegerField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['question_number', 'order']
+        indexes = [
+            models.Index(fields=['session', 'question_number']),
+            models.Index(fields=['interview', 'question_number']),
+        ]
+        unique_together = [['session', 'question_number']]
+    
+    def __str__(self):
+        return f"Q{self.question_number}: {self.question_text[:50]}... for {self.session.candidate_name}"
+
 # --- NEW MODEL: For storing test cases for coding questions ---
 class TestCase(models.Model):
     question = models.ForeignKey(InterviewQuestion, related_name='test_cases', on_delete=models.CASCADE, to_field='id')

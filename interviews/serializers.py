@@ -585,10 +585,30 @@ class InterviewSerializer(serializers.ModelSerializer):
             return 0
     
     def get_questions_and_answers(self, obj):
-        """Get questions and answers for this interview"""
+        """Get questions and answers for this interview - PRIORITY: TechnicalQA table"""
         try:
-            from interview_app.models import InterviewSession, InterviewQuestion
+            from interview_app.models import InterviewSession, InterviewQuestion, TechnicalQA
             from django.utils import timezone
+            
+            # CRITICAL: First try to get from TechnicalQA table (new separate table)
+            technical_qa_list = TechnicalQA.objects.filter(interview=obj).order_by('question_number', 'order')
+            if technical_qa_list.exists():
+                print(f"✅ Found {technical_qa_list.count()} Q&A records in TechnicalQA table for interview {obj.id}")
+                qa_list = []
+                for qa in technical_qa_list:
+                    qa_list.append({
+                        'question_number': qa.question_number,
+                        'question': qa.question_text or '',
+                        'answer': qa.answer_text or qa.transcribed_answer or 'No answer provided',
+                        'question_type': qa.question_type or 'TECHNICAL',
+                        'response_time': qa.response_time_seconds or 0,
+                        'order': qa.order or qa.question_number,
+                    })
+                print(f"✅ Returning {len(qa_list)} Q&A pairs from TechnicalQA table")
+                return qa_list
+            
+            # Fallback: Use InterviewQuestion table (old method)
+            print(f"⚠️ No TechnicalQA records found, falling back to InterviewQuestion table")
             
             # Find the session for this interview using session_key
             session = None

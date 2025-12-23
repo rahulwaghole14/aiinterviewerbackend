@@ -700,8 +700,6 @@ class InterviewSerializer(serializers.ModelSerializer):
             
             print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
             return qa_list
-            # This helps catch any ordering issues
-            question_list = list(questions)
             if question_list:
                 orders = [q.order for q in question_list]
                 if len(set(orders)) != len(orders):

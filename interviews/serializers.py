@@ -700,68 +700,6 @@ class InterviewSerializer(serializers.ModelSerializer):
             
             print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
             return qa_list
-                try:
-                    # Try to match by candidate email
-                    sessions = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at')
-                    
-                    # If interview has a created_at, try to match by date proximity
-                    if obj.created_at:
-                        # Find session created around the same time (within 1 hour)
-                        from datetime import timedelta
-                        time_window_start = obj.created_at - timedelta(hours=1)
-                        time_window_end = obj.created_at + timedelta(hours=1)
-                        sessions = sessions.filter(
-                            created_at__gte=time_window_start,
-                            created_at__lte=time_window_end
-                        )
-                    
-                    session = sessions.first()
-                    if session:
-                        print(f"✅ Found session by candidate email: {obj.candidate.email}")
-                except Exception as e:
-                    print(f"⚠️ Error finding session by candidate: {e}")
-                    pass
-            
-            # If still not found, try to find by interview round and candidate
-            if not session and obj.candidate and obj.interview_round:
-                try:
-                    # Get the most recent session for this candidate
-                    session = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at').first()
-                    if session:
-                        print(f"✅ Found most recent session for candidate: {obj.candidate.email}")
-                except Exception as e:
-                    print(f"⚠️ Error finding recent session: {e}")
-                    pass
-            
-            if not session:
-                print(f"⚠️ No session found for interview {obj.id}")
-                return []
-            
-            # OPTIMIZED: Limit query to prevent timeout - only get essential fields and limit results
-            # Get all conversation items (AI and Interviewee responses) in sequential order
-            # Order by 'conversation_sequence' if available (new format), otherwise by 'order' and 'id' (old format)
-            # IMPORTANT: Use conversation_sequence for proper sequential ordering of AI/Interviewee conversation
-            # CRITICAL: Use only() to limit fields and limit() to prevent fetching too many records
-            try:
-                questions = InterviewQuestion.objects.filter(
-                    session=session
-                ).only(
-                    'id', 'question_text', 'question_type', 'question_level', 'role', 
-                    'transcribed_answer', 'order', 'conversation_sequence', 'response_time_seconds'
-                ).order_by(
-                    'conversation_sequence',  # Primary: Use conversation_sequence for sequential ordering
-                    'order',  # Secondary: Fallback to order if conversation_sequence is null
-                    'id'  # Tertiary: Use id for consistency when both are same
-                )[:100]  # Limit to 100 questions max to prevent timeout
-            except Exception as query_error:
-                print(f"⚠️ Error querying InterviewQuestion: {query_error}")
-                return []  # Return empty list on query error
-            
-            # Additional validation: Ensure order values are sequential and fix any gaps
             # This helps catch any ordering issues
             question_list = list(questions)
             if question_list:

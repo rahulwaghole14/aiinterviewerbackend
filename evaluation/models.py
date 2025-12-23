@@ -25,6 +25,42 @@ class Evaluation(models.Model):
         return f"Evaluation for {self.interview.candidate.full_name}"
 
 
+class ProctoringPDF(models.Model):
+    """
+    Separate table to store proctoring PDF URLs
+    One-to-one relationship with Interview
+    """
+    interview = models.OneToOneField(
+        Interview, on_delete=models.CASCADE, related_name="proctoring_pdf", db_index=True
+    )
+    gcs_url = models.URLField(
+        max_length=500, 
+        blank=True, 
+        null=True,
+        help_text="Google Cloud Storage public URL for proctoring PDF"
+    )
+    local_path = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Local file path for proctoring PDF (backup)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['interview', 'created_at']),
+            models.Index(fields=['gcs_url']),
+        ]
+        ordering = ['-created_at']
+        verbose_name = "Proctoring PDF"
+        verbose_name_plural = "Proctoring PDFs"
+
+    def __str__(self):
+        return f"Proctoring PDF for Interview {self.interview.id}"
+
+
 class Feedback(models.Model):
     candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE)
     interview = models.ForeignKey(

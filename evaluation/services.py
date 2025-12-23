@@ -514,6 +514,26 @@ def create_evaluation_from_session(session_key: str):
                                 print(f"✅ Proctoring PDF GCS URL stored in database: {clean_gcs_url[:100]}...")
                                 if clean_gcs_url != original_url:
                                     print(f"⚠️ URL was cleaned: {original_url[:100]}... → {clean_gcs_url[:100]}...")
+                                
+                                # CRITICAL: Also save to separate ProctoringPDF table
+                                try:
+                                    from evaluation.models import ProctoringPDF
+                                    proctoring_pdf, created = ProctoringPDF.objects.update_or_create(
+                                        interview=interview,
+                                        defaults={
+                                            'gcs_url': clean_gcs_url,
+                                            'local_path': local_path,
+                                        }
+                                    )
+                                    if created:
+                                        print(f"✅ Created ProctoringPDF record for interview {interview.id}")
+                                    else:
+                                        print(f"✅ Updated ProctoringPDF record for interview {interview.id}")
+                                    print(f"✅ Proctoring PDF URL saved to separate table: {clean_gcs_url[:100]}...")
+                                except Exception as e:
+                                    print(f"⚠️ Error saving to ProctoringPDF table: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                             else:
                                 # Don't store invalid URL - use local path only
                                 print(f"⚠️ GCS URL validation failed, storing local path only")

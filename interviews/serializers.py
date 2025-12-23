@@ -44,6 +44,9 @@ class InterviewSerializer(serializers.ModelSerializer):
     
     # Interview Video
     interview_video = serializers.SerializerMethodField()
+    
+    # Proctoring PDF
+    proctoring_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -70,6 +73,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             "questions_and_answers",
             "verification_id_image",
             "interview_video",
+            "proctoring_pdf",
             "session_key",
         ]
         read_only_fields = [
@@ -266,13 +270,28 @@ class InterviewSerializer(serializers.ModelSerializer):
                     
                     if ai_analysis:
                         # Transform evaluation.details to ai_result format
-                        # Get proctoring PDF URL from details - use as-is from database, no modifications
-                        proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
-                        proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
+                        # Get proctoring PDF URL from separate ProctoringPDF table (primary source)
+                        proctoring_pdf_gcs_url = None
+                        proctoring_pdf_url = None
                         
-                        # Use URL exactly as stored in database - no cleaning, no modifications
-                        print(f"   - Proctoring PDF URL (from database): {proctoring_pdf_url}")
-                        print(f"   - Proctoring PDF GCS URL (from database): {proctoring_pdf_gcs_url}")
+                        try:
+                            from evaluation.models import ProctoringPDF
+                            proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
+                            if proctoring_pdf and proctoring_pdf.gcs_url:
+                                proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
+                                proctoring_pdf_url = proctoring_pdf.gcs_url
+                                print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
+                            else:
+                                # Fallback to evaluation.details if ProctoringPDF record doesn't exist
+                                proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
+                                proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
+                                print(f"   - Proctoring PDF URL (fallback from evaluation.details): {proctoring_pdf_url}")
+                                print(f"   - Proctoring PDF GCS URL (fallback from evaluation.details): {proctoring_pdf_gcs_url}")
+                        except Exception as e:
+                            print(f"   ⚠️ Error fetching from ProctoringPDF table: {e}")
+                            # Fallback to evaluation.details
+                            proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
+                            proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
                         
                         if not proctoring_pdf_url:
                             # Try to construct URL from relative path
@@ -1507,6 +1526,24 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
         except Exception as e:
             print(f"⚠️ Error getting verification ID image for interview {obj.id}: {e}")
+            return None
+    
+    def get_proctoring_pdf(self, obj):
+        """Get proctoring PDF URL from separate ProctoringPDF table"""
+        try:
+            from evaluation.models import ProctoringPDF
+            
+            proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
+            if proctoring_pdf:
+                return {
+                    'gcs_url': proctoring_pdf.gcs_url,
+                    'local_path': proctoring_pdf.local_path,
+                    'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
+                    'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,
+                }
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting proctoring PDF for interview {obj.id}: {e}")
             return None
     
     def get_interview_video(self, obj):

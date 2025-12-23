@@ -266,71 +266,13 @@ class InterviewSerializer(serializers.ModelSerializer):
                     
                     if ai_analysis:
                         # Transform evaluation.details to ai_result format
-                        # Get proctoring PDF URL from details
+                        # Get proctoring PDF URL from details - use as-is from database, no modifications
                         proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
                         proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
                         
-                        # Ensure GCS URL is absolute (starts with https://)
-                        if proctoring_pdf_gcs_url:
-                            original_url = proctoring_pdf_gcs_url
-                            
-                            # CRITICAL: Always extract GCS URL if storage.googleapis.com is present
-                            # This handles cases where baseURL was concatenated incorrectly
-                            # Pattern examples:
-                            # - https://talaroai-...run.apphttps//storage.googleapis.com/...
-                            # - talaroai-...run.apphttps//storage.googleapis.com/...
-                            # - https://talaroai-...run.app/storage.googleapis.com/...
-                            if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
-                                # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
-                                gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
-                                if gcs_index != -1:
-                                    proctoring_pdf_gcs_url = proctoring_pdf_gcs_url[gcs_index:]
-                                    if original_url != proctoring_pdf_gcs_url:
-                                        print(f"   [CLEAN] Extracted GCS URL from malformed URL")
-                                        print(f"   [CLEAN] Original: {original_url[:100]}...")
-                                        print(f"   [CLEAN] Extracted: {proctoring_pdf_gcs_url[:100]}...")
-                            
-                            # Remove any malformed prefixes (like https://https://, https//, or double slashes)
-                            import re
-                            # CRITICAL: Handle https// pattern FIRST (missing colon) - must be before other patterns
-                            proctoring_pdf_gcs_url = re.sub(r'^https?\/\/', 'https://', proctoring_pdf_gcs_url)  # https// -> https:// (MUST BE FIRST)
-                            proctoring_pdf_gcs_url = re.sub(r'^https?://https?://', 'https://', proctoring_pdf_gcs_url)
-                            proctoring_pdf_gcs_url = re.sub(r'^https?://+', 'https://', proctoring_pdf_gcs_url)
-                            
-                            # Normalize URL - ensure it starts with https://
-                            if not proctoring_pdf_gcs_url.startswith('https://'):
-                                if proctoring_pdf_gcs_url.startswith('http://'):
-                                    # Upgrade to https
-                                    proctoring_pdf_gcs_url = proctoring_pdf_gcs_url.replace('http://', 'https://')
-                                elif proctoring_pdf_gcs_url.startswith('storage.googleapis.com'):
-                                    # Add https:// prefix
-                                    proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url}"
-                                elif proctoring_pdf_gcs_url.startswith('//storage.googleapis.com'):
-                                    # Fix double slash
-                                    proctoring_pdf_gcs_url = f"https:{proctoring_pdf_gcs_url}"
-                                else:
-                                    print(f"   [WARN] GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url[:100]}...")
-                                    proctoring_pdf_gcs_url = None
-                            
-                            # Final validation: Ensure it's a proper GCS URL format
-                            if proctoring_pdf_gcs_url and not proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
-                                print(f"   [WARN] GCS URL format invalid, attempting final cleanup: {proctoring_pdf_gcs_url[:100]}...")
-                                # Try to extract valid GCS URL
-                                if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
-                                    gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
-                                    proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url[gcs_index:]}"
-                                    print(f"   [OK] Final cleanup successful: {proctoring_pdf_gcs_url[:100]}...")
-                                else:
-                                    print(f"   [WARN] storage.googleapis.com not found, setting to None")
-                                    proctoring_pdf_gcs_url = None
-                            
-                            # Final check: Ensure URL is clean and valid
-                            if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
-                                print(f"   [OK] Final GCS URL (clean): {proctoring_pdf_gcs_url[:100]}...")
-                            else:
-                                print(f"   [WARN] GCS URL validation failed, setting to None")
-                                print(f"   [WARN] Original URL was: {original_url[:100]}...")
-                                proctoring_pdf_gcs_url = None
+                        # Use URL exactly as stored in database - no cleaning, no modifications
+                        print(f"   - Proctoring PDF URL (from database): {proctoring_pdf_url}")
+                        print(f"   - Proctoring PDF GCS URL (from database): {proctoring_pdf_gcs_url}")
                         
                         if not proctoring_pdf_url:
                             # Try to construct URL from relative path

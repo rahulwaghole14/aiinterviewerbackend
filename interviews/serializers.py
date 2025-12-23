@@ -589,6 +589,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         try:
             from interview_app.models import InterviewSession, InterviewQuestion, TechnicalQA
             from django.utils import timezone
+            from django.db import connection
             
             # CRITICAL: First try to get from TechnicalQA table (new separate table)
             technical_qa_list = TechnicalQA.objects.filter(interview=obj).order_by('question_number', 'order')
@@ -607,18 +608,29 @@ class InterviewSerializer(serializers.ModelSerializer):
                 print(f"✅ Returning {len(qa_list)} Q&A pairs from TechnicalQA table")
                 return qa_list
             
-            # Fallback: Use InterviewQuestion table (old method)
+            # Fallback: Use InterviewQuestion table (old method) - OPTIMIZED with timeout protection
             print(f"⚠️ No TechnicalQA records found, falling back to InterviewQuestion table")
             
-            # Find the session for this interview using session_key
+            # Set query timeout to prevent worker timeout (30 seconds max)
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SET statement_timeout = 30000")  # 30 seconds in milliseconds
+            except Exception as timeout_error:
+                print(f"⚠️ Could not set query timeout: {timeout_error}")
+            
+            # Find the session for this interview using session_key - use select_related/prefetch_related for optimization
             session = None
             if obj.session_key:
                 try:
-                    session = InterviewSession.objects.get(session_key=obj.session_key)
+                    # Use only() to limit fields fetched
+                    session = InterviewSession.objects.only('id', 'session_key', 'candidate_name').get(session_key=obj.session_key)
                     print(f"✅ Found session by session_key: {obj.session_key}")
                 except InterviewSession.DoesNotExist:
                     print(f"⚠️ Session not found by session_key: {obj.session_key}")
-                    pass
+                    return []  # Return empty list instead of continuing with complex query
+                except Exception as e:
+                    print(f"⚠️ Error finding session: {e}")
+                    return []  # Return empty list on error
             
             # If not found by session_key, try to find by candidate and recent date
             if not session and obj.candidate:
@@ -663,16 +675,25 @@ class InterviewSerializer(serializers.ModelSerializer):
                 print(f"⚠️ No session found for interview {obj.id}")
                 return []
             
+            # OPTIMIZED: Limit query to prevent timeout - only get essential fields and limit results
             # Get all conversation items (AI and Interviewee responses) in sequential order
             # Order by 'conversation_sequence' if available (new format), otherwise by 'order' and 'id' (old format)
             # IMPORTANT: Use conversation_sequence for proper sequential ordering of AI/Interviewee conversation
-            questions = InterviewQuestion.objects.filter(
-                session=session
-            ).order_by(
-                'conversation_sequence',  # Primary: Use conversation_sequence for sequential ordering
-                'order',  # Secondary: Fallback to order if conversation_sequence is null
-                'id'  # Tertiary: Use id for consistency when both are same
-            )
+            # CRITICAL: Use only() to limit fields and limit() to prevent fetching too many records
+            try:
+                questions = InterviewQuestion.objects.filter(
+                    session=session
+                ).only(
+                    'id', 'question_text', 'question_type', 'question_level', 'role', 
+                    'transcribed_answer', 'order', 'conversation_sequence', 'response_time_seconds'
+                ).order_by(
+                    'conversation_sequence',  # Primary: Use conversation_sequence for sequential ordering
+                    'order',  # Secondary: Fallback to order if conversation_sequence is null
+                    'id'  # Tertiary: Use id for consistency when both are same
+                )[:100]  # Limit to 100 questions max to prevent timeout
+            except Exception as query_error:
+                print(f"⚠️ Error querying InterviewQuestion: {query_error}")
+                return []  # Return empty list on query error
             
             # Additional validation: Ensure order values are sequential and fix any gaps
             # This helps catch any ordering issues

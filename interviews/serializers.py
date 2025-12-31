@@ -278,8 +278,19 @@ class InterviewSerializer(serializers.ModelSerializer):
                             from evaluation.models import ProctoringPDF
                             proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
                             if proctoring_pdf and proctoring_pdf.gcs_url:
-                                proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
-                                proctoring_pdf_url = proctoring_pdf.gcs_url
+                                gcs_url = proctoring_pdf.gcs_url
+                                
+                                # If URL is malformed (contains app URL), extract only the GCS part
+                                # Pattern: https://app-urlhttps//storage.googleapis.com/... or https://app-url/storage.googleapis.com/...
+                                if 'storage.googleapis.com' in gcs_url:
+                                    # Find the start of the GCS URL
+                                    gcs_index = gcs_url.find('storage.googleapis.com')
+                                    if gcs_index > 0:
+                                        # Extract from storage.googleapis.com onwards
+                                        gcs_url = 'https://' + gcs_url[gcs_index:]
+                                
+                                proctoring_pdf_gcs_url = gcs_url
+                                proctoring_pdf_url = gcs_url
                                 print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
                             else:
                                 print(f"   - No ProctoringPDF record found for interview {obj.id}")
@@ -751,17 +762,25 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
     
     def get_proctoring_pdf(self, obj):
-        """Get proctoring PDF URL from separate ProctoringPDF table - Use URL as-is from database"""
+        """Get proctoring PDF URL from separate ProctoringPDF table - Extract GCS URL if malformed"""
         try:
             from evaluation.models import ProctoringPDF
             
             proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
             if proctoring_pdf and proctoring_pdf.gcs_url:
-                # Use URL directly from database without any cleaning or modification
                 gcs_url = proctoring_pdf.gcs_url
                 
+                # If URL is malformed (contains app URL), extract only the GCS part
+                # Pattern: https://app-urlhttps//storage.googleapis.com/... or https://app-url/storage.googleapis.com/...
+                if 'storage.googleapis.com' in gcs_url:
+                    # Find the start of the GCS URL
+                    gcs_index = gcs_url.find('storage.googleapis.com')
+                    if gcs_index > 0:
+                        # Extract from storage.googleapis.com onwards
+                        gcs_url = 'https://' + gcs_url[gcs_index:]
+                
                 return {
-                    'gcs_url': gcs_url,  # Return URL as-is from database
+                    'gcs_url': gcs_url,  # Return clean GCS URL
                     'local_path': proctoring_pdf.local_path,
                     'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
                     'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,

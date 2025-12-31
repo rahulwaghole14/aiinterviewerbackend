@@ -5235,6 +5235,82 @@ def ai_transcript_pdf(request):
         return JsonResponse({'error': f'PDF generation failed: {str(e)}'}, status=500)
 
 @csrf_exempt
+def get_proctoring_pdf_url(request, interview_id=None):
+    """
+    Get proctoring PDF GCS URL from ProctoringPDF table ONLY
+    Returns the gcs_url exactly as stored in database - no modification, no cleaning
+    
+    Accepts:
+    - interview_id as path parameter: /api/proctoring/pdf-url/<uuid:interview_id>/
+    - interview_id as query parameter: /api/proctoring/pdf-url/?interview_id=xxx
+    
+    Returns JSON:
+    {
+        "success": true,
+        "gcs_url": "https://storage.googleapis.com/...",
+        "interview_id": "uuid"
+    }
+    """
+    try:
+        from evaluation.models import ProctoringPDF
+        from interviews.models import Interview
+        from django.http import JsonResponse
+        
+        # Get interview_id from path or query parameter
+        if not interview_id:
+            interview_id = request.GET.get('interview_id')
+        
+        if not interview_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'interview_id is required'
+            }, status=400)
+        
+        # Get interview
+        try:
+            interview = Interview.objects.get(id=interview_id)
+        except Interview.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Interview not found'
+            }, status=404)
+        
+        # Get ProctoringPDF record - ONLY source
+        try:
+            proctoring_pdf = ProctoringPDF.objects.get(interview=interview)
+        except ProctoringPDF.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Proctoring PDF not found for this interview'
+            }, status=404)
+        
+        # Get gcs_url - use exactly as stored in database
+        gcs_url = proctoring_pdf.gcs_url
+        
+        if not gcs_url:
+            return JsonResponse({
+                'success': False,
+                'error': 'GCS URL not available for this proctoring PDF'
+            }, status=404)
+        
+        # Return URL exactly as stored - no modification
+        return JsonResponse({
+            'success': True,
+            'gcs_url': gcs_url,
+            'interview_id': str(interview.id)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting proctoring PDF URL: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }, status=500)
+
+
+@csrf_exempt
 def download_proctoring_pdf(request, session_id=None):
     """Download proctoring warnings PDF for a given session (from GCS or local)
     

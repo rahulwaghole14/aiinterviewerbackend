@@ -55,6 +55,10 @@ urlpatterns = [
     path('ai/upload_answer', views.ai_upload_answer, name='ai_upload_answer'),
     path('ai/repeat', views.ai_repeat, name='ai_repeat'),
     path('ai/transcript_pdf', views.ai_transcript_pdf, name='ai_transcript_pdf'),
+    # New clean endpoint for proctoring PDF URL
+    path('api/proctoring/pdf-url/<uuid:interview_id>/', views.get_proctoring_pdf_url, name='get_proctoring_pdf_url'),
+    path('api/proctoring/pdf-url/', views.get_proctoring_pdf_url, name='get_proctoring_pdf_url_query'),
+    # Old endpoints (kept for backward compatibility)
     path('api/proctoring/pdf/<uuid:session_id>/', views.download_proctoring_pdf, name='download_proctoring_pdf'),
     path('api/proctoring/pdf/', views.download_proctoring_pdf, name='download_proctoring_pdf_query'),
 

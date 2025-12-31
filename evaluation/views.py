@@ -4,7 +4,7 @@ from rest_framework import status, generics
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from .models import Evaluation, Feedback
+from .models import Evaluation, Feedback, ProctoringPDF
 from .serializers import (
     EvaluationSerializer,
     EvaluationReportSerializer,
@@ -13,6 +13,7 @@ from .serializers import (
 )
 from utils.hierarchy_permissions import DataIsolationMixin
 from utils.logger import ActionLogger
+from interviews.models import Interview
 
 
 class EvaluationViewSet(DataIsolationMixin, ModelViewSet):
@@ -206,3 +207,81 @@ class AllFeedbacksView(generics.ListAPIView):
 
         # If no candidate_id provided, return empty queryset
         return Feedback.objects.none()
+
+
+class GetProctoringPDFURLView(APIView):
+    """
+    Get proctoring PDF GCS URL from ProctoringPDF table for a given interview
+    
+    Query Parameters:
+    - interview_id: UUID of the interview (required)
+    
+    Returns:
+    - success: boolean
+    - gcs_url: string (clean GCS URL without any app URL prepended)
+    - error: string (if error occurred)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            interview_id = request.query_params.get('interview_id')
+            
+            if not interview_id:
+                return Response(
+                    {'success': False, 'error': 'interview_id parameter is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get interview
+            try:
+                interview = Interview.objects.get(id=interview_id)
+            except Interview.DoesNotExist:
+                return Response(
+                    {'success': False, 'error': 'Interview not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get ProctoringPDF record
+            try:
+                proctoring_pdf = ProctoringPDF.objects.get(interview=interview)
+            except ProctoringPDF.DoesNotExist:
+                return Response(
+                    {'success': False, 'error': 'Proctoring PDF not found for this interview'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get GCS URL
+            gcs_url = proctoring_pdf.gcs_url
+            
+            if not gcs_url:
+                return Response(
+                    {'success': False, 'error': 'GCS URL not available for this proctoring PDF'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Extract clean GCS URL if malformed (has app URL prepended)
+            # Pattern: https://app-urlhttps//storage.googleapis.com/... or https://app-url/storage.googleapis.com/...
+            if 'storage.googleapis.com' in gcs_url:
+                gcs_index = gcs_url.find('storage.googleapis.com')
+                if gcs_index > 0:
+                    # Extract from storage.googleapis.com onwards
+                    gcs_url = 'https://' + gcs_url[gcs_index:]
+            
+            # Ensure URL is valid
+            if not gcs_url.startswith('https://storage.googleapis.com/'):
+                return Response(
+                    {'success': False, 'error': 'Invalid GCS URL format'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            return Response({
+                'success': True,
+                'gcs_url': gcs_url
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {'success': False, 'error': f'Error fetching proctoring PDF URL: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

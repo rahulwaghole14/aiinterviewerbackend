@@ -261,7 +261,8 @@ class GetProctoringPDFURLView(APIView):
                 )
             
             # Extract clean GCS URL if malformed (has app URL prepended)
-            # Pattern: https://app-urlhttps//storage.googleapis.com/... or https://app-url/storage.googleapis.com/...
+            # Pattern: https://app-urlhttps//storage.googleapis.com/... 
+            # Example: https://talaroai-310576915040.asia-southeast1.run.apphttps//storage.googleapis.com/...
             original_url = gcs_url
             if 'storage.googleapis.com' in gcs_url:
                 import re
@@ -269,28 +270,17 @@ class GetProctoringPDFURLView(APIView):
                 gcs_index = gcs_url.find('storage.googleapis.com')
                 if gcs_index > 0:
                     # Extract everything from storage.googleapis.com onwards
+                    # This removes the app URL prefix completely
                     gcs_url = gcs_url[gcs_index:]
-                    # Remove any malformed prefixes (https//, https://, http://, etc.)
-                    # This handles cases where there's still junk before storage.googleapis.com
-                    gcs_url = re.sub(r'^[^s]*', '', gcs_url)  # Remove everything before 's' of storage
-                    # If it doesn't start with storage, try to find it again
-                    if not gcs_url.startswith('storage.googleapis.com'):
-                        gcs_index = gcs_url.find('storage.googleapis.com')
-                        if gcs_index >= 0:
-                            gcs_url = gcs_url[gcs_index:]
-                        else:
-                            gcs_url = None
-                
-                # Ensure it starts with storage.googleapis.com and add https://
-                if gcs_url and gcs_url.startswith('storage.googleapis.com'):
+                    # Now gcs_url should be: storage.googleapis.com/...
+                    # Add https:// prefix
                     gcs_url = 'https://' + gcs_url
-                elif not gcs_url or not gcs_url.startswith('https://storage.googleapis.com'):
-                    # If still malformed, try one more extraction
-                    if 'storage.googleapis.com' in original_url:
-                        gcs_index = original_url.find('storage.googleapis.com')
-                        gcs_url = 'https://' + original_url[gcs_index:]
-                    else:
-                        gcs_url = None
+                elif gcs_index == 0:
+                    # Already starts with storage.googleapis.com, just add https://
+                    gcs_url = 'https://' + gcs_url
+                else:
+                    # storage.googleapis.com not found, URL is invalid
+                    gcs_url = None
             
             # Ensure URL is valid
             if not gcs_url or not gcs_url.startswith('https://storage.googleapis.com/'):

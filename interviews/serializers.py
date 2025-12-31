@@ -270,7 +270,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                     
                     if ai_analysis:
                         # Transform evaluation.details to ai_result format
-                        # Get proctoring PDF URL from separate ProctoringPDF table (primary source)
+                        # Get proctoring PDF URL ONLY from ProctoringPDF table (no fallback)
                         proctoring_pdf_gcs_url = None
                         proctoring_pdf_url = None
                         
@@ -282,37 +282,16 @@ class InterviewSerializer(serializers.ModelSerializer):
                                 proctoring_pdf_url = proctoring_pdf.gcs_url
                                 print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
                             else:
-                                # Fallback to evaluation.details if ProctoringPDF record doesn't exist
-                                proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
-                                proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
-                                print(f"   - Proctoring PDF URL (fallback from evaluation.details): {proctoring_pdf_url}")
-                                print(f"   - Proctoring PDF GCS URL (fallback from evaluation.details): {proctoring_pdf_gcs_url}")
+                                print(f"   - No ProctoringPDF record found for interview {obj.id}")
                         except Exception as e:
                             print(f"   ⚠️ Error fetching from ProctoringPDF table: {e}")
-                            # Fallback to evaluation.details
-                            proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
-                            proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
-                        
-                        if not proctoring_pdf_url:
-                            # Try to construct URL from relative path
-                            proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
-                            if proctoring_pdf_path:
-                                from django.conf import settings
-                                media_url = settings.MEDIA_URL.rstrip('/')
-                                pdf_path = proctoring_pdf_path.lstrip('/')
-                                proctoring_pdf_url = f"{media_url}/{pdf_path}"
-                                print(f"   - Constructed PDF URL from path: {proctoring_pdf_url}")
+                            import traceback
+                            traceback.print_exc()
                         
                         proctoring_warnings = evaluation.details.get('proctoring', {}).get('warnings', [])
                         print(f"   - Proctoring warnings count: {len(proctoring_warnings)}")
                         print(f"   - Proctoring PDF URL: {proctoring_pdf_url}")
                         print(f"   - Proctoring PDF GCS URL: {proctoring_pdf_gcs_url}")
-                        # Ensure proctoring_pdf_url is not set if we have a valid GCS URL (to prevent confusion)
-                        # But keep proctoring_pdf_url if GCS URL is not available (for fallback)
-                        if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://'):
-                            # Use GCS URL as primary, but keep proctoring_pdf_url for backward compatibility
-                            # Don't clear it, just prioritize GCS URL in frontend
-                            pass
                         
                         # Check if coding score needs to be corrected based on actual test results
                         coding_score = ai_analysis.get('coding_score', 0)
@@ -772,67 +751,21 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
     
     def get_proctoring_pdf(self, obj):
-        """Get proctoring PDF URL from separate ProctoringPDF table - ONLY clean GCS URLs"""
+        """Get proctoring PDF URL from separate ProctoringPDF table - Use URL as-is from database"""
         try:
             from evaluation.models import ProctoringPDF
-            import re
             
             proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
             if proctoring_pdf and proctoring_pdf.gcs_url:
-                # CRITICAL: Clean the URL to remove any malformed prefixes
-                # Pattern: https://talaroai-...run.apphttps//storage.googleapis.com/...
-                original_url = proctoring_pdf.gcs_url.strip()
-                clean_url = original_url
+                # Use URL directly from database without any cleaning or modification
+                gcs_url = proctoring_pdf.gcs_url
                 
-                # Extract ONLY the GCS URL part (everything from storage.googleapis.com onwards)
-                if 'storage.googleapis.com' in original_url:
-                    gcs_index = original_url.find('storage.googleapis.com')
-                    if gcs_index != -1:
-                        # Extract everything from storage.googleapis.com onwards
-                        clean_url = original_url[gcs_index:]
-                        
-                        # Remove any malformed prefixes that might exist before storage.googleapis.com
-                        # Remove patterns like: run.apphttps//, https//, etc.
-                        clean_url = re.sub(r'^https?\/\/+', '', clean_url)  # Remove https// or https///
-                        clean_url = re.sub(r'^https?:\/\/+', '', clean_url)  # Remove https:// or https:///
-                        
-                        # Remove any app URL patterns that might have leaked through
-                        clean_url = re.sub(r'^[^/]+\.(app|run|com)https?\/\/+', '', clean_url)
-                        clean_url = re.sub(r'^[^/]+\.(app|run|com)https?:\/\/+', '', clean_url)
-                        
-                        # Ensure it starts with storage.googleapis.com
-                        if not clean_url.startswith('storage.googleapis.com'):
-                            gcs_index = clean_url.find('storage.googleapis.com')
-                            if gcs_index != -1:
-                                clean_url = clean_url[gcs_index:]
-                            else:
-                                clean_url = None
-                        
-                        # Construct clean URL with https:// prefix
-                        if clean_url and clean_url.startswith('storage.googleapis.com'):
-                            clean_url = f"https://{clean_url}"
-                        else:
-                            clean_url = None
-                else:
-                    # No storage.googleapis.com found - invalid URL
-                    clean_url = None
-                
-                # Only return if we have a valid clean GCS URL
-                if clean_url and clean_url.startswith('https://storage.googleapis.com/'):
-                    if clean_url != original_url:
-                        print(f"🔧 Cleaned proctoring PDF URL for interview {obj.id}")
-                        print(f"   Original: {original_url[:100]}...")
-                        print(f"   Cleaned: {clean_url[:100]}...")
-                    
-                    return {
-                        'gcs_url': clean_url,  # Return ONLY clean URL
-                        'local_path': proctoring_pdf.local_path,
-                        'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
-                        'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,
-                    }
-                else:
-                    print(f"⚠️ Invalid GCS URL in ProctoringPDF table for interview {obj.id}: {original_url[:100]}...")
-                    return None
+                return {
+                    'gcs_url': gcs_url,  # Return URL as-is from database
+                    'local_path': proctoring_pdf.local_path,
+                    'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
+                    'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,
+                }
             
             return None
         except Exception as e:

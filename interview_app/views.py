@@ -4267,7 +4267,16 @@ def ai_start(request):
                             session=django_session
                         ).aggregate(max_seq=Max('conversation_sequence'))
                         max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                        conversation_sequence = max_seq + 1  # Start with 1 for first AI question
+                        
+                        # AI questions get odd sequence numbers (1, 3, 5, 7...)
+                        # For the first question, if no questions exist, start with 1
+                        # Otherwise, calculate next odd number
+                        if max_seq == 0:
+                            conversation_sequence = 1  # First AI question starts at 1
+                        elif max_seq % 2 == 0:  # Last was Interviewee (even), next is AI (odd)
+                            conversation_sequence = max_seq + 1
+                        else:  # Last was AI (odd), find next odd
+                            conversation_sequence = ((max_seq // 2) + 1) * 2 + 1
                         
                         InterviewQuestion.objects.create(
                             session=django_session,
@@ -4453,6 +4462,10 @@ def ai_upload_answer(request):
                             print(f"   - Answer text: '{answer_text[:50]}...'")
                             print(f"   - Should save: {should_save}")
                             
+                            # CRITICAL: ALWAYS save answers - don't skip any answer, even if it's "No answer provided"
+                            # This ensures every question has a corresponding answer in the database
+                            should_save = True  # Always save answers to ensure completeness
+                            
                             if should_save:
                                 # IMPORTANT: Save Interviewee answer as a SEPARATE record with role='INTERVIEWEE'
                                 # Get the maximum conversation_sequence to ensure sequential indexing
@@ -4481,19 +4494,38 @@ def ai_upload_answer(request):
                                 if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
                                     response_time = time_module.time() - ai_session.question_asked_at
                                 
-                                # Create separate record for Interviewee answer
-                                interviewee_response = InterviewQuestion.objects.create(
+                                # Check if this answer was already saved (prevent duplicates)
+                                existing_answer = InterviewQuestion.objects.filter(
                                     session=django_session,
-                                    question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question it answers
-                                    question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
-                                    transcribed_answer=answer_text_formatted,  # The actual answer text
-                                    response_time_seconds=response_time,
-                                    role='INTERVIEWEE',  # This is an Interviewee response
-                                    conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
-                                )
-                                print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
+                                    role='INTERVIEWEE',
+                                    question_level='INTERVIEWEE_RESPONSE',
+                                    order=question_obj.order,
+                                    conversation_sequence=interviewee_sequence
+                                ).first()
+                                
+                                if not existing_answer:
+                                    # Create separate record for Interviewee answer
+                                    interviewee_response = InterviewQuestion.objects.create(
+                                        session=django_session,
+                                        question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
+                                        question_type=question_obj.question_type,
+                                        order=question_obj.order,  # Same order as the question it answers
+                                        question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
+                                        transcribed_answer=answer_text_formatted,  # The actual answer text
+                                        response_time_seconds=response_time,
+                                        role='INTERVIEWEE',  # This is an Interviewee response
+                                        conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
+                                    )
+                                    print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
+                                else:
+                                    # Update existing answer if it's different
+                                    if existing_answer.transcribed_answer != answer_text_formatted:
+                                        existing_answer.transcribed_answer = answer_text_formatted
+                                        existing_answer.response_time_seconds = response_time
+                                        existing_answer.save(update_fields=['transcribed_answer', 'response_time_seconds'])
+                                        print(f"✅ Updated existing Interviewee answer: conversation_sequence {interviewee_sequence}, order {question_obj.order}: {answer_text[:50]}...")
+                                    else:
+                                        print(f"⚠️ Answer already exists with same content, skipping duplicate: {answer_text[:50]}...")
                                 
                                 # Also update the original question's transcribed_answer for backward compatibility
                                 original_order = question_obj.order  # Preserve order
@@ -4501,39 +4533,8 @@ def ai_upload_answer(request):
                                 question_obj.response_time_seconds = response_time
                                 question_obj.save(update_fields=['transcribed_answer', 'response_time_seconds'])
                                 print(f"✅ Updated original question record for backward compatibility: {answer_text[:50]}...")
-                            elif answer_text == 'No answer provided' and not is_special_question:
-                                # IMPORTANT: Still save "No answer provided" so it appears in candidate details
-                                # This ensures all questions have corresponding answers, even if empty
-                                from django.db.models import Max
-                                max_seq_result = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).aggregate(max_seq=Max('conversation_sequence'))
-                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                
-                                # Calculate interviewee sequence (even number)
-                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                    interviewee_sequence = max_seq + 1
-                                else:  # Last was Interviewee or no sequence, find next even
-                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
-                                
-                                # Save "No answer provided" as a separate record
-                                interviewee_response = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text='',  # Empty for Interviewee responses
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question
-                                    question_level='INTERVIEWEE_RESPONSE',
-                                    transcribed_answer='No answer provided',  # Explicitly save this
-                                    response_time_seconds=response_time if 'response_time' in locals() else 0,
-                                    role='INTERVIEWEE',
-                                    conversation_sequence=interviewee_sequence
-                                )
-                                print(f"✅ Saved 'No answer provided' as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}")
-                                
-                                # Also update the original question's transcribed_answer for backward compatibility
-                                question_obj.transcribed_answer = 'A: No answer provided'
-                                question_obj.save(update_fields=['transcribed_answer'])
-                                print(f"✅ Updated original question record with 'No answer provided'")
+                            # Note: The above code now always saves answers (including "No answer provided"),
+                            # so this elif block is no longer needed. All answers are handled in the should_save block above.
                         else:
                             print(f"⚠️ Could not find question to save answer. Creating new question...")
                             # Create a new question if it doesn't exist (including pre-closing and closing questions)
@@ -4725,7 +4726,8 @@ def ai_upload_answer(request):
             print(f"❌ ERROR from upload_answer: {result.get('error')}")
             return JsonResponse(result, status=400)
         
-        # Handle candidate questions and AI answers - save them to database
+        # CRITICAL: Save ALL questions and answers to database - ensure nothing is skipped
+        # This must happen BEFORE any other processing to ensure proper sequence
         if session_id and session_id in sessions:
             ai_session = sessions[session_id]
             if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
@@ -4967,16 +4969,35 @@ def ai_upload_answer(request):
                         # This is the final closing message, not a question
                         pass
                     elif next_question_text and next_question_text.strip():
-                        # Check if this question already exists
-                        existing_questions = InterviewQuestion.objects.filter(
-                            session=django_session
-                        ).order_by('order')
+                        # CRITICAL: Check if this question already exists by text match (more reliable than order)
+                        # Normalize the question text for comparison
+                        normalized_next_question = " ".join(next_question_text.strip().lower().split())
                         
-                        # Get the current question number from AI session
-                        current_q_num = ai_session.current_question_number
+                        # Check if question with this exact text already exists
+                        question_exists = InterviewQuestion.objects.filter(
+                            session=django_session,
+                            question_text__iexact=next_question_text.strip()
+                        ).exists()
                         
-                        # Check if question at this order already exists
-                        question_exists = existing_questions.filter(order=current_q_num - 1).exists()
+                        # Also check by partial match (in case of slight variations)
+                        if not question_exists:
+                            similar_questions = InterviewQuestion.objects.filter(
+                                session=django_session,
+                                role='AI',
+                                question_level='MAIN'
+                            )
+                            for q in similar_questions:
+                                normalized_existing = " ".join(q.question_text.lower().split())
+                                # If 80% of words match, consider it the same question
+                                if normalized_next_question and normalized_existing:
+                                    words_next = set(normalized_next_question.split())
+                                    words_existing = set(normalized_existing.split())
+                                    if words_next and words_existing:
+                                        similarity = len(words_next & words_existing) / max(len(words_next), len(words_existing))
+                                        if similarity > 0.8:
+                                            question_exists = True
+                                            print(f"⚠️ Found similar question (similarity: {similarity:.2f}), skipping save")
+                                            break
                         
                         if not question_exists:
                             # Determine question type - check if it's a pre-closing or closing question
@@ -5089,8 +5110,61 @@ def ai_upload_answer(request):
                                         print(f"⚠️ No transcript available yet for {question_type_label} question, will save when answer comes")
                                 except Exception as e:
                                     print(f"⚠️ Error saving {question_type_label} question answer: {e}")
+                        else:
+                            print(f"⚠️ Question already exists, skipping duplicate save: {next_question_text[:50]}...")
+                    else:
+                        # No next_question_text but we might have last_active_question_text - save it as fallback
+                        if hasattr(ai_session, 'last_active_question_text') and ai_session.last_active_question_text:
+                            last_question_text = ai_session.last_active_question_text.strip()
+                            if last_question_text:
+                                # Check if this question was already saved
+                                normalized_last = " ".join(last_question_text.lower().split())
+                                last_question_exists = InterviewQuestion.objects.filter(
+                                    session=django_session,
+                                    question_text__iexact=last_question_text
+                                ).exists()
+                                
+                                if not last_question_exists:
+                                    # Save the last active question as a fallback
+                                    from django.db.models import Max
+                                    max_order_result = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).aggregate(max_order=Max('order'))
+                                    max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
+                                    new_order = max_order + 1
+                                    
+                                    max_seq_result = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).aggregate(max_seq=Max('conversation_sequence'))
+                                    max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                    
+                                    # AI questions get odd sequence numbers
+                                    if max_seq % 2 == 0 and max_seq > 0:
+                                        ai_sequence = max_seq + 1
+                                    else:
+                                        ai_sequence = ((max_seq // 2) + 1) * 2 + 1
+                                    
+                                    # Format question text
+                                    question_text_formatted = last_question_text
+                                    if question_text_formatted.startswith('Q:'):
+                                        question_text_formatted = question_text_formatted.replace('Q:', '').strip()
+                                    
+                                    InterviewQuestion.objects.create(
+                                        session=django_session,
+                                        question_text=question_text_formatted,
+                                        question_type='TECHNICAL',
+                                        order=new_order,
+                                        question_level='MAIN',
+                                        role='AI',
+                                        conversation_sequence=ai_sequence
+                                    )
+                                    print(f"✅ Saved fallback question from last_active_question_text: conversation_sequence {ai_sequence}, order {new_order}: {question_text_formatted[:50]}...")
+                                else:
+                                    print(f"⚠️ Last active question already exists, skipping: {last_question_text[:50]}...")
                 except Exception as e:
                     print(f"⚠️ Error creating question in database: {e}")
+                    import traceback
+                    traceback.print_exc()
         
         # CRITICAL: Before returning, recalculate question_number from database to ensure accuracy
         # This handles cases where question was saved but question_number wasn't updated
@@ -5233,82 +5307,6 @@ def ai_transcript_pdf(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': f'PDF generation failed: {str(e)}'}, status=500)
-
-@csrf_exempt
-def get_proctoring_pdf_url(request, interview_id=None):
-    """
-    Get proctoring PDF GCS URL from ProctoringPDF table ONLY
-    Returns the gcs_url exactly as stored in database - no modification, no cleaning
-    
-    Accepts:
-    - interview_id as path parameter: /api/proctoring/pdf-url/<uuid:interview_id>/
-    - interview_id as query parameter: /api/proctoring/pdf-url/?interview_id=xxx
-    
-    Returns JSON:
-    {
-        "success": true,
-        "gcs_url": "https://storage.googleapis.com/...",
-        "interview_id": "uuid"
-    }
-    """
-    try:
-        from evaluation.models import ProctoringPDF
-        from interviews.models import Interview
-        from django.http import JsonResponse
-        
-        # Get interview_id from path or query parameter
-        if not interview_id:
-            interview_id = request.GET.get('interview_id')
-        
-        if not interview_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'interview_id is required'
-            }, status=400)
-        
-        # Get interview
-        try:
-            interview = Interview.objects.get(id=interview_id)
-        except Interview.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'error': 'Interview not found'
-            }, status=404)
-        
-        # Get ProctoringPDF record - ONLY source
-        try:
-            proctoring_pdf = ProctoringPDF.objects.get(interview=interview)
-        except ProctoringPDF.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'error': 'Proctoring PDF not found for this interview'
-            }, status=404)
-        
-        # Get gcs_url - use exactly as stored in database
-        gcs_url = proctoring_pdf.gcs_url
-        
-        if not gcs_url:
-            return JsonResponse({
-                'success': False,
-                'error': 'GCS URL not available for this proctoring PDF'
-            }, status=404)
-        
-        # Return URL exactly as stored - no modification
-        return JsonResponse({
-            'success': True,
-            'gcs_url': gcs_url,
-            'interview_id': str(interview.id)
-        })
-        
-    except Exception as e:
-        print(f"❌ Error getting proctoring PDF URL: {e}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': f'Internal server error: {str(e)}'
-        }, status=500)
-
 
 @csrf_exempt
 def download_proctoring_pdf(request, session_id=None):

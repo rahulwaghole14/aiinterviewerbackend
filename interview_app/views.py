@@ -5309,6 +5309,74 @@ def ai_transcript_pdf(request):
         return JsonResponse({'error': f'PDF generation failed: {str(e)}'}, status=500)
 
 @csrf_exempt
+def get_proctoring_pdf_url(request, interview_id):
+    """
+    Get proctoring PDF URL for a given interview_id
+    This is a compatibility function - the correct endpoint is in evaluation/urls.py
+    """
+    from django.http import JsonResponse
+    from evaluation.models import ProctoringPDF
+    from interviews.models import Interview
+    
+    try:
+        # Get interview
+        try:
+            interview = Interview.objects.get(id=interview_id)
+        except Interview.DoesNotExist:
+            return JsonResponse(
+                {'success': False, 'error': 'Interview not found'},
+                status=404
+            )
+        
+        # Get ProctoringPDF record
+        try:
+            proctoring_pdf = ProctoringPDF.objects.get(interview=interview)
+        except ProctoringPDF.DoesNotExist:
+            return JsonResponse(
+                {'success': False, 'error': 'Proctoring PDF not found for this interview'},
+                status=404
+            )
+        
+        # Get GCS URL
+        gcs_url = proctoring_pdf.gcs_url
+        
+        if not gcs_url:
+            return JsonResponse(
+                {'success': False, 'error': 'GCS URL not available for this proctoring PDF'},
+                status=404
+            )
+        
+        # Extract clean GCS URL if malformed (has app URL prepended)
+        original_url = gcs_url
+        if 'storage.googleapis.com' in gcs_url:
+            gcs_index = gcs_url.find('storage.googleapis.com')
+            if gcs_index > 0:
+                gcs_url = 'https://' + gcs_url[gcs_index:]
+            elif gcs_index == 0:
+                gcs_url = 'https://' + gcs_url
+            else:
+                gcs_url = None
+        
+        # Ensure URL is valid
+        if not gcs_url or not gcs_url.startswith('https://storage.googleapis.com/'):
+            print(f"⚠️ Invalid GCS URL format. Original: {original_url[:100]}...")
+            return JsonResponse(
+                {'success': False, 'error': f'Invalid GCS URL format. Original URL: {original_url[:100]}...'},
+                status=500
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'gcs_url': gcs_url
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse(
+            {'success': False, 'error': f'Error fetching proctoring PDF URL: {str(e)}'},
+            status=500
+        )
+
+@csrf_exempt
 def download_proctoring_pdf(request, session_id=None):
     """Download proctoring warnings PDF for a given session (from GCS or local)
     

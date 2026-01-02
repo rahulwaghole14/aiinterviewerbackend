@@ -56,6 +56,96 @@ def _wrap_long_words(text: str, max_len: int = 50) -> str:
     return result
 
 
+def _wrap_text_for_pdf(text: str, max_width: int = 70) -> str:
+    """Wrap text to fit within PDF page width, breaking at word boundaries"""
+    if not text:
+        return ""
+    
+    words = text.split(' ')
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        word_length = len(word)
+        # If adding this word would exceed max_width, start a new line
+        if current_length + word_length + 1 > max_width and current_line:
+            lines.append(' '.join(current_line))
+            current_line = [word]
+            current_length = word_length
+        else:
+            current_line.append(word)
+            current_length += word_length + 1
+    
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    return '\n'.join(lines)
+
+
+def _format_analysis_text(analysis_text: str) -> list:
+    """
+    Parse analysis text and format it with bullets, bold headings, and numbered lists.
+    Returns a list of formatted lines with formatting instructions.
+    Each item is a dict: {'type': 'bold'|'bullet'|'number'|'normal', 'text': str, 'level': int}
+    """
+    if not analysis_text:
+        return []
+    
+    formatted_lines = []
+    lines = analysis_text.split('\n')
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        if not line:
+            i += 1
+            continue
+        
+        # Detect section headings (ALL CAPS or Title Case ending with colon)
+        if (line.endswith(':') and len(line) < 60 and not line[0].isdigit()) or \
+           (line.isupper() and len(line) < 80 and not line.startswith('•')):
+            formatted_lines.append({'type': 'bold', 'text': line, 'level': 0})
+        
+        # Detect numbered lists (1., 2., etc. or 1) 2) etc.)
+        elif line and len(line) > 2 and line[0].isdigit() and line[1] in ['.', ')']:
+            # Extract number and text
+            num_end = 2 if line[1] == '.' else 3
+            number = line[:num_end]
+            text = line[num_end:].strip()
+            # Remove leading dash or bullet if present
+            if text.startswith('-') or text.startswith('•'):
+                text = text[1:].strip()
+            formatted_lines.append({'type': 'number', 'text': text, 'number': number})
+        
+        # Detect bullet points (-, *, •)
+        elif line.startswith('-') or line.startswith('*') or line.startswith('•'):
+            text = line[1:].strip()
+            # Check if it's a sub-bullet (starts with space before bullet)
+            level = 1 if lines[i].startswith('  ') or lines[i].startswith('\t') else 0
+            formatted_lines.append({'type': 'bullet', 'text': text, 'level': level})
+        
+        # Detect sub-bullets (indented with spaces or tabs)
+        elif (line.startswith('  ') or line.startswith('\t')) and len(line) > 2:
+            text = line.strip()
+            if text.startswith('-') or text.startswith('*') or text.startswith('•'):
+                text = text[1:].strip()
+            formatted_lines.append({'type': 'bullet', 'text': text, 'level': 1})
+        
+        # Regular text (but check if it looks like a heading)
+        else:
+            # If line is short and looks like a heading, make it bold
+            if len(line) < 60 and (line.isupper() or (line[0].isupper() and ':' in line)):
+                formatted_lines.append({'type': 'bold', 'text': line, 'level': 0})
+            else:
+                formatted_lines.append({'type': 'normal', 'text': line, 'level': 0})
+        
+        i += 1
+    
+    return formatted_lines
+
+
 def generate_comprehensive_pdf(session_key: str) -> bytes:
     """
     Generate comprehensive PDF including:
@@ -236,34 +326,34 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
             
             # Display Question
             pdf.set_font("Arial", "B", 11)
-            try:
-                pdf.multi_cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), align='L')
-            except:
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), ln=True)
+            pdf.cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), ln=True)
             
             pdf.set_font("Arial", size=10)
-            safe_question = _sanitize_for_pdf(_wrap_long_words(question_text, max_len=60))
+            # Wrap text properly to fit within page width
+            wrapped_question = _wrap_text_for_pdf(question_text, max_width=65)
+            safe_question = _sanitize_for_pdf(wrapped_question)
             try:
                 pdf.multi_cell(usable_width, 5, safe_question, align='L')
             except Exception as e:
-                truncated = safe_question[:200] + "..." if len(safe_question) > 200 else safe_question
-                pdf.cell(usable_width, 5, truncated, ln=True)
+                # Fallback: truncate if still too long
+                truncated = safe_question[:300] + "..." if len(safe_question) > 300 else safe_question
+                pdf.multi_cell(usable_width, 5, truncated, align='L')
             pdf.ln(2)
             
             # Display Answer
             pdf.set_font("Arial", "B", 11)
-            try:
-                pdf.multi_cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), align='L')
-            except:
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), ln=True)
+            pdf.cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), ln=True)
             
             pdf.set_font("Arial", size=10)
-            safe_answer = _sanitize_for_pdf(_wrap_long_words(answer_text, max_len=60))
+            # Wrap text properly to fit within page width
+            wrapped_answer = _wrap_text_for_pdf(answer_text, max_width=65)
+            safe_answer = _sanitize_for_pdf(wrapped_answer)
             try:
                 pdf.multi_cell(usable_width, 5, safe_answer, align='L')
             except Exception as e:
-                truncated = safe_answer[:200] + "..." if len(safe_answer) > 200 else safe_answer
-                pdf.cell(usable_width, 5, truncated, ln=True)
+                # Fallback: truncate if still too long
+                truncated = safe_answer[:300] + "..." if len(safe_answer) > 300 else safe_answer
+                pdf.multi_cell(usable_width, 5, truncated, align='L')
             pdf.ln(3)
         
         if not has_qa:
@@ -323,7 +413,9 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 pdf.set_font("Courier", size=8)  # Smaller font for code
                 code_lines = submission.submitted_code.split('\n')[:30]  # Limit to 30 lines
                 for line in code_lines:
-                    safe_line = _sanitize_for_pdf(_wrap_long_words(line, max_len=80))  # Wrap long lines
+                    # Wrap long code lines to fit within page
+                    wrapped_line = _wrap_text_for_pdf(line, max_width=75)
+                    safe_line = _sanitize_for_pdf(wrapped_line)
                     try:
                         pdf.multi_cell(usable_width, 4, safe_line, align='L')
                     except Exception as e:
@@ -345,7 +437,9 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     pdf.set_font("Arial", size=9)
                     log_lines = submission.output_log.split('\n')[:20]  # Limit output
                     for line in log_lines:
-                        safe_line = _sanitize_for_pdf(_wrap_long_words(line, max_len=70))
+                        # Wrap long lines to fit within page
+                        wrapped_line = _wrap_text_for_pdf(line, max_width=70)
+                        safe_line = _sanitize_for_pdf(wrapped_line)
                         try:
                             pdf.multi_cell(usable_width, 5, safe_line, align='L')
                         except Exception as e:
@@ -420,15 +514,32 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 Interview Transcript:
                 {conversation_text[:3000]}
                 
-                Provide:
-                1. Overall technical competency score (0-100)
-                2. Key strengths identified
-                3. Areas for improvement
-                4. Technical knowledge assessment
-                5. Communication skills evaluation
-                6. Recommendation (Strong/Moderate/Weak candidate)
+                Provide a structured evaluation report with the following format:
                 
-                Format as structured text.
+                OVERALL ASSESSMENT:
+                • Technical Competency Score: [0-100]
+                • Recommendation: [Strong/Moderate/Weak candidate]
+                
+                KEY STRENGTHS:
+                1. [First strength with brief explanation]
+                2. [Second strength with brief explanation]
+                3. [Third strength with brief explanation]
+                
+                AREAS FOR IMPROVEMENT:
+                1. [First area with specific feedback]
+                2. [Second area with specific feedback]
+                3. [Third area with specific feedback]
+                
+                TECHNICAL KNOWLEDGE ASSESSMENT:
+                • [Assessment point 1]
+                • [Assessment point 2]
+                • [Assessment point 3]
+                
+                COMMUNICATION SKILLS:
+                • [Communication evaluation point 1]
+                • [Communication evaluation point 2]
+                
+                Use this exact format with numbered lists (1., 2., 3.) and bullet points (•). Keep each point concise and professional.
                 """
                 
                 technical_response = model.generate_content(technical_prompt)
@@ -436,14 +547,45 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 
                 pdf.set_font("Arial", "B", 12)
                 pdf.cell(usable_width, 7, _sanitize_for_pdf("Technical Interview Analysis"), ln=True)
-                pdf.ln(2)
-                pdf.set_font("Arial", size=10)
-                analysis_text = _sanitize_for_pdf(_wrap_long_words(technical_analysis, max_len=70))
-                try:
-                    pdf.multi_cell(usable_width, 5, analysis_text, align='L')
-                except:
-                    pdf.cell(usable_width, 5, _sanitize_for_pdf(technical_analysis[:500] + "..."), ln=True)
-                pdf.ln(5)
+                pdf.ln(3)
+                
+                # Format analysis with bullets, bold headings, and numbered lists
+                formatted_lines = _format_analysis_text(technical_analysis)
+                
+                for item in formatted_lines:
+                    if item['type'] == 'bold':
+                        # Bold heading
+                        pdf.set_font("Arial", "B", 11)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 6, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'number':
+                        # Numbered list item
+                        pdf.set_font("Arial", size=10)
+                        number = item.get('number', '')
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{number} {text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'bullet':
+                        # Bullet point
+                        pdf.set_font("Arial", size=10)
+                        indent = "  " * item.get('level', 0)
+                        bullet = "• " if item.get('level', 0) == 0 else "  ◦ "
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{indent}{bullet}{text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    else:
+                        # Normal text
+                        pdf.set_font("Arial", size=10)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                
+                pdf.ln(3)
             except Exception as e:
                 print(f"⚠️ Error generating technical analysis: {e}")
                 pdf.set_font("Arial", "I", 11)
@@ -476,15 +618,37 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 Submissions:
                 {''.join(coding_analysis_text)}
                 
-                Provide:
-                1. Code quality score (0-100)
-                2. Problem-solving approach assessment
-                3. Code correctness and efficiency
-                4. Best practices adherence
-                5. Suggestions for improvement
-                6. Overall coding competency rating
+                Provide a structured evaluation report with the following format:
                 
-                Format as structured text.
+                OVERALL ASSESSMENT:
+                • Code Quality Score: [0-100]
+                • Overall Coding Competency: [Excellent/Good/Moderate/Needs Improvement]
+                
+                CODE QUALITY ANALYSIS:
+                1. [First quality aspect with explanation]
+                2. [Second quality aspect with explanation]
+                3. [Third quality aspect with explanation]
+                
+                PROBLEM-SOLVING APPROACH:
+                • [Approach evaluation point 1]
+                • [Approach evaluation point 2]
+                • [Approach evaluation point 3]
+                
+                CODE CORRECTNESS & EFFICIENCY:
+                1. [Correctness point with details]
+                2. [Efficiency point with details]
+                
+                BEST PRACTICES ADHERENCE:
+                • [Practice 1 assessment]
+                • [Practice 2 assessment]
+                • [Practice 3 assessment]
+                
+                SUGGESTIONS FOR IMPROVEMENT:
+                1. [First suggestion]
+                2. [Second suggestion]
+                3. [Third suggestion]
+                
+                Use this exact format with numbered lists (1., 2., 3.) and bullet points (•). Keep each point concise and professional.
                 """
                 
                 coding_response = model.generate_content(coding_prompt)
@@ -492,13 +656,43 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 
                 pdf.set_font("Arial", "B", 12)
                 pdf.cell(usable_width, 7, _sanitize_for_pdf("Coding Challenge Analysis"), ln=True)
-                pdf.ln(2)
-                pdf.set_font("Arial", size=10)
-                analysis_text = _sanitize_for_pdf(_wrap_long_words(coding_analysis, max_len=70))
-                try:
-                    pdf.multi_cell(usable_width, 5, analysis_text, align='L')
-                except:
-                    pdf.cell(usable_width, 5, _sanitize_for_pdf(coding_analysis[:500] + "..."), ln=True)
+                pdf.ln(3)
+                
+                # Format analysis with bullets, bold headings, and numbered lists
+                formatted_lines = _format_analysis_text(coding_analysis)
+                
+                for item in formatted_lines:
+                    if item['type'] == 'bold':
+                        # Bold heading
+                        pdf.set_font("Arial", "B", 11)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 6, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'number':
+                        # Numbered list item
+                        pdf.set_font("Arial", size=10)
+                        number = item.get('number', '')
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{number} {text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'bullet':
+                        # Bullet point
+                        pdf.set_font("Arial", size=10)
+                        indent = "  " * item.get('level', 0)
+                        bullet = "• " if item.get('level', 0) == 0 else "  ◦ "
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{indent}{bullet}{text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    else:
+                        # Normal text
+                        pdf.set_font("Arial", size=10)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
             except Exception as e:
                 print(f"⚠️ Error generating coding analysis: {e}")
                 pdf.set_font("Arial", "I", 11)

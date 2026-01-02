@@ -575,37 +575,13 @@ class InterviewSerializer(serializers.ModelSerializer):
             return 0
     
     def get_questions_and_answers(self, obj):
-        """Get questions and answers for this interview - PRIORITY: TechnicalQA table"""
+        """Get questions and answers for this interview - SAME LOGIC AS PDF GENERATION"""
         try:
-            from interview_app.models import InterviewSession, InterviewQuestion, TechnicalQA
+            from interview_app.models import InterviewSession, InterviewQuestion, CodeSubmission
             from django.utils import timezone
             from django.db import connection
             
-            # CRITICAL: Get TECHNICAL questions from TechnicalQA table (new separate table)
-            # Get CODING questions from InterviewQuestion table (keep as before)
-            technical_qa_list = TechnicalQA.objects.filter(interview=obj).order_by('question_number', 'order')
-            qa_list = []
-            
-            # Add technical questions from TechnicalQA table
-            if technical_qa_list.exists():
-                print(f"✅ Found {technical_qa_list.count()} technical Q&A records in TechnicalQA table for interview {obj.id}")
-                for qa in technical_qa_list:
-                    # Only add TECHNICAL questions, skip CODING (those come from InterviewQuestion)
-                    if qa.question_type != 'CODING':
-                        qa_list.append({
-                            'question_number': qa.question_number,
-                            'question': qa.question_text or '',
-                            'answer': qa.answer_text or qa.transcribed_answer or 'No answer provided',
-                            'question_type': qa.question_type or 'TECHNICAL',
-                            'response_time': qa.response_time_seconds or 0,
-                            'order': qa.order or qa.question_number,
-                        })
-                print(f"✅ Added {len(qa_list)} technical Q&A pairs from TechnicalQA table")
-            else:
-                print(f"⚠️ No TechnicalQA records found for interview {obj.id}")
-            
-            # Now get CODING questions from InterviewQuestion table (keep as before)
-            # Find the session for this interview using session_key
+            # Find the session for this interview using session_key (SAME AS PDF)
             session = None
             if obj.session_key:
                 try:
@@ -616,74 +592,142 @@ class InterviewSerializer(serializers.ModelSerializer):
                 except Exception as e:
                     print(f"⚠️ Error finding session: {e}")
             
-            # If session found, get CODING questions from InterviewQuestion
-            if session:
-                try:
-                    # Get CODING questions only
-                    coding_questions = InterviewQuestion.objects.filter(
-                        session=session,
-                        question_type='CODING'
-                    ).only(
-                        'id', 'question_text', 'question_type', 'order', 'conversation_sequence'
-                    ).order_by('order', 'id')
+            if not session:
+                print(f"⚠️ No session found for interview {obj.id}")
+                return []
+            
+            # Get all questions ordered by conversation_sequence and order (SAME AS PDF)
+            questions = InterviewQuestion.objects.filter(
+                session=session
+            ).order_by(
+                'conversation_sequence',
+                'order',
+                'id'
+            )
+            
+            # Group questions by order to pair AI questions with Interviewee answers (SAME AS PDF)
+            questions_by_order = {}
+            for q in questions:
+                order_key = q.order
+                if order_key not in questions_by_order:
+                    questions_by_order[order_key] = {'ai': None, 'interviewee': None}
+                
+                # Check if this is an AI question or Interviewee answer (SAME AS PDF)
+                if q.role == 'AI' and q.question_text:
+                    questions_by_order[order_key]['ai'] = q
+                elif q.role == 'INTERVIEWEE' and (q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE'):
+                    if not questions_by_order[order_key]['interviewee']:
+                        questions_by_order[order_key]['interviewee'] = q
+                    elif q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
+                        # Prefer record with transcribed_answer
+                        questions_by_order[order_key]['interviewee'] = q
+                elif not q.role and q.question_text:
+                    # Old format: question_text exists, treat as AI question
+                    questions_by_order[order_key]['ai'] = q
+            
+            # Get coding submissions for coding questions
+            coding_submissions = CodeSubmission.objects.filter(session=session).order_by('created_at')
+            
+            # Sort by order and create Q&A pairs (SAME AS PDF)
+            sorted_orders = sorted(questions_by_order.keys())
+            qa_list = []
+            
+            for order_key in sorted_orders:
+                q_pair = questions_by_order[order_key]
+                ai_q = q_pair['ai']
+                interviewee_a = q_pair['interviewee']
+                
+                # Skip if no AI question
+                if not ai_q:
+                    continue
+                
+                # Handle CODING questions differently - get answer from CodeSubmission (SAME AS PDF)
+                if ai_q.question_type == 'CODING':
+                    # Get question text
+                    question_text = ai_q.question_text or ''
+                    if question_text.strip().startswith('Q:'):
+                        question_text = question_text.replace('Q:', '').strip()
                     
-                    if coding_questions.exists():
-                        print(f"✅ Found {coding_questions.count()} CODING questions in InterviewQuestion table")
+                    # Find corresponding code submission
+                    answer_text = 'No code submitted'
+                    code_submission_data = None
+                    try:
+                        submission = coding_submissions.filter(
+                            question_id=str(ai_q.id)
+                        ).first()
                         
-                        # Import CodeSubmission model
-                        from interview_app.models import CodeSubmission
+                        if not submission:
+                            # Try without hyphens
+                            question_id_no_hyphens = str(ai_q.id).replace('-', '')
+                            submission = coding_submissions.filter(
+                                question_id=question_id_no_hyphens
+                            ).first()
                         
-                        for coding_q in coding_questions:
-                            # Get answer from CodeSubmission
-                            answer_text = None
-                            created_at = None
-                            response_time = 0
-                            try:
-                                question_id_str = str(coding_q.id)
-                                code_submission = CodeSubmission.objects.filter(
-                                    session=session,
-                                    question_id=question_id_str
-                                ).order_by('-created_at').first()
-                                
-                                if code_submission:
-                                    answer_text = code_submission.submitted_code or 'No code submitted'
-                                    created_at = code_submission.created_at.isoformat() if code_submission.created_at else None
-                                    response_time = 0  # CodeSubmission doesn't have response_time
-                                    
-                                    # Add coding question to qa_list
-                                    qa_item = {
-                                        'question_number': coding_q.order + 1,  # Use order + 1 for question number
-                                        'question': coding_q.question_text or '',
-                                        'answer': answer_text,
-                                        'question_type': 'CODING',
-                                        'response_time': response_time,
-                                        'order': coding_q.order,
-                                        'code_submission': {
-                                            'submitted_code': code_submission.submitted_code,
-                                            'language': code_submission.language,
-                                            'passed_all_tests': code_submission.passed_all_tests,
-                                            'output_log': code_submission.output_log,
-                                            'gemini_evaluation': code_submission.gemini_evaluation,
-                                            'created_at': created_at,
-                                        }
-                                    }
-                                    qa_list.append(qa_item)
-                                    print(f"✅ Added CODING question {coding_q.order + 1} with code submission")
-                            except Exception as e:
-                                print(f"⚠️ Error fetching CodeSubmission for CODING question {coding_q.id}: {e}")
-                                # Still add the question even if submission not found
-                                qa_list.append({
-                                    'question_number': coding_q.order + 1,
-                                    'question': coding_q.question_text or '',
-                                    'answer': 'No code submitted',
-                                    'question_type': 'CODING',
-                                    'response_time': 0,
-                                    'order': coding_q.order,
-                                })
-                    else:
-                        print(f"⚠️ No CODING questions found in InterviewQuestion table")
-                except Exception as e:
-                    print(f"⚠️ Error fetching CODING questions: {e}")
+                        if submission and submission.submitted_code:
+                            answer_text = submission.submitted_code
+                            code_submission_data = {
+                                'submitted_code': submission.submitted_code,
+                                'language': submission.language,
+                                'passed_all_tests': submission.passed_all_tests,
+                                'output_log': submission.output_log,
+                                'gemini_evaluation': submission.gemini_evaluation,
+                                'created_at': submission.created_at.isoformat() if submission.created_at else None,
+                            }
+                    except Exception as e:
+                        print(f"⚠️ Error finding submission for coding question {ai_q.id}: {e}")
+                    
+                    qa_item = {
+                        'question_number': ai_q.order + 1,
+                        'question': question_text,
+                        'question_text': question_text,  # Also include for compatibility
+                        'answer': answer_text,
+                        'question_type': 'CODING',
+                        'response_time': 0,
+                        'order': ai_q.order,
+                        'conversation_sequence': ai_q.conversation_sequence,
+                    }
+                    
+                    if code_submission_data:
+                        qa_item['code_submission'] = code_submission_data
+                    
+                    qa_list.append(qa_item)
+                    continue  # Skip regular answer handling for coding questions
+                
+                # Regular technical/behavioral questions (SAME AS PDF)
+                question_text = ai_q.question_text or ''
+                if question_text.strip().startswith('Q:'):
+                    question_text = question_text.replace('Q:', '').strip()
+                
+                # Answer text - use same logic as PDF
+                answer_text = 'No answer provided'
+                if interviewee_a:
+                    answer_text = interviewee_a.transcribed_answer or ''
+                    if answer_text.strip().startswith('A:'):
+                        answer_text = answer_text.replace('A:', '').strip()
+                
+                # If no separate interviewee record, try transcribed_answer from AI question itself
+                if not answer_text or answer_text == 'No answer provided':
+                    if ai_q.transcribed_answer:
+                        answer_text = ai_q.transcribed_answer
+                        if answer_text.strip().startswith('A:'):
+                            answer_text = answer_text.replace('A:', '').strip()
+                
+                # Format answer
+                if not answer_text or answer_text.strip() == '' or answer_text.lower() == 'none':
+                    answer_text = 'No answer provided'
+                
+                qa_item = {
+                    'question_number': ai_q.order + 1,
+                    'question': question_text,
+                    'question_text': question_text,  # Also include for compatibility
+                    'answer': answer_text,
+                    'question_type': ai_q.question_type or 'TECHNICAL',
+                    'response_time': interviewee_a.response_time_seconds if interviewee_a else (ai_q.response_time_seconds or 0),
+                    'order': ai_q.order,
+                    'conversation_sequence': ai_q.conversation_sequence,
+                }
+                
+                qa_list.append(qa_item)
             
             # Sort qa_list by order/question_number
             qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))

@@ -295,74 +295,11 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
             if not ai_q:
                 continue
             
-            has_qa = True
-            
-            # Handle CODING questions differently - get answer from CodeSubmission
+            # Skip CODING questions in Technical Q&A section - they are shown separately in Coding Challenge Results
             if ai_q.question_type == 'CODING':
-                # Get question text
-                question_text = ai_q.question_text or ''
-                if question_text.strip().startswith('Q:'):
-                    question_text = question_text.replace('Q:', '').strip()
-                
-                # Find corresponding code submission
-                answer_text = 'No code submitted'
-                try:
-                    submission = coding_submissions.filter(
-                        question_id=str(ai_q.id)
-                    ).first()
-                    
-                    if not submission:
-                        # Try without hyphens
-                        question_id_no_hyphens = str(ai_q.id).replace('-', '')
-                        submission = coding_submissions.filter(
-                            question_id=question_id_no_hyphens
-                        ).first()
-                    
-                    if submission and submission.submitted_code:
-                        answer_text = submission.submitted_code
-                except Exception as e:
-                    print(f"⚠️ Error finding submission for coding question {ai_q.id}: {e}")
-                
-                # Display Coding Question
-                pdf.set_font("Arial", "B", 11)
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), ln=True)
-                
-                pdf.set_font("Arial", size=10)
-                wrapped_question = _wrap_text_for_pdf(question_text, max_width=65)
-                safe_question = _sanitize_for_pdf(wrapped_question)
-                try:
-                    pdf.multi_cell(usable_width, 5, safe_question, align='L')
-                except Exception as e:
-                    truncated = safe_question[:300] + "..." if len(safe_question) > 300 else safe_question
-                    pdf.multi_cell(usable_width, 5, truncated, align='L')
-                pdf.ln(2)
-                
-                # Display Coding Answer (Code)
-                pdf.set_font("Arial", "B", 11)
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), ln=True)
-                
-                pdf.set_font("Courier", size=9)  # Monospace font for code
-                if answer_text and answer_text != 'No code submitted':
-                    code_lines = answer_text.split('\n')[:50]  # Show more lines in Q&A section
-                    for line in code_lines:
-                        wrapped_line = _wrap_text_for_pdf(line, max_width=70)
-                        safe_line = _sanitize_for_pdf(wrapped_line)
-                        try:
-                            pdf.multi_cell(usable_width, 4, safe_line, align='L')
-                        except Exception as e:
-                            pdf.set_font("Arial", "I", 8)
-                            pdf.cell(usable_width, 4, _sanitize_for_pdf("... (line too long)"), ln=True)
-                            pdf.set_font("Courier", size=9)
-                    
-                    if len(answer_text.split('\n')) > 50:
-                        pdf.set_font("Arial", "I", 9)
-                        pdf.cell(usable_width, 5, _sanitize_for_pdf("... (code truncated - see Coding Challenge Results section for full code)"), ln=True)
-                else:
-                    pdf.set_font("Arial", size=10)
-                    pdf.cell(usable_width, 5, _sanitize_for_pdf("No code submitted"), ln=True)
-                
-                pdf.ln(3)
-                continue  # Skip regular answer handling for coding questions
+                continue  # Skip coding questions - they will be shown in Coding Challenge Results section
+            
+            has_qa = True
             
             # Question text
             question_text = ai_q.question_text or ''
@@ -468,14 +405,23 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 except Exception as e:
                     print(f"⚠️ Error finding submission for coding question {coding_q.id}: {e}")
                 
-                # Challenge header
+                # Challenge header with question text
                 pdf.set_font("Arial", "B", 12)
-                wrapped_question = _wrap_text_for_pdf(question_text, max_width=60)
-                safe_question = _sanitize_for_pdf(wrapped_question)
                 pdf.cell(usable_width, 7, _sanitize_for_pdf(f"Challenge {idx}:"), ln=True)
-                pdf.set_font("Arial", size=11)
-                pdf.multi_cell(usable_width, 6, safe_question, align='L')
                 pdf.ln(2)
+                
+                # Display the question text clearly
+                pdf.set_font("Arial", "B", 11)
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Question:"), ln=True)
+                pdf.set_font("Arial", size=11)
+                # Clean question text
+                clean_question = question_text
+                if clean_question.strip().startswith('Q:'):
+                    clean_question = clean_question.replace('Q:', '').strip()
+                wrapped_question = _wrap_text_for_pdf(clean_question, max_width=65)
+                safe_question = _sanitize_for_pdf(wrapped_question)
+                pdf.multi_cell(usable_width, 6, safe_question, align='L')
+                pdf.ln(3)
                 
                 if submission:
                     # Language and status
@@ -498,7 +444,7 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     
                     # Submitted code
                     pdf.set_font("Arial", "B", 11)
-                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Submitted Code:"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Answer (Submitted Code):"), ln=True)
                     pdf.set_font("Courier", size=8)  # Smaller font for code
                     if submission.submitted_code:
                         code_lines = submission.submitted_code.split('\n')[:30]  # Limit to 30 lines
@@ -566,14 +512,23 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     except Exception as e:
                         print(f"⚠️ Error getting question for submission {submission.id}: {e}")
                     
-                    # Challenge header
+                    # Challenge header with question text
                     pdf.set_font("Arial", "B", 12)
-                    wrapped_question = _wrap_text_for_pdf(question_text, max_width=60)
-                    safe_question = _sanitize_for_pdf(wrapped_question)
                     pdf.cell(usable_width, 7, _sanitize_for_pdf(f"Challenge {idx}:"), ln=True)
-                    pdf.set_font("Arial", size=11)
-                    pdf.multi_cell(usable_width, 6, safe_question, align='L')
                     pdf.ln(2)
+                    
+                    # Display the question text clearly
+                    pdf.set_font("Arial", "B", 11)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Question:"), ln=True)
+                    pdf.set_font("Arial", size=11)
+                    # Clean question text
+                    clean_question = question_text
+                    if clean_question.strip().startswith('Q:'):
+                        clean_question = clean_question.replace('Q:', '').strip()
+                    wrapped_question = _wrap_text_for_pdf(clean_question, max_width=65)
+                    safe_question = _sanitize_for_pdf(wrapped_question)
+                    pdf.multi_cell(usable_width, 6, safe_question, align='L')
+                    pdf.ln(3)
                     
                     # Language and status
                     pdf.set_font("Arial", size=11)
@@ -584,7 +539,7 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     
                     # Submitted code
                     pdf.set_font("Arial", "B", 11)
-                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Submitted Code:"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Answer (Submitted Code):"), ln=True)
                     pdf.set_font("Courier", size=8)
                     if submission.submitted_code:
                         code_lines = submission.submitted_code.split('\n')[:30]

@@ -631,6 +631,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             # Sort by order and create Q&A pairs (SAME AS PDF)
             sorted_orders = sorted(questions_by_order.keys())
             qa_list = []
+            coding_qa_list = []  # Separate list for coding questions
             
             for order_key in sorted_orders:
                 q_pair = questions_by_order[order_key]
@@ -641,7 +642,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                 if not ai_q:
                     continue
                 
-                # Handle CODING questions differently - get answer from CodeSubmission (SAME AS PDF)
+                # Handle CODING questions separately - get answer from CodeSubmission (SAME AS PDF)
                 if ai_q.question_type == 'CODING':
                     # Get question text
                     question_text = ai_q.question_text or ''
@@ -690,7 +691,8 @@ class InterviewSerializer(serializers.ModelSerializer):
                     if code_submission_data:
                         qa_item['code_submission'] = code_submission_data
                     
-                    qa_list.append(qa_item)
+                    # Add to coding list (NOT to main qa_list)
+                    coding_qa_list.append(qa_item)
                     continue  # Skip regular answer handling for coding questions
                 
                 # Regular technical/behavioral questions (SAME AS PDF)
@@ -729,11 +731,18 @@ class InterviewSerializer(serializers.ModelSerializer):
                 
                 qa_list.append(qa_item)
             
-            # Sort qa_list by order/question_number
+            # Sort qa_list by order/question_number (technical questions only)
             qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))
             
-            print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
-            return qa_list
+            # Sort coding_qa_list by order/question_number
+            coding_qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))
+            
+            # Combine: technical questions first, then coding questions
+            # This ensures coding questions appear separately in the response
+            final_qa_list = qa_list + coding_qa_list
+            
+            print(f"✅ Returning {len(final_qa_list)} total Q&A pairs ({len(qa_list)} technical + {len(coding_qa_list)} coding)")
+            return final_qa_list
         except TimeoutError as timeout_error:
             print(f"⚠️ Timeout getting Q&A for interview {obj.id}: {timeout_error}")
             return []  # Return empty list on timeout

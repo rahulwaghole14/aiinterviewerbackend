@@ -751,7 +751,17 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 pdf.cell(usable_width, 6, _sanitize_for_pdf("Technical analysis unavailable"), ln=True)
         
         # Generate Gemini analysis for coding round
-        if coding_submissions.exists():
+        # Get coding questions if not already defined (should be defined above, but ensure it exists)
+        if 'coding_questions_from_db' not in locals():
+            coding_questions_from_db = InterviewQuestion.objects.filter(
+                session=session,
+                question_type='CODING'
+            ).order_by('order', 'id')
+        
+        # Check both coding_submissions and coding_questions_from_db
+        has_coding_for_analysis = coding_submissions.exists() or coding_questions_from_db.exists()
+        
+        if has_coding_for_analysis:
             try:
                 import google.generativeai as genai
                 from django.conf import settings
@@ -763,13 +773,84 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     raise ValueError("GEMINI_API_KEY not set in environment")
                 
                 coding_analysis_text = []
+                
+                # Process coding questions with their submissions
+                for coding_q in coding_questions_from_db:
+                    question_text = coding_q.question_text or "Coding Challenge"
+                    
+                    # Find corresponding submission
+                    submission = None
+                    try:
+                        submission = coding_submissions.filter(
+                            question_id=str(coding_q.id)
+                        ).first()
+                        
+                        if not submission:
+                            question_id_no_hyphens = str(coding_q.id).replace('-', '')
+                            submission = coding_submissions.filter(
+                                question_id=question_id_no_hyphens
+                            ).first()
+                    except Exception as e:
+                        print(f"⚠️ Error finding submission for coding question {coding_q.id}: {e}")
+                    
+                    if submission:
+                        # Include full code (not truncated) for analysis
+                        submitted_code = submission.submitted_code or "No code submitted"
+                        output_log = submission.output_log or "N/A"
+                        
+                        coding_analysis_text.append(f"""
+                        Challenge {len(coding_analysis_text) + 1}:
+                        Question: {question_text}
+                        Language: {submission.language}
+                        Submitted Code:
+                        {submitted_code}
+                        Tests Passed: {'Yes' if submission.passed_all_tests else 'No'}
+                        Output/Test Results: {output_log}
+                        """)
+                    else:
+                        # Question without submission
+                        coding_analysis_text.append(f"""
+                        Challenge {len(coding_analysis_text) + 1}:
+                        Question: {question_text}
+                        Status: No code submitted
+                        """)
+                
+                # Also include any submissions that don't have corresponding questions (fallback)
+                processed_question_ids = set()
+                for coding_q in coding_questions_from_db:
+                    processed_question_ids.add(str(coding_q.id))
+                    processed_question_ids.add(str(coding_q.id).replace('-', ''))
+                
                 for submission in coding_submissions:
-                    coding_analysis_text.append(f"""
-                    Language: {submission.language}
-                    Code: {submission.submitted_code[:1000]}
-                    Tests Passed: {'Yes' if submission.passed_all_tests else 'No'}
-                    Output: {submission.output_log[:500] if submission.output_log else 'N/A'}
-                    """)
+                    if submission.question_id not in processed_question_ids:
+                        # This submission doesn't have a corresponding question in InterviewQuestion
+                        # Try to get question text
+                        question_text = "Coding Challenge"
+                        try:
+                            from uuid import UUID
+                            try:
+                                question_uuid = UUID(submission.question_id)
+                                question = InterviewQuestion.objects.get(id=question_uuid)
+                                question_text = question.question_text or "Coding Challenge"
+                            except (ValueError, InterviewQuestion.DoesNotExist):
+                                question = InterviewQuestion.objects.filter(id=submission.question_id).first()
+                                if question:
+                                    question_text = question.question_text or "Coding Challenge"
+                        except Exception as e:
+                            print(f"⚠️ Error getting question for submission {submission.id}: {e}")
+                        
+                        submitted_code = submission.submitted_code or "No code submitted"
+                        output_log = submission.output_log or "N/A"
+                        
+                        coding_analysis_text.append(f"""
+                        Challenge {len(coding_analysis_text) + 1}:
+                        Question: {question_text}
+                        Language: {submission.language}
+                        Submitted Code:
+                        {submitted_code}
+                        Tests Passed: {'Yes' if submission.passed_all_tests else 'No'}
+                        Output/Test Results: {output_log}
+                        """)
                 
                 coding_prompt = f"""
                 Analyze this coding challenge submission and provide evaluation.

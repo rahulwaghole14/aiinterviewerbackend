@@ -869,6 +869,7 @@ def is_question_similar(new_question: str, existing_questions: list, threshold: 
 def _shape_question(text: str, ensure_intro: bool = False, session=None) -> str:
     """Ensure a single, concise question with a trailing question mark.
     CRITICAL: Extract only the FIRST question if multiple questions are present.
+    Also removes any conversational clauses before the question.
     """
     if not text:
         return "Could you describe a recent project where you solved a challenging technical problem?"
@@ -876,6 +877,59 @@ def _shape_question(text: str, ensure_intro: bool = False, session=None) -> str:
     cleaned = text.strip()
     # Normalize whitespace
     cleaned = " ".join(cleaned.split())
+    
+    # CRITICAL: Remove conversational clauses before questions
+    # These phrases should be removed if they appear before the actual question
+    unwanted_clauses = [
+        "okay, no worries",
+        "okay no worries",
+        "no worries",
+        "that's okay",
+        "thats okay",
+        "that's fine",
+        "thats fine",
+        "no problem",
+        "perhaps we can move on",
+        "let's move on",
+        "lets move on",
+        "let's continue",
+        "lets continue",
+        "let's talk about",
+        "lets talk about",
+        "let's discuss",
+        "lets discuss",
+        "perhaps we can",
+        "maybe we can",
+        "i understand",
+        "i see",
+        "got it",
+        "alright",
+        "all right"
+    ]
+    
+    # Find the position of the first question mark
+    first_q_pos = cleaned.find("?")
+    if first_q_pos > 0:
+        # Check if there are clauses before the question
+        text_before_q = cleaned[:first_q_pos].lower()
+        for clause in unwanted_clauses:
+            if clause in text_before_q:
+                # Find where the clause ends and extract only the question part
+                clause_pos = text_before_q.find(clause)
+                # Look for the question after the clause
+                # Usually clauses end with punctuation or transition words
+                after_clause = cleaned[clause_pos + len(clause):].strip()
+                # Remove leading punctuation and transition words
+                after_clause = after_clause.lstrip(".,;: ")
+                # Find the next question mark
+                next_q_pos = after_clause.find("?")
+                if next_q_pos > 0:
+                    # Extract the question part
+                    cleaned = after_clause[:next_q_pos + 1].strip()
+                    print(f"⚠️ Removed clause before question:")
+                    print(f"   Original: {text[:150]}...")
+                    print(f"   Cleaned: {cleaned}")
+                    break
     
     # CRITICAL: If multiple questions are present (multiple "?"), keep ONLY the first one
     if cleaned.count("?") > 1:
@@ -1030,18 +1084,25 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "- If a topic was already covered, ask about a DIFFERENT aspect of that topic OR move to a NEW topic entirely.\n"
             "- REMEMBER: Every single question must be UNIQUE. No exceptions. No repeats. No similar questions.\n\n"
             "Based on the candidate's last answer, ask a relevant TECHNICAL follow-up question grounded in the JD. "
-            "CRITICAL RULES:\n"
+            "CRITICAL RULES - READ CAREFULLY:\n"
             "1. NEVER repeat the previous question - the candidate has already answered it.\n"
             "2. NEVER say 'Thanks for asking' and then repeat the same question - this is wrong.\n"
             "3. NEVER use phrases like 'go ahead with your answer' or 'please go ahead' - they have already answered.\n"
-            "4. You may use a brief introductory phrase like 'That's okay' or 'I understand' ONCE, but DO NOT repeat it.\n"
-            "5. NEVER say phrases like 'That's okay, that's okay' or 'That's fine, that's fine' - this is repetitive and unprofessional.\n"
+            "4. CRITICAL: DO NOT add any conversational clauses before the question. DO NOT say:\n"
+            "   - 'Okay, no worries' or 'That's okay' or 'No problem'\n"
+            "   - 'Perhaps we can move on' or 'Let's move on' or 'Let's continue'\n"
+            "   - 'Let's talk about' or 'Let's discuss'\n"
+            "   - 'I understand' or 'I see' or 'Got it'\n"
+            "   - ANY acknowledgment phrases or conversational fillers\n"
+            "5. Ask the question DIRECTLY without any introductory phrases or clauses.\n"
             "6. If their answer was solid, probe for technical details, impact, metrics, trade-offs, or examples on a COMPLETELY DIFFERENT TECHNICAL aspect.\n"
             "7. If it was brief, ask for clarification on a COMPLETELY DIFFERENT TECHNICAL point or a concrete technical example of something NEW.\n"
             "8. Keep it professional, TECHNICAL, JD-aligned, and ensure it's a COMPLETELY NEW TECHNICAL question.\n"
             "9. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
             "10. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
-            "11. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used."
+            "11. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used.\n"
+            "12. EXAMPLE OF CORRECT FORMAT: 'Could you explain how you would handle missing data in a Pandas DataFrame?'\n"
+            "13. EXAMPLE OF INCORRECT FORMAT: 'Okay, no worries. Perhaps we can move on to the next question then? Let's talk about feature scaling. Could you describe how you would evaluate the performance of a classification model?'"
         )
     
     elif question_type == "closing":
@@ -1087,16 +1148,25 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "1. NEVER repeat the previous question - the candidate has already answered it.\n"
             "2. NEVER say 'Thanks for asking' and then repeat the same question - this is wrong.\n"
             "3. NEVER use phrases like 'go ahead with your answer', 'please go ahead', or similar phrases - they have already answered.\n"
-            "4. You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NOT been asked before.\n"
-            "5. Check the list of previously asked questions above - DO NOT repeat any of them.\n"
-            "6. Base your question on the TECHNICAL aspects of the job description and the candidate's latest answer, but ensure it's a NEW TECHNICAL topic or aspect.\n"
-            "7. NEVER repeat a question that has already been asked - even if you rephrase it slightly.\n"
-            "8. NEVER ask a similar question on the same topic - move to a DIFFERENT TECHNICAL topic or aspect.\n"
-            "9. Keep it precise, professional, TECHNICAL, and directly tied to the JD's technical requirements, but ensure it's COMPLETELY NEW.\n"
-            "10. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
-            "11. If you're unsure, choose a DIFFERENT TECHNICAL topic from the job description that hasn't been covered yet.\n"
-            "12. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
-            "13. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used."
+            "4. CRITICAL: DO NOT add any conversational clauses before the question. DO NOT say:\n"
+            "   - 'Okay, no worries' or 'That's okay' or 'No problem'\n"
+            "   - 'Perhaps we can move on' or 'Let's move on' or 'Let's continue'\n"
+            "   - 'Let's talk about' or 'Let's discuss'\n"
+            "   - 'I understand' or 'I see' or 'Got it'\n"
+            "   - ANY acknowledgment phrases or conversational fillers\n"
+            "5. Ask the question DIRECTLY without any introductory phrases or clauses.\n"
+            "6. You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NOT been asked before.\n"
+            "7. Check the list of previously asked questions above - DO NOT repeat any of them.\n"
+            "8. Base your question on the TECHNICAL aspects of the job description and the candidate's latest answer, but ensure it's a NEW TECHNICAL topic or aspect.\n"
+            "9. NEVER repeat a question that has already been asked - even if you rephrase it slightly.\n"
+            "10. NEVER ask a similar question on the same topic - move to a DIFFERENT TECHNICAL topic or aspect.\n"
+            "11. Keep it precise, professional, TECHNICAL, and directly tied to the JD's technical requirements, but ensure it's COMPLETELY NEW.\n"
+            "12. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
+            "13. If you're unsure, choose a DIFFERENT TECHNICAL topic from the job description that hasn't been covered yet.\n"
+            "14. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
+            "15. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used.\n"
+            "16. EXAMPLE OF CORRECT FORMAT: 'Could you explain how you would handle missing data in a Pandas DataFrame?'\n"
+            "17. EXAMPLE OF INCORRECT FORMAT: 'Okay, no worries. Perhaps we can move on to the next question then? Let's talk about feature scaling. Could you describe how you would evaluate the performance of a classification model?'"
         )
     
     # Generate question with retry logic to avoid duplicates
@@ -1511,49 +1581,48 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
         is_empty_transcript = not transcript.strip() or transcript.startswith("[Speech detected") or transcript.startswith("[No speech detected")
         
         if is_empty_transcript:
-            # Send empty transcript (as-is from Deepgram) to LLM to generate appropriate response
-            # LLM will decide: ask again, move to next question, or provide encouragement
-            llm_prompt = (
-                f"You are a professional technical interviewer conducting a technical interview. "
-                f"The candidate's response was empty or not detected (transcript from Deepgram API is empty: '{transcript}'). "
-                f"\n\n"
-                f"Current interview context:\n"
-                f"- Question number: {session.current_question_number} of {session.max_questions}\n"
-                f"- Last question asked: {session.last_active_question_text[:200] if session.last_active_question_text else 'N/A'}\n"
-                f"- Interview progress: {session.current_question_number}/{session.max_questions} questions completed\n"
-                f"\n"
-                f"Generate a brief, professional response (1-2 sentences) that:\n"
-                f"1. Acknowledges the situation naturally\n"
-                f"2. Either asks them to try again OR moves to the next question (your judgment)\n"
-                f"3. Keeps the conversation flowing smoothly\n"
-                f"4. Is encouraging and professional\n"
-                f"\n"
-                f"IMPORTANT:\n"
-                f"- If this is early in the interview (question 1-2), ask them to try again\n"
-                f"- If this is later (question 3+), you may move to the next question\n"
-                f"- Be natural and conversational, NOT robotic\n"
-                f"- Do NOT use phrases like 'I didn't catch that' - be more professional\n"
-                f"\n"
-                f"Generate ONLY the response text (no explanations, no quotes):"
-            )
-            
-            llm_response = gemini_generate(llm_prompt, max_retries=3)
-            
-            if not llm_response or llm_response.startswith("[Gemini error"):
-                # Fallback response
-                if session.current_question_number <= 2:
-                    llm_response = "I didn't catch your response. Could you please try again?"
+            # When transcript is empty, directly move to next question without any clauses
+            # Do NOT generate acknowledgment phrases - just ask the next question directly
+            if session.current_question_number <= 2:
+                # Early in interview - ask them to try again (but still just ask the question directly)
+                # We'll repeat the same question, but formatted cleanly
+                if session.last_active_question_text:
+                    # Repeat the last question directly without any clauses
+                    repeated_question = session.last_active_question_text
+                    session.add_interviewer_message(repeated_question)
+                    acknowledge_audio = text_to_speech(repeated_question, f"repeat_{uuid.uuid4().hex}.mp3")
+                    _reset_question_timers(session)
+                    return {
+                        "transcript": transcript if transcript else "",
+                        "completed": False,
+                        "acknowledge": True,
+                        "message": repeated_question,
+                        "audio_url": acknowledge_audio,
+                        "question_number": session.current_question_number,
+                        "max_questions": session.max_questions,
+                        "continuous": True
+                    }
                 else:
-                    llm_response = "Let's move on to the next question."
-            
-            # Check if LLM response indicates moving to next question
-            move_to_next = any(phrase in llm_response.lower() for phrase in [
-                "next question", "move on", "let's continue", "proceed", "move forward"
-            ])
-            
-            if move_to_next:
-                # LLM decided to move to next question
-                session.add_interviewer_message(llm_response)
+                    # No last question - generate a new one
+                    next_question = generate_question(session, "regular", last_answer_text="")
+                    session.regular_questions_count += 1
+                    session.add_interviewer_message(next_question)
+                    session.current_question_number += 1
+                    session.awaiting_answer = True
+                    session.last_active_question_text = next_question
+                    audio_url = text_to_speech(next_question, f"q{session.current_question_number}.mp3")
+                    _reset_question_timers(session)
+                    return {
+                        "transcript": transcript if transcript else "",
+                        "completed": False,
+                        "next_question": next_question,
+                        "audio_url": audio_url,
+                        "question_number": session.current_question_number,
+                        "max_questions": session.max_questions,
+                        "continuous": True
+                    }
+            else:
+                # Later in interview - move to next question directly without any clauses
                 next_question = generate_question(session, "regular", last_answer_text="")
                 session.regular_questions_count += 1
                 session.add_interviewer_message(next_question)
@@ -1561,30 +1630,14 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 session.awaiting_answer = True
                 session.last_active_question_text = next_question
                 
-                # Combine LLM response with next question
-                combined_response = f"{llm_response} {next_question}".strip()
-                audio_url = text_to_speech(combined_response, f"q{session.current_question_number}.mp3")
+                # Ask the question directly - NO clauses, NO acknowledgments
+                audio_url = text_to_speech(next_question, f"q{session.current_question_number}.mp3")
                 _reset_question_timers(session)
                 return {
                     "transcript": transcript if transcript else "",
                     "completed": False,
-                    "next_question": combined_response,
+                    "next_question": next_question,
                     "audio_url": audio_url,
-                    "question_number": session.current_question_number,
-                    "max_questions": session.max_questions,
-                    "continuous": True
-                }
-            else:
-                # LLM decided to ask again
-                session.add_interviewer_message(llm_response)
-                acknowledge_audio = text_to_speech(llm_response, f"acknowledge_{uuid.uuid4().hex}.mp3")
-                _reset_question_timers(session)
-                return {
-                    "transcript": transcript if transcript else "",
-                    "completed": False,
-                    "acknowledge": True,
-                    "message": llm_response,
-                    "audio_url": acknowledge_audio,
                     "question_number": session.current_question_number,
                     "max_questions": session.max_questions,
                     "continuous": True
@@ -1701,88 +1754,47 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 "continuous": True
             }
 
-        # CRITICAL FIX: Properly enforce max_questions limit
-        # max_questions = total questions to ask (e.g., 8)
-        # Introduction is question 1
-        # Technical questions are questions 2 to max_questions-1
-        # Closing question is the last question (max_questions)
+        # Check if interview is completed (regular flow)
+        # max_questions represents the TOTAL number of questions including pre-closing and closing
+        # So if max_questions is 4, we ask: 2 main + 1 pre-closing + 1 closing = 4 total
+        # The introduction question is question 1, so we need to account for that
+        # Calculate how many main questions we should ask AFTER introduction (max_questions - 3: intro + pre-closing + closing)
+        # Example: if max_questions=4, we want: intro(1) + 1 main(2) + pre-closing(3) + closing(4) = 4 total
+        main_questions_after_intro = max(0, session.max_questions - 3)  # Questions after intro, before pre-closing
         
-        # Check if we've reached the maximum number of questions
-        print(f"📊 Question count check: current={session.current_question_number}, max={session.max_questions}")
+        # Check if we've asked enough main questions (intro is 1, so we check if current > 1 + main_questions_after_intro)
+        main_questions_limit = 1 + main_questions_after_intro  # Total main questions including intro
         
-        # CRITICAL: If we've asked max_questions, end the interview immediately
-        if session.current_question_number >= session.max_questions:
-            print(f"✅ Reached maximum questions ({session.max_questions}). Ending interview.")
-            final_closing = generate_final_closing(session)
-            session.add_interviewer_message(final_closing)
-            session.completed_at = time.time()
-            session.is_completed = True
-            
-            # Save final Q&A to TechnicalQA if needed
-            try:
-                from interview_app.models import TechnicalQA, InterviewSession as DBInterviewSession
-                from interviews.models import Interview
-                
-                db_session = DBInterviewSession.objects.filter(session_key=session_id).first()
-                if db_session:
-                    interview = Interview.objects.filter(session_key=session_id).first()
-                    # Save final answer if transcript exists
-                    if transcript and transcript.strip():
-                        TechnicalQA.objects.update_or_create(
-                            session=db_session,
-                            question_number=session.current_question_number,
-                            defaults={
-                                'question_text': session.last_active_question_text or 'Final Question',
-                                'answer_text': transcript,
-                                'transcribed_answer': transcript,
-                                'question_type': 'TECHNICAL',
-                                'order': session.current_question_number,
-                            }
-                        )
-            except Exception as e:
-                print(f"⚠️ Error saving final Q&A: {e}")
-            
-            closing_audio = text_to_speech(final_closing, f"final_closing_{uuid.uuid4().hex}.mp3")
-            return {
-                "transcript": transcript,
-                "completed": True,
-                "message": final_closing,
-                "audio_url": closing_audio,
-                "next_question": final_closing
-            }
+        print(f"📊 Question count check: current={session.current_question_number}, max={session.max_questions}, main_limit={main_questions_limit}, main_after_intro={main_questions_after_intro}")
         
-        # Check if we're at the last question (should ask closing question)
-        # If max_questions is 8, question 8 is the closing question
-        if session.current_question_number >= session.max_questions - 1:
-            # Save current Q&A before moving to closing
-            try:
-                from interview_app.models import TechnicalQA, InterviewSession as DBInterviewSession
-                from interviews.models import Interview
-                
-                db_session = DBInterviewSession.objects.filter(session_key=session_id).first()
-                if db_session and transcript and transcript.strip():
-                    interview = Interview.objects.filter(session_key=session_id).first()
-                    TechnicalQA.objects.update_or_create(
-                        session=db_session,
-                        question_number=session.current_question_number,
-                        defaults={
-                            'interview': interview,
-                            'question_text': session.last_active_question_text or 'Question',
-                            'answer_text': transcript,
-                            'transcribed_answer': transcript,
-                            'question_type': 'TECHNICAL',
-                            'order': session.current_question_number,
-                        }
-                    )
-            except Exception as e:
-                print(f"⚠️ Error saving Q&A: {e}")
-            
-            # If we haven't asked the closing question yet, ask it
-            if not session.asked_for_questions:
-                # Ask the closing question (this is the last question)
+        if session.current_question_number >= main_questions_limit:
+            # First, ask one more question before the closing question (pre-closing question)
+            if not session.asked_pre_closing_question:
+                # Generate one more regular question before closing (pre-closing question)
+                next_q_text = generate_question(session, "regular", last_answer_text=transcript)
+                session.add_interviewer_message(next_q_text)
+                session.current_question_number += 1
+                session.regular_questions_count += 1  # Pre-closing is a regular question
+                session.awaiting_answer = True
+                session.last_active_question_text = next_q_text
+                session.asked_pre_closing_question = True
+                _reset_question_timers(session)
+                question_audio_url = text_to_speech(next_q_text, f"q{session.current_question_number}.mp3")
+                return {
+                    "transcript": transcript,
+                    "completed": False,
+                    "next_question": next_q_text,
+                    "audio_url": question_audio_url,
+                    "question_number": session.current_question_number,
+                    "max_questions": session.max_questions,  # Total questions including pre-closing and closing
+                    "continuous": True
+                }
+            # After pre-closing question is answered, ask the closing question (generated dynamically)
+            elif not session.asked_for_questions:
+                # Normal flow: ask the closing question
                 closing = generate_question(session, "closing", last_answer_text=transcript)
                 session.add_interviewer_message(closing)
-                session.current_question_number += 1  # This should now equal max_questions
+                session.current_question_number += 1
                 session.awaiting_answer = True
                 session.last_active_question_text = closing
                 session.asked_for_questions = True
@@ -1794,24 +1806,26 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     "next_question": closing,
                     "audio_url": closing_audio,
                     "question_number": session.current_question_number,
-                    "max_questions": session.max_questions,
+                    "max_questions": session.max_questions,  # Total questions including pre-closing and closing
                     "continuous": True
                 }
-            else:
-                # Closing question was answered, end interview
-                final_closing = generate_final_closing(session)
-                session.add_interviewer_message(final_closing)
-                session.completed_at = time.time()
-                session.is_completed = True
-                
-                closing_audio = text_to_speech(final_closing, f"final_closing_{uuid.uuid4().hex}.mp3")
-                return {
-                    "transcript": transcript,
-                    "completed": True,
-                    "message": final_closing,
-                    "audio_url": closing_audio,
-                    "next_question": final_closing
-                }
+            # Already in closing phase - generate final closing statement
+            final_closing = generate_final_closing(session)
+            session.add_interviewer_message(final_closing)
+            print(f"🎬 Final closing statement: {final_closing}")
+            
+            # Generate audio for closing statement
+            closing_audio = text_to_speech(final_closing, f"final_closing_{uuid.uuid4().hex}.mp3")
+            
+            session.completed_at = time.time()
+            session.is_completed = True
+            return {
+                "transcript": transcript,
+                "completed": True,
+                "message": final_closing,  # Use the generated closing message
+                "audio_url": closing_audio,  # Include audio for the closing statement
+                "next_question": final_closing  # Also include as next_question for display
+            }
         
         # Gate moving to next question until 5s of no new words after first voice
         if session.awaiting_answer and session.first_voice_at is not None:
@@ -1917,70 +1931,11 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             if normalized_final in session.asked_questions:
                 print(f"❌ ERROR: Even after regeneration, question is still duplicate!")
         
-        # CRITICAL: Save previous Q&A before moving to next question
-        try:
-            from interview_app.models import TechnicalQA, InterviewSession as DBInterviewSession
-            from interviews.models import Interview
-            
-            db_session = DBInterviewSession.objects.filter(session_key=session_id).first()
-            if db_session and transcript and transcript.strip() and session.last_active_question_text:
-                interview = Interview.objects.filter(session_key=session_id).first()
-                TechnicalQA.objects.update_or_create(
-                    session=db_session,
-                    question_number=session.current_question_number,
-                    defaults={
-                        'interview': interview,
-                        'question_text': session.last_active_question_text,
-                        'answer_text': transcript,
-                        'transcribed_answer': transcript,
-                        'question_type': 'TECHNICAL',
-                        'order': session.current_question_number,
-                    }
-                )
-                print(f"✅ Saved Q&A for question {session.current_question_number}")
-        except Exception as e:
-            print(f"⚠️ Error saving Q&A: {e}")
-        
-        # CRITICAL: Check if we've reached max_questions BEFORE generating next question
-        if session.current_question_number >= session.max_questions:
-            print(f"✅ Reached maximum questions ({session.max_questions}). Ending interview.")
-            final_closing = generate_final_closing(session)
-            session.add_interviewer_message(final_closing)
-            session.completed_at = time.time()
-            session.is_completed = True
-            
-            closing_audio = text_to_speech(final_closing, f"final_closing_{uuid.uuid4().hex}.mp3")
-            return {
-                "transcript": transcript,
-                "completed": True,
-                "message": final_closing,
-                "audio_url": closing_audio,
-                "next_question": final_closing
-            }
-        
         # CRITICAL: Only increment question number for MAIN questions (not follow-ups)
         # Follow-ups are part of the same question, so they should keep the same number
         if not should_follow_up:
             # This is a MAIN question - increment the question number
             new_question_number = session.current_question_number + 1
-            
-            # CRITICAL: Don't exceed max_questions
-            if new_question_number > session.max_questions:
-                print(f"⚠️ Would exceed max_questions ({session.max_questions}). Ending interview.")
-                final_closing = generate_final_closing(session)
-                session.add_interviewer_message(final_closing)
-                session.completed_at = time.time()
-                session.is_completed = True
-                
-                closing_audio = text_to_speech(final_closing, f"final_closing_{uuid.uuid4().hex}.mp3")
-                return {
-                    "transcript": transcript,
-                    "completed": True,
-                    "message": final_closing,
-                    "audio_url": closing_audio,
-                    "next_question": final_closing
-                }
-            
             session.current_question_number = new_question_number
             print(f"🤖 Generated NEW MAIN question {new_question_number}/{session.max_questions}: '{next_question[:100]}...'")
         else:
@@ -1998,7 +1953,7 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
         session.awaiting_answer = True  # Now waiting for answer to this NEW question
         session.last_active_question_text = next_question  # Update last active question
         
-        print(f"📊 Question progress: {session.current_question_number}/{session.max_questions}")
+        print(f"📊 Question progress: {session.current_question_number}/{session.max_questions} (main limit: {main_questions_limit})")
         
         audio_url = text_to_speech(next_question, f"q{session.current_question_number}.mp3")
         _reset_question_timers(session)

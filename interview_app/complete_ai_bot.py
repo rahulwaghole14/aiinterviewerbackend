@@ -253,6 +253,33 @@ def gemini_generate(prompt, max_retries=5, initial_delay=5):
 
 
 # ------------------ Helper functions (from app.py lines 403-786) ------------------
+def generate_technical_to_coding_transition(session):
+    """Generate a transition message from technical interview to coding round using LLM."""
+    conversation_context = session.get_conversation_context()
+    candidate_name = session.candidate_name.split()[0] if session.candidate_name else "there"
+    
+    prompt = (
+        "You are a professional interviewer transitioning from the technical interview to the coding round.\n\n"
+        f"Interview so far (short context):\n{conversation_context[-3000:]}\n\n"
+        f"The candidate's name is {session.candidate_name} (first name: {candidate_name}).\n\n"
+        "Generate a brief, professional transition message that:\n"
+        "1. Thanks the candidate for joining the technical interview\n"
+        "2. Mentions that the next step is the coding round\n"
+        "3. Keeps it warm, professional, and encouraging\n"
+        "4. Is concise (1-2 sentences)\n\n"
+        "Example format: 'Thank you for joining this technical interview, [name]. The next step is the coding round where you'll have the opportunity to demonstrate your coding skills.'\n"
+        "Keep it natural and professional. Address the candidate by their first name if appropriate."
+    )
+    
+    transition_text = gemini_generate(prompt, max_retries=3)
+    
+    # Fallback if generation fails
+    if not transition_text or "[Gemini error" in transition_text:
+        return f"Thank you for joining this technical interview, {candidate_name}. The next step is the coding round."
+    
+    return transition_text
+
+
 def generate_final_closing(session):
     """Generate a brief, warm LLM-based closing for the interview."""
     conversation_context = session.get_conversation_context()
@@ -1324,6 +1351,12 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             
             # Check if candidate says no or doesn't have questions
             if no_resp or says_no_more_questions(transcript):
+                # First, generate transition message from technical interview to coding round
+                transition_text = generate_technical_to_coding_transition(session)
+                transition_audio = text_to_speech(transition_text, f"transition_{uuid.uuid4().hex}.mp3")
+                session.add_interviewer_message(transition_text)
+                
+                # Then generate final closing
                 final_text = generate_final_closing(session)
                 final_audio = text_to_speech(final_text, f"final_{uuid.uuid4().hex}.mp3")
                 session.add_interviewer_message(final_text)
@@ -1333,6 +1366,8 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 return {
                     "transcript": transcript,
                     "completed": True,
+                    "transition_message": transition_text,
+                    "transition_audio_url": transition_audio,
                     "final_message": final_text,
                     "final_audio_url": final_audio
                 }
@@ -1367,6 +1402,12 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             
             if says_no:
                 # Candidate explicitly said no - end the interview
+                # First, generate transition message from technical interview to coding round
+                transition_text = generate_technical_to_coding_transition(session)
+                transition_audio = text_to_speech(transition_text, f"transition_{uuid.uuid4().hex}.mp3")
+                session.add_interviewer_message(transition_text)
+                
+                # Then generate final closing
                 final_text = generate_final_closing(session)
                 final_audio = text_to_speech(final_text, f"final_{uuid.uuid4().hex}.mp3")
                 session.add_interviewer_message(final_text)
@@ -1376,6 +1417,8 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 return {
                     "transcript": transcript,
                     "completed": True,
+                    "transition_message": transition_text,
+                    "transition_audio_url": transition_audio,
                     "final_message": final_text,
                     "final_audio_url": final_audio
                 }
@@ -1809,7 +1852,14 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     "max_questions": session.max_questions,  # Total questions including pre-closing and closing
                     "continuous": True
                 }
-            # Already in closing phase - generate final closing statement
+            # Already in closing phase - first generate transition message, then final closing
+            # Generate transition message from technical interview to coding round
+            transition_text = generate_technical_to_coding_transition(session)
+            transition_audio = text_to_speech(transition_text, f"transition_{uuid.uuid4().hex}.mp3")
+            session.add_interviewer_message(transition_text)
+            print(f"🎬 Transition message: {transition_text}")
+            
+            # Then generate final closing statement
             final_closing = generate_final_closing(session)
             session.add_interviewer_message(final_closing)
             print(f"🎬 Final closing statement: {final_closing}")
@@ -1822,6 +1872,8 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             return {
                 "transcript": transcript,
                 "completed": True,
+                "transition_message": transition_text,
+                "transition_audio_url": transition_audio,
                 "message": final_closing,  # Use the generated closing message
                 "audio_url": closing_audio,  # Include audio for the closing statement
                 "next_question": final_closing  # Also include as next_question for display

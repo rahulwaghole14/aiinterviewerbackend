@@ -402,8 +402,18 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                         submission = coding_submissions.filter(
                             question_id=question_id_no_hyphens
                         ).first()
+                    
+                    # Debug logging
+                    if submission:
+                        code_length = len(submission.submitted_code) if submission.submitted_code else 0
+                        print(f"✅ Found CodeSubmission for question {coding_q.id}: {code_length} chars, {len(submission.submitted_code.split(chr(10))) if submission.submitted_code else 0} lines")
+                    else:
+                        print(f"⚠️ No CodeSubmission found for coding question {coding_q.id} (tried: {str(coding_q.id)} and {str(coding_q.id).replace('-', '')})")
+                        print(f"   Available submissions: {list(coding_submissions.values_list('question_id', flat=True))}")
                 except Exception as e:
                     print(f"⚠️ Error finding submission for coding question {coding_q.id}: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
                 # Challenge header with question text
                 pdf.set_font("Arial", "B", 12)
@@ -442,27 +452,47 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                         pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Tests Passed: {passed_tests}/{total_tests}"), ln=True)
                         pdf.ln(2)
                     
-                    # Submitted code
+                    # Submitted code (Answer)
                     pdf.set_font("Arial", "B", 11)
                     pdf.cell(usable_width, 6, _sanitize_for_pdf("Answer (Submitted Code):"), ln=True)
-                    pdf.set_font("Courier", size=8)  # Smaller font for code
+                    pdf.ln(2)
+                    pdf.set_font("Courier", size=9)  # Increased font size for better readability
                     if submission.submitted_code:
-                        code_lines = submission.submitted_code.split('\n')[:30]  # Limit to 30 lines
-                        for line in code_lines:
-                            # Wrap long code lines to fit within page
-                            wrapped_line = _wrap_text_for_pdf(line, max_width=75)
-                            safe_line = _sanitize_for_pdf(wrapped_line)
-                            try:
-                                pdf.multi_cell(usable_width, 4, safe_line, align='L')
-                            except Exception as e:
-                                # Skip lines that are too long to render
-                                pdf.set_font("Arial", "I", 8)
-                                pdf.cell(usable_width, 4, _sanitize_for_pdf("... (line too long to display)"), ln=True)
-                                pdf.set_font("Courier", size=8)
+                        # Get full code (no truncation for display)
+                        full_code = submission.submitted_code
+                        code_lines = full_code.split('\n')
+                        total_lines = len(code_lines)
                         
-                        if len(submission.submitted_code.split('\n')) > 30:
+                        # Display up to 100 lines (increased from 30)
+                        display_lines = code_lines[:100]
+                        
+                        for line in display_lines:
+                            # For code, preserve structure - only wrap if absolutely necessary
+                            # Use a wider max_width for code to preserve formatting
+                            if len(line) > 80:
+                                # Only wrap very long lines
+                                wrapped_parts = _wrap_text_for_pdf(line, max_width=80).split('\n')
+                                for part in wrapped_parts:
+                                    safe_line = _sanitize_for_pdf(part)
+                                    try:
+                                        pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                                    except Exception as e:
+                                        # If still fails, truncate the line
+                                        truncated = safe_line[:200] + "..." if len(safe_line) > 200 else safe_line
+                                        pdf.multi_cell(usable_width, 4, _sanitize_for_pdf(truncated), align='L')
+                            else:
+                                # Normal line - display as-is
+                                safe_line = _sanitize_for_pdf(line)
+                                try:
+                                    pdf.cell(usable_width, 4, safe_line, ln=True)
+                                except Exception as e:
+                                    # Fallback to multi_cell if single line fails
+                                    pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                        
+                        if total_lines > 100:
                             pdf.set_font("Arial", "I", 9)
-                            pdf.cell(usable_width, 5, _sanitize_for_pdf("... (code truncated)"), ln=True)
+                            pdf.cell(usable_width, 5, _sanitize_for_pdf(f"... (code truncated - showing first 100 of {total_lines} lines)"), ln=True)
+                            pdf.set_font("Courier", size=9)
                     else:
                         pdf.set_font("Arial", "I", 10)
                         pdf.cell(usable_width, 6, _sanitize_for_pdf("No code submitted"), ln=True)
@@ -537,25 +567,47 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Status: {status_text}"), ln=True)
                     pdf.ln(2)
                     
-                    # Submitted code
+                    # Submitted code (Answer)
                     pdf.set_font("Arial", "B", 11)
                     pdf.cell(usable_width, 6, _sanitize_for_pdf("Answer (Submitted Code):"), ln=True)
-                    pdf.set_font("Courier", size=8)
+                    pdf.ln(2)
+                    pdf.set_font("Courier", size=9)  # Increased font size for better readability
                     if submission.submitted_code:
-                        code_lines = submission.submitted_code.split('\n')[:30]
-                        for line in code_lines:
-                            wrapped_line = _wrap_text_for_pdf(line, max_width=75)
-                            safe_line = _sanitize_for_pdf(wrapped_line)
-                            try:
-                                pdf.multi_cell(usable_width, 4, safe_line, align='L')
-                            except Exception as e:
-                                pdf.set_font("Arial", "I", 8)
-                                pdf.cell(usable_width, 4, _sanitize_for_pdf("... (line too long to display)"), ln=True)
-                                pdf.set_font("Courier", size=8)
+                        # Get full code (no truncation for display)
+                        full_code = submission.submitted_code
+                        code_lines = full_code.split('\n')
+                        total_lines = len(code_lines)
                         
-                        if len(submission.submitted_code.split('\n')) > 30:
+                        # Display up to 100 lines (increased from 30)
+                        display_lines = code_lines[:100]
+                        
+                        for line in display_lines:
+                            # For code, preserve structure - only wrap if absolutely necessary
+                            # Use a wider max_width for code to preserve formatting
+                            if len(line) > 80:
+                                # Only wrap very long lines
+                                wrapped_parts = _wrap_text_for_pdf(line, max_width=80).split('\n')
+                                for part in wrapped_parts:
+                                    safe_line = _sanitize_for_pdf(part)
+                                    try:
+                                        pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                                    except Exception as e:
+                                        # If still fails, truncate the line
+                                        truncated = safe_line[:200] + "..." if len(safe_line) > 200 else safe_line
+                                        pdf.multi_cell(usable_width, 4, _sanitize_for_pdf(truncated), align='L')
+                            else:
+                                # Normal line - display as-is
+                                safe_line = _sanitize_for_pdf(line)
+                                try:
+                                    pdf.cell(usable_width, 4, safe_line, ln=True)
+                                except Exception as e:
+                                    # Fallback to multi_cell if single line fails
+                                    pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                        
+                        if total_lines > 100:
                             pdf.set_font("Arial", "I", 9)
-                            pdf.cell(usable_width, 5, _sanitize_for_pdf("... (code truncated)"), ln=True)
+                            pdf.cell(usable_width, 5, _sanitize_for_pdf(f"... (code truncated - showing first 100 of {total_lines} lines)"), ln=True)
+                            pdf.set_font("Courier", size=9)
                     else:
                         pdf.set_font("Arial", "I", 10)
                         pdf.cell(usable_width, 6, _sanitize_for_pdf("No code submitted"), ln=True)

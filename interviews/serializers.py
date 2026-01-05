@@ -278,19 +278,9 @@ class InterviewSerializer(serializers.ModelSerializer):
                             from evaluation.models import ProctoringPDF
                             proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
                             if proctoring_pdf and proctoring_pdf.gcs_url:
-                                gcs_url = proctoring_pdf.gcs_url
-                                
-                                # If URL is malformed (contains app URL), extract only the GCS part
-                                # Pattern: https://app-urlhttps//storage.googleapis.com/... or https://app-url/storage.googleapis.com/...
-                                if 'storage.googleapis.com' in gcs_url:
-                                    # Find the start of the GCS URL
-                                    gcs_index = gcs_url.find('storage.googleapis.com')
-                                    if gcs_index > 0:
-                                        # Extract from storage.googleapis.com onwards
-                                        gcs_url = 'https://' + gcs_url[gcs_index:]
-                                
-                                proctoring_pdf_gcs_url = gcs_url
-                                proctoring_pdf_url = gcs_url
+                                # Use URL as-is from database - no modification, no cleaning
+                                proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
+                                proctoring_pdf_url = proctoring_pdf.gcs_url
                                 print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
                             else:
                                 print(f"   - No ProctoringPDF record found for interview {obj.id}")
@@ -631,7 +621,6 @@ class InterviewSerializer(serializers.ModelSerializer):
             # Sort by order and create Q&A pairs (SAME AS PDF)
             sorted_orders = sorted(questions_by_order.keys())
             qa_list = []
-            coding_qa_list = []  # Separate list for coding questions
             
             for order_key in sorted_orders:
                 q_pair = questions_by_order[order_key]
@@ -642,7 +631,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                 if not ai_q:
                     continue
                 
-                # Handle CODING questions separately - get answer from CodeSubmission (SAME AS PDF)
+                # Handle CODING questions differently - get answer from CodeSubmission (SAME AS PDF)
                 if ai_q.question_type == 'CODING':
                     # Get question text
                     question_text = ai_q.question_text or ''
@@ -691,8 +680,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                     if code_submission_data:
                         qa_item['code_submission'] = code_submission_data
                     
-                    # Add to coding list (NOT to main qa_list)
-                    coding_qa_list.append(qa_item)
+                    qa_list.append(qa_item)
                     continue  # Skip regular answer handling for coding questions
                 
                 # Regular technical/behavioral questions (SAME AS PDF)
@@ -731,18 +719,11 @@ class InterviewSerializer(serializers.ModelSerializer):
                 
                 qa_list.append(qa_item)
             
-            # Sort qa_list by order/question_number (technical questions only)
+            # Sort qa_list by order/question_number
             qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))
             
-            # Sort coding_qa_list by order/question_number
-            coding_qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))
-            
-            # Combine: technical questions first, then coding questions
-            # This ensures coding questions appear separately in the response
-            final_qa_list = qa_list + coding_qa_list
-            
-            print(f"✅ Returning {len(final_qa_list)} total Q&A pairs ({len(qa_list)} technical + {len(coding_qa_list)} coding)")
-            return final_qa_list
+            print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
+            return qa_list
         except TimeoutError as timeout_error:
             print(f"⚠️ Timeout getting Q&A for interview {obj.id}: {timeout_error}")
             return []  # Return empty list on timeout
@@ -815,25 +796,15 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
     
     def get_proctoring_pdf(self, obj):
-        """Get proctoring PDF URL from separate ProctoringPDF table - Extract GCS URL if malformed"""
+        """Get proctoring PDF URL from separate ProctoringPDF table - use URL as-is from database"""
         try:
             from evaluation.models import ProctoringPDF
             
             proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
             if proctoring_pdf and proctoring_pdf.gcs_url:
-                gcs_url = proctoring_pdf.gcs_url
-                
-                # If URL is malformed (contains app URL), extract only the GCS part
-                # Pattern: https://app-urlhttps//storage.googleapis.com/... or https://app-url/storage.googleapis.com/...
-                if 'storage.googleapis.com' in gcs_url:
-                    # Find the start of the GCS URL
-                    gcs_index = gcs_url.find('storage.googleapis.com')
-                    if gcs_index > 0:
-                        # Extract from storage.googleapis.com onwards
-                        gcs_url = 'https://' + gcs_url[gcs_index:]
-                
+                # Return URL exactly as stored in database - no modification, no cleaning
                 return {
-                    'gcs_url': gcs_url,  # Return clean GCS URL
+                    'gcs_url': proctoring_pdf.gcs_url,  # Use URL as-is from database
                     'local_path': proctoring_pdf.local_path,
                     'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
                     'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,

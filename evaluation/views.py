@@ -218,8 +218,10 @@ class GetProctoringPDFURLView(APIView):
     
     Returns:
     - success: boolean
-    - gcs_url: string (clean GCS URL without any app URL prepended)
+    - gcs_url: string (GCS URL as stored in database, used as-is)
     - error: string (if error occurred)
+    
+    Note: URL is returned exactly as stored in database - no modification, no cleaning, no validation
     """
     permission_classes = [IsAuthenticated]
     
@@ -251,7 +253,7 @@ class GetProctoringPDFURLView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            # Get GCS URL
+            # Get GCS URL - use as-is from database, no cleaning, no modification
             gcs_url = proctoring_pdf.gcs_url
             
             if not gcs_url:
@@ -260,37 +262,7 @@ class GetProctoringPDFURLView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            # Extract clean GCS URL if malformed (has app URL prepended)
-            # Pattern: https://app-urlhttps//storage.googleapis.com/... 
-            # Example: https://talaroai-310576915040.asia-southeast1.run.apphttps//storage.googleapis.com/...
-            original_url = gcs_url
-            if 'storage.googleapis.com' in gcs_url:
-                import re
-                # Find the position of storage.googleapis.com
-                gcs_index = gcs_url.find('storage.googleapis.com')
-                if gcs_index > 0:
-                    # Extract everything from storage.googleapis.com onwards
-                    # This removes the app URL prefix completely
-                    gcs_url = gcs_url[gcs_index:]
-                    # Now gcs_url should be: storage.googleapis.com/...
-                    # Add https:// prefix
-                    gcs_url = 'https://' + gcs_url
-                elif gcs_index == 0:
-                    # Already starts with storage.googleapis.com, just add https://
-                    gcs_url = 'https://' + gcs_url
-                else:
-                    # storage.googleapis.com not found, URL is invalid
-                    gcs_url = None
-            
-            # Ensure URL is valid
-            if not gcs_url or not gcs_url.startswith('https://storage.googleapis.com/'):
-                # Log the original URL for debugging
-                print(f"⚠️ Invalid GCS URL format. Original: {original_url[:100]}...")
-                return Response(
-                    {'success': False, 'error': f'Invalid GCS URL format. Original URL: {original_url[:100]}...'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            
+            # Return URL exactly as stored in database - no modification, no cleaning, no validation
             return Response({
                 'success': True,
                 'gcs_url': gcs_url

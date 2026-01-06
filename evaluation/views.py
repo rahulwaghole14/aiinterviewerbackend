@@ -212,64 +212,76 @@ class AllFeedbacksView(generics.ListAPIView):
 class GetProctoringPDFURLView(APIView):
     """
     Get proctoring PDF GCS URL from ProctoringPDF table for a given interview
-    
+
     Query Parameters:
-    - interview_id: UUID of the interview (required)
-    
+    - interview_id: UUID of the interview (optional)
+    - session_key: String session key (optional)
+
     Returns:
     - success: boolean
-    - gcs_url: string (GCS URL as stored in database, used as-is)
+    - gcs_url: string (GCS URL from ProctoringPDF table)
     - error: string (if error occurred)
-    
-    Note: URL is returned exactly as stored in database - no modification, no cleaning, no validation
     """
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
         try:
             interview_id = request.query_params.get('interview_id')
-            
-            if not interview_id:
-                return Response(
-                    {'success': False, 'error': 'interview_id parameter is required'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Get interview
-            try:
-                interview = Interview.objects.get(id=interview_id)
-            except Interview.DoesNotExist:
+            session_key = request.query_params.get('session_key')
+
+            # Get interview by ID or session_key
+            interview = None
+            if interview_id:
+                try:
+                    interview = Interview.objects.get(id=interview_id)
+                except Interview.DoesNotExist:
+                    pass
+            elif session_key:
+                try:
+                    interview = Interview.objects.get(session_key=session_key)
+                except Interview.DoesNotExist:
+                    pass
+
+            if not interview:
                 return Response(
                     {'success': False, 'error': 'Interview not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
-            
-            # Get ProctoringPDF record
+
+            # Get ProctoringPDF record and return clean gcs_url
             try:
                 proctoring_pdf = ProctoringPDF.objects.get(interview=interview)
+                gcs_url = proctoring_pdf.gcs_url
+
+                if not gcs_url:
+                    return Response(
+                        {'success': False, 'error': 'No GCS URL available'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+
+                # Ensure URL is clean - extract GCS part if malformed
+                if gcs_url and 'storage.googleapis.com' in gcs_url:
+                    gcs_index = gcs_url.find('storage.googleapis.com')
+                    if gcs_index > 0:
+                        # Extract clean GCS URL
+                        gcs_url = 'https://' + gcs_url[gcs_index:]
+                    elif gcs_index == 0 and not gcs_url.startswith('https://'):
+                        # Add https if missing
+                        gcs_url = 'https://' + gcs_url
+
+                return Response({
+                    'success': True,
+                    'gcs_url': gcs_url
+                }, status=status.HTTP_200_OK)
+
             except ProctoringPDF.DoesNotExist:
                 return Response(
-                    {'success': False, 'error': 'Proctoring PDF not found for this interview'},
+                    {'success': False, 'error': 'Proctoring PDF not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
-            
-            # Get GCS URL - use as-is from database, no cleaning, no modification
-            gcs_url = proctoring_pdf.gcs_url
-            
-            if not gcs_url:
-                return Response(
-                    {'success': False, 'error': 'GCS URL not available for this proctoring PDF'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            # Return URL exactly as stored in database - no modification, no cleaning, no validation
-            return Response({
-                'success': True,
-                'gcs_url': gcs_url
-            }, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response(
-                {'success': False, 'error': f'Error fetching proctoring PDF URL: {str(e)}'},
+                {'success': False, 'error': f'Error: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

@@ -269,7 +269,6 @@ class InterviewSerializer(serializers.ModelSerializer):
                     print(f"   - AI analysis keys: {list(ai_analysis.keys()) if ai_analysis else 'None'}")
                     
                     if ai_analysis:
-                        # Transform evaluation.details to ai_result format
                         # Get proctoring PDF URL ONLY from ProctoringPDF table (no fallback)
                         proctoring_pdf_gcs_url = None
                         proctoring_pdf_url = None
@@ -385,6 +384,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         if proctoring_pdf_gcs_url:
             parts.append(f"Proctoring PDF: {proctoring_pdf_gcs_url}")
 
+>>>>>>> a119a23c266d9fb48352f648d4049b74a8324f1f
         return ". ".join(parts) if parts else ""
     
     def _get_questions_attempted(self, evaluation, interview_obj):

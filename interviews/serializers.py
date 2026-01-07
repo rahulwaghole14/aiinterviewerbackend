@@ -334,6 +334,10 @@ class InterviewSerializer(serializers.ModelSerializer):
                         }
                         print(f"✅ Returning AI result with {len(proctoring_warnings)} proctoring warnings")
                         print(f"✅ Proctoring PDF URL in result: {proctoring_pdf_gcs_url[:100] if proctoring_pdf_gcs_url else 'None'}...")
+                        print(f"✅ AI result keys: {list(result.keys())}")
+                        print(f"✅ Has proctoring_pdf_gcs_url: {'proctoring_pdf_gcs_url' in result}")
+                        if 'proctoring_pdf_gcs_url' in result:
+                            print(f"✅ proctoring_pdf_gcs_url value: {result['proctoring_pdf_gcs_url'][:100] if result['proctoring_pdf_gcs_url'] else 'Empty'}...")
                         return result
                     else:
                         print(f"⚠️ Evaluation exists but ai_analysis is empty")

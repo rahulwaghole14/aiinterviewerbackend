@@ -51,7 +51,6 @@ steps:
       - '0'
       - '--port'
       - '8080'
-      - '--clear-accelerator'
       - '--project'
       - '${PROJECT_ID}'
     id: 'deploy-cloud-run'

@@ -6,6 +6,7 @@ from .views import (
     EvaluationReportView,
     SubmitFeedbackView,
     AllFeedbacksView,
+    GetProctoringPDFURLView,
 )
 
 # Create router for evaluation CRUD operations
@@ -31,5 +32,11 @@ urlpatterns = [
         "feedback/all/<int:candidate_id>/",
         AllFeedbacksView.as_view(),
         name="all-feedbacks",
+    ),
+    # Proctoring PDF URL endpoint
+    path(
+        "proctoring-pdf-url/",
+        GetProctoringPDFURLView.as_view(),
+        name="get-proctoring-pdf-url",
     ),
 ]

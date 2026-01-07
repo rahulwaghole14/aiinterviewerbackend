@@ -56,6 +56,96 @@ def _wrap_long_words(text: str, max_len: int = 50) -> str:
     return result
 
 
+def _wrap_text_for_pdf(text: str, max_width: int = 70) -> str:
+    """Wrap text to fit within PDF page width, breaking at word boundaries"""
+    if not text:
+        return ""
+    
+    words = text.split(' ')
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        word_length = len(word)
+        # If adding this word would exceed max_width, start a new line
+        if current_length + word_length + 1 > max_width and current_line:
+            lines.append(' '.join(current_line))
+            current_line = [word]
+            current_length = word_length
+        else:
+            current_line.append(word)
+            current_length += word_length + 1
+    
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    return '\n'.join(lines)
+
+
+def _format_analysis_text(analysis_text: str) -> list:
+    """
+    Parse analysis text and format it with bullets, bold headings, and numbered lists.
+    Returns a list of formatted lines with formatting instructions.
+    Each item is a dict: {'type': 'bold'|'bullet'|'number'|'normal', 'text': str, 'level': int}
+    """
+    if not analysis_text:
+        return []
+    
+    formatted_lines = []
+    lines = analysis_text.split('\n')
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        if not line:
+            i += 1
+            continue
+        
+        # Detect section headings (ALL CAPS or Title Case ending with colon)
+        if (line.endswith(':') and len(line) < 60 and not line[0].isdigit()) or \
+           (line.isupper() and len(line) < 80 and not line.startswith('•')):
+            formatted_lines.append({'type': 'bold', 'text': line, 'level': 0})
+        
+        # Detect numbered lists (1., 2., etc. or 1) 2) etc.)
+        elif line and len(line) > 2 and line[0].isdigit() and line[1] in ['.', ')']:
+            # Extract number and text
+            num_end = 2 if line[1] == '.' else 3
+            number = line[:num_end]
+            text = line[num_end:].strip()
+            # Remove leading dash or bullet if present
+            if text.startswith('-') or text.startswith('•'):
+                text = text[1:].strip()
+            formatted_lines.append({'type': 'number', 'text': text, 'number': number})
+        
+        # Detect bullet points (-, *, •)
+        elif line.startswith('-') or line.startswith('*') or line.startswith('•'):
+            text = line[1:].strip()
+            # Check if it's a sub-bullet (starts with space before bullet)
+            level = 1 if lines[i].startswith('  ') or lines[i].startswith('\t') else 0
+            formatted_lines.append({'type': 'bullet', 'text': text, 'level': level})
+        
+        # Detect sub-bullets (indented with spaces or tabs)
+        elif (line.startswith('  ') or line.startswith('\t')) and len(line) > 2:
+            text = line.strip()
+            if text.startswith('-') or text.startswith('*') or text.startswith('•'):
+                text = text[1:].strip()
+            formatted_lines.append({'type': 'bullet', 'text': text, 'level': 1})
+        
+        # Regular text (but check if it looks like a heading)
+        else:
+            # If line is short and looks like a heading, make it bold
+            if len(line) < 60 and (line.isupper() or (line[0].isupper() and ':' in line)):
+                formatted_lines.append({'type': 'bold', 'text': line, 'level': 0})
+            else:
+                formatted_lines.append({'type': 'normal', 'text': line, 'level': 0})
+        
+        i += 1
+    
+    return formatted_lines
+
+
 def generate_comprehensive_pdf(session_key: str) -> bytes:
     """
     Generate comprehensive PDF including:
@@ -205,9 +295,9 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
             if not ai_q:
                 continue
             
-            # Skip CODING questions (handled separately)
+            # Skip CODING questions in Technical Q&A section - they are shown separately in Coding Challenge Results
             if ai_q.question_type == 'CODING':
-                continue
+                continue  # Skip coding questions - they will be shown in Coding Challenge Results section
             
             has_qa = True
             
@@ -236,34 +326,34 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
             
             # Display Question
             pdf.set_font("Arial", "B", 11)
-            try:
-                pdf.multi_cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), align='L')
-            except:
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), ln=True)
+            pdf.cell(usable_width, 6, _sanitize_for_pdf("Interviewer:"), ln=True)
             
             pdf.set_font("Arial", size=10)
-            safe_question = _sanitize_for_pdf(_wrap_long_words(question_text, max_len=60))
+            # Wrap text properly to fit within page width
+            wrapped_question = _wrap_text_for_pdf(question_text, max_width=65)
+            safe_question = _sanitize_for_pdf(wrapped_question)
             try:
                 pdf.multi_cell(usable_width, 5, safe_question, align='L')
             except Exception as e:
-                truncated = safe_question[:200] + "..." if len(safe_question) > 200 else safe_question
-                pdf.cell(usable_width, 5, truncated, ln=True)
+                # Fallback: truncate if still too long
+                truncated = safe_question[:300] + "..." if len(safe_question) > 300 else safe_question
+                pdf.multi_cell(usable_width, 5, truncated, align='L')
             pdf.ln(2)
             
             # Display Answer
             pdf.set_font("Arial", "B", 11)
-            try:
-                pdf.multi_cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), align='L')
-            except:
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), ln=True)
+            pdf.cell(usable_width, 6, _sanitize_for_pdf("Candidate:"), ln=True)
             
             pdf.set_font("Arial", size=10)
-            safe_answer = _sanitize_for_pdf(_wrap_long_words(answer_text, max_len=60))
+            # Wrap text properly to fit within page width
+            wrapped_answer = _wrap_text_for_pdf(answer_text, max_width=65)
+            safe_answer = _sanitize_for_pdf(wrapped_answer)
             try:
                 pdf.multi_cell(usable_width, 5, safe_answer, align='L')
             except Exception as e:
-                truncated = safe_answer[:200] + "..." if len(safe_answer) > 200 else safe_answer
-                pdf.cell(usable_width, 5, truncated, ln=True)
+                # Fallback: truncate if still too long
+                truncated = safe_answer[:300] + "..." if len(safe_answer) > 300 else safe_answer
+                pdf.multi_cell(usable_width, 5, truncated, align='L')
             pdf.ln(3)
         
         if not has_qa:
@@ -273,7 +363,16 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
         pdf.ln(5)
         
         # === CODING ROUND SECTION ===
-        if coding_submissions.exists():
+        # Get all coding questions from InterviewQuestion table
+        coding_questions_from_db = InterviewQuestion.objects.filter(
+            session=session,
+            question_type='CODING'
+        ).order_by('order', 'id')
+        
+        # Also check if we have coding submissions
+        has_coding = coding_questions_from_db.exists() or coding_submissions.exists()
+        
+        if has_coding:
             pdf.add_page()  # New page for coding
             # Reset margins on new page
             pdf.set_left_margin(20)
@@ -285,74 +384,235 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
             pdf.cell(usable_width, 8, _sanitize_for_pdf("Coding Challenge Results"), ln=True)
             pdf.ln(3)
             
-            for idx, submission in enumerate(coding_submissions, 1):
-                # Get question
-                from .models import InterviewQuestion
+            # Process coding questions from database
+            for idx, coding_q in enumerate(coding_questions_from_db, 1):
+                question_text = coding_q.question_text or "Coding Challenge"
+                
+                # Find corresponding code submission
+                submission = None
                 try:
-                    question = InterviewQuestion.objects.get(id=submission.question_id)
-                    question_text = question.question_text
-                except:
-                    question_text = "Coding Challenge"
-                
-                # Challenge header
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(usable_width, 7, _sanitize_for_pdf(f"Challenge {idx}: {question_text[:60]}"), ln=True)
-                pdf.ln(2)
-                
-                # Language and status
-                pdf.set_font("Arial", size=11)
-                pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Language: {submission.language}"), ln=True)
-                status_text = "All Tests Passed" if submission.passed_all_tests else "Some Tests Failed"
-                pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Status: {status_text}"), ln=True)
-                pdf.ln(2)
-                
-                # Gemini evaluation if available
-                if submission.gemini_evaluation:
-                    gemini_score = submission.gemini_evaluation.get('score', 'N/A')
-                    passed_tests = submission.gemini_evaluation.get('passed_tests', 0)
-                    total_tests = submission.gemini_evaluation.get('total_tests', 0)
+                    # Try to find submission by question_id (as string or UUID)
+                    submission = coding_submissions.filter(
+                        question_id=str(coding_q.id)
+                    ).first()
                     
-                    pdf.set_font("Arial", "B", 11)
-                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"AI Score: {gemini_score}/100"), ln=True)
-                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Tests Passed: {passed_tests}/{total_tests}"), ln=True)
-                    pdf.ln(2)
+                    # If not found, try without hyphens
+                    if not submission:
+                        question_id_no_hyphens = str(coding_q.id).replace('-', '')
+                        submission = coding_submissions.filter(
+                            question_id=question_id_no_hyphens
+                        ).first()
+                    
+                    # Debug logging
+                    if submission:
+                        code_length = len(submission.submitted_code) if submission.submitted_code else 0
+                        print(f"✅ Found CodeSubmission for question {coding_q.id}: {code_length} chars, {len(submission.submitted_code.split(chr(10))) if submission.submitted_code else 0} lines")
+                    else:
+                        print(f"⚠️ No CodeSubmission found for coding question {coding_q.id} (tried: {str(coding_q.id)} and {str(coding_q.id).replace('-', '')})")
+                        print(f"   Available submissions: {list(coding_submissions.values_list('question_id', flat=True))}")
+                except Exception as e:
+                    print(f"⚠️ Error finding submission for coding question {coding_q.id}: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
-                # Submitted code
+                # Challenge header with question text
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(usable_width, 7, _sanitize_for_pdf(f"Challenge {idx}:"), ln=True)
+                pdf.ln(2)
+                
+                # Display the question text clearly
                 pdf.set_font("Arial", "B", 11)
-                pdf.cell(usable_width, 6, _sanitize_for_pdf("Submitted Code:"), ln=True)
-                pdf.set_font("Courier", size=8)  # Smaller font for code
-                code_lines = submission.submitted_code.split('\n')[:30]  # Limit to 30 lines
-                for line in code_lines:
-                    safe_line = _sanitize_for_pdf(_wrap_long_words(line, max_len=80))  # Wrap long lines
-                    try:
-                        pdf.multi_cell(usable_width, 4, safe_line, align='L')
-                    except Exception as e:
-                        # Skip lines that are too long to render
-                        pdf.set_font("Arial", "I", 8)
-                        pdf.cell(usable_width, 4, _sanitize_for_pdf("... (line too long to display)"), ln=True)
-                        pdf.set_font("Courier", size=8)
-                
-                if len(submission.submitted_code.split('\n')) > 30:
-                    pdf.set_font("Arial", "I", 9)
-                    pdf.cell(usable_width, 5, _sanitize_for_pdf("... (code truncated)"), ln=True)
-                
+                pdf.cell(usable_width, 6, _sanitize_for_pdf("Question:"), ln=True)
+                pdf.set_font("Arial", size=11)
+                # Clean question text
+                clean_question = question_text
+                if clean_question.strip().startswith('Q:'):
+                    clean_question = clean_question.replace('Q:', '').strip()
+                wrapped_question = _wrap_text_for_pdf(clean_question, max_width=65)
+                safe_question = _sanitize_for_pdf(wrapped_question)
+                pdf.multi_cell(usable_width, 6, safe_question, align='L')
                 pdf.ln(3)
                 
-                # Test results / Output log
-                if submission.output_log:
+                if submission:
+                    # Language and status
+                    pdf.set_font("Arial", size=11)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Language: {submission.language}"), ln=True)
+                    status_text = "All Tests Passed" if submission.passed_all_tests else "Some Tests Failed"
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Status: {status_text}"), ln=True)
+                    pdf.ln(2)
+                    
+                    # Gemini evaluation if available
+                    if submission.gemini_evaluation:
+                        gemini_score = submission.gemini_evaluation.get('score', 'N/A')
+                        passed_tests = submission.gemini_evaluation.get('passed_tests', 0)
+                        total_tests = submission.gemini_evaluation.get('total_tests', 0)
+                        
+                        pdf.set_font("Arial", "B", 11)
+                        pdf.cell(usable_width, 6, _sanitize_for_pdf(f"AI Score: {gemini_score}/100"), ln=True)
+                        pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Tests Passed: {passed_tests}/{total_tests}"), ln=True)
+                        pdf.ln(2)
+                    
+                    # Submitted code (Answer)
                     pdf.set_font("Arial", "B", 11)
-                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Test Results:"), ln=True)
-                    pdf.set_font("Arial", size=9)
-                    log_lines = submission.output_log.split('\n')[:20]  # Limit output
-                    for line in log_lines:
-                        safe_line = _sanitize_for_pdf(_wrap_long_words(line, max_len=70))
-                        try:
-                            pdf.multi_cell(usable_width, 5, safe_line, align='L')
-                        except Exception as e:
-                            # Skip lines that cause rendering errors
-                            pdf.cell(usable_width, 5, _sanitize_for_pdf("... (line skipped)"), ln=True)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Answer (Submitted Code):"), ln=True)
+                    pdf.ln(2)
+                    pdf.set_font("Courier", size=9)  # Increased font size for better readability
+                    if submission.submitted_code:
+                        # Get full code (no truncation for display)
+                        full_code = submission.submitted_code
+                        code_lines = full_code.split('\n')
+                        total_lines = len(code_lines)
+                        
+                        # Display up to 100 lines (increased from 30)
+                        display_lines = code_lines[:100]
+                        
+                        for line in display_lines:
+                            # For code, preserve structure - only wrap if absolutely necessary
+                            # Use a wider max_width for code to preserve formatting
+                            if len(line) > 80:
+                                # Only wrap very long lines
+                                wrapped_parts = _wrap_text_for_pdf(line, max_width=80).split('\n')
+                                for part in wrapped_parts:
+                                    safe_line = _sanitize_for_pdf(part)
+                                    try:
+                                        pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                                    except Exception as e:
+                                        # If still fails, truncate the line
+                                        truncated = safe_line[:200] + "..." if len(safe_line) > 200 else safe_line
+                                        pdf.multi_cell(usable_width, 4, _sanitize_for_pdf(truncated), align='L')
+                            else:
+                                # Normal line - display as-is
+                                safe_line = _sanitize_for_pdf(line)
+                                try:
+                                    pdf.cell(usable_width, 4, safe_line, ln=True)
+                                except Exception as e:
+                                    # Fallback to multi_cell if single line fails
+                                    pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                        
+                        if total_lines > 100:
+                            pdf.set_font("Arial", "I", 9)
+                            pdf.cell(usable_width, 5, _sanitize_for_pdf(f"... (code truncated - showing first 100 of {total_lines} lines)"), ln=True)
+                            pdf.set_font("Courier", size=9)
+                    else:
+                        pdf.set_font("Arial", "I", 10)
+                        pdf.cell(usable_width, 6, _sanitize_for_pdf("No code submitted"), ln=True)
+                    
+                    pdf.ln(3)
+                    
+                    # Test results / Output log
+                    if submission.output_log:
+                        pdf.set_font("Arial", "B", 11)
+                        pdf.cell(usable_width, 6, _sanitize_for_pdf("Test Results:"), ln=True)
+                        pdf.set_font("Arial", size=9)
+                        log_lines = submission.output_log.split('\n')[:20]  # Limit output
+                        for line in log_lines:
+                            # Wrap long lines to fit within page
+                            wrapped_line = _wrap_text_for_pdf(line, max_width=70)
+                            safe_line = _sanitize_for_pdf(wrapped_line)
+                            try:
+                                pdf.multi_cell(usable_width, 5, safe_line, align='L')
+                            except Exception as e:
+                                # Skip lines that cause rendering errors
+                                pdf.cell(usable_width, 5, _sanitize_for_pdf("... (line skipped)"), ln=True)
+                else:
+                    # No submission found - show question only
+                    pdf.set_font("Arial", "I", 11)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("No code submission found for this challenge"), ln=True)
                 
                 pdf.ln(5)
+            
+            # Also process any submissions that don't have corresponding questions in InterviewQuestion
+            # (fallback for old data)
+            if coding_submissions.exists() and not coding_questions_from_db.exists():
+                for idx, submission in enumerate(coding_submissions, 1):
+                    # Try to get question from submission.question_id
+                    question_text = "Coding Challenge"
+                    try:
+                        # Try as UUID first
+                        from uuid import UUID
+                        try:
+                            question_uuid = UUID(submission.question_id)
+                            question = InterviewQuestion.objects.get(id=question_uuid)
+                            question_text = question.question_text or "Coding Challenge"
+                        except (ValueError, InterviewQuestion.DoesNotExist):
+                            # Try as string ID
+                            question = InterviewQuestion.objects.filter(id=submission.question_id).first()
+                            if question:
+                                question_text = question.question_text or "Coding Challenge"
+                    except Exception as e:
+                        print(f"⚠️ Error getting question for submission {submission.id}: {e}")
+                    
+                    # Challenge header with question text
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(usable_width, 7, _sanitize_for_pdf(f"Challenge {idx}:"), ln=True)
+                    pdf.ln(2)
+                    
+                    # Display the question text clearly
+                    pdf.set_font("Arial", "B", 11)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Question:"), ln=True)
+                    pdf.set_font("Arial", size=11)
+                    # Clean question text
+                    clean_question = question_text
+                    if clean_question.strip().startswith('Q:'):
+                        clean_question = clean_question.replace('Q:', '').strip()
+                    wrapped_question = _wrap_text_for_pdf(clean_question, max_width=65)
+                    safe_question = _sanitize_for_pdf(wrapped_question)
+                    pdf.multi_cell(usable_width, 6, safe_question, align='L')
+                    pdf.ln(3)
+                    
+                    # Language and status
+                    pdf.set_font("Arial", size=11)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Language: {submission.language}"), ln=True)
+                    status_text = "All Tests Passed" if submission.passed_all_tests else "Some Tests Failed"
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf(f"Status: {status_text}"), ln=True)
+                    pdf.ln(2)
+                    
+                    # Submitted code (Answer)
+                    pdf.set_font("Arial", "B", 11)
+                    pdf.cell(usable_width, 6, _sanitize_for_pdf("Answer (Submitted Code):"), ln=True)
+                    pdf.ln(2)
+                    pdf.set_font("Courier", size=9)  # Increased font size for better readability
+                    if submission.submitted_code:
+                        # Get full code (no truncation for display)
+                        full_code = submission.submitted_code
+                        code_lines = full_code.split('\n')
+                        total_lines = len(code_lines)
+                        
+                        # Display up to 100 lines (increased from 30)
+                        display_lines = code_lines[:100]
+                        
+                        for line in display_lines:
+                            # For code, preserve structure - only wrap if absolutely necessary
+                            # Use a wider max_width for code to preserve formatting
+                            if len(line) > 80:
+                                # Only wrap very long lines
+                                wrapped_parts = _wrap_text_for_pdf(line, max_width=80).split('\n')
+                                for part in wrapped_parts:
+                                    safe_line = _sanitize_for_pdf(part)
+                                    try:
+                                        pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                                    except Exception as e:
+                                        # If still fails, truncate the line
+                                        truncated = safe_line[:200] + "..." if len(safe_line) > 200 else safe_line
+                                        pdf.multi_cell(usable_width, 4, _sanitize_for_pdf(truncated), align='L')
+                            else:
+                                # Normal line - display as-is
+                                safe_line = _sanitize_for_pdf(line)
+                                try:
+                                    pdf.cell(usable_width, 4, safe_line, ln=True)
+                                except Exception as e:
+                                    # Fallback to multi_cell if single line fails
+                                    pdf.multi_cell(usable_width, 4, safe_line, align='L')
+                        
+                        if total_lines > 100:
+                            pdf.set_font("Arial", "I", 9)
+                            pdf.cell(usable_width, 5, _sanitize_for_pdf(f"... (code truncated - showing first 100 of {total_lines} lines)"), ln=True)
+                            pdf.set_font("Courier", size=9)
+                    else:
+                        pdf.set_font("Arial", "I", 10)
+                        pdf.cell(usable_width, 6, _sanitize_for_pdf("No code submitted"), ln=True)
+                    
+                    pdf.ln(5)
         
         # === GEMINI AI ANALYSIS ===
         pdf.add_page()
@@ -420,15 +680,32 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 Interview Transcript:
                 {conversation_text[:3000]}
                 
-                Provide:
-                1. Overall technical competency score (0-100)
-                2. Key strengths identified
-                3. Areas for improvement
-                4. Technical knowledge assessment
-                5. Communication skills evaluation
-                6. Recommendation (Strong/Moderate/Weak candidate)
+                Provide a structured evaluation report with the following format:
                 
-                Format as structured text.
+                OVERALL ASSESSMENT:
+                • Technical Competency Score: [0-100]
+                • Recommendation: [Strong/Moderate/Weak candidate]
+                
+                KEY STRENGTHS:
+                1. [First strength with brief explanation]
+                2. [Second strength with brief explanation]
+                3. [Third strength with brief explanation]
+                
+                AREAS FOR IMPROVEMENT:
+                1. [First area with specific feedback]
+                2. [Second area with specific feedback]
+                3. [Third area with specific feedback]
+                
+                TECHNICAL KNOWLEDGE ASSESSMENT:
+                • [Assessment point 1]
+                • [Assessment point 2]
+                • [Assessment point 3]
+                
+                COMMUNICATION SKILLS:
+                • [Communication evaluation point 1]
+                • [Communication evaluation point 2]
+                
+                Use this exact format with numbered lists (1., 2., 3.) and bullet points (•). Keep each point concise and professional.
                 """
                 
                 technical_response = model.generate_content(technical_prompt)
@@ -436,21 +713,62 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 
                 pdf.set_font("Arial", "B", 12)
                 pdf.cell(usable_width, 7, _sanitize_for_pdf("Technical Interview Analysis"), ln=True)
-                pdf.ln(2)
-                pdf.set_font("Arial", size=10)
-                analysis_text = _sanitize_for_pdf(_wrap_long_words(technical_analysis, max_len=70))
-                try:
-                    pdf.multi_cell(usable_width, 5, analysis_text, align='L')
-                except:
-                    pdf.cell(usable_width, 5, _sanitize_for_pdf(technical_analysis[:500] + "..."), ln=True)
-                pdf.ln(5)
+                pdf.ln(3)
+                
+                # Format analysis with bullets, bold headings, and numbered lists
+                formatted_lines = _format_analysis_text(technical_analysis)
+                
+                for item in formatted_lines:
+                    if item['type'] == 'bold':
+                        # Bold heading
+                        pdf.set_font("Arial", "B", 11)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 6, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'number':
+                        # Numbered list item
+                        pdf.set_font("Arial", size=10)
+                        number = item.get('number', '')
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{number} {text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'bullet':
+                        # Bullet point
+                        pdf.set_font("Arial", size=10)
+                        indent = "  " * item.get('level', 0)
+                        bullet = "• " if item.get('level', 0) == 0 else "  ◦ "
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{indent}{bullet}{text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    else:
+                        # Normal text
+                        pdf.set_font("Arial", size=10)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                
+                pdf.ln(3)
             except Exception as e:
                 print(f"⚠️ Error generating technical analysis: {e}")
                 pdf.set_font("Arial", "I", 11)
                 pdf.cell(usable_width, 6, _sanitize_for_pdf("Technical analysis unavailable"), ln=True)
         
         # Generate Gemini analysis for coding round
-        if coding_submissions.exists():
+        # Get coding questions if not already defined (should be defined above, but ensure it exists)
+        if 'coding_questions_from_db' not in locals():
+            coding_questions_from_db = InterviewQuestion.objects.filter(
+                session=session,
+                question_type='CODING'
+            ).order_by('order', 'id')
+        
+        # Check both coding_submissions and coding_questions_from_db
+        has_coding_for_analysis = coding_submissions.exists() or coding_questions_from_db.exists()
+        
+        if has_coding_for_analysis:
             try:
                 import google.generativeai as genai
                 from django.conf import settings
@@ -462,13 +780,84 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                     raise ValueError("GEMINI_API_KEY not set in environment")
                 
                 coding_analysis_text = []
+                
+                # Process coding questions with their submissions
+                for coding_q in coding_questions_from_db:
+                    question_text = coding_q.question_text or "Coding Challenge"
+                    
+                    # Find corresponding submission
+                    submission = None
+                    try:
+                        submission = coding_submissions.filter(
+                            question_id=str(coding_q.id)
+                        ).first()
+                        
+                        if not submission:
+                            question_id_no_hyphens = str(coding_q.id).replace('-', '')
+                            submission = coding_submissions.filter(
+                                question_id=question_id_no_hyphens
+                            ).first()
+                    except Exception as e:
+                        print(f"⚠️ Error finding submission for coding question {coding_q.id}: {e}")
+                    
+                    if submission:
+                        # Include full code (not truncated) for analysis
+                        submitted_code = submission.submitted_code or "No code submitted"
+                        output_log = submission.output_log or "N/A"
+                        
+                        coding_analysis_text.append(f"""
+                        Challenge {len(coding_analysis_text) + 1}:
+                        Question: {question_text}
+                        Language: {submission.language}
+                        Submitted Code:
+                        {submitted_code}
+                        Tests Passed: {'Yes' if submission.passed_all_tests else 'No'}
+                        Output/Test Results: {output_log}
+                        """)
+                    else:
+                        # Question without submission
+                        coding_analysis_text.append(f"""
+                        Challenge {len(coding_analysis_text) + 1}:
+                        Question: {question_text}
+                        Status: No code submitted
+                        """)
+                
+                # Also include any submissions that don't have corresponding questions (fallback)
+                processed_question_ids = set()
+                for coding_q in coding_questions_from_db:
+                    processed_question_ids.add(str(coding_q.id))
+                    processed_question_ids.add(str(coding_q.id).replace('-', ''))
+                
                 for submission in coding_submissions:
-                    coding_analysis_text.append(f"""
-                    Language: {submission.language}
-                    Code: {submission.submitted_code[:1000]}
-                    Tests Passed: {'Yes' if submission.passed_all_tests else 'No'}
-                    Output: {submission.output_log[:500] if submission.output_log else 'N/A'}
-                    """)
+                    if submission.question_id not in processed_question_ids:
+                        # This submission doesn't have a corresponding question in InterviewQuestion
+                        # Try to get question text
+                        question_text = "Coding Challenge"
+                        try:
+                            from uuid import UUID
+                            try:
+                                question_uuid = UUID(submission.question_id)
+                                question = InterviewQuestion.objects.get(id=question_uuid)
+                                question_text = question.question_text or "Coding Challenge"
+                            except (ValueError, InterviewQuestion.DoesNotExist):
+                                question = InterviewQuestion.objects.filter(id=submission.question_id).first()
+                                if question:
+                                    question_text = question.question_text or "Coding Challenge"
+                        except Exception as e:
+                            print(f"⚠️ Error getting question for submission {submission.id}: {e}")
+                        
+                        submitted_code = submission.submitted_code or "No code submitted"
+                        output_log = submission.output_log or "N/A"
+                        
+                        coding_analysis_text.append(f"""
+                        Challenge {len(coding_analysis_text) + 1}:
+                        Question: {question_text}
+                        Language: {submission.language}
+                        Submitted Code:
+                        {submitted_code}
+                        Tests Passed: {'Yes' if submission.passed_all_tests else 'No'}
+                        Output/Test Results: {output_log}
+                        """)
                 
                 coding_prompt = f"""
                 Analyze this coding challenge submission and provide evaluation.
@@ -476,15 +865,37 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 Submissions:
                 {''.join(coding_analysis_text)}
                 
-                Provide:
-                1. Code quality score (0-100)
-                2. Problem-solving approach assessment
-                3. Code correctness and efficiency
-                4. Best practices adherence
-                5. Suggestions for improvement
-                6. Overall coding competency rating
+                Provide a structured evaluation report with the following format:
                 
-                Format as structured text.
+                OVERALL ASSESSMENT:
+                • Code Quality Score: [0-100]
+                • Overall Coding Competency: [Excellent/Good/Moderate/Needs Improvement]
+                
+                CODE QUALITY ANALYSIS:
+                1. [First quality aspect with explanation]
+                2. [Second quality aspect with explanation]
+                3. [Third quality aspect with explanation]
+                
+                PROBLEM-SOLVING APPROACH:
+                • [Approach evaluation point 1]
+                • [Approach evaluation point 2]
+                • [Approach evaluation point 3]
+                
+                CODE CORRECTNESS & EFFICIENCY:
+                1. [Correctness point with details]
+                2. [Efficiency point with details]
+                
+                BEST PRACTICES ADHERENCE:
+                • [Practice 1 assessment]
+                • [Practice 2 assessment]
+                • [Practice 3 assessment]
+                
+                SUGGESTIONS FOR IMPROVEMENT:
+                1. [First suggestion]
+                2. [Second suggestion]
+                3. [Third suggestion]
+                
+                Use this exact format with numbered lists (1., 2., 3.) and bullet points (•). Keep each point concise and professional.
                 """
                 
                 coding_response = model.generate_content(coding_prompt)
@@ -492,13 +903,43 @@ def generate_comprehensive_pdf(session_key: str) -> bytes:
                 
                 pdf.set_font("Arial", "B", 12)
                 pdf.cell(usable_width, 7, _sanitize_for_pdf("Coding Challenge Analysis"), ln=True)
-                pdf.ln(2)
-                pdf.set_font("Arial", size=10)
-                analysis_text = _sanitize_for_pdf(_wrap_long_words(coding_analysis, max_len=70))
-                try:
-                    pdf.multi_cell(usable_width, 5, analysis_text, align='L')
-                except:
-                    pdf.cell(usable_width, 5, _sanitize_for_pdf(coding_analysis[:500] + "..."), ln=True)
+                pdf.ln(3)
+                
+                # Format analysis with bullets, bold headings, and numbered lists
+                formatted_lines = _format_analysis_text(coding_analysis)
+                
+                for item in formatted_lines:
+                    if item['type'] == 'bold':
+                        # Bold heading
+                        pdf.set_font("Arial", "B", 11)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 6, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'number':
+                        # Numbered list item
+                        pdf.set_font("Arial", size=10)
+                        number = item.get('number', '')
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{number} {text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    elif item['type'] == 'bullet':
+                        # Bullet point
+                        pdf.set_font("Arial", size=10)
+                        indent = "  " * item.get('level', 0)
+                        bullet = "• " if item.get('level', 0) == 0 else "  ◦ "
+                        text = _wrap_text_for_pdf(item['text'], max_width=60)
+                        safe_text = _sanitize_for_pdf(f"{indent}{bullet}{text}")
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
+                    else:
+                        # Normal text
+                        pdf.set_font("Arial", size=10)
+                        text = _wrap_text_for_pdf(item['text'], max_width=65)
+                        safe_text = _sanitize_for_pdf(text)
+                        pdf.multi_cell(usable_width, 5, safe_text, align='L')
+                        pdf.ln(1)
             except Exception as e:
                 print(f"⚠️ Error generating coding analysis: {e}")
                 pdf.set_font("Arial", "I", 11)

@@ -1492,18 +1492,23 @@ def interview_portal(request):
                     import traceback
                     traceback.print_exc()
                 
+                # CRITICAL: Generate EXACTLY question_count questions (excluding coding question)
+                # If question_count is 8, generate 7 technical + 1 introduction = 8 total
+                technical_questions_needed = max(1, question_count - 1)  # -1 for introduction
+                
                 master_prompt = (
-                    f"You are an expert Talaro interviewer.Your task is to generate {question_count} insightful interview 1-2 liner questions in {language_name}. "
+                    f"You are an expert Talaro interviewer. Your task is to generate EXACTLY {technical_questions_needed} technical interview questions (1-2 lines each) in {language_name}. "
                     f"The interview is for a '{session.job_description.splitlines()[0]}' role. "
-                    "starting from introduction question .Please base the questions on the provided job description and candidate's resume. "
-                    "Start with a welcoming ice-breaker question that also references something specific from the candidate's resume. "
-                    "Then, generate a mix of technical Questions. 70 percent from jd and 30 percent from resume"
-                    "dont add words in question like we taking reference according jd only question according to jd but dont need to explain we taking reference from jd"
-                    "You MUST format the output as Markdown. "
-                    "do not ask question repeatlt only when candidate answer then repherase with adding one line extra"
-                    "You MUST include '## Technical Questions'. "
-                    "Each question MUST start with a hyphen '-'. "
-                    "Do NOT add any introductions, greetings (beyond the first ice-breaker question), or concluding remarks. "
+                    "CRITICAL REQUIREMENTS:\n"
+                    f"1. Generate EXACTLY {technical_questions_needed} questions - NO MORE, NO LESS\n"
+                    "2. Start with a welcoming introduction question that references something specific from the candidate's resume\n"
+                    "3. Then generate technical questions based on job description (70% from JD, 30% from resume)\n"
+                    "4. Each question MUST be unique and cover different technical aspects\n"
+                    "5. Do NOT repeat questions or ask similar questions\n"
+                    "6. Do NOT add explanations like 'we are taking reference from JD' - just ask the question\n"
+                    "7. Format output as Markdown with '## Technical Questions' header\n"
+                    "8. Each question MUST start with a hyphen '-'\n"
+                    "9. Do NOT add introductions, greetings (beyond first question), or concluding remarks\n"
                     f"\n\n--- JOB DESCRIPTION ---\n{session.job_description}\n\n--- RESUME ---\n{session.resume_text}"
                 )
                 full_response = model.generate_content(master_prompt)
@@ -1515,6 +1520,17 @@ def interview_portal(request):
                     for line in lines:
                         if line.strip().startswith('-'):
                             all_questions.append({'type': category_name.strip(), 'text': line.strip().lstrip('- ').strip()})
+                
+                # CRITICAL: Limit to EXACTLY question_count questions (excluding coding)
+                # If we got more, take only the first question_count
+                # If we got less, that's okay (LLM might have generated fewer)
+                if len(all_questions) > question_count:
+                    print(f"⚠️ LLM generated {len(all_questions)} questions, but only {question_count} requested. Limiting to {question_count}.")
+                    all_questions = all_questions[:question_count]
+                elif len(all_questions) < question_count:
+                    print(f"⚠️ LLM generated only {len(all_questions)} questions, but {question_count} requested. This is acceptable.")
+                
+                print(f"✅ Generated {len(all_questions)} technical questions (requested: {question_count})")
                 
                 # Add dynamic coding questions based on job profile for production mode using Gemini API
                 job_title = None
@@ -4251,7 +4267,16 @@ def ai_start(request):
                             session=django_session
                         ).aggregate(max_seq=Max('conversation_sequence'))
                         max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                        conversation_sequence = max_seq + 1  # Start with 1 for first AI question
+                        
+                        # AI questions get odd sequence numbers (1, 3, 5, 7...)
+                        # For the first question, if no questions exist, start with 1
+                        # Otherwise, calculate next odd number
+                        if max_seq == 0:
+                            conversation_sequence = 1  # First AI question starts at 1
+                        elif max_seq % 2 == 0:  # Last was Interviewee (even), next is AI (odd)
+                            conversation_sequence = max_seq + 1
+                        else:  # Last was AI (odd), find next odd
+                            conversation_sequence = ((max_seq // 2) + 1) * 2 + 1
                         
                         InterviewQuestion.objects.create(
                             session=django_session,
@@ -4437,6 +4462,10 @@ def ai_upload_answer(request):
                             print(f"   - Answer text: '{answer_text[:50]}...'")
                             print(f"   - Should save: {should_save}")
                             
+                            # CRITICAL: ALWAYS save answers - don't skip any answer, even if it's "No answer provided"
+                            # This ensures every question has a corresponding answer in the database
+                            should_save = True  # Always save answers to ensure completeness
+                            
                             if should_save:
                                 # IMPORTANT: Save Interviewee answer as a SEPARATE record with role='INTERVIEWEE'
                                 # Get the maximum conversation_sequence to ensure sequential indexing
@@ -4465,19 +4494,38 @@ def ai_upload_answer(request):
                                 if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
                                     response_time = time_module.time() - ai_session.question_asked_at
                                 
-                                # Create separate record for Interviewee answer
-                                interviewee_response = InterviewQuestion.objects.create(
+                                # Check if this answer was already saved (prevent duplicates)
+                                existing_answer = InterviewQuestion.objects.filter(
                                     session=django_session,
-                                    question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question it answers
-                                    question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
-                                    transcribed_answer=answer_text_formatted,  # The actual answer text
-                                    response_time_seconds=response_time,
-                                    role='INTERVIEWEE',  # This is an Interviewee response
-                                    conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
-                                )
-                                print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
+                                    role='INTERVIEWEE',
+                                    question_level='INTERVIEWEE_RESPONSE',
+                                    order=question_obj.order,
+                                    conversation_sequence=interviewee_sequence
+                                ).first()
+                                
+                                if not existing_answer:
+                                    # Create separate record for Interviewee answer
+                                    interviewee_response = InterviewQuestion.objects.create(
+                                        session=django_session,
+                                        question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
+                                        question_type=question_obj.question_type,
+                                        order=question_obj.order,  # Same order as the question it answers
+                                        question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
+                                        transcribed_answer=answer_text_formatted,  # The actual answer text
+                                        response_time_seconds=response_time,
+                                        role='INTERVIEWEE',  # This is an Interviewee response
+                                        conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
+                                    )
+                                    print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
+                                else:
+                                    # Update existing answer if it's different
+                                    if existing_answer.transcribed_answer != answer_text_formatted:
+                                        existing_answer.transcribed_answer = answer_text_formatted
+                                        existing_answer.response_time_seconds = response_time
+                                        existing_answer.save(update_fields=['transcribed_answer', 'response_time_seconds'])
+                                        print(f"✅ Updated existing Interviewee answer: conversation_sequence {interviewee_sequence}, order {question_obj.order}: {answer_text[:50]}...")
+                                    else:
+                                        print(f"⚠️ Answer already exists with same content, skipping duplicate: {answer_text[:50]}...")
                                 
                                 # Also update the original question's transcribed_answer for backward compatibility
                                 original_order = question_obj.order  # Preserve order
@@ -4485,39 +4533,8 @@ def ai_upload_answer(request):
                                 question_obj.response_time_seconds = response_time
                                 question_obj.save(update_fields=['transcribed_answer', 'response_time_seconds'])
                                 print(f"✅ Updated original question record for backward compatibility: {answer_text[:50]}...")
-                            elif answer_text == 'No answer provided' and not is_special_question:
-                                # IMPORTANT: Still save "No answer provided" so it appears in candidate details
-                                # This ensures all questions have corresponding answers, even if empty
-                                from django.db.models import Max
-                                max_seq_result = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).aggregate(max_seq=Max('conversation_sequence'))
-                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                
-                                # Calculate interviewee sequence (even number)
-                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                    interviewee_sequence = max_seq + 1
-                                else:  # Last was Interviewee or no sequence, find next even
-                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
-                                
-                                # Save "No answer provided" as a separate record
-                                interviewee_response = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text='',  # Empty for Interviewee responses
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question
-                                    question_level='INTERVIEWEE_RESPONSE',
-                                    transcribed_answer='No answer provided',  # Explicitly save this
-                                    response_time_seconds=response_time if 'response_time' in locals() else 0,
-                                    role='INTERVIEWEE',
-                                    conversation_sequence=interviewee_sequence
-                                )
-                                print(f"✅ Saved 'No answer provided' as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}")
-                                
-                                # Also update the original question's transcribed_answer for backward compatibility
-                                question_obj.transcribed_answer = 'A: No answer provided'
-                                question_obj.save(update_fields=['transcribed_answer'])
-                                print(f"✅ Updated original question record with 'No answer provided'")
+                            # Note: The above code now always saves answers (including "No answer provided"),
+                            # so this elif block is no longer needed. All answers are handled in the should_save block above.
                         else:
                             print(f"⚠️ Could not find question to save answer. Creating new question...")
                             # Create a new question if it doesn't exist (including pre-closing and closing questions)
@@ -4709,7 +4726,8 @@ def ai_upload_answer(request):
             print(f"❌ ERROR from upload_answer: {result.get('error')}")
             return JsonResponse(result, status=400)
         
-        # Handle candidate questions and AI answers - save them to database
+        # CRITICAL: Save ALL questions and answers to database - ensure nothing is skipped
+        # This must happen BEFORE any other processing to ensure proper sequence
         if session_id and session_id in sessions:
             ai_session = sessions[session_id]
             if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
@@ -4951,16 +4969,35 @@ def ai_upload_answer(request):
                         # This is the final closing message, not a question
                         pass
                     elif next_question_text and next_question_text.strip():
-                        # Check if this question already exists
-                        existing_questions = InterviewQuestion.objects.filter(
-                            session=django_session
-                        ).order_by('order')
+                        # CRITICAL: Check if this question already exists by text match (more reliable than order)
+                        # Normalize the question text for comparison
+                        normalized_next_question = " ".join(next_question_text.strip().lower().split())
                         
-                        # Get the current question number from AI session
-                        current_q_num = ai_session.current_question_number
+                        # Check if question with this exact text already exists
+                        question_exists = InterviewQuestion.objects.filter(
+                            session=django_session,
+                            question_text__iexact=next_question_text.strip()
+                        ).exists()
                         
-                        # Check if question at this order already exists
-                        question_exists = existing_questions.filter(order=current_q_num - 1).exists()
+                        # Also check by partial match (in case of slight variations)
+                        if not question_exists:
+                            similar_questions = InterviewQuestion.objects.filter(
+                                session=django_session,
+                                role='AI',
+                                question_level='MAIN'
+                            )
+                            for q in similar_questions:
+                                normalized_existing = " ".join(q.question_text.lower().split())
+                                # If 80% of words match, consider it the same question
+                                if normalized_next_question and normalized_existing:
+                                    words_next = set(normalized_next_question.split())
+                                    words_existing = set(normalized_existing.split())
+                                    if words_next and words_existing:
+                                        similarity = len(words_next & words_existing) / max(len(words_next), len(words_existing))
+                                        if similarity > 0.8:
+                                            question_exists = True
+                                            print(f"⚠️ Found similar question (similarity: {similarity:.2f}), skipping save")
+                                            break
                         
                         if not question_exists:
                             # Determine question type - check if it's a pre-closing or closing question
@@ -5073,8 +5110,61 @@ def ai_upload_answer(request):
                                         print(f"⚠️ No transcript available yet for {question_type_label} question, will save when answer comes")
                                 except Exception as e:
                                     print(f"⚠️ Error saving {question_type_label} question answer: {e}")
+                        else:
+                            print(f"⚠️ Question already exists, skipping duplicate save: {next_question_text[:50]}...")
+                    else:
+                        # No next_question_text but we might have last_active_question_text - save it as fallback
+                        if hasattr(ai_session, 'last_active_question_text') and ai_session.last_active_question_text:
+                            last_question_text = ai_session.last_active_question_text.strip()
+                            if last_question_text:
+                                # Check if this question was already saved
+                                normalized_last = " ".join(last_question_text.lower().split())
+                                last_question_exists = InterviewQuestion.objects.filter(
+                                    session=django_session,
+                                    question_text__iexact=last_question_text
+                                ).exists()
+                                
+                                if not last_question_exists:
+                                    # Save the last active question as a fallback
+                                    from django.db.models import Max
+                                    max_order_result = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).aggregate(max_order=Max('order'))
+                                    max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
+                                    new_order = max_order + 1
+                                    
+                                    max_seq_result = InterviewQuestion.objects.filter(
+                                        session=django_session
+                                    ).aggregate(max_seq=Max('conversation_sequence'))
+                                    max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                    
+                                    # AI questions get odd sequence numbers
+                                    if max_seq % 2 == 0 and max_seq > 0:
+                                        ai_sequence = max_seq + 1
+                                    else:
+                                        ai_sequence = ((max_seq // 2) + 1) * 2 + 1
+                                    
+                                    # Format question text
+                                    question_text_formatted = last_question_text
+                                    if question_text_formatted.startswith('Q:'):
+                                        question_text_formatted = question_text_formatted.replace('Q:', '').strip()
+                                    
+                                    InterviewQuestion.objects.create(
+                                        session=django_session,
+                                        question_text=question_text_formatted,
+                                        question_type='TECHNICAL',
+                                        order=new_order,
+                                        question_level='MAIN',
+                                        role='AI',
+                                        conversation_sequence=ai_sequence
+                                    )
+                                    print(f"✅ Saved fallback question from last_active_question_text: conversation_sequence {ai_sequence}, order {new_order}: {question_text_formatted[:50]}...")
+                                else:
+                                    print(f"⚠️ Last active question already exists, skipping: {last_question_text[:50]}...")
                 except Exception as e:
                     print(f"⚠️ Error creating question in database: {e}")
+                    import traceback
+                    traceback.print_exc()
         
         # CRITICAL: Before returning, recalculate question_number from database to ensure accuracy
         # This handles cases where question was saved but question_number wasn't updated
@@ -5219,6 +5309,74 @@ def ai_transcript_pdf(request):
         return JsonResponse({'error': f'PDF generation failed: {str(e)}'}, status=500)
 
 @csrf_exempt
+def get_proctoring_pdf_url(request, interview_id):
+    """
+    Get proctoring PDF URL for a given interview_id
+    This is a compatibility function - the correct endpoint is in evaluation/urls.py
+    """
+    from django.http import JsonResponse
+    from evaluation.models import ProctoringPDF
+    from interviews.models import Interview
+    
+    try:
+        # Get interview
+        try:
+            interview = Interview.objects.get(id=interview_id)
+        except Interview.DoesNotExist:
+            return JsonResponse(
+                {'success': False, 'error': 'Interview not found'},
+                status=404
+            )
+        
+        # Get ProctoringPDF record
+        try:
+            proctoring_pdf = ProctoringPDF.objects.get(interview=interview)
+        except ProctoringPDF.DoesNotExist:
+            return JsonResponse(
+                {'success': False, 'error': 'Proctoring PDF not found for this interview'},
+                status=404
+            )
+        
+        # Get GCS URL
+        gcs_url = proctoring_pdf.gcs_url
+        
+        if not gcs_url:
+            return JsonResponse(
+                {'success': False, 'error': 'GCS URL not available for this proctoring PDF'},
+                status=404
+            )
+        
+        # Extract clean GCS URL if malformed (has app URL prepended)
+        original_url = gcs_url
+        if 'storage.googleapis.com' in gcs_url:
+            gcs_index = gcs_url.find('storage.googleapis.com')
+            if gcs_index > 0:
+                gcs_url = 'https://' + gcs_url[gcs_index:]
+            elif gcs_index == 0:
+                gcs_url = 'https://' + gcs_url
+            else:
+                gcs_url = None
+        
+        # Ensure URL is valid
+        if not gcs_url or not gcs_url.startswith('https://storage.googleapis.com/'):
+            print(f"⚠️ Invalid GCS URL format. Original: {original_url[:100]}...")
+            return JsonResponse(
+                {'success': False, 'error': f'Invalid GCS URL format. Original URL: {original_url[:100]}...'},
+                status=500
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'gcs_url': gcs_url
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse(
+            {'success': False, 'error': f'Error fetching proctoring PDF URL: {str(e)}'},
+            status=500
+        )
+
+@csrf_exempt
 def download_proctoring_pdf(request, session_id=None):
     """Download proctoring warnings PDF for a given session (from GCS or local)
     
@@ -5230,6 +5388,12 @@ def download_proctoring_pdf(request, session_id=None):
     Query parameter:
     - format=json: Returns JSON with GCS URL instead of downloading PDF
     """
+    print(f"[PROCTORING PDF API] ========== ENDPOINT HIT ==========")
+    print(f"[PROCTORING PDF API] Request method: {request.method}")
+    print(f"[PROCTORING PDF API] Path: {request.path}")
+    print(f"[PROCTORING PDF API] Query params: {request.GET}")
+    print(f"[PROCTORING PDF API] Path param (session_id): {session_id}")
+    print(f"[PROCTORING PDF API] ==================================")
     try:
         from .models import InterviewSession
         from evaluation.models import Evaluation
@@ -5312,158 +5476,134 @@ def download_proctoring_pdf(request, session_id=None):
         if not evaluation.details or not isinstance(evaluation.details, dict):
             return JsonResponse({'error': 'Evaluation details not found'}, status=404)
         
-        # Check for GCS URL first (preferred)
-        gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
+        # FLOW: Button Click → Backend API → Generate Public/Signed URL → Browser Opens File
+        # Step 1: Get file path from evaluation details
         proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
+        stored_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url') or evaluation.details.get('proctoring_pdf_url')
         
-        # CRITICAL: Extract clean GCS URL and return it as JSON for frontend to open directly
-        # Always return JSON if GCS URL exists (frontend will open it directly)
-        if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
-            import re
-            original_url = gcs_url
-            clean_url = gcs_url.strip()
-            
-            # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
-            gcs_index = clean_url.find('storage.googleapis.com')
-            if gcs_index != -1:
-                clean_url = clean_url[gcs_index:]
-                print(f"[CLEAN] Extracted GCS part from: {original_url[:80]}...")
-            
-            # Remove malformed prefixes
-            clean_url = re.sub(r'^https?\/\/', '', clean_url)  # Remove https//
-            clean_url = re.sub(r'^https?:\/\/', '', clean_url)  # Remove https://
-            clean_url = re.sub(r'^http:\/\/', '', clean_url)  # Remove http://
-            
-            # Construct clean URL
-            if clean_url.startswith('storage.googleapis.com'):
-                clean_url = f"https://{clean_url}"
-                
-                # Final validation
-                if clean_url.startswith('https://storage.googleapis.com/'):
-                    print(f"[OK] Clean GCS URL: {clean_url[:80]}...")
-                    # Always return JSON with clean GCS URL for frontend to open directly
-                    return JsonResponse({
-                        'status': 'success',
-                        'gcs_url': clean_url,
-                        'message': 'Proctoring PDF GCS URL retrieved successfully'
-                    })
+        print(f"[PROCTORING PDF] Generating public URL for proctoring PDF")
+        print(f"[PROCTORING PDF] File path: {proctoring_pdf_path}")
+        print(f"[PROCTORING PDF] Stored GCS URL: {stored_gcs_url}")
         
-        # If no clean GCS URL found, try to download and serve PDF
-        if gcs_url and isinstance(gcs_url, str):
-            # Normalize GCS URL - ensure it starts with https://
-            if not gcs_url.startswith('http'):
-                # If URL doesn't start with http, it might be a relative path
-                # Try to construct full GCS URL
-                if gcs_url.startswith('storage.googleapis.com'):
-                    gcs_url = f"https://{gcs_url}"
-                elif 'storage.googleapis.com' in gcs_url:
-                    # Already contains domain, just add https://
-                    gcs_url = f"https://{gcs_url.lstrip('/')}"
-                else:
-                    # Not a valid GCS URL, skip to file path method
-                    gcs_url = None
-            
-            if gcs_url and 'storage.googleapis.com' in gcs_url:
-                print(f"✅ Found GCS URL: {gcs_url}")
-                # Extract file path from GCS URL
-                # URL format: https://storage.googleapis.com/BUCKET_NAME/path/to/file.pdf
-                try:
-                    from urllib.parse import urlparse
-                    parsed_url = urlparse(gcs_url)
-                    # Extract path after bucket name (remove leading /)
-                    gcs_file_path = parsed_url.path.lstrip('/')
-                    # Remove bucket name from path (first segment)
-                    path_parts = gcs_file_path.split('/', 1)
-                    if len(path_parts) > 1:
-                        gcs_file_path = path_parts[1]  # Get path after bucket name
-                        print(f"✅ Extracted GCS file path: {gcs_file_path}")
-                        pdf_bytes = download_pdf_from_gcs(gcs_file_path)
-                        if pdf_bytes:
-                            print(f"✅ Downloaded PDF from GCS: {len(pdf_bytes)} bytes")
-                            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                            response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                            return response
-                    # If download fails, try to fetch PDF directly from GCS URL using urllib
-                    print(f"⚠️ Failed to download from GCS using file path, trying direct fetch from URL")
-                    try:
-                        from urllib.request import urlopen
-                        with urlopen(gcs_url, timeout=10) as response:
-                            pdf_bytes = response.read()
-                            print(f"✅ Fetched PDF directly from GCS URL: {len(pdf_bytes)} bytes")
-                            http_response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                            http_response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                            return http_response
-                    except Exception as fetch_error:
-                        print(f"⚠️ Error fetching PDF from GCS URL: {fetch_error}")
-                        # Continue to try file path method
-                except Exception as e:
-                    print(f"⚠️ Error extracting GCS file path: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Continue to try file path method
-        
-        # Try to download from GCS using file path
+        # Step 2: Generate public URL from file path (preferred method - always clean)
+        public_url = None
         if proctoring_pdf_path and 'proctoring_pdfs/' in proctoring_pdf_path:
-            print(f"✅ Trying to download from GCS using path: {proctoring_pdf_path}")
-            pdf_bytes = download_pdf_from_gcs(proctoring_pdf_path)
-            if pdf_bytes:
-                print(f"✅ Downloaded PDF from GCS: {len(pdf_bytes)} bytes")
-                response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                return response
+            try:
+                from .gcs_storage import get_gcs_bucket_name, get_gcs_client
+                from google.cloud import storage
+                
+                bucket_name = get_gcs_bucket_name()
+                if bucket_name:
+                    # Construct public URL directly from bucket name and file path
+                    # Format: https://storage.googleapis.com/BUCKET_NAME/path/to/file.pdf
+                    public_url = f"https://storage.googleapis.com/{bucket_name}/{proctoring_pdf_path}"
+                    
+                    # Verify the blob exists and is public
+                    try:
+                        client = get_gcs_client()
+                        if client:
+                            bucket = client.bucket(bucket_name)
+                            blob = bucket.blob(proctoring_pdf_path)
+                            if blob.exists():
+                                # Ensure blob is public
+                                blob.make_public()
+                                # Get the actual public URL
+                                public_url = blob.public_url
+                                print(f"[OK] Generated public URL from file path: {public_url[:100]}...")
+                            else:
+                                print(f"[WARN] Blob does not exist at path: {proctoring_pdf_path}")
+                                public_url = None
+                    except Exception as verify_error:
+                        print(f"[WARN] Error verifying blob, using constructed URL: {verify_error}")
+                        # Use constructed URL anyway
+            except Exception as e:
+                print(f"[ERROR] Error generating public URL from path: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Step 3: Fallback to stored GCS URL if public URL generation failed
+        if not public_url and stored_gcs_url:
+            import re
+            original_url = stored_gcs_url.strip()
+            
+            print(f"[CLEAN] Cleaning stored GCS URL: {original_url[:100]}...")
+            
+            # CRITICAL: Handle malformed patterns like:
+            # - https://talaroai-...run.apphttps//storage.googleapis.com/...
+            # - talaroai-...run.apphttps//storage.googleapis.com/...
+            # - run.apphttps//storage.googleapis.com/...
+            
+            # Step 1: Extract ONLY the GCS URL part (everything from storage.googleapis.com onwards)
+            clean_url = None
+            if 'storage.googleapis.com' in original_url:
+                gcs_index = original_url.find('storage.googleapis.com')
+                if gcs_index != -1:
+                    # Extract everything from storage.googleapis.com onwards
+                    clean_url = original_url[gcs_index:]
+                    print(f"[CLEAN] Extracted GCS part: {clean_url[:100]}...")
+            
+            # Step 2: Remove ALL malformed prefixes that might exist before storage.googleapis.com
+            if clean_url:
+                # CRITICAL: The extracted string should start with 'storage.googleapis.com'
+                # But if it doesn't, there might be leftover prefixes
+                
+                # First, ensure we start with storage.googleapis.com (should already be the case)
+                if not clean_url.startswith('storage.googleapis.com'):
+                    # Try to find storage.googleapis.com again
+                    gcs_index = clean_url.find('storage.googleapis.com')
+                    if gcs_index != -1:
+                        clean_url = clean_url[gcs_index:]
+                        print(f"[CLEAN] Re-extracted GCS part: {clean_url[:100]}...")
+                    else:
+                        print(f"[ERROR] Cannot find storage.googleapis.com in cleaned URL")
+                        clean_url = None
+                
+                # Now remove any prefixes that might have leaked through
+                # This handles cases where the extraction didn't work perfectly
+                if clean_url:
+                    # Remove patterns like: run.apphttps//storage or run.apphttps://storage
+                    clean_url = re.sub(r'^[^/]*\.(app|run|com)https?\/\/+', '', clean_url)
+                    clean_url = re.sub(r'^[^/]*\.(app|run|com)https?:\/\/+', '', clean_url)
+                    
+                    # Remove any remaining https// or https:// prefixes
+                    clean_url = re.sub(r'^https?\/\/+', '', clean_url)  # Remove https// or https///
+                    clean_url = re.sub(r'^https?:\/\/+', '', clean_url)  # Remove https:// or https:///
+                    clean_url = re.sub(r'^http:\/\/+', '', clean_url)  # Remove http:// or http:///
+                    
+                    # Final check: must start with storage.googleapis.com
+                    if not clean_url.startswith('storage.googleapis.com'):
+                        gcs_index = clean_url.find('storage.googleapis.com')
+                        if gcs_index != -1:
+                            clean_url = clean_url[gcs_index:]
+                            print(f"[CLEAN] Final extraction: {clean_url[:100]}...")
+                        else:
+                            print(f"[ERROR] Final extraction failed, URL is: {clean_url[:100]}...")
+                            clean_url = None
+            
+            # Step 3: Construct clean URL with https:// prefix
+            if clean_url and clean_url.startswith('storage.googleapis.com'):
+                public_url = f"https://{clean_url}"
+                print(f"[OK] Cleaned stored GCS URL: {public_url[:100]}...")
             else:
-                print(f"⚠️ Failed to download from GCS using path: {proctoring_pdf_path}")
+                print(f"[ERROR] Failed to clean stored GCS URL, original was: {original_url[:100]}...")
         
-        if not proctoring_pdf_path:
-            # Try to generate PDF if it doesn't exist
-            if session and session.session_key:
-                from evaluation.services import create_evaluation_from_session
-                evaluation = create_evaluation_from_session(session.session_key)
-                if evaluation and evaluation.details:
-                    proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
-                    gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
-                    if gcs_url and isinstance(gcs_url, str) and 'storage.googleapis.com' in gcs_url:
-                        # Try to download from GCS instead of redirecting
-                        try:
-                            from urllib.parse import urlparse
-                            parsed_url = urlparse(gcs_url)
-                            gcs_file_path = parsed_url.path.lstrip('/')
-                            path_parts = gcs_file_path.split('/', 1)
-                            if len(path_parts) > 1:
-                                gcs_file_path = path_parts[1]
-                                pdf_bytes = download_pdf_from_gcs(gcs_file_path)
-                                if pdf_bytes:
-                                    response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                                    response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                                    return response
-                        except Exception as e:
-                            print(f"⚠️ Error downloading from GCS: {e}")
-                        
-                        # Fallback: fetch directly from GCS URL using urllib
-                        if gcs_url:
-                            try:
-                                from urllib.request import urlopen
-                                with urlopen(gcs_url, timeout=10) as response:
-                                    pdf_bytes = response.read()
-                                    http_response = HttpResponse(pdf_bytes, content_type='application/pdf')
-                                    http_response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-                                    return http_response
-                            except Exception as fetch_error:
-                                print(f"⚠️ Error fetching PDF from GCS URL: {fetch_error}")
+        # Step 4: Return public URL to frontend (browser will open it)
+        if public_url and public_url.startswith('https://storage.googleapis.com/'):
+            print(f"[SUCCESS] Returning public URL to frontend: {public_url[:100]}...")
+            return JsonResponse({
+                'status': 'success',
+                'gcs_url': public_url,
+                'url': public_url,  # Also include 'url' field for compatibility
+                'message': 'Proctoring PDF public URL generated successfully'
+            })
         
-        if not proctoring_pdf_path:
-            return JsonResponse({'error': 'Proctoring PDF not found. No warnings were detected during the interview.'}, status=404)
-        
-        # Fallback to local file system
-        pdf_full_path = os.path.join(settings.MEDIA_ROOT, proctoring_pdf_path.lstrip('/'))
-        
-        if not os.path.exists(pdf_full_path):
-            return JsonResponse({'error': f'PDF file not found at {pdf_full_path}'}, status=404)
-        
-        # Serve PDF file
-        response = FileResponse(open(pdf_full_path, 'rb'), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="proctoring_report_{interview.id}.pdf"'
-        return response
+        # Step 5: If no URL can be generated, return error
+        print(f"[ERROR] Could not generate public URL for proctoring PDF")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Proctoring PDF not found in GCS. PDF may not have been uploaded.',
+            'message': 'Please ensure the proctoring PDF was uploaded to Google Cloud Storage.'
+        }, status=404)
         
     except Exception as e:
         print(f"❌ Error downloading proctoring PDF: {e}")

@@ -44,6 +44,9 @@ class InterviewSerializer(serializers.ModelSerializer):
     
     # Interview Video
     interview_video = serializers.SerializerMethodField()
+    
+    # Proctoring PDF
+    proctoring_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -70,6 +73,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             "questions_and_answers",
             "verification_id_image",
             "interview_video",
+            "proctoring_pdf",
             "session_key",
         ]
         read_only_fields = [
@@ -265,158 +269,31 @@ class InterviewSerializer(serializers.ModelSerializer):
                     print(f"   - AI analysis keys: {list(ai_analysis.keys()) if ai_analysis else 'None'}")
                     
                     if ai_analysis:
-                        # Transform evaluation.details to ai_result format
-                        # Get proctoring PDF URL from details
-                        proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
-                        proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
-
-                        # If not found in evaluation.details, try to get from ProctoringPDF table
-                        if not proctoring_pdf_gcs_url:
-                            try:
-                                from evaluation.models import ProctoringPDF
-                                proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
-                                if proctoring_pdf and proctoring_pdf.gcs_url:
-                                    proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
-                                    print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
-                            except Exception as e:
-                                print(f"   ⚠️ Error fetching from ProctoringPDF table: {e}")
-                                import traceback
-                                traceback.print_exc()
+                        # Get proctoring PDF URL ONLY from ProctoringPDF table (no fallback)
+                        proctoring_pdf_gcs_url = None
+                        proctoring_pdf_url = None
                         
-                        # Ensure GCS URL is absolute (starts with https://)
-                        if proctoring_pdf_gcs_url:
-                            original_url = proctoring_pdf_gcs_url
-                            
-                            # CRITICAL: Always extract GCS URL if storage.googleapis.com is present
-                            # This handles cases where baseURL was concatenated incorrectly
-                            # Pattern examples:
-                            # - https://talaroai-...run.apphttps//storage.googleapis.com/...
-                            # - talaroai-...run.apphttps//storage.googleapis.com/...
-                            # - https://talaroai-...run.app/storage.googleapis.com/...
-                            if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
-                                # Extract only the GCS URL part (everything from storage.googleapis.com onwards)
-                                gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
-                                if gcs_index != -1:
-                                    proctoring_pdf_gcs_url = proctoring_pdf_gcs_url[gcs_index:]
-                                    if original_url != proctoring_pdf_gcs_url:
-                                        print(f"   [CLEAN] Extracted GCS URL from malformed URL")
-                                        print(f"   [CLEAN] Original: {original_url[:100]}...")
-                                        print(f"   [CLEAN] Extracted: {proctoring_pdf_gcs_url[:100]}...")
-                            
-                            # Remove any malformed prefixes (like https://https://, https//, or double slashes)
-                            import re
-                            # CRITICAL: Handle https// pattern FIRST (missing colon) - must be before other patterns
-                            proctoring_pdf_gcs_url = re.sub(r'^https?\/\/', 'https://', proctoring_pdf_gcs_url)  # https// -> https:// (MUST BE FIRST)
-                            proctoring_pdf_gcs_url = re.sub(r'^https?://https?://', 'https://', proctoring_pdf_gcs_url)
-                            proctoring_pdf_gcs_url = re.sub(r'^https?://+', 'https://', proctoring_pdf_gcs_url)
-                            
-                            # Normalize URL - ensure it starts with https://
-                            if not proctoring_pdf_gcs_url.startswith('https://'):
-                                if proctoring_pdf_gcs_url.startswith('http://'):
-                                    # Upgrade to https
-                                    proctoring_pdf_gcs_url = proctoring_pdf_gcs_url.replace('http://', 'https://')
-                                elif proctoring_pdf_gcs_url.startswith('storage.googleapis.com'):
-                                    # Add https:// prefix
-                                    proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url}"
-                                elif proctoring_pdf_gcs_url.startswith('//storage.googleapis.com'):
-                                    # Fix double slash
-                                    proctoring_pdf_gcs_url = f"https:{proctoring_pdf_gcs_url}"
-                                else:
-                                    print(f"   [WARN] GCS URL is not absolute, ignoring: {proctoring_pdf_gcs_url[:100]}...")
-                                    proctoring_pdf_gcs_url = None
-                            
-                            # Final validation: Ensure it's a proper GCS URL format
-                            if proctoring_pdf_gcs_url and not proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
-                                print(f"   [WARN] GCS URL format invalid, attempting final cleanup: {proctoring_pdf_gcs_url[:100]}...")
-                                # Try to extract valid GCS URL
-                                if 'storage.googleapis.com' in proctoring_pdf_gcs_url:
-                                    gcs_index = proctoring_pdf_gcs_url.find('storage.googleapis.com')
-                                    proctoring_pdf_gcs_url = f"https://{proctoring_pdf_gcs_url[gcs_index:]}"
-                                    print(f"   [OK] Final cleanup successful: {proctoring_pdf_gcs_url[:100]}...")
-                                else:
-                                    print(f"   [WARN] storage.googleapis.com not found, setting to None")
-                                    proctoring_pdf_gcs_url = None
-                            
-                            # Final check: Ensure URL is clean and valid
-                            if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://storage.googleapis.com/'):
-                                print(f"   [OK] Final GCS URL (clean): {proctoring_pdf_gcs_url[:100]}...")
+                        try:
+                            from evaluation.models import ProctoringPDF
+                            proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
+                            if proctoring_pdf and proctoring_pdf.gcs_url:
+                                # Use URL as-is from database - no modification, no cleaning
+                                proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
+                                proctoring_pdf_url = proctoring_pdf.gcs_url
+                                print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
                             else:
-                                print(f"   [WARN] GCS URL validation failed, setting to None")
-                                print(f"   [WARN] Original URL was: {original_url[:100]}...")
-                                proctoring_pdf_gcs_url = None
-                        
-                        if not proctoring_pdf_url:
-                            # Try to construct URL from relative path
-                            proctoring_pdf_path = evaluation.details.get('proctoring_pdf')
-                            if proctoring_pdf_path:
-                                from django.conf import settings
-                                media_url = settings.MEDIA_URL.rstrip('/')
-                                pdf_path = proctoring_pdf_path.lstrip('/')
-                                proctoring_pdf_url = f"{media_url}/{pdf_path}"
-                                print(f"   - Constructed PDF URL from path: {proctoring_pdf_url}")
+                                print(f"   - No ProctoringPDF record found for interview {obj.id}")
+                        except Exception as e:
+                            print(f"   ⚠️ Error fetching from ProctoringPDF table: {e}")
+                            import traceback
+                            traceback.print_exc()
                         
                         proctoring_warnings = evaluation.details.get('proctoring', {}).get('warnings', [])
                         print(f"   - Proctoring warnings count: {len(proctoring_warnings)}")
-                        print(f"   - Proctoring PDF URL: {proctoring_pdf_url}")
                         print(f"   - Proctoring PDF GCS URL: {proctoring_pdf_gcs_url}")
-                        # Ensure proctoring_pdf_url is not set if we have a valid GCS URL (to prevent confusion)
-                        # But keep proctoring_pdf_url if GCS URL is not available (for fallback)
-                        if proctoring_pdf_gcs_url and proctoring_pdf_gcs_url.startswith('https://'):
-                            # Use GCS URL as primary, but keep proctoring_pdf_url for backward compatibility
-                            # Don't clear it, just prioritize GCS URL in frontend
-                            pass
-                        
-                        # Check if coding score needs to be corrected based on actual test results
-                        coding_score = ai_analysis.get('coding_score', 0)
-                        
-                        # Check if all coding tests passed - if so, coding score should be high (80-100)
-                        try:
-                            from interview_app.models import CodeSubmission, InterviewSession
-                            # Get the interview session - try multiple ways to find session_key
-                            session_key = None
-                            if hasattr(obj, 'session_key'):
-                                session_key = obj.session_key
-                            elif hasattr(obj, 'session') and obj.session:
-                                session_key = obj.session.session_key if hasattr(obj.session, 'session_key') else None
-                            else:
-                                # Try to find InterviewSession by interview ID or candidate
-                                try:
-                                    interview_session = InterviewSession.objects.filter(
-                                        candidate_email=obj.candidate.email if hasattr(obj, 'candidate') and obj.candidate else None
-                                    ).order_by('-created_at').first()
-                                    if interview_session:
-                                        session_key = interview_session.session_key
-                                except:
-                                    pass
-                            
-                            if session_key:
-                                # Check all code submissions for this interview
-                                code_submissions = CodeSubmission.objects.filter(
-                                    session__session_key=session_key
-                                )
-                                
-                                if code_submissions.exists():
-                                    # Check if all tests passed
-                                    all_passed = all(sub.passed_all_tests for sub in code_submissions if hasattr(sub, 'passed_all_tests'))
-                                    total_submissions = code_submissions.count()
-                                    passed_count = sum(1 for sub in code_submissions if hasattr(sub, 'passed_all_tests') and sub.passed_all_tests)
-                                    
-                                    if all_passed and total_submissions > 0:
-                                        # All tests passed but coding score is low - correct it
-                                        if coding_score < 80:
-                                            print(f"   ⚠️ Coding score correction: All {total_submissions} coding tests passed, but score is {coding_score}. Correcting to 90.")
-                                            coding_score = 90  # Set to high score since all tests passed
-                                    elif passed_count > 0 and total_submissions > 0:
-                                        # Some tests passed - adjust score based on percentage
-                                        percentage_passed = (passed_count / total_submissions) * 100
-                                        expected_score = 40 + (percentage_passed * 0.39)  # Scale to 40-79 range
-                                        if coding_score < expected_score - 10:  # If score is significantly lower than expected
-                                            print(f"   ⚠️ Coding score correction: {passed_count}/{total_submissions} tests passed ({percentage_passed:.1f}%), but score is {coding_score}. Correcting to {expected_score:.1f}.")
-                                            coding_score = expected_score
-                        except Exception as e:
-                            print(f"   ⚠️ Error checking code submissions for score correction: {e}")
-                            import traceback
-                            traceback.print_exc()
+
+                        # Note: Removed complex database operations for code submission checking
+                        # Only use AI evaluation results as provided
                         
                         result = {
                             # AI scores are in 0-100 scale, keep them as-is (don't convert to 0-10)
@@ -444,17 +321,22 @@ class InterviewSerializer(serializers.ModelSerializer):
                             'ai_summary': self._build_ai_summary(ai_analysis, proctoring_pdf_gcs_url),
                             'ai_recommendations': ai_analysis.get('detailed_feedback', ''),
                             'confidence_level': ai_analysis.get('confidence_level', 0) / 10.0,
-                        'questions_attempted': self._get_questions_attempted(evaluation, obj),
-                        'questions_correct': self._get_questions_correct(evaluation, obj),
-                        'accuracy_percentage': self._calculate_accuracy(evaluation.details, obj),
-                        'average_response_time': self._calculate_average_response_time(evaluation.details, obj),
-                        'total_completion_time': self._calculate_total_completion_time(evaluation.details, obj),
-                        'problem_solving_score': ai_analysis.get('problem_solving_score', (ai_analysis.get('technical_score', 0) + ai_analysis.get('coding_score', 0)) / 2) / 10.0,
+                            'questions_attempted': self._get_questions_attempted(evaluation, obj),
+                            'questions_correct': self._get_questions_correct(evaluation, obj),
+                            'accuracy_percentage': self._calculate_accuracy(evaluation.details, obj),
+                            'average_response_time': self._calculate_average_response_time(evaluation.details, obj),
+                            'total_completion_time': self._calculate_total_completion_time(evaluation.details, obj),
+                            'problem_solving_score': ai_analysis.get('problem_solving_score', (ai_analysis.get('technical_score', 0) + ai_analysis.get('coding_score', 0)) / 2) / 10.0,
                             'proctoring_pdf_url': proctoring_pdf_url,  # Add proctoring PDF URL
                             'proctoring_pdf_gcs_url': proctoring_pdf_gcs_url,  # Add GCS URL (absolute URL only)
                             'proctoring_warnings': proctoring_warnings,  # Add proctoring warnings
                         }
                         print(f"✅ Returning AI result with {len(proctoring_warnings)} proctoring warnings")
+                        print(f"✅ Proctoring PDF URL in result: {proctoring_pdf_gcs_url[:100] if proctoring_pdf_gcs_url else 'None'}...")
+                        print(f"✅ AI result keys: {list(result.keys())}")
+                        print(f"✅ Has proctoring_pdf_gcs_url: {'proctoring_pdf_gcs_url' in result}")
+                        if 'proctoring_pdf_gcs_url' in result:
+                            print(f"✅ proctoring_pdf_gcs_url value: {result['proctoring_pdf_gcs_url'][:100] if result['proctoring_pdf_gcs_url'] else 'Empty'}...")
                         return result
                     else:
                         print(f"⚠️ Evaluation exists but ai_analysis is empty")
@@ -489,7 +371,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             return "poor"
     
     def _build_ai_summary(self, ai_analysis, proctoring_pdf_gcs_url=None):
-        """Build AI summary from analysis, including Proctoring PDF URL"""
+        """Build AI summary from analysis"""
         parts = []
         if ai_analysis.get('technical_analysis'):
             parts.append(f"Technical: {ai_analysis['technical_analysis'][:200]}")
@@ -497,8 +379,12 @@ class InterviewSerializer(serializers.ModelSerializer):
             parts.append(f"Coding: {ai_analysis['coding_analysis'][:200]}")
         if ai_analysis.get('behavioral_analysis'):
             parts.append(f"Behavioral: {ai_analysis['behavioral_analysis'][:200]}")
+
+        # Add proctoring PDF URL at the end if available
         if proctoring_pdf_gcs_url:
             parts.append(f"Proctoring PDF: {proctoring_pdf_gcs_url}")
+
+>>>>>>> a119a23c266d9fb48352f648d4049b74a8324f1f
         return ". ".join(parts) if parts else ""
     
     def _get_questions_attempted(self, evaluation, interview_obj):
@@ -639,886 +525,173 @@ class InterviewSerializer(serializers.ModelSerializer):
             return 0
     
     def get_questions_and_answers(self, obj):
-        """Get questions and answers for this interview"""
+        """Get questions and answers for this interview - SAME LOGIC AS PDF GENERATION"""
         try:
-            from interview_app.models import InterviewSession, InterviewQuestion
+            from interview_app.models import InterviewSession, InterviewQuestion, CodeSubmission
             from django.utils import timezone
+            from django.db import connection
             
-            # Find the session for this interview using session_key
+            # Find the session for this interview using session_key (SAME AS PDF)
             session = None
             if obj.session_key:
                 try:
-                    session = InterviewSession.objects.get(session_key=obj.session_key)
+                    session = InterviewSession.objects.only('id', 'session_key', 'candidate_name').get(session_key=obj.session_key)
                     print(f"✅ Found session by session_key: {obj.session_key}")
                 except InterviewSession.DoesNotExist:
                     print(f"⚠️ Session not found by session_key: {obj.session_key}")
-                    pass
-            
-            # If not found by session_key, try to find by candidate and recent date
-            if not session and obj.candidate:
-                try:
-                    # Try to match by candidate email
-                    sessions = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at')
-                    
-                    # If interview has a created_at, try to match by date proximity
-                    if obj.created_at:
-                        # Find session created around the same time (within 1 hour)
-                        from datetime import timedelta
-                        time_window_start = obj.created_at - timedelta(hours=1)
-                        time_window_end = obj.created_at + timedelta(hours=1)
-                        sessions = sessions.filter(
-                            created_at__gte=time_window_start,
-                            created_at__lte=time_window_end
-                        )
-                    
-                    session = sessions.first()
-                    if session:
-                        print(f"✅ Found session by candidate email: {obj.candidate.email}")
                 except Exception as e:
-                    print(f"⚠️ Error finding session by candidate: {e}")
-                    pass
-            
-            # If still not found, try to find by interview round and candidate
-            if not session and obj.candidate and obj.interview_round:
-                try:
-                    # Get the most recent session for this candidate
-                    session = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at').first()
-                    if session:
-                        print(f"✅ Found most recent session for candidate: {obj.candidate.email}")
-                except Exception as e:
-                    print(f"⚠️ Error finding recent session: {e}")
-                    pass
+                    print(f"⚠️ Error finding session: {e}")
             
             if not session:
                 print(f"⚠️ No session found for interview {obj.id}")
                 return []
             
-            # Get all conversation items (AI and Interviewee responses) in sequential order
-            # Order by 'conversation_sequence' if available (new format), otherwise by 'order' and 'id' (old format)
-            # IMPORTANT: Use conversation_sequence for proper sequential ordering of AI/Interviewee conversation
+            # Get all questions ordered by conversation_sequence and order (SAME AS PDF)
             questions = InterviewQuestion.objects.filter(
                 session=session
-            ).order_by(
-                'conversation_sequence',  # Primary: Use conversation_sequence for sequential ordering
-                'order',  # Secondary: Fallback to order if conversation_sequence is null
-                'id'  # Tertiary: Use id for consistency when both are same
-            )
-            
-            # Additional validation: Ensure order values are sequential and fix any gaps
-            # This helps catch any ordering issues
-            question_list = list(questions)
-            if question_list:
-                orders = [q.order for q in question_list]
-                if len(set(orders)) != len(orders):
-                    print(f"⚠️ WARNING: Duplicate order values detected! Orders: {orders}")
-                    # Log detailed info for debugging
-                    for q in question_list:
-                        print(f"   Order {q.order}, Seq {q.conversation_sequence}, Type {q.question_type}, Level {q.question_level}, Role {q.role}")
-                # Log order sequence for debugging
-                print(f"📋 Question order sequence: {[f'Q{q.order}({q.question_level})' for q in question_list]}")
-            
-            print(f"✅ Found {questions.count()} questions for session {session.session_key}")
-            # Debug: Print all questions with their order, role, conversation_sequence, and answers
-            for q in questions:
-                answer_display = q.transcribed_answer[:50] if q.transcribed_answer else '(NULL)'
-                role_display = q.role or '(no role)'
-                seq_display = q.conversation_sequence if q.conversation_sequence is not None else '(no seq)'
-                print(f"   Q{q.order} (seq:{seq_display}, role:{role_display}): {q.question_text[:50] if q.question_text else '(no text)'}... | Answer: {answer_display}... | Type: {q.question_type} | Level: {q.question_level}")
-            
-            # Also log all INTERVIEWEE records separately for debugging
-            interviewee_records = InterviewQuestion.objects.filter(
-                session=session,
-                role='INTERVIEWEE'
-            ).order_by('order', 'conversation_sequence')
-            print(f"📋 Found {interviewee_records.count()} INTERVIEWEE records:")
-            for ir in interviewee_records:
-                answer_display = ir.transcribed_answer[:50] if ir.transcribed_answer else '(NULL)'
-                print(f"   INTERVIEWEE Order {ir.order} (seq:{ir.conversation_sequence}, level:{ir.question_level}): Answer: {answer_display}...")
-            
-            # Import CodeSubmission model
-            from interview_app.models import CodeSubmission
-            
-            qa_list = []
-            # Process questions sequentially (already sorted by conversation_sequence, order, id)
-            # IMPORTANT: For CODING questions, we need to handle them separately since answers come from CodeSubmission
-            coding_questions_list = []  # Track coding questions separately
-            questions_by_order = {}  # Group non-coding questions by order for pairing AI with Interviewee
-            
-            # First pass: Separate CODING questions and group non-coding questions
-            for q in questions:
-                question_type = (q.question_type or '').upper()
-                
-                # For CODING questions, track them separately
-                if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
-                    if q.question_text and q.question_text.strip():
-                        coding_questions_list.append(q)
-                        print(f"✅ Added CODING question to separate list: ConvSeq {q.conversation_sequence}, Order {q.order}, ID {q.id}, Type: {q.question_type}, Question: {q.question_text[:50]}...")
-                    continue
-                
-                # For non-coding questions, group by order (they may share same order if AI and Interviewee)
-                # CRITICAL: Use a composite key (order, conversation_sequence) to handle duplicate orders
-                # This ensures questions with same order but different sequences are handled separately
-                order_key = q.order
-                seq_key = q.conversation_sequence if q.conversation_sequence is not None else -1
-                composite_key = (order_key, seq_key)  # Use tuple as key to handle duplicates
-                
-                if composite_key not in questions_by_order:
-                    questions_by_order[composite_key] = {'ai': None, 'interviewee': None, 'conversation_sequence': seq_key if seq_key != -1 else None, 'order': order_key}
-                
-                # Update conversation_sequence if available (use the AI question's sequence)
-                if q.conversation_sequence is not None:
-                    if questions_by_order[composite_key]['conversation_sequence'] is None:
-                        questions_by_order[composite_key]['conversation_sequence'] = q.conversation_sequence
-                    elif q.role and q.role.upper() == 'AI':
-                        # Prefer AI question's conversation_sequence for ordering
-                        questions_by_order[composite_key]['conversation_sequence'] = q.conversation_sequence
-                
-                # Check if this is an AI question/response or Interviewee answer/question
-                has_role = q.role is not None and q.role.strip()
-                if has_role:
-                    if q.role.upper() == 'AI' and q.question_text:
-                        # AI question or AI response to candidate question
-                        # IMPORTANT: Only add if it's not a candidate question incorrectly saved
-                        if q.question_level != 'CANDIDATE_QUESTION':
-                            questions_by_order[composite_key]['ai'] = q
-                        else:
-                            # This shouldn't happen, but if AI record has CANDIDATE_QUESTION level, skip it
-                            print(f"⚠️ Skipping AI record with CANDIDATE_QUESTION level: {q.id}")
-                    elif q.role.upper() == 'INTERVIEWEE':
-                        if q.question_level == 'CANDIDATE_QUESTION':
-                            # Candidate asked a question - this should be shown in answer section
-                            # The AI's response (if exists) should be in question section
-                            # IMPORTANT: Candidate questions should have empty question_text and text in transcribed_answer
-                            if not q.question_text or not q.question_text.strip():
-                                questions_by_order[composite_key]['interviewee'] = q
-                            else:
-                                # Candidate question incorrectly has question_text - move it to transcribed_answer
-                                print(f"⚠️ Candidate question {q.id} has question_text, should be in transcribed_answer")
-                                if not q.transcribed_answer:
-                                    q.transcribed_answer = q.question_text
-                                    q.question_text = ''
-                                    q.save(update_fields=['question_text', 'transcribed_answer'])
-                                questions_by_order[composite_key]['interviewee'] = q
-                        elif q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE':
-                            # Regular candidate answer (including "No answer provided")
-                            # IMPORTANT: Include all INTERVIEWEE_RESPONSE records, even if transcribed_answer is empty
-                            # This ensures all questions have corresponding answers displayed
-                            if not questions_by_order[composite_key]['interviewee']:
-                                questions_by_order[composite_key]['interviewee'] = q
-                                print(f"✅ Added INTERVIEWEE record to order {order_key} (seq {seq_key}): {q.transcribed_answer[:50] if q.transcribed_answer else 'No answer'}...")
-                            else:
-                                # If there's already an interviewee record, prefer the one with transcribed_answer
-                                if q.transcribed_answer and not questions_by_order[composite_key]['interviewee'].transcribed_answer:
-                                    questions_by_order[composite_key]['interviewee'] = q
-                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} (seq {seq_key}) with one that has answer: {q.transcribed_answer[:50]}...")
-                                elif q.transcribed_answer and len(q.transcribed_answer) > len(questions_by_order[composite_key]['interviewee'].transcribed_answer or ''):
-                                    # Prefer longer answer if both have answers
-                                    questions_by_order[composite_key]['interviewee'] = q
-                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} (seq {seq_key}) with longer answer: {q.transcribed_answer[:50]}...")
-                elif q.question_text and q.question_text.strip():
-                    # Old format: question_text exists, treat as AI question
-                    # But check role first - if role is INTERVIEWEE, it's a candidate question
-                    if q.role and q.role.upper() == 'INTERVIEWEE':
-                        # This is a candidate question in old format - move to interviewee
-                        if q.question_level == 'CANDIDATE_QUESTION':
-                            questions_by_order[composite_key]['interviewee'] = q
-                        else:
-                            questions_by_order[composite_key]['ai'] = q
-                    else:
-                        questions_by_order[composite_key]['ai'] = q
-            
-            # Now create Q&A pairs from grouped questions - sort by conversation_sequence first, then order
-            # CRITICAL: Handle duplicate orders by using conversation_sequence as primary sort key
-            # Since we're using composite keys (order, sequence), extract order and sequence for sorting
-            sorted_order_keys = sorted(questions_by_order.keys(), key=lambda k: (
-                questions_by_order[k].get('conversation_sequence') if questions_by_order[k].get('conversation_sequence') is not None else (999999 + questions_by_order[k].get('order', 0)),
-                questions_by_order[k].get('order', 0),
-                k[1] if isinstance(k, tuple) else -1  # Use sequence from composite key if available
-            ))
-            
-            # Log the sorted sequence for debugging
-            print(f"📋 Sorted order keys (composite): {sorted_order_keys}")
-            for composite_key in sorted_order_keys:
-                q_pair = questions_by_order[composite_key]
-                ai_q = q_pair.get('ai')
-                seq = q_pair.get('conversation_sequence', 'None')
-                order_val = q_pair.get('order', 'None')
-                print(f"   Order {order_val}, Seq {seq}, AI: {ai_q.id if ai_q else 'None'}, Interviewee: {q_pair.get('interviewee').id if q_pair.get('interviewee') else 'None'}")
-            
-            # Before processing, check for any AI questions without interviewee answers
-            # and try to find their corresponding interviewee responses
-            for composite_key in sorted_order_keys:
-                q_pair = questions_by_order[composite_key]
-                order_val = q_pair.get('order', 0)
-                seq_val = q_pair.get('conversation_sequence')
-                
-                if q_pair['ai'] and not q_pair['interviewee']:
-                    # Try to find interviewee response for this order and sequence
-                    try:
-                        # First try by conversation_sequence (most accurate)
-                        missed_interviewee = None
-                        if seq_val is not None:
-                            # Interviewee responses typically have sequence = AI sequence + 1
-                            interviewee_seq = seq_val + 1
-                            missed_interviewee = InterviewQuestion.objects.filter(
-                                session=session,
-                                conversation_sequence=interviewee_seq,
-                                role='INTERVIEWEE',
-                                question_level='INTERVIEWEE_RESPONSE'
-                            ).first()
-                        
-                        # Fallback: try by order
-                        if not missed_interviewee:
-                            missed_interviewee = InterviewQuestion.objects.filter(
-                                session=session,
-                                order=order_val,
-                                role='INTERVIEWEE',
-                                question_level='INTERVIEWEE_RESPONSE'
-                            ).first()
-                        
-                        if missed_interviewee:
-                            q_pair['interviewee'] = missed_interviewee
-                            print(f"✅ Found missed interviewee response for order {order_val} (seq {seq_val}) during pairing: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
-                    except Exception as e:
-                        print(f"⚠️ Error finding missed interviewee response for order {order_val}: {e}")
-            
-            for composite_key in sorted_order_keys:
-                q_pair = questions_by_order[composite_key]
-                ai_q = q_pair['ai']
-                interviewee_a = q_pair['interviewee']
-                
-                # Handle candidate questions: if no AI question but there's an interviewee with CANDIDATE_QUESTION
-                order_val = q_pair.get('order', 0)
-                if not ai_q and interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                    # Candidate asked a question - look for AI response in next sequence
-                    current_seq = q_pair.get('conversation_sequence')
-                    if current_seq is not None:
-                        # Look for AI response with next sequence
-                        next_seq = current_seq + 1
-                        # Find composite key with next sequence
-                        found_ai_response = None
-                        for next_key in sorted_order_keys:
-                            next_pair = questions_by_order[next_key]
-                            if next_pair.get('conversation_sequence') == next_seq and next_pair.get('ai'):
-                                found_ai_response = next_pair['ai']
-                                if found_ai_response.question_level == 'AI_RESPONSE':
-                                    ai_q = found_ai_response
-                                    questions_by_order[next_key]['processed'] = True
-                                    print(f"✅ Paired candidate question (order {order_val}, seq {current_seq}) with AI response (seq {next_seq})")
-                                    break
-                    
-                    # Fallback: try next order
-                    if not ai_q:
-                        next_order = order_val + 1
-                        # Find composite key with next order
-                        for next_key in sorted_order_keys:
-                            next_pair = questions_by_order[next_key]
-                            if next_pair.get('order') == next_order and next_pair.get('ai'):
-                                ai_response = next_pair['ai']
-                                if ai_response.question_level == 'AI_RESPONSE':
-                                    ai_q = ai_response
-                                    questions_by_order[next_key]['processed'] = True
-                                    print(f"✅ Paired candidate question (order {order_val}) with AI response (order {next_order})")
-                                    break
-                    
-                    if not ai_q:
-                        # No AI response found yet - skip this for now
-                        print(f"⚠️ Candidate question at order {order_val} has no AI response yet, skipping")
-                        continue
-                
-                # Skip if no AI question (after trying to find AI response for candidate questions)
-                if not ai_q:
-                    continue
-                
-                # Skip if already processed (as part of candidate question handling)
-                # CRITICAL: Use composite_key, not order_key, since we're using composite keys
-                if questions_by_order.get(composite_key, {}).get('processed'):
-                    continue
-                
-                # Determine question type (case-insensitive)
-                # IMPORTANT: Use the original question_type from database, then uppercase for comparison
-                original_question_type = ai_q.question_type or 'TECHNICAL'
-                question_type = original_question_type.upper()
-                
-                # Get question text - always from AI (role='AI', question_text field)
-                question_text = ai_q.question_text or ''
-                if question_text.strip().startswith('Q:'):
-                    question_text = question_text.replace('Q:', '').strip()
-                
-                # Special handling: If AI response is to a candidate question, get candidate question as answer
-                # IMPORTANT: For candidate questions, the question_text should be AI's response, 
-                # and the answer should be the candidate's question
-                if ai_q.question_level == 'AI_RESPONSE':
-                    # This is AI responding to a candidate question
-                    # Question section: AI's response (already in question_text from ai_q.question_text)
-                    # Answer section: Need to find the candidate's question
-                    # Look for interviewee record with CANDIDATE_QUESTION at current or previous order
-                    if not interviewee_a or interviewee_a.question_level != 'CANDIDATE_QUESTION':
-                        # Try to find candidate question at previous order
-                        prev_order = order_key - 1
-                        if prev_order in questions_by_order:
-                            prev_pair = questions_by_order[prev_order]
-                            if prev_pair.get('interviewee') and prev_pair['interviewee'].question_level == 'CANDIDATE_QUESTION':
-                                interviewee_a = prev_pair['interviewee']
-                                print(f"✅ Found candidate question at previous order {prev_order}")
-                elif interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                    # Candidate question is at same order as AI response
-                    # This is correct - will be handled in answer section below
-                    pass
-                
-                # Get answer based on question type
-                # Handle both 'CODING' and 'CODING CHALLENGE' types
-                if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
-                    # For CODING questions, get answer from CodeSubmission
-                    answer_text = None
-                    created_at = None
-                    response_time = 0
-                    try:
-                        print(f"🔍 Looking for CodeSubmission for CODING question ID: {ai_q.id} (as string: {str(ai_q.id)}, UUID: {ai_q.id})")
-                        
-                        # Try multiple ways to find the CodeSubmission
-                        # First: exact match by session and question_id (try both UUID string and direct UUID)
-                        question_id_str = str(ai_q.id)
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session,
-                            question_id=question_id_str
-                        ).order_by('-created_at').first()
-                        
-                        # Also try without hyphens (in case UUID is stored differently)
-                        if not code_submission:
-                            question_id_no_hyphens = question_id_str.replace('-', '')
-                            code_submission = CodeSubmission.objects.filter(
-                                session=session,
-                                question_id=question_id_no_hyphens
-                            ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            print(f"✅ Found CodeSubmission by exact match: ID {code_submission.id}, Question ID: {code_submission.question_id}")
-                        else:
-                            # Second: try by session only (get the most recent one)
-                            print(f"⚠️ No exact match found, trying by session only...")
-                            code_submission = CodeSubmission.objects.filter(
-                                session=session
-                            ).order_by('-created_at').first()
-                            
-                            if code_submission:
-                                print(f"✅ Found CodeSubmission by session: ID {code_submission.id}, Question ID: {code_submission.question_id} (expected: {str(ai_q.id)})")
-                            else:
-                                # Third: try any CodeSubmission for this question ID (across all sessions)
-                                print(f"⚠️ No match by session, trying by question_id only...")
-                                code_submission = CodeSubmission.objects.filter(
-                                    question_id=str(ai_q.id)
-                                ).order_by('-created_at').first()
-                                
-                                if code_submission:
-                                    print(f"✅ Found CodeSubmission by question_id only: ID {code_submission.id}")
-                        
-                        if code_submission and code_submission.submitted_code:
-                            answer_text = code_submission.submitted_code
-                            created_at = code_submission.created_at
-                            print(f"✅ Using CodeSubmission answer: {len(answer_text)} characters")
-                        else:
-                            # Check if there's a transcribed_answer as fallback
-                            # The transcribed_answer might contain the code if CodeSubmission lookup failed
-                            if ai_q.transcribed_answer:
-                                transcribed = ai_q.transcribed_answer
-                                # Check if transcribed_answer contains "Submitted Code:" - extract the code part
-                                if "Submitted Code:" in transcribed:
-                                    # Extract code after "Submitted Code:"
-                                    code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                                    answer_text = transcribed[code_start:].strip()
-                                    print(f"⚠️ No CodeSubmission found, extracted code from transcribed_answer: {len(answer_text)} characters")
-                                else:
-                                    # Use transcribed_answer as-is, but remove A: prefix if present
-                                    answer_text = transcribed
-                                    if answer_text.strip().startswith('A:'):
-                                        answer_text = answer_text.replace('A:', '').strip()
-                                    print(f"⚠️ No CodeSubmission found, using transcribed_answer: {len(answer_text)} characters")
-                            else:
-                                answer_text = 'No code submitted'
-                                print(f"⚠️ No CodeSubmission and no transcribed_answer, using 'No code submitted'")
-                            created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                    except Exception as e:
-                        print(f"⚠️ Error fetching CodeSubmission for question {ai_q.id}: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        # Fallback to transcribed_answer if available
-                        if ai_q.transcribed_answer:
-                            transcribed = ai_q.transcribed_answer
-                            # Check if transcribed_answer contains "Submitted Code:" - extract the code part
-                            if "Submitted Code:" in transcribed:
-                                # Extract code after "Submitted Code:"
-                                code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                                answer_text = transcribed[code_start:].strip()
-                            else:
-                                answer_text = transcribed
-                                if answer_text.strip().startswith('A:'):
-                                    answer_text = answer_text.replace('A:', '').strip()
-                        else:
-                            answer_text = 'No code submitted'
-                        created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                else:
-                    # For TECHNICAL and BEHAVIORAL questions
-                    # Initialize answer_text to avoid UnboundLocalError
-                    answer_text = None
-                    created_at = None
-                    response_time = 0
-                    
-                    # CRITICAL: Try multiple methods to find the answer
-                    # Method 1: Use the paired interviewee_a if available
-                    if interviewee_a:
-                        # Use the separate Interviewee record
-                        answer_text = interviewee_a.transcribed_answer or ''
-                        if answer_text.strip().startswith('A:'):
-                            answer_text = answer_text.replace('A:', '').strip()
-                        
-                        # IMPORTANT: If this is a candidate question (question_level='CANDIDATE_QUESTION'),
-                        # the transcribed_answer contains the candidate's question, which should be shown in answer section
-                        if interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                            # Candidate asked a question - show it in answer section
-                            # The answer_text already contains the candidate's question from transcribed_answer
-                            answer_text = answer_text.strip() if answer_text else 'No question provided'
-                            print(f"✅ Using candidate question as answer: {answer_text[:50]}...")
-                        
-                        created_at = interviewee_a.session.created_at if hasattr(interviewee_a.session, 'created_at') else None
-                        response_time = interviewee_a.response_time_seconds or 0
-                        print(f"✅ Found answer from paired interviewee_a for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
-                    
-                    # Method 2: Try to find interviewee response by order, role, and question_level
-                    if not answer_text or (answer_text and answer_text.strip() == ''):
-                        try:
-                            print(f"🔍 Method 2: Searching for interviewee response for order {ai_q.order}, question ID {ai_q.id}...")
-                            
-                            # First try: exact match by order, role, and question_level
-                            missed_interviewee = InterviewQuestion.objects.filter(
-                                session=session,
-                                order=ai_q.order,
-                                role='INTERVIEWEE',
-                                question_level='INTERVIEWEE_RESPONSE'
-                            ).first()
-                            
-                            if missed_interviewee:
-                                print(f"✅ Method 2.1: Found by exact match (order={ai_q.order}, role=INTERVIEWEE, level=INTERVIEWEE_RESPONSE)")
-                            
-                            # Second try: if not found, try by order and role only (ignore question_level)
-                            if not missed_interviewee:
-                                missed_interviewee = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    order=ai_q.order,
-                                    role='INTERVIEWEE'
-                                ).exclude(
-                                    question_level='CANDIDATE_QUESTION'  # Exclude candidate questions
-                                ).first()
-                                
-                                if missed_interviewee:
-                                    print(f"✅ Method 2.2: Found by order and role (order={ai_q.order}, role=INTERVIEWEE)")
-                            
-                            # Third try: if still not found, try by conversation_sequence (even sequence = interviewee)
-                            if not missed_interviewee and ai_q.conversation_sequence is not None:
-                                # Interviewee responses have even conversation_sequence (2, 4, 6...)
-                                # AI questions have odd conversation_sequence (1, 3, 5...)
-                                interviewee_sequence = ai_q.conversation_sequence + 1
-                                missed_interviewee = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    conversation_sequence=interviewee_sequence,
-                                    role='INTERVIEWEE'
-                                ).first()
-                                
-                                if missed_interviewee:
-                                    print(f"✅ Method 2.3: Found by conversation_sequence (seq={interviewee_sequence})")
-                            
-                            # Fourth try: find any INTERVIEWEE record with same order (most permissive)
-                            if not missed_interviewee:
-                                all_interviewees = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    order=ai_q.order,
-                                    role='INTERVIEWEE'
-                                ).order_by('-id')  # Get most recent
-                                
-                                if all_interviewees.exists():
-                                    missed_interviewee = all_interviewees.first()
-                                    print(f"✅ Method 2.4: Found by order only (order={ai_q.order}, found {all_interviewees.count()} records, using most recent)")
-                            
-                            if missed_interviewee:
-                                answer_text = missed_interviewee.transcribed_answer or ''
-                                if answer_text.strip().startswith('A:'):
-                                    answer_text = answer_text.replace('A:', '').strip()
-                                created_at = missed_interviewee.session.created_at if hasattr(missed_interviewee.session, 'created_at') else None
-                                response_time = missed_interviewee.response_time_seconds or 0
-                                print(f"✅ Found missed interviewee response for order {ai_q.order} (sequence {missed_interviewee.conversation_sequence}): {answer_text[:50] if answer_text else 'No answer'}...")
-                            else:
-                                print(f"⚠️ Method 2: No interviewee response found for order {ai_q.order}, question ID {ai_q.id}")
-                                # Log all interviewee records for this session to help debug
-                                all_interviewees = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    role='INTERVIEWEE'
-                                ).order_by('order', 'conversation_sequence')
-                                print(f"   Total INTERVIEWEE records in session: {all_interviewees.count()}")
-                                for ir in all_interviewees[:10]:  # Show first 10
-                                    print(f"   - Order {ir.order}, Seq {ir.conversation_sequence}, Level {ir.question_level}, Answer: {ir.transcribed_answer[:30] if ir.transcribed_answer else '(NULL)'}...")
-                        except Exception as e:
-                            print(f"⚠️ Error looking for missed interviewee response: {e}")
-                            import traceback
-                            traceback.print_exc()
-                    
-                    # Method 3: Final fallback - use transcribed_answer from the AI question record itself
-                    if not answer_text or (answer_text and answer_text.strip() == ''):
-                        if ai_q.transcribed_answer is not None and ai_q.transcribed_answer.strip():
-                            answer_text = ai_q.transcribed_answer
-                            if answer_text.strip().startswith('A:'):
-                                answer_text = answer_text.replace('A:', '').strip()
-                            if answer_text == "None" or answer_text.lower() == "none":
-                                answer_text = ''
-                            print(f"✅ Using transcribed_answer from AI question record for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
-                        else:
-                            # Ultimate fallback: no answer available
-                            answer_text = ''
-                            print(f"⚠️ No answer found for order {ai_q.order}, question ID {ai_q.id}")
-                    
-                    # Set created_at and response_time if not already set
-                    if created_at is None:
-                        created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                    if response_time == 0:
-                        response_time = ai_q.response_time_seconds or 0
-                    
-                    # Format the answer - ensure we always have something to display
-                    if answer_text is None:
-                        answer_text = 'No answer provided'
-                    elif isinstance(answer_text, str):
-                        stripped = answer_text.strip()
-                        if stripped == '' or stripped.lower() == 'none':
-                            answer_text = 'No answer provided'
-                        # Remove any "A:" prefix that might be left
-                        if answer_text.startswith('A:'):
-                            answer_text = answer_text[2:].strip()
-                    
-                    # CRITICAL: If answer_text is still empty after all fallbacks, log a warning
-                    if not answer_text or answer_text.strip() == '':
-                        print(f"⚠️ WARNING: No answer found for question order {ai_q.order}, ID {ai_q.id}, question: {ai_q.question_text[:50]}...")
-                        print(f"   - AI question transcribed_answer: {ai_q.transcribed_answer[:50] if ai_q.transcribed_answer else '(NULL)'}")
-                        print(f"   - Interviewee record exists: {bool(interviewee_a)}")
-                        if interviewee_a:
-                            print(f"   - Interviewee transcribed_answer: {interviewee_a.transcribed_answer[:50] if interviewee_a.transcribed_answer else '(NULL)'}")
-                        answer_text = 'No answer provided'  # Final fallback
-                
-                # Create Q&A item in old format (question_text and answer together)
-                # IMPORTANT: Preserve the original question_type from database (not the uppercased version)
-                original_question_type = ai_q.question_type or 'TECHNICAL'
-                
-                # Get conversation_sequence and order for proper ordering
-                conversation_seq = ai_q.conversation_sequence if hasattr(ai_q, 'conversation_sequence') and ai_q.conversation_sequence is not None else None
-                order_value = ai_q.order if hasattr(ai_q, 'order') else order_key
-                
-                qa_item = {
-                    'id': str(ai_q.id),
-                    'order': order_value,
-                    'conversation_sequence': conversation_seq,  # Add conversation_sequence for proper ordering
-                    'question_text': question_text,
-                    'question_type': original_question_type,  # Use original case from database
-                    'answer': answer_text,
-                    'response_time': response_time if (question_type != 'CODING' and question_type != 'CODING CHALLENGE') else (interviewee_a.response_time_seconds if interviewee_a else 0),
-                    'answered_at': created_at,
-                    'question_level': ai_q.question_level or 'MAIN',
-                    # Add role information for sequential display (like PDF)
-                    'role': 'interviewer',  # AI questions are from interviewer
-                    'text': question_text,  # For sequential format compatibility
-                }
-                
-                # For CODING questions, also include code submission metadata
-                if question_type == 'CODING':
-                    try:
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session,
-                            question_id=str(ai_q.id)
-                        ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            qa_item['code_submission'] = {
-                                'id': str(code_submission.id),
-                                'passed_all_tests': code_submission.passed_all_tests,
-                                'language': code_submission.language,
-                                'output_log': code_submission.output_log,
-                                'created_at': code_submission.created_at.isoformat() if code_submission.created_at else None,
-                            }
-                            # Also add is_correct flag based on test results
-                            qa_item['is_correct'] = code_submission.passed_all_tests
-                            print(f"✅ Added code_submission metadata to CODING Q&A item: ID {ai_q.id}, Passed: {code_submission.passed_all_tests}")
-                    except Exception as e:
-                        print(f"⚠️ Error adding code_submission metadata: {e}")
-                
-                qa_list.append(qa_item)
-                
-                # Debug: Log coding questions being added
-                if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
-                    print(f"✅ Added CODING Q&A item: Order {order_key}, ID {ai_q.id}, Type: {original_question_type}, Has Answer: {bool(answer_text and answer_text != 'No code submitted')}")
-            
-            # Now process CODING questions separately and add them to qa_list
-            # This ensures they're included even if they share the same order as TECHNICAL questions
-            print(f"🔍 Processing {len(coding_questions_list)} CODING questions separately...")
-            for coding_q in coding_questions_list:
-                order_key = coding_q.order
-                original_question_type = coding_q.question_type or 'CODING'
-                question_type = original_question_type.upper()
-                
-                # Get question text
-                question_text = coding_q.question_text or ''
-                if question_text.strip().startswith('Q:'):
-                    question_text = question_text.replace('Q:', '').strip()
-                
-                # Get answer from CodeSubmission
-                answer_text = None
-                created_at = None
-                response_time = 0
-                try:
-                    print(f"🔍 Looking for CodeSubmission for CODING question ID: {coding_q.id} (as string: {str(coding_q.id)}, UUID: {coding_q.id})")
-                    
-                    # Try multiple ways to find the CodeSubmission
-                    question_id_str = str(coding_q.id)
-                    code_submission = CodeSubmission.objects.filter(
-                        session=session,
-                        question_id=question_id_str
-                    ).order_by('-created_at').first()
-                    
-                    # Also try without hyphens (in case UUID is stored differently)
-                    if not code_submission:
-                        question_id_no_hyphens = question_id_str.replace('-', '')
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session,
-                            question_id=question_id_no_hyphens
-                        ).order_by('-created_at').first()
-                    
-                    if code_submission:
-                        print(f"✅ Found CodeSubmission by exact match: ID {code_submission.id}, Question ID: {code_submission.question_id}")
-                    else:
-                        # Second: try by session only (get the most recent one)
-                        print(f"⚠️ No exact match found, trying by session only...")
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session
-                        ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            print(f"✅ Found CodeSubmission by session: ID {code_submission.id}, Question ID: {code_submission.question_id} (expected: {question_id_str})")
-                        else:
-                            # Third: try any CodeSubmission for this question ID (across all sessions)
-                            print(f"⚠️ No match by session, trying by question_id only...")
-                            code_submission = CodeSubmission.objects.filter(
-                                question_id=question_id_str
-                            ).order_by('-created_at').first()
-                            
-                            if code_submission:
-                                print(f"✅ Found CodeSubmission by question_id only: ID {code_submission.id}")
-                    
-                    if code_submission and code_submission.submitted_code:
-                        answer_text = code_submission.submitted_code
-                        created_at = code_submission.created_at
-                        print(f"✅ Using CodeSubmission answer: {len(answer_text)} characters")
-                    else:
-                        # Check if there's a transcribed_answer as fallback
-                        if coding_q.transcribed_answer:
-                            transcribed = coding_q.transcribed_answer
-                            # Check if transcribed_answer contains "Submitted Code:" - extract the code part
-                            if "Submitted Code:" in transcribed:
-                                code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                                answer_text = transcribed[code_start:].strip()
-                                print(f"⚠️ No CodeSubmission found, extracted code from transcribed_answer: {len(answer_text)} characters")
-                            else:
-                                answer_text = transcribed
-                                if answer_text.strip().startswith('A:'):
-                                    answer_text = answer_text.replace('A:', '').strip()
-                                print(f"⚠️ No CodeSubmission found, using transcribed_answer: {len(answer_text)} characters")
-                        else:
-                            answer_text = 'No code submitted'
-                            print(f"⚠️ No CodeSubmission and no transcribed_answer, using 'No code submitted'")
-                        created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
-                except Exception as e:
-                    print(f"⚠️ Error fetching CodeSubmission for question {coding_q.id}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Fallback to transcribed_answer if available
-                    if coding_q.transcribed_answer:
-                        transcribed = coding_q.transcribed_answer
-                        if "Submitted Code:" in transcribed:
-                            code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                            answer_text = transcribed[code_start:].strip()
-                        else:
-                            answer_text = transcribed
-                            if answer_text.strip().startswith('A:'):
-                                answer_text = answer_text.replace('A:', '').strip()
-                    else:
-                        answer_text = 'No code submitted'
-                    created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
-                
-                # Create Q&A item for CODING question
-                # Get conversation_sequence for proper ordering
-                conversation_seq = coding_q.conversation_sequence if hasattr(coding_q, 'conversation_sequence') and coding_q.conversation_sequence is not None else None
-                
-                qa_item = {
-                    'id': str(coding_q.id),
-                    'order': order_key,
-                    'conversation_sequence': conversation_seq,  # Add conversation_sequence for proper ordering
-                    'question_text': question_text,
-                    'question_type': original_question_type,
-                    'answer': answer_text,
-                    'response_time': 0,
-                    'answered_at': created_at,
-                    'question_level': coding_q.question_level or 'MAIN',
-                }
-                
-                # Add code submission metadata
-                try:
-                    if code_submission:
-                        qa_item['code_submission'] = {
-                            'id': str(code_submission.id),
-                            'passed_all_tests': code_submission.passed_all_tests,
-                            'language': code_submission.language,
-                            'output_log': code_submission.output_log,
-                            'created_at': code_submission.created_at.isoformat() if code_submission.created_at else None,
-                        }
-                        qa_item['is_correct'] = code_submission.passed_all_tests
-                        print(f"✅ Added code_submission metadata to CODING Q&A item: ID {coding_q.id}, Passed: {code_submission.passed_all_tests}")
-                except Exception as e:
-                    print(f"⚠️ Error adding code_submission metadata: {e}")
-                
-                qa_list.append(qa_item)
-                print(f"✅ Added CODING Q&A item to list: Order {order_key}, ID {coding_q.id}, Has Answer: {bool(answer_text and answer_text != 'No code submitted')}")
-            
-            # Sort by conversation_sequence first (if available), then by order, then by id
-            # This ensures proper sequential ordering of questions
-            qa_list.sort(key=lambda x: (
-                x.get('conversation_sequence') if x.get('conversation_sequence') is not None else 999999,  # Use conversation_sequence if available
-                x.get('order', 0),  # Fallback to order
-                x.get('id', '')  # Final fallback to id
-            ))
-            
-            # CRITICAL: Also create a sequential conversation format (like PDF) for proper script display
-            # This ensures all conversation turns are shown in order, matching the PDF format
-            sequential_conversation = []
-            
-            # Get all questions in sequential order (by conversation_sequence)
-            all_sequential_questions = InterviewQuestion.objects.filter(
-                session=session
-            ).exclude(
-                # Exclude CODING questions from sequential conversation (they're handled separately)
-                question_type='CODING'
             ).order_by(
                 'conversation_sequence',
                 'order',
                 'id'
             )
             
-            # Build sequential conversation list
-            for q in all_sequential_questions:
-                # Skip empty records
-                if not q.question_text and not q.transcribed_answer:
+            # Group questions by order to pair AI questions with Interviewee answers (SAME AS PDF)
+            questions_by_order = {}
+            for q in questions:
+                order_key = q.order
+                if order_key not in questions_by_order:
+                    questions_by_order[order_key] = {'ai': None, 'interviewee': None}
+                
+                # Check if this is an AI question or Interviewee answer (SAME AS PDF)
+                if q.role == 'AI' and q.question_text:
+                    questions_by_order[order_key]['ai'] = q
+                elif q.role == 'INTERVIEWEE' and (q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE'):
+                    if not questions_by_order[order_key]['interviewee']:
+                        questions_by_order[order_key]['interviewee'] = q
+                    elif q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
+                        # Prefer record with transcribed_answer
+                        questions_by_order[order_key]['interviewee'] = q
+                elif not q.role and q.question_text:
+                    # Old format: question_text exists, treat as AI question
+                    questions_by_order[order_key]['ai'] = q
+            
+            # Get coding submissions for coding questions
+            coding_submissions = CodeSubmission.objects.filter(session=session).order_by('created_at')
+            
+            # Sort by order and create Q&A pairs (SAME AS PDF)
+            sorted_orders = sorted(questions_by_order.keys())
+            qa_list = []
+            
+            for order_key in sorted_orders:
+                q_pair = questions_by_order[order_key]
+                ai_q = q_pair['ai']
+                interviewee_a = q_pair['interviewee']
+                
+                # Skip if no AI question
+                if not ai_q:
                     continue
                 
-                # Determine role based on question record
-                if q.role and q.role.upper() == 'AI':
-                    # AI/Interviewer message
-                    text = q.question_text or ''
-                    if text.strip():
-                        sequential_conversation.append({
-                            'role': 'interviewer',
-                            'text': text,
-                            'conversation_sequence': q.conversation_sequence,
-                            'order': q.order,
-                            'question_level': q.question_level or 'MAIN',
-                            'question_type': q.question_type or 'TECHNICAL'
-                        })
+                # Handle CODING questions differently - get answer from CodeSubmission (SAME AS PDF)
+                if ai_q.question_type == 'CODING':
+                    # Get question text
+                    question_text = ai_q.question_text or ''
+                    if question_text.strip().startswith('Q:'):
+                        question_text = question_text.replace('Q:', '').strip()
+                    
+                    # Find corresponding code submission
+                    answer_text = 'No code submitted'
+                    code_submission_data = None
+                    try:
+                        submission = coding_submissions.filter(
+                            question_id=str(ai_q.id)
+                        ).first()
+                        
+                        if not submission:
+                            # Try without hyphens
+                            question_id_no_hyphens = str(ai_q.id).replace('-', '')
+                            submission = coding_submissions.filter(
+                                question_id=question_id_no_hyphens
+                            ).first()
+                        
+                        if submission and submission.submitted_code:
+                            answer_text = submission.submitted_code
+                            code_submission_data = {
+                                'submitted_code': submission.submitted_code,
+                                'language': submission.language,
+                                'passed_all_tests': submission.passed_all_tests,
+                                'output_log': submission.output_log,
+                                'gemini_evaluation': submission.gemini_evaluation,
+                                'created_at': submission.created_at.isoformat() if submission.created_at else None,
+                            }
+                    except Exception as e:
+                        print(f"⚠️ Error finding submission for coding question {ai_q.id}: {e}")
+                    
+                    qa_item = {
+                        'question_number': ai_q.order + 1,
+                        'question': question_text,
+                        'question_text': question_text,  # Also include for compatibility
+                        'answer': answer_text,
+                        'question_type': 'CODING',
+                        'response_time': 0,
+                        'order': ai_q.order,
+                        'conversation_sequence': ai_q.conversation_sequence,
+                    }
+                    
+                    if code_submission_data:
+                        qa_item['code_submission'] = code_submission_data
+                    
+                    qa_list.append(qa_item)
+                    continue  # Skip regular answer handling for coding questions
                 
-                if q.role and q.role.upper() == 'INTERVIEWEE':
-                    # Candidate message
-                    text = q.transcribed_answer or ''
-                    if text.strip():
-                        # Remove A: prefix if present
-                        if text.strip().startswith('A:'):
-                            text = text.replace('A:', '').strip()
-                        if text.strip():
-                            sequential_conversation.append({
-                                'role': 'candidate',
-                                'text': text,
-                                'conversation_sequence': q.conversation_sequence,
-                                'order': q.order,
-                                'question_level': q.question_level or 'INTERVIEWEE_RESPONSE',
-                                'question_type': q.question_type or 'TECHNICAL'
-                            })
-                elif not q.role and q.question_text:
-                    # Old format - question_text exists, treat as AI
-                    text = q.question_text or ''
-                    if text.strip():
-                        sequential_conversation.append({
-                            'role': 'interviewer',
-                            'text': text,
-                            'conversation_sequence': q.conversation_sequence,
-                            'order': q.order,
-                            'question_level': q.question_level or 'MAIN',
-                            'question_type': q.question_type or 'TECHNICAL'
-                        })
-                    # Also add answer if exists
-                    if q.transcribed_answer:
-                        text = q.transcribed_answer
-                        if text.strip().startswith('A:'):
-                            text = text.replace('A:', '').strip()
-                        if text.strip():
-                            sequential_conversation.append({
-                                'role': 'candidate',
-                                'text': text,
-                                'conversation_sequence': (q.conversation_sequence or 0) + 1,  # Candidate comes after AI
-                                'order': q.order,
-                                'question_level': 'INTERVIEWEE_RESPONSE',
-                                'question_type': q.question_type or 'TECHNICAL'
-                            })
+                # Regular technical/behavioral questions (SAME AS PDF)
+                question_text = ai_q.question_text or ''
+                if question_text.strip().startswith('Q:'):
+                    question_text = question_text.replace('Q:', '').strip()
+                
+                # Answer text - use same logic as PDF
+                answer_text = 'No answer provided'
+                if interviewee_a:
+                    answer_text = interviewee_a.transcribed_answer or ''
+                    if answer_text.strip().startswith('A:'):
+                        answer_text = answer_text.replace('A:', '').strip()
+                
+                # If no separate interviewee record, try transcribed_answer from AI question itself
+                if not answer_text or answer_text == 'No answer provided':
+                    if ai_q.transcribed_answer:
+                        answer_text = ai_q.transcribed_answer
+                        if answer_text.strip().startswith('A:'):
+                            answer_text = answer_text.replace('A:', '').strip()
+                
+                # Format answer
+                if not answer_text or answer_text.strip() == '' or answer_text.lower() == 'none':
+                    answer_text = 'No answer provided'
+                
+                qa_item = {
+                    'question_number': ai_q.order + 1,
+                    'question': question_text,
+                    'question_text': question_text,  # Also include for compatibility
+                    'answer': answer_text,
+                    'question_type': ai_q.question_type or 'TECHNICAL',
+                    'response_time': interviewee_a.response_time_seconds if interviewee_a else (ai_q.response_time_seconds or 0),
+                    'order': ai_q.order,
+                    'conversation_sequence': ai_q.conversation_sequence,
+                }
+                
+                qa_list.append(qa_item)
             
-            # Sort sequential conversation by conversation_sequence
-            sequential_conversation.sort(key=lambda x: (
-                x.get('conversation_sequence') if x.get('conversation_sequence') is not None else 999999,
-                x.get('order', 0),
-            ))
+            # Sort qa_list by order/question_number
+            qa_list.sort(key=lambda x: x.get('order', x.get('question_number', 0)))
             
-            print(f"✅ Returning {len(qa_list)} Q&A items for interview {obj.id} in sequential order")
-            print(f"✅ Also created {len(sequential_conversation)} sequential conversation items (like PDF format)")
-            
-            # Debug: Print final Q&A list with conversation_sequence for ordering verification
-            coding_count = 0
-            technical_count = 0
-            for idx, qa in enumerate(qa_list):
-                q_preview = qa.get('question_text', '')[:50] if qa.get('question_text') else 'None'
-                a_preview = qa.get('answer', '')[:50] if qa.get('answer') else 'None'
-                q_type = qa.get('question_type', 'UNKNOWN')
-                order = qa.get('order', 'N/A')
-                conv_seq = qa.get('conversation_sequence', 'N/A')
-                print(f"   [{idx+1}] ConvSeq={conv_seq}, Order={order}: Type={q_type}, Q: {q_preview}... | A: {a_preview}...")
-                if (q_type or '').upper() == 'CODING':
-                    coding_count += 1
-                    print(f"      ⭐ CODING question found! ID: {qa.get('id')}, Has Answer: {bool(qa.get('answer') and qa.get('answer') != 'No code submitted')}")
-                else:
-                    technical_count += 1
-            print(f"📊 Summary: {coding_count} CODING questions, {technical_count} TECHNICAL/BEHAVIORAL questions")
-            
-            # Store sequential_conversation separately for frontend use
-            # This allows frontend to display the complete conversation script like PDF
-            # We'll add it as metadata to the first item for easy access
-            if qa_list:
-                qa_list[0]['_sequential_conversation'] = sequential_conversation
-            
-            if coding_count == 0:
-                print(f"⚠️ WARNING: No CODING questions found in Q&A list! Check if coding questions exist in database.")
-                # Debug: Check if any coding questions exist in the database
-                coding_in_db = InterviewQuestion.objects.filter(session=session, question_type='CODING').count()
-                print(f"   Database check: {coding_in_db} CODING questions found in InterviewQuestion table")
-                if coding_in_db > 0:
-                    db_coding = InterviewQuestion.objects.filter(session=session, question_type='CODING')
-                    for db_q in db_coding:
-                        print(f"      DB CODING Q: Order {db_q.order}, ID {db_q.id}, Text: {db_q.question_text[:50]}...")
+            print(f"✅ Returning {len(qa_list)} total Q&A pairs ({len([q for q in qa_list if q.get('question_type') != 'CODING'])} technical + {len([q for q in qa_list if q.get('question_type') == 'CODING'])} coding)")
             return qa_list
+        except TimeoutError as timeout_error:
+            print(f"⚠️ Timeout getting Q&A for interview {obj.id}: {timeout_error}")
+            return []  # Return empty list on timeout
         except Exception as e:
             print(f"⚠️ Error getting Q&A for interview {obj.id}: {e}")
             import traceback
             traceback.print_exc()
+            # CRITICAL: Return empty list on any error to prevent worker timeout
             return []
     
     def get_verification_id_image(self, obj):
@@ -1580,6 +753,28 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
         except Exception as e:
             print(f"⚠️ Error getting verification ID image for interview {obj.id}: {e}")
+            return None
+    
+    def get_proctoring_pdf(self, obj):
+        """Get proctoring PDF URL from separate ProctoringPDF table - use URL as-is from database"""
+        try:
+            from evaluation.models import ProctoringPDF
+            
+            proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
+            if proctoring_pdf and proctoring_pdf.gcs_url:
+                # Return URL exactly as stored in database - no modification, no cleaning
+                return {
+                    'gcs_url': proctoring_pdf.gcs_url,  # Use URL as-is from database
+                    'local_path': proctoring_pdf.local_path,
+                    'created_at': proctoring_pdf.created_at.isoformat() if proctoring_pdf.created_at else None,
+                    'updated_at': proctoring_pdf.updated_at.isoformat() if proctoring_pdf.updated_at else None,
+                }
+            
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting proctoring PDF for interview {obj.id}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_interview_video(self, obj):

@@ -269,6 +269,19 @@ class InterviewSerializer(serializers.ModelSerializer):
                         # Get proctoring PDF URL from details
                         proctoring_pdf_url = evaluation.details.get('proctoring_pdf_url')
                         proctoring_pdf_gcs_url = evaluation.details.get('proctoring_pdf_gcs_url')
+
+                        # If not found in evaluation.details, try to get from ProctoringPDF table
+                        if not proctoring_pdf_gcs_url:
+                            try:
+                                from evaluation.models import ProctoringPDF
+                                proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
+                                if proctoring_pdf and proctoring_pdf.gcs_url:
+                                    proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
+                                    print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
+                            except Exception as e:
+                                print(f"   ⚠️ Error fetching from ProctoringPDF table: {e}")
+                                import traceback
+                                traceback.print_exc()
                         
                         # Ensure GCS URL is absolute (starts with https://)
                         if proctoring_pdf_gcs_url:
@@ -428,7 +441,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                             'recommendation': ai_analysis.get('recommendation', 'MAYBE'),
                             'overall_rating': self._get_rating_from_score(ai_analysis.get('overall_score', 0) / 10.0),
                             'hire_recommendation': ai_analysis.get('recommendation', 'MAYBE') in ['STRONG_HIRE', 'HIRE'],
-                            'ai_summary': self._build_ai_summary(ai_analysis),
+                            'ai_summary': self._build_ai_summary(ai_analysis, proctoring_pdf_gcs_url),
                             'ai_recommendations': ai_analysis.get('detailed_feedback', ''),
                             'confidence_level': ai_analysis.get('confidence_level', 0) / 10.0,
                         'questions_attempted': self._get_questions_attempted(evaluation, obj),
@@ -475,8 +488,8 @@ class InterviewSerializer(serializers.ModelSerializer):
         else:
             return "poor"
     
-    def _build_ai_summary(self, ai_analysis):
-        """Build AI summary from analysis"""
+    def _build_ai_summary(self, ai_analysis, proctoring_pdf_gcs_url=None):
+        """Build AI summary from analysis, including Proctoring PDF URL"""
         parts = []
         if ai_analysis.get('technical_analysis'):
             parts.append(f"Technical: {ai_analysis['technical_analysis'][:200]}")
@@ -484,6 +497,8 @@ class InterviewSerializer(serializers.ModelSerializer):
             parts.append(f"Coding: {ai_analysis['coding_analysis'][:200]}")
         if ai_analysis.get('behavioral_analysis'):
             parts.append(f"Behavioral: {ai_analysis['behavioral_analysis'][:200]}")
+        if proctoring_pdf_gcs_url:
+            parts.append(f"Proctoring PDF: {proctoring_pdf_gcs_url}")
         return ". ".join(parts) if parts else ""
     
     def _get_questions_attempted(self, evaluation, interview_obj):

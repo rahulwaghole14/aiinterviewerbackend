@@ -291,60 +291,10 @@ class InterviewSerializer(serializers.ModelSerializer):
                         
                         proctoring_warnings = evaluation.details.get('proctoring', {}).get('warnings', [])
                         print(f"   - Proctoring warnings count: {len(proctoring_warnings)}")
-                        print(f"   - Proctoring PDF URL: {proctoring_pdf_url}")
                         print(f"   - Proctoring PDF GCS URL: {proctoring_pdf_gcs_url}")
-                        
-                        # Check if coding score needs to be corrected based on actual test results
-                        coding_score = ai_analysis.get('coding_score', 0)
-                        
-                        # Check if all coding tests passed - if so, coding score should be high (80-100)
-                        try:
-                            from interview_app.models import CodeSubmission, InterviewSession
-                            # Get the interview session - try multiple ways to find session_key
-                            session_key = None
-                            if hasattr(obj, 'session_key'):
-                                session_key = obj.session_key
-                            elif hasattr(obj, 'session') and obj.session:
-                                session_key = obj.session.session_key if hasattr(obj.session, 'session_key') else None
-                            else:
-                                # Try to find InterviewSession by interview ID or candidate
-                                try:
-                                    interview_session = InterviewSession.objects.filter(
-                                        candidate_email=obj.candidate.email if hasattr(obj, 'candidate') and obj.candidate else None
-                                    ).order_by('-created_at').first()
-                                    if interview_session:
-                                        session_key = interview_session.session_key
-                                except:
-                                    pass
-                            
-                            if session_key:
-                                # Check all code submissions for this interview
-                                code_submissions = CodeSubmission.objects.filter(
-                                    session__session_key=session_key
-                                )
-                                
-                                if code_submissions.exists():
-                                    # Check if all tests passed
-                                    all_passed = all(sub.passed_all_tests for sub in code_submissions if hasattr(sub, 'passed_all_tests'))
-                                    total_submissions = code_submissions.count()
-                                    passed_count = sum(1 for sub in code_submissions if hasattr(sub, 'passed_all_tests') and sub.passed_all_tests)
-                                    
-                                    if all_passed and total_submissions > 0:
-                                        # All tests passed but coding score is low - correct it
-                                        if coding_score < 80:
-                                            print(f"   ⚠️ Coding score correction: All {total_submissions} coding tests passed, but score is {coding_score}. Correcting to 90.")
-                                            coding_score = 90  # Set to high score since all tests passed
-                                    elif passed_count > 0 and total_submissions > 0:
-                                        # Some tests passed - adjust score based on percentage
-                                        percentage_passed = (passed_count / total_submissions) * 100
-                                        expected_score = 40 + (percentage_passed * 0.39)  # Scale to 40-79 range
-                                        if coding_score < expected_score - 10:  # If score is significantly lower than expected
-                                            print(f"   ⚠️ Coding score correction: {passed_count}/{total_submissions} tests passed ({percentage_passed:.1f}%), but score is {coding_score}. Correcting to {expected_score:.1f}.")
-                                            coding_score = expected_score
-                        except Exception as e:
-                            print(f"   ⚠️ Error checking code submissions for score correction: {e}")
-                            import traceback
-                            traceback.print_exc()
+
+                        # Note: Removed complex database operations for code submission checking
+                        # Only use AI evaluation results as provided
                         
                         result = {
                             # AI scores are in 0-100 scale, keep them as-is (don't convert to 0-10)
@@ -369,15 +319,15 @@ class InterviewSerializer(serializers.ModelSerializer):
                             'recommendation': ai_analysis.get('recommendation', 'MAYBE'),
                             'overall_rating': self._get_rating_from_score(ai_analysis.get('overall_score', 0) / 10.0),
                             'hire_recommendation': ai_analysis.get('recommendation', 'MAYBE') in ['STRONG_HIRE', 'HIRE'],
-                            'ai_summary': self._build_ai_summary(ai_analysis),
+                            'ai_summary': self._build_ai_summary(ai_analysis, proctoring_pdf_gcs_url),
                             'ai_recommendations': ai_analysis.get('detailed_feedback', ''),
                             'confidence_level': ai_analysis.get('confidence_level', 0) / 10.0,
-                        'questions_attempted': self._get_questions_attempted(evaluation, obj),
-                        'questions_correct': self._get_questions_correct(evaluation, obj),
-                        'accuracy_percentage': self._calculate_accuracy(evaluation.details, obj),
-                        'average_response_time': self._calculate_average_response_time(evaluation.details, obj),
-                        'total_completion_time': self._calculate_total_completion_time(evaluation.details, obj),
-                        'problem_solving_score': ai_analysis.get('problem_solving_score', (ai_analysis.get('technical_score', 0) + ai_analysis.get('coding_score', 0)) / 2) / 10.0,
+                            'questions_attempted': self._get_questions_attempted(evaluation, obj),
+                            'questions_correct': self._get_questions_correct(evaluation, obj),
+                            'accuracy_percentage': self._calculate_accuracy(evaluation.details, obj),
+                            'average_response_time': self._calculate_average_response_time(evaluation.details, obj),
+                            'total_completion_time': self._calculate_total_completion_time(evaluation.details, obj),
+                            'problem_solving_score': ai_analysis.get('problem_solving_score', (ai_analysis.get('technical_score', 0) + ai_analysis.get('coding_score', 0)) / 2) / 10.0,
                             'proctoring_pdf_url': proctoring_pdf_url,  # Add proctoring PDF URL
                             'proctoring_pdf_gcs_url': proctoring_pdf_gcs_url,  # Add GCS URL (absolute URL only)
                             'proctoring_warnings': proctoring_warnings,  # Add proctoring warnings
@@ -416,7 +366,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         else:
             return "poor"
     
-    def _build_ai_summary(self, ai_analysis):
+    def _build_ai_summary(self, ai_analysis, proctoring_pdf_gcs_url=None):
         """Build AI summary from analysis"""
         parts = []
         if ai_analysis.get('technical_analysis'):
@@ -425,6 +375,11 @@ class InterviewSerializer(serializers.ModelSerializer):
             parts.append(f"Coding: {ai_analysis['coding_analysis'][:200]}")
         if ai_analysis.get('behavioral_analysis'):
             parts.append(f"Behavioral: {ai_analysis['behavioral_analysis'][:200]}")
+
+        # Add proctoring PDF URL at the end if available
+        if proctoring_pdf_gcs_url:
+            parts.append(f"Proctoring PDF: {proctoring_pdf_gcs_url}")
+
         return ". ".join(parts) if parts else ""
     
     def _get_questions_attempted(self, evaluation, interview_obj):

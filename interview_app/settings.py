@@ -321,6 +321,17 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
 ]
 
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
 # Email configuration (reads from environment; falls back to console backend in dev)
 # Email Configuration - Support both SendGrid and SMTP
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")

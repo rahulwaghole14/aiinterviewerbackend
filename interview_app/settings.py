@@ -301,6 +301,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "https://aiinterviewerbackend-2.onrender.com",  # Backend serving frontend
     "https://aiinterviewerbackend-3.onrender.com",  # Separate frontend service (if deployed)
+    "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",  # Cloud Run frontend
 ]
 
 # Allow any localhost port (when Vite picks alternate ports)

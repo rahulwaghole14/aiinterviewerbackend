@@ -275,18 +275,60 @@ class InterviewSerializer(serializers.ModelSerializer):
                         
                         try:
                             from evaluation.models import ProctoringPDF
-                            proctoring_pdf = ProctoringPDF.objects.filter(interview=obj).first()
-                            if proctoring_pdf and proctoring_pdf.gcs_url:
-                                # Use URL as-is from database - no modification, no cleaning
-                                proctoring_pdf_gcs_url = proctoring_pdf.gcs_url
-                                proctoring_pdf_url = proctoring_pdf.gcs_url
-                                print(f"   - Proctoring PDF GCS URL (from ProctoringPDF table): {proctoring_pdf_gcs_url[:100]}...")
-                            else:
-                                print(f"   - No ProctoringPDF record found for interview {obj.id}")
+                            from django.db import connection
+
+                            print(f"   - Database connection: {connection.vendor} - {connection.alias}")
+                            proctoring_pdf_count = ProctoringPDF.objects.count()
+                            print(f"   - Total ProctoringPDF records in database: {proctoring_pdf_count}")
+
+                            # Robust fetching with proper error handling
+                            try:
+                                # Use select_related to optimize the query
+                                proctoring_pdf = ProctoringPDF.objects.select_related('interview').filter(interview=obj).first()
+
+                                if proctoring_pdf:
+                                    print(f"   - ProctoringPDF record found: ID={proctoring_pdf.id}")
+                                    print(f"   - Record belongs to interview: {proctoring_pdf.interview.id}")
+                                    print(f"   - GCS_URL present: {'Yes' if proctoring_pdf.gcs_url else 'No'}")
+                                    print(f"   - Local_Path present: {'Yes' if proctoring_pdf.local_path else 'No'}")
+                                    print(f"   - Created: {proctoring_pdf.created_at}, Updated: {proctoring_pdf.updated_at}")
+
+                                    if proctoring_pdf.gcs_url:
+                                        # Get raw URL from database WITHOUT cleaning
+                                        raw_gcs_url = str(proctoring_pdf.gcs_url).strip()
+
+                                        # Print the RAW URL as-is from database
+                                        print(f"   - RAW Proctoring PDF GCS URL (from ProctoringPDF table): {raw_gcs_url}")
+                                        print(f"   - URL length: {len(raw_gcs_url)} characters")
+                                        print(f"   - Contains 'run.app': {'run.app' in raw_gcs_url}")
+                                        print(f"   - Contains 'storage.googleapis.com': {'storage.googleapis.com' in raw_gcs_url}")
+                                        print(f"   - Starts with 'https://storage.googleapis.com': {raw_gcs_url.startswith('https://storage.googleapis.com')}")
+
+                                        # Use raw URL as-is without cleaning
+                                        proctoring_pdf_gcs_url = raw_gcs_url
+                                        proctoring_pdf_url = raw_gcs_url
+
+                                        print(f"   - Using RAW URL as-is: {proctoring_pdf_gcs_url[:150]}...")
+                                    else:
+                                        print(f"   - ProctoringPDF record exists but gcs_url is None/empty for interview {obj.id}")
+                                        proctoring_pdf_gcs_url = None
+                                        proctoring_pdf_url = None
+                                else:
+                                    print(f"   - No ProctoringPDF record found for interview {obj.id}")
+                                    proctoring_pdf_gcs_url = None
+                                    proctoring_pdf_url = None
+
+                            except Exception as query_error:
+                                print(f"   ⚠️ Database query error for ProctoringPDF: {query_error}")
+                                proctoring_pdf_gcs_url = None
+                                proctoring_pdf_url = None
+
                         except Exception as e:
-                            print(f"   ⚠️ Error fetching from ProctoringPDF table: {e}")
+                            print(f"   ⚠️ Error importing/accessing ProctoringPDF model: {e}")
                             import traceback
                             traceback.print_exc()
+                            proctoring_pdf_gcs_url = None
+                            proctoring_pdf_url = None
                         
                         proctoring_warnings = evaluation.details.get('proctoring', {}).get('warnings', [])
                         print(f"   - Proctoring warnings count: {len(proctoring_warnings)}")
@@ -294,7 +336,28 @@ class InterviewSerializer(serializers.ModelSerializer):
 
                         # Note: Removed complex database operations for code submission checking
                         # Only use AI evaluation results as provided
-                        
+
+                        # Extract coding score from AI analysis
+                        coding_score = ai_analysis.get('coding_score', 0)
+                        if isinstance(coding_score, str):
+                            # Handle string scores like "8/10"
+                            if '/' in coding_score:
+                                try:
+                                    coding_score = float(coding_score.split('/')[0])
+                                except (ValueError, IndexError):
+                                    coding_score = 0
+                            else:
+                                try:
+                                    coding_score = float(coding_score)
+                                except ValueError:
+                                    coding_score = 0
+
+                        # Ensure coding_score is a number
+                        if not isinstance(coding_score, (int, float)):
+                            coding_score = 0
+
+                        print(f"   - Extracted coding_score: {coding_score} (type: {type(coding_score)})")
+
                         result = {
                             # AI scores are in 0-100 scale, keep them as-is (don't convert to 0-10)
                             'overall_score': ai_analysis.get('overall_score', 0) / 10.0,  # Convert from 0-100 to 0-10 for backward compatibility

@@ -287,8 +287,8 @@ REST_FRAMEWORK = {
 
 # Disable CSRF for API endpoints - they use token authentication
 CSRF_TRUSTED_ORIGINS = [
-    "https://aiinterviewerbackend-2.onrender.com",
-    "https://*.onrender.com",
+    "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",
+    # "https://*.onrender.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
@@ -299,9 +299,32 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://aiinterviewerbackend-2.onrender.com",  # Backend serving frontend
-    "https://aiinterviewerbackend-3.onrender.com",  # Separate frontend service (if deployed)
+    # "https://aiinterviewerbackend-2.onrender.com",  # Backend serving frontend
+    # "https://aiinterviewerbackend-3.onrender.com",  # Separate frontend service (if deployed)
     "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",  # Cloud Run frontend
+]
+
+# Additional CORS settings for proper functionality
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOWED_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
 
 # Allow any localhost port (when Vite picks alternate ports)
@@ -313,8 +336,8 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 # CSRF trusted origins - required for CSRF exemption to work properly
 CSRF_TRUSTED_ORIGINS = [
-    "https://aiinterviewerbackend-2.onrender.com",
-    "https://*.onrender.com",
+    # "https://aiinterviewerbackend-2.onrender.com",
+    "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
@@ -403,6 +426,6 @@ if not DEEPGRAM_API_KEY:
 # Example: https://aiinterviewerbackend-2.onrender.com
 BACKEND_URL = os.environ.get(
     "BACKEND_URL",
-    "http://localhost:8000"  # Default for local development
+    "https://ai-interviewer-backend-191299044016.asia-southeast1.run.app"  # Default for local development
 )
 

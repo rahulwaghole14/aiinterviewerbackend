@@ -287,7 +287,7 @@ REST_FRAMEWORK = {
 
 # Disable CSRF for API endpoints - they use token authentication
 CSRF_TRUSTED_ORIGINS = [
-    "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",
+    "https://talaroainew-191299044016.europe-west1.run.app",
     # "https://*.onrender.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -301,7 +301,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     # "https://aiinterviewerbackend-2.onrender.com",  # Backend serving frontend
     # "https://aiinterviewerbackend-3.onrender.com",  # Separate frontend service (if deployed)
-    "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",  # Cloud Run frontend
+    "https://talaroainew-191299044016.europe-west1.run.app",  # Cloud Run frontend
 ]
 
 # Additional CORS settings for proper functionality
@@ -337,7 +337,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 # CSRF trusted origins - required for CSRF exemption to work properly
 CSRF_TRUSTED_ORIGINS = [
     # "https://aiinterviewerbackend-2.onrender.com",
-    "https://ai-interview-frontend-191299044016.asia-southeast1.run.app",
+    "https://talaroainew-191299044016.europe-west1.run.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
@@ -426,6 +426,6 @@ if not DEEPGRAM_API_KEY:
 # Example: https://aiinterviewerbackend-2.onrender.com
 BACKEND_URL = os.environ.get(
     "BACKEND_URL",
-    "https://ai-interviewer-backend-191299044016.asia-southeast1.run.app"  # Default for local development
+    "https://aiinterviewerbackend-191299044016.europe-west1.run.app"  # Default for local development
 )
 

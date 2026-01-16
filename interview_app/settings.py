@@ -330,7 +330,8 @@ CORS_ALLOWED_HEADERS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$", 
     r"^http://127\.0\.0\.1:\d+$",
-    r"^https://.*\.onrender\.com$",  # Allow all Render subdomains
+    r"^https://.*\.onrender\.com$"
+    r"https://talaroainew-191299044016.europe-west1.run.app",  # Allow all Render subdomains
 ]
 
 # CSRF trusted origins - required for CSRF exemption to work properly
@@ -352,7 +353,7 @@ CORS_ALLOWED_METHODS = [
     'OPTIONS',
     'PATCH',
     'POST',
-    'PUT',
+    'PUT',pp
 ]
 
 # Email configuration (reads from environment; falls back to console backend in dev)
@@ -426,6 +427,6 @@ if not DEEPGRAM_API_KEY:
 # Example: https://aiinterviewerbackend-2.onrender.com
 BACKEND_URL = os.environ.get(
     "BACKEND_URL",
-    "https://aiinterviewerbackend-310576915040.asia-southeast1.run.app"  # Default for local development
+    "https://aiinterviewerbackend-191299044016.europe-west1.run.app"  # Default for local development
 )
 

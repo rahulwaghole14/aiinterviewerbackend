@@ -299,9 +299,8 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    # "https://aiinterviewerbackend-2.onrender.com",  # Backend serving frontend
-    # "https://aiinterviewerbackend-3.onrender.com",  # Separate frontend service (if deployed)
-    "https://talaroainew-191299044016.europe-west1.run.app",  # Cloud Run frontend
+    # "https://aiinterviewerbackend-310576915040.asia-southeast1.run.app",  # Backend serving frontend
+    "https://talaroainew-191299044016.europe-west1.run.app",  # Separate frontend service
 ]
 
 # Additional CORS settings for proper functionality
@@ -338,6 +337,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 CSRF_TRUSTED_ORIGINS = [
     # "https://aiinterviewerbackend-2.onrender.com",
     "https://talaroainew-191299044016.europe-west1.run.app",
+    # "https://talaroainew-191299044016.europe-west1.run.app
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
@@ -426,6 +426,6 @@ if not DEEPGRAM_API_KEY:
 # Example: https://aiinterviewerbackend-2.onrender.com
 BACKEND_URL = os.environ.get(
     "BACKEND_URL",
-    "https://aiinterviewerbackend-191299044016.europe-west1.run.app"  # Default for local development
+    "https://aiinterviewerbackend-310576915040.asia-southeast1.run.app"  # Default for local development
 )
 

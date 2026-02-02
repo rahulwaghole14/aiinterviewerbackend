@@ -103,10 +103,15 @@ from .ai_chatbot import (
 )
 
 try:
-    from .yolo_face_detector import detect_face_with_yolo
+    from .yolo_face_detector import detect_face_with_yolo, detect_objects_with_yolo
 except ImportError:
     print("Warning: yolo_face_detector could not be imported. Using a placeholder.")
     def detect_face_with_yolo(img): 
+        # Return empty results as a list for consistency
+        empty_obj = type('obj', (object,), {'boxes': []})()
+        return [empty_obj]
+    
+    def detect_objects_with_yolo(img):
         # Return empty results as a list for consistency
         empty_obj = type('obj', (object,), {'boxes': []})()
         return [empty_obj]
@@ -2239,9 +2244,9 @@ def download_report_pdf(request, session_id):
         context['bar_chart_url'] = chart_results.get('bar_chart_url', bar_chart_url) if 'bar_chart_url' in chart_results else bar_chart_url
         context['pie_chart_url'] = chart_results.get('pie_chart_url', pie_chart_url) if 'pie_chart_url' in chart_results else pie_chart_url
         
-        # 6. Render the HTML template to a string.
+        # 6. Render the HTML template to a string using the root report_pdf.html template
         print("📄 Rendering HTML template...")
-        html_string = render_to_string('interview_app/report_pdf.html', context)
+        html_string = render_to_string('report_pdf.html', context)
         
         # 7. Use WeasyPrint to convert the rendered HTML string into a PDF.
         if not WEASYPRINT_AVAILABLE or HTML is None:
@@ -2281,6 +2286,172 @@ def download_report_pdf(request, session_id):
         return HttpResponse("Interview session not found.", status=404)
     except Exception as e:
         # General error handling for unexpected issues during PDF generation.
+        print(f"Error generating PDF report for session {session_id}: {e}")
+        traceback.print_exc()
+        return HttpResponse(f"An unexpected error occurred while generating the PDF report: {e}", status=500)
+
+@csrf_exempt
+def download_report_pdf_public(request, session_id):
+    """
+    Generates and serves a PDF version of the interview report for a given session (public access).
+    This function is used by ai_transcript_pdf and does not require authentication.
+    Uses the report_pdf.html template from the root directory.
+    """
+    import traceback
+    try:
+        # 1. Fetch the main session object.
+        session = InterviewSession.objects.get(id=session_id)
+        
+        # 2. Prepare data for the proctoring summary chart.
+        all_logs_list = list(session.logs.all())
+        warning_counts = Counter([log.warning_type.replace('_', ' ').title() for log in all_logs_list if log.warning_type != 'excessive_movement'])
+        chart_config = { 
+            'type': 'doughnut', 
+            'data': { 
+                'labels': list(warning_counts.keys()), 
+                'datasets': [{'data': list(warning_counts.values())}]
+            }
+        }
+        # URL-encode the chart configuration to pass to the chart generation service.
+        chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(chart_config))}"
+        
+        # 3. Get Questions and Answers using the same logic as frontend serializer
+        # This ensures the PDF uses the same data and sequence as the UI
+        from interviews.models import Interview
+        from interviews.serializers import InterviewSerializer
+        
+        # Find the interview for this session
+        interview = None
+        try:
+            interview = Interview.objects.get(session_key=session.session_key)
+            print(f"✅ Found interview {interview.id} for session {session.session_key}")
+        except Interview.DoesNotExist:
+            print(f"⚠️ No interview found for session {session.session_key}")
+            # Try to find by candidate email as fallback
+            try:
+                interview = Interview.objects.filter(
+                    candidate__email=session.candidate_email
+                ).order_by('-created_at').first()
+                if interview:
+                    print(f"✅ Found interview {interview.id} by candidate email fallback")
+            except Exception as e:
+                print(f"⚠️ Error finding interview by candidate email: {e}")
+        
+        # Get Q&A data using the same logic as frontend
+        qa_data = []
+        if interview:
+            try:
+                serializer = InterviewSerializer(interview)
+                qa_data = serializer.get_questions_and_answers(interview)
+                print(f"✅ Got {len(qa_data)} Q&A pairs from serializer logic")
+            except Exception as e:
+                print(f"⚠️ Error getting Q&A from serializer: {e}")
+                qa_data = []
+        
+        # Separate technical and coding questions (same as frontend logic)
+        technical_questions = [qa for qa in qa_data if (qa.get('question_type') or '').upper() != 'CODING']
+        coding_questions = [qa for qa in qa_data if (qa.get('question_type') or '').upper() == 'CODING']
+        
+        print(f"✅ Processed {len(technical_questions)} technical questions and {len(coding_questions)} coding questions")
+        
+        # 4. Fetch all CODING challenge submissions (keep existing logic)
+        code_submissions = session.code_submissions.all()
+
+        # 5. Calculate metrics for charts
+        grammar_score = min(100, max(0, (session.answers_score or 0) * 10 + 20)) if session.answers_score else 70
+        technical_knowledge = min(100, max(0, (session.answers_score or 0) * 10)) if session.answers_score else 50
+        
+        coding_understanding = 0
+        if code_submissions.exists():
+            total_tests = 0
+            passed_tests = 0
+            for submission in code_submissions:
+                if submission.output_log:
+                    test_matches = re.findall(r'(\d+)/(\d+)', submission.output_log)
+                    if test_matches:
+                        for passed, total in test_matches:
+                            passed_tests += int(passed)
+                            total_tests += int(total)
+                    else:
+                        if 'passed' in submission.output_log.lower() or 'success' in submission.output_log.lower():
+                            coding_understanding = 70
+                        else:
+                            coding_understanding = 40
+            if total_tests > 0:
+                coding_understanding = min(100, int((passed_tests / total_tests) * 100))
+            elif coding_understanding == 0:
+                coding_understanding = 60
+        else:
+            coding_understanding = 0
+        
+        tech_questions_count = len(technical_questions)
+        tech_understanding = min(100, max(0, (tech_questions_count / 5) * 100)) if tech_questions_count > 0 else 50
+        
+        overall_percentage = (grammar_score * 0.2 + technical_knowledge * 0.4 + coding_understanding * 0.3 + tech_understanding * 0.1)
+        if overall_percentage >= 80:
+            recommendation = "STRONGLY RECOMMENDED"
+        elif overall_percentage >= 65:
+            recommendation = "RECOMMENDED"
+        elif overall_percentage >= 50:
+            recommendation = "CONDITIONAL RECOMMENDATION"
+        else:
+            recommendation = "NOT RECOMMENDED"
+        
+        # 6. Assemble the complete context dictionary to be passed to the template.
+        context = { 
+            'session': session, 
+            'interview': interview,  # Add interview object
+            'qa_data': qa_data,  # Raw Q&A data (same as frontend)
+            'technical_questions': technical_questions,  # Technical questions (same as frontend)
+            'coding_questions': coding_questions,  # Coding questions (same as frontend)
+            'code_submissions': code_submissions,
+            'warning_counts': dict(warning_counts), 
+            'chart_url': chart_url,
+            'grammar_score': grammar_score,
+            'technical_knowledge': technical_knowledge,
+            'coding_understanding': coding_understanding,
+            'tech_understanding': tech_understanding,
+            'recommendation': recommendation,
+            'overall_percentage': overall_percentage
+        }
+        
+        # 7. Render the HTML template to a string using the root report_pdf.html template
+        print("📄 Rendering HTML template using report_pdf.html...")
+        html_string = render_to_string('report_pdf.html', context)
+        
+        # 8. Use WeasyPrint to convert the rendered HTML string into a PDF.
+        if not WEASYPRINT_AVAILABLE or HTML is None:
+            return HttpResponse(
+                "PDF generation is not available. WeasyPrint is not installed. Please install weasyprint to enable PDF generation.",
+                status=503
+            )
+        
+        print("🖨️ Generating PDF with WeasyPrint...")
+        try:
+            pdf = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+            print(f"✅ PDF generated successfully ({len(pdf)} bytes)")
+        except Exception as pdf_error:
+            print(f"❌ WeasyPrint error: {pdf_error}")
+            try:
+                pdf = HTML(string=html_string).write_pdf()
+                print(f"✅ PDF generated with fallback method ({len(pdf)} bytes)")
+            except Exception as fallback_error:
+                print(f"❌ PDF generation completely failed: {fallback_error}")
+                traceback.print_exc()
+                return HttpResponse(
+                    f"PDF generation failed. Please check server logs. Error: {str(fallback_error)}",
+                    status=500,
+                    content_type='text/plain'
+                )
+        
+        # 9. Create and return the final HTTP response.
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="interview_report_{session.id}.pdf"'
+        return response
+        
+    except InterviewSession.DoesNotExist:
+        return HttpResponse("Interview session not found.", status=404)
+    except Exception as e:
         print(f"Error generating PDF report for session {session_id}: {e}")
         traceback.print_exc()
         return HttpResponse(f"An unexpected error occurred while generating the PDF report: {e}", status=500)
@@ -3258,27 +3429,29 @@ def detect_yolo_browser_frame(request):
         yolo_key = 'default'
         if yolo_key not in _yolo_model_cache:
             try:
-                import onnxruntime as ort
+                import torch
                 # settings already imported at top of file
                 from pathlib import Path
                 
-                model_path = Path(settings.BASE_DIR) / 'yolov8m.onnx'
+                model_path = Path(settings.BASE_DIR) / 'yolov8m.pt'
                 if not model_path.exists():
-                    model_path = Path('yolov8m.onnx')
+                    model_path = Path('yolov8m.pt')
                 
                 if model_path.exists():
-                    providers = ['CPUExecutionProvider']
-                    _yolo_model_cache[yolo_key] = {
-                        'session': ort.InferenceSession(str(model_path), providers=providers),
-                        'input_name': None,
-                        'output_names': None
-                    }
-                    _yolo_model_cache[yolo_key]['input_name'] = _yolo_model_cache[yolo_key]['session'].get_inputs()[0].name
-                    _yolo_model_cache[yolo_key]['output_names'] = [o.name for o in _yolo_model_cache[yolo_key]['session'].get_outputs()]
-                    print(f"✅ YOLO model loaded for browser frame detection")
+                    # Load PyTorch model
+                    _yolo_model_cache[yolo_key] = torch.hub.load('ultralytics/yolov8', 'custom', path=str(model_path), pretrained=True)
+                    _yolo_model_cache[yolo_key].eval()
+                    _yolo_model_cache[yolo_key].conf = 0.25
+                    _yolo_model_cache[yolo_key].iou = 0.45
+                    print(f"✅ YOLO PyTorch model loaded for browser frame detection")
                 else:
-                    _yolo_model_cache[yolo_key] = None
-                    print(f"⚠️ YOLO model not found at {model_path}")
+                    # Fallback: download model
+                    print(f"⚠️ Local YOLOv8m.pt not found, downloading...")
+                    _yolo_model_cache[yolo_key] = torch.hub.load('ultralytics/yolov8', 'yolov8m', pretrained=True)
+                    _yolo_model_cache[yolo_key].eval()
+                    _yolo_model_cache[yolo_key].conf = 0.25
+                    _yolo_model_cache[yolo_key].iou = 0.45
+                    print(f"✅ YOLO PyTorch model downloaded and loaded")
             except Exception as e:
                 print(f"⚠️ Failed to load YOLO model: {e}")
                 _yolo_model_cache[yolo_key] = None
@@ -3293,78 +3466,38 @@ def detect_yolo_browser_frame(request):
         phone_detected = False
         no_person = False
         
-        # Run YOLO detection if available
-        if yolo_info and yolo_info is not None:
-            try:
-                # Preprocess frame for ONNX model
-                input_size = 640  # YOLOv8 standard input size
-                frame_resized = cv2.resize(frame, (input_size, input_size))
-                frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
-                frame_normalized = frame_rgb.astype(np.float32) / 255.0
-                frame_transposed = np.transpose(frame_normalized, (2, 0, 1))
-                frame_batch = np.expand_dims(frame_transposed, axis=0)
+        # Run YOLO object detection for proctoring warnings
+        try:
+            # Use the new object detection function with yolov8m.pt (imgsz=640)
+            results = detect_objects_with_yolo(frame)
+            
+            if results and len(results) > 0 and len(results[0].boxes) > 0:
+                # Get detected classes and boxes
+                boxes = results[0].boxes
+                labels = [results[0].names[int(cls)] for cls in boxes.cls]
+                confidences = boxes.conf.tolist()
                 
-                # Run inference
-                outputs = yolo_info['session'].run(
-                    yolo_info['output_names'],
-                    {yolo_info['input_name']: frame_batch}
-                )
+                # Count detections for proctoring warnings
+                for label, conf in zip(labels, confidences):
+                    if label == 'person':
+                        person_count += 1
+                    elif label in ['cell phone', 'mobile phone']:
+                        phone_count += 1
                 
-                # Post-process outputs
-                # YOLOv8 ONNX output format: [batch, features, anchors] = [1, 84, 8400]
-                # where 84 = 4 (bbox coords) + 80 (class scores), 8400 = anchor points
-                conf_threshold = 0.25  # Lower threshold for better detection
+                print(f"🔍 YOLO object detection: {person_count} persons, {phone_count} phones")
+            else:
+                print(f"🔍 YOLO object detection: 0 objects detected")
                 
-                if len(outputs) > 0:
-                    predictions = outputs[0]  # Shape: [1, 84, 8400]
-                    
-                    # Handle different output shapes
-                    if len(predictions.shape) == 3:
-                        # Standard YOLOv8 format: [batch, features, anchors]
-                        # Transpose to [anchors, features] for easier processing
-                        predictions = predictions[0].transpose(1, 0)  # [8400, 84]
-                    elif len(predictions.shape) == 2:
-                        # Already in [anchors, features] format
-                        predictions = predictions
-                    else:
-                        print(f"⚠️ Unexpected YOLO output shape: {predictions.shape}")
-                        predictions = []
-                    
-                    # Process each prediction
-                    for pred in predictions:
-                        if len(pred) < 5:
-                            continue
-                        
-                        # Get box coordinates (normalized, center format)
-                        x_center, y_center, width, height = pred[0:4]
-                        
-                        # Get class scores (rest of the array)
-                        class_scores = pred[4:]
-                        max_score = np.max(class_scores)
-                        max_class = np.argmax(class_scores)
-                        
-                        # Filter by confidence threshold
-                        if max_score < conf_threshold:
-                            continue
-                        
-                        # Count persons (class 0) and phones (classes 67, 77)
-                        if max_class == 0:  # person
-                            person_count += 1
-                        elif max_class in [67, 77]:  # cell phone, mobile phone
-                            phone_count += 1
-                else:
-                    print(f"⚠️ No YOLO outputs received")
-                    predictions = []
-                
-                has_person = person_count >= 1
-                multiple_people = person_count >= 2
-                phone_detected = phone_count >= 1
-                no_person = person_count == 0
-                
-            except Exception as e:
-                print(f"⚠️ YOLO detection error: {e}")
-                import traceback
-                traceback.print_exc()
+        except Exception as e:
+            print(f"⚠️ YOLO object detection error: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Set detection flags based on counts
+        has_person = person_count >= 1
+        multiple_people = person_count >= 2
+        phone_detected = phone_count >= 1
+        no_person = person_count == 0
         
         # Motion detection for low concentration (compare with previous frame)
         low_concentration = False
@@ -5129,8 +5262,9 @@ def ai_repeat(request):
     return JsonResponse(result, status=status_code)
 
 
+@csrf_exempt
 def ai_transcript_pdf(request):
-    """Generate comprehensive PDF with Q&A and Coding results"""
+    """Generate comprehensive PDF with Q&A and Coding results using WeasyPrint and report_pdf.html template"""
     session_key = request.GET.get('session_key', '')
     session_id = request.GET.get('session_id', '')
     
@@ -5152,58 +5286,22 @@ def ai_transcript_pdf(request):
                 print(f"❌ Session not found: {session_key}")
                 return JsonResponse({'error': 'Session not found'}, status=404)
             
-            # Generate PDF
-            from .comprehensive_pdf import ai_comprehensive_pdf_django
-            from .gcs_storage import upload_pdf_to_gcs
-            from django.utils import timezone
-            pdf_bytes = ai_comprehensive_pdf_django(session_key)
-            
-            # Upload to GCS if configured (optional - PDF is still served directly)
-            if pdf_bytes:
-                try:
-                    gcs_file_path = f"evaluation_pdfs/qna_evaluation_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    gcs_url = upload_pdf_to_gcs(pdf_bytes, gcs_file_path)
-                    if gcs_url:
-                        print(f"✅ Q&A PDF uploaded to GCS: {gcs_url}")
-                        # Store GCS URL in evaluation details for later retrieval
-                        try:
-                            from evaluation.models import Evaluation
-                            from interviews.models import Interview
-                            interview = Interview.objects.get(session_key=session_key)
-                            evaluation = Evaluation.objects.filter(interview=interview).first()
-                            if evaluation:
-                                if not evaluation.details:
-                                    evaluation.details = {}
-                                evaluation.details['qna_pdf_gcs_url'] = gcs_url
-                                evaluation.save(update_fields=['details'])
-                                print(f"✅ Q&A PDF GCS URL stored in evaluation")
-                        except Exception as e:
-                            print(f"⚠️ Could not store GCS URL in evaluation: {e}")
-                except Exception as e:
-                    print(f"⚠️ Error uploading Q&A PDF to GCS (will serve directly): {e}")
-            
         elif session_id:
-            # Get session_key from session_id
+            # Get session by session_id
             from .models import InterviewSession
-            session = InterviewSession.objects.get(id=session_id)
-            print(f"✅ Found session by ID: {session.candidate_name}")
-            
-            from .comprehensive_pdf import ai_comprehensive_pdf_django
-            pdf_bytes = ai_comprehensive_pdf_django(session.session_key)
+            try:
+                session = InterviewSession.objects.get(id=session_id)
+                session_key = session.session_key
+                print(f"✅ Found session by ID: {session.candidate_name}")
+            except InterviewSession.DoesNotExist:
+                print(f"❌ Session not found: {session_id}")
+                return JsonResponse({'error': 'Session not found'}, status=404)
         else:
             print(f"❌ No session key or ID provided")
             return JsonResponse({'error': 'Session key or ID required'}, status=400)
         
-        if not pdf_bytes or len(pdf_bytes) == 0:
-            print(f"❌ PDF generation returned empty bytes")
-            return JsonResponse({'error': 'PDF generation returned empty'}, status=500)
-        
-        print(f"✅ PDF generated successfully: {len(pdf_bytes)} bytes")
-        print(f"{'='*60}\n")
-        
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="interview_report_{session_key or session_id}.pdf"'
-        return response
+        # Use the public download_report_pdf function which uses WeasyPrint and report_pdf.html
+        return download_report_pdf_public(request, session.id)
         
     except InterviewSession.DoesNotExist:
         print(f"❌ Session not found")
@@ -5355,12 +5453,12 @@ def verify_id(request):
             boxes = []
         num_faces_detected = len(boxes) if boxes else 0
 
-        # Check for exactly two faces (candidate + ID photo)
-        if num_faces_detected != 2:
-            if num_faces_detected < 2:
-                message = f"Verification failed. Only {num_faces_detected} face(s) detected. Please ensure both your live face and the face on your ID card are clearly visible and well-lit."
+        # Check for exactly one person (candidate only)
+        if num_faces_detected != 1:
+            if num_faces_detected == 0:
+                message = f"Verification failed. No person detected. Please ensure your face is clearly visible and well-lit."
             else:
-                message = f"Verification failed. {num_faces_detected} faces detected. Please ensure only you and your ID card are in the frame, with no other people in the background."
+                message = f"Verification failed. {num_faces_detected} persons detected. Please ensure only you are in the frame with no other people."
             return JsonResponse({'status': 'error', 'message': message})
 
         try:

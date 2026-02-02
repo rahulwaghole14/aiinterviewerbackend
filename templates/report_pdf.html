@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Evaluation Report - {{ session.candidate_name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #333;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 0;
+            color: #000;
+            text-transform: uppercase;
+        }
+        .header p {
+            font-size: 11px;
+            margin: 5px 0;
+            color: #666;
+        }
+        .candidate-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .candidate-info h2 {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 15px 0;
+            color: #000;
+            text-transform: uppercase;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #495057;
+        }
+        .info-value {
+            color: #000;
+            font-weight: 500;
+        }
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 15px 0;
+            color: #000;
+            text-transform: uppercase;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px 5px 0 0;
+        }
+        .evaluation-content {
+            background-color: #fff;
+            padding: 20px;
+            border: 2px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            line-height: 1.6;
+            font-size: 11px;
+        }
+        .evaluation-content p {
+            margin: 8px 0;
+            text-align: justify;
+        }
+        .evaluation-content strong {
+            font-weight: bold;
+            color: #000;
+        }
+        .evaluation-content ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .evaluation-content li {
+            margin: 6px 0;
+        }
+        .evaluation-content h3 {
+            font-size: 13px;
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+            color: #000;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 3px;
+        }
+        .qa-section {
+            margin-bottom: 20px;
+        }
+        .qa-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .question {
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 8px;
+            font-size: 12px;
+            background-color: #e9ecef;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        .answer {
+            color: #333;
+            font-size: 11px;
+            line-height: 1.4;
+            padding: 8px;
+            background-color: #fff;
+            border-radius: 3px;
+            border-left: 3px solid #007bff;
+        }
+        .coding-section {
+            margin-bottom: 20px;
+        }
+        .coding-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .coding-item h3 {
+            font-size: 13px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            color: #000;
+            background-color: #e9ecef;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        .code-block {
+            background-color: #f1f3f4;
+            padding: 12px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            border: 1px solid #dee2e6;
+            margin: 8px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .skills-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            border: 2px solid #dee2e6;
+        }
+        .skills-table th,
+        .skills-table td {
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            text-align: left;
+            font-size: 11px;
+        }
+        .skills-table th {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .skills-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .recommendation-box {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            padding: 25px;
+            text-align: center;
+            margin-top: 30px;
+            border-radius: 10px;
+            color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .recommendation-box h2 {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 0 15px 0;
+            color: white;
+            text-transform: uppercase;
+            border: none;
+            background: none;
+            padding: 0;
+        }
+        .recommendation-box p {
+            font-size: 16px;
+            margin: 8px 0;
+            color: white;
+        }
+        .recommendation-box .score {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 15px 0;
+            color: white;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 10px;
+            color: #6c757d;
+            border-top: 2px solid #dee2e6;
+            padding-top: 15px;
+        }
+        .llm-evaluation {
+            background-color: #fff3cd;
+            border: 2px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .llm-evaluation h4 {
+            font-size: 12px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            color: #856404;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>Candidate Evaluation Report</h1>
+        <p>Comprehensive Technical Assessment & Interview Analysis</p>
+        <p>Generated on {{ "now"|date:"d F Y, H:i" }}</p>
+    </div>
+
+    <!-- Candidate Information -->
+    <div class="candidate-info">
+        <h2>Candidate Information</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Candidate Name:</span>
+                <span class="info-value">{{ session.candidate_name }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Interview Date:</span>
+                <span class="info-value">{{ session.created_at|date:"d M Y, H:i" }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Position Applied:</span>
+                <span class="info-value">{{ interview.job_title|default:"Software Developer" }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Interview Type:</span>
+                <span class="info-value">Technical + Coding Round</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Session ID:</span>
+                <span class="info-value">{{ session.id }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Duration:</span>
+                <span class="info-value">{{ session.duration|default:"N/A" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- LLM Evaluation Summary -->
+    {% if session.is_evaluated and session.language_code == 'en' %}
+    <div class="section">
+        <h2>AI-Powered Evaluation Summary</h2>
+        <div class="evaluation-content">
+            <div class="llm-evaluation">
+                <h4>🤖 Overall Performance Analysis</h4>
+                {% if session.overall_performance_feedback %}
+                    {{ session.overall_performance_feedback|linebreaksbr|safe }}
+                {% else %}
+                    <p>Overall performance evaluation not available.</p>
+                {% endif %}
+            </div>
+            
+            <div class="llm-evaluation">
+                <h4>📋 Resume vs Job Description Match</h4>
+                {% if session.resume_feedback %}
+                    {{ session.resume_feedback|linebreaksbr|safe }}
+                {% else %}
+                    <p>Resume analysis not available.</p>
+                {% endif %}
+            </div>
+            
+            <div class="llm-evaluation">
+                <h4>💬 Interview Performance Assessment</h4>
+                {% if session.answers_feedback %}
+                    {{ session.answers_feedback|linebreaksbr|safe }}
+                {% else %}
+                    <p>Interview performance assessment not available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Technical Questions Section -->
+    <div class="section">
+        <h2>Technical Questions & Answers</h2>
+        <div class="evaluation-content">
+            {% for qa in technical_questions %}
+                <div class="question-block" style="margin-bottom: 2.5em; page-break-inside: avoid;">
+                    <div class="main-question" style="border-left: 4px solid #007bff; padding-left: 1em;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin: 0 0 10px 0; color: #000;">Interviewer:</h3>
+                        <p style="margin: 8px 0; line-height: 1.4;">{{ qa.question_text|default:"No question text available." }}</p>
+                        
+                        <h4 style="font-size: 13px; font-weight: bold; margin: 15px 0 10px 0; color: #000;">Candidate:</h4>
+                        <p style="font-style: italic; color: #555; margin: 8px 0; line-height: 1.4;">{{ qa.answer|default:"No answer provided." }}</p>
+                    </div>
+                    
+                    {% if qa.response_time %}
+                    <div class="metric-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1em; margin-top: 1em; border: 1px solid #dee2e6; padding: 10px; border-radius: 5px; background-color: #f8f9fa;">
+                        <div class="metric-card" style="text-align: center;">
+                            <div class="metric-value" style="font-size: 1.2em; font-weight: bold; color: #007bff;">{{ qa.response_time|floatformat:1 }}s</div>
+                            <div class="metric-label" style="font-size: 0.8em; color: #6c757d;">Response Time</div>
+                        </div>
+                        {% if qa.question_type %}
+                        <div class="metric-card" style="text-align: center;">
+                            <div class="metric-value" style="font-size: 1.2em; font-weight: bold; color: #007bff;">{{ qa.question_type }}</div>
+                            <div class="metric-label" style="font-size: 0.8em; color: #6c757d;">Question Type</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <p style="text-align: center; color: #6c757d; font-style: italic;">No technical questions were found for this interview.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Coding Questions Section -->
+    {% if coding_questions %}
+    <div class="section">
+        <h2>Coding Questions & Challenges</h2>
+        <div class="evaluation-content">
+            {% for qa in coding_questions %}
+                <div class="question-block" style="margin-bottom: 2.5em; page-break-inside: avoid;">
+                    <div class="main-question" style="border-left: 4px solid #28a745; padding-left: 1em;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin: 0 0 10px 0; color: #000;">Interviewer:</h3>
+                        <p style="margin: 8px 0; line-height: 1.4;">{{ qa.question_text|default:"No question text available." }}</p>
+                        
+                        <h4 style="font-size: 13px; font-weight: bold; margin: 15px 0 10px 0; color: #000;">Candidate:</h4>
+                        <p style="font-style: italic; color: #555; margin: 8px 0; line-height: 1.4;">{{ qa.answer|default:"No code submitted." }}</p>
+                        
+                        {% if qa.test_results %}
+                        <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
+                            <h5 style="font-size: 12px; font-weight: bold; margin: 0 0 8px 0; color: #000;">Test Results:</h5>
+                            <p style="margin: 5px 0; font-size: 11px;">Tests Passed: {{ qa.test_results.passed|default:0 }}/{{ qa.test_results.total|default:0 }}</p>
+                            {% if qa.test_results.output %}
+                            <div style="margin-top: 8px; padding: 8px; background-color: #fff; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 10px; border: 1px solid #dee2e6; white-space: pre-wrap;">{{ qa.test_results.output }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Coding Round Assessment -->
+    {% if code_submissions %}
+    <div class="section">
+        <h2>Coding Challenge Submission(s)</h2>
+        <div class="evaluation-content">
+            {% for submission in code_submissions %}
+                <div class="question-block" style="margin-bottom: 2.5em; page-break-inside: avoid;">
+                    <div class="main-question" style="border-left: 4px solid #007bff; padding-left: 1em;">
+                        <h3 style="font-size: 14px; font-weight: bold; margin: 0 0 10px 0; color: #000;">Challenge: {{ submission.question.question_text }}</h3>
+                        <p class="answer" style="font-style: italic; color: #555; margin: 8px 0; line-height: 1.4;"><strong>Language:</strong> {{ submission.language }}</p>
+                        <p class="answer" style="font-style: italic; color: #555; margin: 8px 0; line-height: 1.4;"><strong>Submitted Code:</strong></p>
+                        <div class="code-block" style="background-color: #f1f3f4; padding: 12px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 10px; border: 1px solid #dee2e6; margin: 8px 0; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">{{ submission.submitted_code|default:"No code was submitted." }}</div>
+                        
+                        <p class="answer" style="font-style: italic; color: #555; margin: 15px 0 8px 0; line-height: 1.4;"><strong>Test Results & Output:</strong></p>
+                        <div class="code-block" style="background-color: #f8f9fa; padding: 12px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 10px; border: 1px solid #dee2e6; margin: 8px 0; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">{{ submission.output_log|default:"Test results were not recorded." }}</div>
+                        
+                        <p class="answer" style="font-style: italic; color: #555; margin: 15px 0 8px 0; line-height: 1.4;"><strong>📊 Code Quality Score:</strong> {{ coding_understanding|default:"N/A" }}/100</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Skills Assessment Matrix -->
+    <div class="section">
+        <h2>Skills Assessment Matrix</h2>
+        <table class="skills-table">
+            <thead>
+                <tr>
+                    <th>Skill Category</th>
+                    <th>Score</th>
+                    <th>Performance Level</th>
+                    <th>Comments</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Communication & Grammar</td>
+                    <td>{{ grammar_score|default:"N/A" }}/100</td>
+                    <td>{% if grammar_score >= 80 %}Excellent{% elif grammar_score >= 65 %}Good{% elif grammar_score >= 50 %}Average{% else %}Needs Improvement{% endif %}</td>
+                    <td>Assessed through verbal responses and articulation</td>
+                </tr>
+                <tr>
+                    <td>Technical Knowledge</td>
+                    <td>{{ technical_knowledge|default:"N/A" }}/100</td>
+                    <td>{% if technical_knowledge >= 80 %}Excellent{% elif technical_knowledge >= 65 %}Good{% elif technical_knowledge >= 50 %}Average{% else %}Needs Improvement{% endif %}</td>
+                    <td>Based on technical questions and problem-solving</td>
+                </tr>
+                <tr>
+                    <td>Coding Skills</td>
+                    <td>{{ coding_understanding|default:"N/A" }}/100</td>
+                    <td>{% if coding_understanding >= 80 %}Excellent{% elif coding_understanding >= 65 %}Good{% elif coding_understanding >= 50 %}Average{% else %}Needs Improvement{% endif %}</td>
+                    <td>Practical coding assessment and test results</td>
+                </tr>
+                <tr>
+                    <td>Technology Understanding</td>
+                    <td>{{ tech_understanding|default:"N/A" }}/100</td>
+                    <td>{% if tech_understanding >= 80 %}Excellent{% elif tech_understanding >= 65 %}Good{% elif tech_understanding >= 50 %}Average{% else %}Needs Improvement{% endif %}</td>
+                    <td>Overall technology comprehension and application</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Proctoring Analysis -->
+    {% if warning_counts %}
+    <div class="section">
+        <h2>Proctoring Analysis</h2>
+        <div class="evaluation-content">
+            <h3>📹 Session Monitoring Report</h3>
+            <p><strong>Total Warning Types Detected:</strong> {{ warning_counts|length }}</p>
+            {% for warning, count in warning_counts.items %}
+                <p>• <strong>{{ warning }}:</strong> {{ count }} instance(s)</p>
+            {% endfor %}
+            <p><em>Automated monitoring ensures interview integrity and authenticity.</em></p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Final Recommendation -->
+    <div class="recommendation-box">
+        <h2>Final Recommendation</h2>
+        <p><strong>{{ recommendation }}</strong></p>
+        <div class="score">Overall Score: {{ overall_percentage|floatformat:1 }}%</div>
+        <p>
+            {% if overall_percentage >= 80 %}
+                🌟 Exceptional candidate with outstanding technical skills and communication abilities. Highly recommended for immediate hiring.
+            {% elif overall_percentage >= 65 %}
+                ✅ Strong candidate with solid technical foundation and good potential. Recommended for consideration.
+            {% elif overall_percentage >= 50 %}
+                ⚠️ Candidate shows potential but may require additional training or mentoring. Consider for junior positions.
+            {% else %}
+                ❌ Candidate does not meet the minimum requirements for this position. Not recommended at this time.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p><strong>Confidential Evaluation Report</strong></p>
+        <p>Generated by AI Interview System on {{ "now"|date:"d F Y, H:i" }}</p>
+        <p>This report contains confidential information and is intended for internal use only.</p>
+        <p>© 2024 AI Interview System. All rights reserved.</p>
+    </div>
+
+</body>
+</html>

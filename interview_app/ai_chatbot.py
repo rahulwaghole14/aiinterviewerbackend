@@ -152,6 +152,7 @@ class ChatSession:
     max_questions: int = 4
     is_completed: bool = False
     asked_for_questions: bool = False
+    in_qa_phase: bool = False
     last_active_question_text: str = ""
     question_asked_at: float = 0.0
 
@@ -182,29 +183,32 @@ class ChatBotManager:
         )
 
     def _shape_question(self, text: str, ensure_intro: bool = False) -> str:
-        """Ensure a single, concise question with a trailing question mark."""
-        fallback_intro = ("To get started, could you briefly introduce yourself "
-                          "and highlight one experience you are proud of?")
-        fallback_regular = ("Could you describe a recent project where you solved a "
-                            "challenging technical problem?")
+        """Ensure a concise 1-3 line question."""
+        fallback_intro = "Could you briefly introduce yourself and mention one relevant experience?"
+        fallback_regular = "Could you describe a recent technical project you worked on?"
         cleaned = (text or "").strip()
         cleaned = " ".join(cleaned.split())
         if not cleaned:
             cleaned = fallback_intro if ensure_intro else fallback_regular
 
-        # Keep only the first question if multiple are present
-        if "?" in cleaned:
-            cleaned = cleaned.split("?")[0].strip() + "?"
-        else:
-            # Convert statements into a question
-            cleaned = cleaned.rstrip(".")
-            if not cleaned.lower().startswith(("what", "how", "why", "can", "could", "would", "tell", "describe", "share", "walk", "give")):
-                cleaned = "Can you " + cleaned[0].lower() + cleaned[1:] if len(cleaned) > 1 else f"Can you {cleaned}"
-            if not cleaned.endswith("?"):
+        # Split into sentences and keep only first 1-2 sentences
+        sentences = [s.strip() for s in cleaned.split('.') if s.strip()]
+        if len(sentences) > 2:
+            cleaned = '. '.join(sentences[:2]) + '.'
+        
+        # Ensure it ends with a question mark
+        if not cleaned.endswith("?"):
+            if cleaned.endswith("."):
+                cleaned = cleaned[:-1] + "?"
+            else:
                 cleaned = cleaned + "?"
 
+        # Limit to reasonable length (max 200 characters)
+        if len(cleaned) > 200:
+            cleaned = cleaned[:197] + "...?"
+
         if ensure_intro:
-            intro_keywords = ("introduce yourself", "introduction", "background", "yourself")
+            intro_keywords = ("introduce yourself", "introduction", "background", "yourself", "tell me about")
             if not any(kw in cleaned.lower() for kw in intro_keywords):
                 cleaned = fallback_intro
 
@@ -213,21 +217,40 @@ class ChatBotManager:
     def _generate_candidate_response(self, session: ChatSession, candidate_question: str) -> str:
         """Provide clarifying response while refusing to reveal answers outright."""
         prompt = (
-            "You are a professional AI interviewer. A candidate asked a clarification question "
-            "during a technical interview.\n\n"
-            f"Interview so far:\n{session.context_text()}\n\n"
-            f"Candidate question:\n\"{candidate_question.strip()}\"\n\n"
-            "Respond in 2-3 sentences. Provide helpful clarification if the question is about the "
-            "problem statement, expectations, or requirements. If the candidate explicitly asks for "
-            "the exact solution or the correct answer to the interview question, politely refuse and "
-            "remind them to explain their own approach instead. Always end by inviting them to continue "
-            "their answer."
+            f"Candidate asked: {candidate_question.strip()}\n\n"
+            "Respond in 1-2 sentences. Clarify if needed, but don't give answers. "
+            "Ask them to continue with their own approach."
         )
         response = _gemini_generate(prompt).strip()
         if not response:
-            response = ("Thanks for the question. I can clarify the requirements, but I'll need you to "
-                        "walk me through your own approach. Please go ahead with your answer when ready.")
+            response = "I can clarify the requirements, but please walk me through your approach."
         return response
+
+    def _generate_company_response(self, session: ChatSession, candidate_question: str) -> str:
+        """Generate response to candidate's question about company or job role."""
+        prompt = (
+            f"You are an interviewer responding to a candidate's question about the company or job role.\n"
+            f"Job Description Context: {session.jd_text[:500]}...\n\n"
+            f"Candidate question: {candidate_question.strip()}\n\n"
+            "Respond professionally in 1-3 sentences. Answer only if related to the job, company culture, "
+            "benefits, or role responsibilities. If not related, politely decline and redirect to job-related topics."
+        )
+        response = _gemini_generate(prompt).strip()
+        if not response:
+            response = "I'd be happy to answer questions about the role or company. Could you ask something related to the position?"
+        return response
+
+    def _is_job_related_question(self, question: str, jd_text: str) -> bool:
+        """Check if question is related to job, company, or role."""
+        job_related_keywords = [
+            'company', 'team', 'culture', 'benefits', 'salary', 'compensation', 
+            'role', 'responsibilities', 'work', 'project', 'technology', 'stack',
+            'opportunity', 'growth', 'career', 'position', 'job', 'interview',
+            'next steps', 'timeline', 'decision', 'hiring', 'process'
+        ]
+        
+        question_lower = question.lower()
+        return any(keyword in question_lower for keyword in job_related_keywords)
 
     def _generate_question(self, session: ChatSession, qtype: str = "regular", last_answer: Optional[str] = None) -> str:
         print(f"🔍 Generating {qtype} question for candidate: {session.candidate_name}")
@@ -244,22 +267,21 @@ class ChatBotManager:
 
         if qtype == "introduction":
             prompt = (
-                f"You are a professional interviewer. The candidate is {session.candidate_name}.\n\n"
-                f"Job Description Context: {jd_ctx}\n\n"
-                "Ask a warm, single-line introduction question to start.like introduce yourself in question form"
+                f"Candidate: {session.candidate_name}\n"
+                f"Job: {jd_ctx[:200]}...\n\n"
+                "Ask a brief 1-2 line introduction question."
             )
         elif qtype == "follow_up":
             prompt = (
-                "You are a professional technical interviewer. Ask a concise, single-line, direct follow-up question based on the answer.\n\n"
-                f"Job Description Context: {jd_ctx}\n\nInterview so far:\n{conv}\n"
-                "IMPORTANT: You may use a brief introductory phrase like 'That's okay' or 'I understand' ONCE, but DO NOT repeat it. "
-                "NEVER say phrases like 'That's okay, that's okay' or 'That's fine, that's fine' - this is repetitive and unprofessional. "
-                "If you use an introductory phrase, use it only ONCE, then immediately ask the question."
+                f"Previous answer: {last_answer[:150]}...\n"
+                f"Job context: {jd_ctx[:200]}...\n\n"
+                "Ask a brief 1-2 line follow-up question."
             )
         else:
             prompt = (
-                "You are a professional interviewer. Ask the next single-line question grounded in the JD and prior answer.\n\n"
-                f"Job Description Context: {jd_ctx}\n\nInterview so far:\n{conv}\n"
+                f"Conversation: {conv[-300:] if len(conv) > 300 else conv}\n"
+                f"Job: {jd_ctx[:200]}...\n\n"
+                "Ask a brief 1-2 line technical question."
             )
 
         print(f"🔍 Sending prompt to Gemini (length: {len(prompt)})")
@@ -339,17 +361,74 @@ class ChatBotManager:
 
         session.add_candidate(transcript)
 
-        # End when reaching max_questions; otherwise continue
-        if session.current_question_number >= session.max_questions:
-            session.is_completed = True
-            closing = "Thank you for giving this interview today. I appreciate your time and wish you the best of luck!"
-            audio_url = _text_to_speech(closing, f"final_{uuid.uuid4().hex}.mp3")
+        # Check if we've already asked the maximum number of questions
+        if session.current_question_number >= session.max_questions and not session.in_qa_phase:
+            # Transition to Q&A phase
+            session.in_qa_phase = True
+            qa_question = "Thank you for your answers! Do you have any questions for me about the company, the role, or anything else?"
+            session.add_interviewer(qa_question)
+            session.last_active_question_text = qa_question
+            session.question_asked_at = time.time()
+            audio_url = _text_to_speech(qa_question, f"qa_question.mp3")
             return {
                 "transcript": transcript,
-                "completed": True,
-                "message": closing,
-                "final_audio_url": audio_url,
+                "completed": False,
+                "next_question": qa_question,
+                "audio_url": audio_url,
+                "question_number": session.current_question_number,
+                "max_questions": session.max_questions,
+                "qa_phase": True,
             }
+
+        # Handle Q&A phase
+        if session.in_qa_phase:
+            if not transcript.strip():
+                # No response to Q&A question, end interview
+                session.is_completed = True
+                closing = "Thank you for your time! We appreciate your interest in the position and will be in touch soon."
+                audio_url = _text_to_speech(closing, f"final_closing.mp3")
+                return {
+                    "transcript": transcript,
+                    "completed": True,
+                    "message": closing,
+                    "final_audio_url": audio_url,
+                }
+            
+            session.add_candidate(transcript)
+            
+            # Check if candidate has a question
+            if "?" in transcript and any(hint in transcript.lower() for hint in self._question_hints):
+                # Candidate asked a question, check if it's job-related
+                if self._is_job_related_question(transcript, session.jd_text):
+                    response = self._generate_company_response(session, transcript)
+                else:
+                    response = "I can only answer questions related to the company, job role, or interview process. Do you have any questions about the position?"
+                
+                session.add_interviewer(response)
+                session.last_active_question_text = response
+                session.question_asked_at = time.time()
+                audio_url = _text_to_speech(response, f"qa_answer.mp3")
+                
+                return {
+                    "transcript": transcript,
+                    "completed": False,
+                    "next_question": response,
+                    "audio_url": audio_url,
+                    "question_number": session.current_question_number,
+                    "max_questions": session.max_questions,
+                    "qa_phase": True,
+                }
+            else:
+                # Candidate doesn't have questions, end interview
+                session.is_completed = True
+                closing = "Great! Thank you for your time and interest. We'll be in touch with next steps soon."
+                audio_url = _text_to_speech(closing, f"final_closing.mp3")
+                return {
+                    "transcript": transcript,
+                    "completed": True,
+                    "message": closing,
+                    "final_audio_url": audio_url,
+                }
 
         # Detect candidate clarification questions before moving on
         lower_transcript = transcript.lower()
@@ -370,6 +449,7 @@ class ChatBotManager:
                 "max_questions": session.max_questions,
             }
 
+        # Generate next question only if we haven't reached max_questions
         qtype = "follow_up" if session.current_question_number == 1 else "regular"
         print(f"🤖 Generating {qtype} question for session {session_id}, current question: {session.current_question_number}")
         next_q = self._generate_question(session, qtype=qtype, last_answer=transcript)
@@ -385,6 +465,7 @@ class ChatBotManager:
                 "max_questions": session.max_questions,
             }
         
+        # Increment question number AFTER generating the question
         session.add_interviewer(next_q)
         session.current_question_number += 1
         session.last_active_question_text = next_q

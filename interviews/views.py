@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
+from rest_framework.viewsets import ModelViewSet
 
 from .models import (
     Interview,
@@ -143,9 +144,46 @@ class PublicInterviewAccessView(APIView):
             print(f"DEBUG: Validation result: {is_valid} - {message}")
 
             if not is_valid:
-                print(f"DEBUG: Returning invalid link error: {message}")
+                # Check if this is an early access scenario
+                if message.startswith("early_access:"):
+                    # Parse minutes and seconds from message
+                    try:
+                        _, minutes, seconds = message.split(":")
+                        time_status = interview.get_time_status()
+                        
+                        # Check if request wants HTML (browser) or JSON (API)
+                        if request.headers.get("Accept") != "application/json":
+                            # Render HTML template for browser access
+                            from django.template.loader import render_to_string
+                            
+                            html_content = render_to_string('interviews/early_access.html', {
+                                'candidate_name': interview.candidate.full_name,
+                                'company_name': interview.job.company_name if interview.job else "Company",
+                                'interview_type': interview.ai_interview_type or "AI Interview",
+                                'message': time_status["message"],
+                                'time_until': time_status["time_until"],
+                                'scheduled_time': interview.scheduled_time,
+                                'current_time': timezone.now()
+                            })
+                            
+                            return HttpResponse(html_content, content_type="text/html")
+                        else:
+                            # Return JSON response for API calls
+                            return Response({
+                                "status": "early_access",
+                                "message": time_status["message"],
+                                "time_until": time_status["time_until"],
+                                "scheduled_time": time_status["scheduled_time"],
+                                "current_time": time_status["current_time"],
+                                "candidate_name": interview.candidate.full_name,
+                                "company_name": interview.job.company_name if interview.job else "Company",
+                                "interview_type": interview.ai_interview_type or "AI Interview"
+                            })
+                    except Exception as e:
+                        print(f"DEBUG: Error parsing early access message: {e}")
+                
                 return Response(
-                    {"error": message, "status": "invalid_link"},
+                    {"error": message, "status": "invalid"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -166,13 +204,13 @@ class PublicInterviewAccessView(APIView):
                     ),
                     "interview_round": interview.interview_round,
                     "scheduled_date": (
-                        interview.started_at.strftime("%B %d, %Y")
-                        if interview.started_at
+                        interview.scheduled_time.strftime("%B %d, %Y")
+                        if interview.scheduled_time
                         else "TBD"
                     ),
                     "scheduled_time": (
-                        interview.started_at.strftime("%I:%M %p")
-                        if interview.started_at
+                        interview.scheduled_time.strftime("%I:%M %p")
+                        if interview.scheduled_time
                         else "TBD"
                     ),
                     "duration_minutes": (
@@ -185,6 +223,7 @@ class PublicInterviewAccessView(APIView):
                     "video_url": interview.video_url,
                     "can_join": True,
                     "message": "You can now join your interview",
+                    "time_status": interview.get_time_status()
                 }
                 return Response(response_data)
 
@@ -278,11 +317,13 @@ class PublicInterviewAccessView(APIView):
 
             # Check if interview can be started
             now = timezone.now()
-            if interview.started_at and now < interview.started_at:
+            if interview.scheduled_time and now < interview.scheduled_time:
                 return Response(
                     {
-                        "error": f'Interview starts at {interview.started_at.strftime("%I:%M %p")}. Please wait.',
+                        "error": f'Interview starts at {interview.scheduled_time.strftime("%I:%M %p")}. Please wait.',
                         "status": "not_started",
+                        "scheduled_time": interview.scheduled_time.isoformat(),
+                        "current_time": now.isoformat()
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -635,6 +676,22 @@ class InterviewListCreateView(DataIsolationMixin, generics.ListCreateAPIView):
         else:
             return Interview.objects.filter(candidate__recruiter=self.request.user)
 
+    def list(self, request, *args, **kwargs):
+        """
+        Override list method to add PDF download URLs to each interview
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Add PDF download URLs to the response data
+        response_data = serializer.data
+        for interview_data in response_data:
+            interview_id = interview_data.get('id')
+            if interview_id:
+                interview_data['pdf_download_url'] = f"/api/interviews/{interview_id}/download-pdf/"
+        
+        return Response(response_data)
+
 
 class InterviewDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIView):
     """
@@ -649,6 +706,61 @@ class InterviewDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
         if self.request.method in ["PUT", "PATCH"]:
             return InterviewSerializer
         return InterviewSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Override retrieve method to add PDF download URL
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        # Add PDF download URL to the response data
+        response_data = serializer.data
+        interview_id = str(instance.id)
+        response_data['pdf_download_url'] = f"/api/interviews/{interview_id}/download-pdf/"
+        
+        return Response(response_data)
+
+
+class InterviewDownloadPDFView(DataIsolationMixin, generics.GenericAPIView):
+    """
+    Download PDF report for an interview using the ai_transcript_pdf function
+    """
+    queryset = Interview.objects.all()
+    permission_classes = [InterviewHierarchyPermission]
+
+    def get(self, request, pk=None):
+        """
+        Download PDF report for the interview using ai_transcript_pdf function
+        """
+        interview = self.get_object()
+        
+        # Check if interview has session_key
+        if not interview.session_key:
+            return Response(
+                {"error": "No session key found for this interview. PDF generation requires a completed AI interview session."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Import the PDF generation function from interview_app as specified in the guide
+            from interview_app.views import ai_transcript_pdf
+            
+            # Create a new request with session_key parameter for ai_transcript_pdf function
+            # We need to modify the request GET parameters to include session_key
+            request.GET = request.GET.copy()
+            request.GET['session_key'] = interview.session_key
+            
+            # Call the ai_transcript_pdf function with session_key parameter
+            # This function uses WeasyPrint and report_pdf.html template as specified in the guide
+            return ai_transcript_pdf(request)
+            
+        except Exception as e:
+            logger.error(f"Error generating PDF for interview {interview.id}: {str(e)}")
+            return Response(
+                {"error": f"Failed to generate PDF: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class InterviewGenerateLinkView(DataIsolationMixin, generics.GenericAPIView):

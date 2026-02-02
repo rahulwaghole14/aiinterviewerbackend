@@ -111,7 +111,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 # PostgreSQL is now enabled - using new database
 # To use SQLite for local development, set USE_POSTGRESQL = False
-USE_POSTGRESQL = os.environ.get("USE_POSTGRESQL", "True").lower() == "true"
+# Force SQLite for local development
+USE_POSTGRESQL = False
 
 if USE_POSTGRESQL and DATABASE_URL:
     # PostgreSQL configuration

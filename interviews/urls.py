@@ -38,6 +38,11 @@ urlpatterns = [
         views.InterviewGenerateLinkView.as_view(),
         name="interview-generate-link",
     ),
+    path(
+        "<uuid:pk>/download-pdf/",
+        views.InterviewDownloadPDFView.as_view(),
+        name="interview-download-pdf",
+    ),
     # Slot management endpoints
     path("", include(router.urls)),
     # Utility endpoints

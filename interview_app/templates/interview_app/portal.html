@@ -1189,11 +1189,11 @@
             </div>
             <div id="id-verification-screen" class="card" style="display: none; text-align: center;">
                 <h1>🆔 ID Verification</h1>
-                <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please hold your ID card next to your face so both are clearly visible in the frame.</p>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please position your face clearly in the frame and hold your ID card visible for name verification.</p>
                 <div style="max-width: 640px; margin: 0 auto;">
                     <img id="verification-feed" style="width: 100%; max-width: 640px; height: auto; border-radius: 15px; background-color: #000; aspect-ratio: 4/3; margin-bottom: 1.5rem; display: block;" />
                     <canvas id="verification-canvas" style="display: none;"></canvas>
-                    <button id="capture-id-btn" class="btn submit-btn" style="width: 100%; max-width: 300px;">📸 Capture & Verify ID</button>
+                    <button id="capture-id-btn" class="btn submit-btn" style="width: 100%; max-width: 300px;">📸 Verify Identity & ID Card</button>
                     <button id="start-coding-btn" class="btn done-btn" style="width: 100%; max-width: 300px; display: none;">💻 Start Coding Round</button>
                     <p id="id-verification-status" style="font-weight: 600; margin-top: 1rem; padding: 1rem; border-radius: 10px; background: var(--bg-primary);"></p>
                 </div>
@@ -2209,7 +2209,7 @@
                             imgEl.src = canvasEl.toDataURL('image/jpeg', 0.8);
                             
                             if (statusEl.innerText === "Requesting camera access..." || statusEl.innerText === "Initializing camera...") {
-                                statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                                statusEl.innerText = "Camera ready. Position your face and ID card clearly in the frame.";
                                 statusEl.style.color = "green";
                             }
                         } catch (e) {
@@ -2221,7 +2221,7 @@
                     window._verificationFrameInterval = setInterval(updateFrame, 67);
                     updateFrame(); // Start immediately
                     
-                    statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                    statusEl.innerText = "Camera ready. Position your face and ID card clearly in the frame.";
                     statusEl.style.color = "green";
                 };
             })
@@ -2249,7 +2249,7 @@
             imgEl.onload = () => {
                 console.log('✅ Verification frame loaded');
                 if (statusEl.innerText === "Initializing camera...") {
-                    statusEl.innerText = "Camera ready. Hold your ID card next to your face.";
+                    statusEl.innerText = "Camera ready. Position your face and ID card clearly in the frame.";
                     statusEl.style.color = "green";
                 }
             };
@@ -4435,6 +4435,101 @@
             updateProctoringTimestamps(); // Initial update
         }
         
+        // IMMEDIATE WARNING DISPLAY FUNCTION - Show warnings instantly when detected
+        function displayImmediateWarnings(currentWarnings, prevPhone, prevMultiple, prevNoPerson, prevLowConc) {
+            const list = document.getElementById('warnings-list');
+            const list2 = document.getElementById('warnings-list-2');
+            
+            // Check which phase is visible
+            const spokenPhase = document.getElementById('spoken-interview-phase');
+            const codingPhase = document.getElementById('coding-interview-phase');
+            const isSpokenVisible = spokenPhase && spokenPhase.style.display !== 'none' && spokenPhase.style.display !== '';
+            const isCodingVisible = codingPhase && codingPhase.style.display !== 'none' && codingPhase.style.display !== '';
+            
+            if (!isSpokenVisible && !isCodingVisible) return;
+            
+            // Warning friendly names
+            const warningFriendlyMap = {
+                'phone_detected': 'Phone Detected',
+                'multiple_people': 'Multiple People Detected',
+                'no_person': 'No Person in Frame',
+                'low_concentration': 'Low Concentration'
+            };
+            
+            // Check each warning type for immediate display
+            const warningTypes = ['phone_detected', 'multiple_people', 'no_person', 'low_concentration'];
+            const prevValues = { phone_detected: prevPhone, multiple_people: prevMultiple, no_person: prevNoPerson, low_concentration: prevLowConc };
+            
+            warningTypes.forEach(warningType => {
+                const currentValue = currentWarnings[warningType];
+                const prevValue = prevValues[warningType];
+                
+                // Show warning immediately when it becomes true (was false, now true)
+                if (currentValue === true && prevValue === false) {
+                    console.log(`⚠️ IMMEDIATE WARNING DETECTED: ${warningFriendlyMap[warningType]}`);
+                    
+                    const warningId = `immediate-warning-${warningType}`;
+                    
+                    // Remove existing warning if present
+                    const existingTech = document.getElementById(warningId + '-tech');
+                    const existingCoding = document.getElementById(warningId + '-coding');
+                    if (existingTech && existingTech.parentNode) existingTech.parentNode.removeChild(existingTech);
+                    if (existingCoding && existingCoding.parentNode) existingCoding.parentNode.removeChild(existingCoding);
+                    
+                    // Create warning element
+                    const li = document.createElement('li');
+                    li.id = warningId;
+                    li.textContent = warningFriendlyMap[warningType];
+                    li.style.backgroundColor = '#dc3545';
+                    li.style.color = 'white';
+                    li.style.padding = '0.75rem 1.5rem';
+                    li.style.borderRadius = '25px';
+                    li.style.marginBottom = '0.75rem';
+                    li.style.textAlign = 'center';
+                    li.style.fontWeight = '600';
+                    li.style.fontSize = '0.9rem';
+                    li.style.animation = 'warningPop 0.3s ease-out';
+                    
+                    // Add to visible phases
+                    if (list && isSpokenVisible) {
+                        const techNode = li.cloneNode(true);
+                        techNode.id = warningId + '-tech';
+                        list.appendChild(techNode);
+                        console.log(`⚠️ Immediate warning displayed in technical phase: ${warningFriendlyMap[warningType]}`);
+                    }
+                    
+                    if (list2 && isCodingVisible) {
+                        const codingNode = li.cloneNode(true);
+                        codingNode.id = warningId + '-coding';
+                        list2.appendChild(codingNode);
+                        console.log(`⚠️ Immediate warning displayed in coding phase: ${warningFriendlyMap[warningType]}`);
+                    }
+                    
+                    // Auto-remove after 3 seconds
+                    setTimeout(() => {
+                        const techNode = document.getElementById(warningId + '-tech');
+                        const codingNode = document.getElementById(warningId + '-coding');
+                        
+                        if (techNode && techNode.parentNode) {
+                            techNode.style.animation = 'warningFade 0.3s ease-out';
+                            setTimeout(() => {
+                                if (techNode.parentNode) techNode.parentNode.removeChild(techNode);
+                            }, 300);
+                        }
+                        
+                        if (codingNode && codingNode.parentNode) {
+                            codingNode.style.animation = 'warningFade 0.3s ease-out';
+                            setTimeout(() => {
+                                if (codingNode.parentNode) codingNode.parentNode.removeChild(codingNode);
+                            }, 300);
+                        }
+                        
+                        console.log(`✅ Immediate warning auto-removed: ${warningFriendlyMap[warningType]}`);
+                    }, 3000);
+                }
+            });
+        }
+
         function startProctoringMonitors() {
         // Clear any existing interval to avoid duplicates
         if (proctoringInterval) {
@@ -4557,6 +4652,14 @@
                                 browserProctorWarnings.multiple_people = result.multiple_people || false;
                                 browserProctorWarnings.no_person = result.no_person || false;
                                 browserProctorWarnings.low_concentration = result.low_concentration || false;
+                                
+                                // IMMEDIATE WARNING DISPLAY - Show warnings instantly when detected
+                                displayImmediateWarnings({
+                                    phone_detected: result.phone_detected || false,
+                                    multiple_people: result.multiple_people || false,
+                                    no_person: result.no_person || false,
+                                    low_concentration: result.low_concentration || false
+                                }, prevPhone, prevMultiple, prevNoPerson, prevLowConc);
                                 
                                 // Log detection results
                                 if (result.phone_detected || result.multiple_people || result.no_person || result.low_concentration) {
@@ -4717,10 +4820,19 @@
                     let warnings = await res.json();
                     console.log('📊 Warnings received (server):', warnings); // Debug: log all warnings
                     
-                    // Merge browser-side movement-based warnings (if available)
+                    // IMPORTANT: Always merge browser-side YOLO warnings for browser camera mode
                     if (window._browserProctorWarnings) {
+                        // For browser camera mode, browser warnings take precedence
                         warnings = Object.assign({}, warnings, window._browserProctorWarnings);
                         console.log('📊 Combined warnings (server + browser):', warnings);
+                        
+                        // Debug: Log individual warning states
+                        console.log('🔍 Warning states:', {
+                            'phone_detected': window._browserProctorWarnings.phone_detected,
+                            'multiple_people': window._browserProctorWarnings.multiple_people,
+                            'no_person': window._browserProctorWarnings.no_person,
+                            'low_concentration': window._browserProctorWarnings.low_concentration
+                        });
                     }
                     
                     // Debounce absence warning - require it to be true for 2 consecutive checks (3 seconds total)

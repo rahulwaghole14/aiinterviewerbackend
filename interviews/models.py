@@ -364,6 +364,11 @@ class Interview(models.Model):
     link_expires_at = models.DateTimeField(
         null=True, blank=True, help_text="When the interview link expires"
     )
+    
+    # Scheduled time from slot (for precise timing control)
+    scheduled_time = models.DateTimeField(
+        null=True, blank=True, help_text="Exact scheduled interview time from slot"
+    )
 
     # Session key for AI interview portal
     session_key = models.CharField(
@@ -398,11 +403,15 @@ class Interview(models.Model):
 
     def generate_interview_link(self):
         """Generate a secure interview link for the candidate"""
-        if not self.started_at:
+        # Get scheduled time from slot if available
+        if self.slot and not self.scheduled_time:
+            self.scheduled_time = self.slot.get_full_start_datetime()
+        
+        if not self.scheduled_time:
             return None
 
         # Create a unique token based on interview ID and candidate email
-        token_data = f"{self.id}:{self.candidate.email}:{self.started_at.isoformat()}"
+        token_data = f"{self.id}:{self.candidate.email}:{self.scheduled_time.isoformat()}"
 
         # Use HMAC with a secret key for security
         secret_key = getattr(settings, "INTERVIEW_LINK_SECRET", "default-secret-key")
@@ -420,13 +429,8 @@ class Interview(models.Model):
 
         session_key = uuid.uuid4().hex
 
-        # Set expiration to 24 hours after interview end time (or 24 hours from now if no end time)
-        if self.ended_at:
-            self.link_expires_at = self.ended_at + timedelta(hours=24)
-        elif self.started_at:
-            self.link_expires_at = self.started_at + timedelta(hours=24)
-        else:
-            self.link_expires_at = timezone.now() + timedelta(hours=24)
+        # Set expiration to 15 minutes after scheduled time
+        self.link_expires_at = self.scheduled_time + timedelta(minutes=15)
         self.interview_link = link_token
         self.session_key = session_key
         self.save()
@@ -490,24 +494,61 @@ class Interview(models.Model):
         if not self.interview_link or self.interview_link != link_token:
             return False, "Invalid interview link"
 
-        if self.link_expires_at and timezone.now() > self.link_expires_at:
-            return False, "Interview link has expired"
+        if not self.scheduled_time:
+            return False, "Interview not scheduled"
 
-        # Check if it's within the interview window (15 minutes before to 24 hours after)
         now = timezone.now()
-        if self.started_at and self.ended_at:
-            interview_start = self.started_at - timedelta(minutes=15)
-            # Allow access up to 24 hours after interview ends
-            interview_end = self.ended_at + timedelta(hours=24)
-
-            # REMOVED: Blocking access before scheduled time - allow access anytime within 24 hours
-            # The link is valid for 24 hours from scheduled time, so candidates can access it early
-            # Only check if link has expired (after 24 hours)
-
-            if now > interview_end:
-                return False, "Interview link has expired (valid for 24 hours after interview end)"
+        
+        # Check if link has expired (15 minutes after scheduled time)
+        if self.link_expires_at and now > self.link_expires_at:
+            return False, "Interview link has expired (valid for 15 minutes after scheduled time)"
+        
+        # Check if it's too early (before scheduled time)
+        if now < self.scheduled_time:
+            # Return early access info instead of blocking
+            time_until = self.scheduled_time - now
+            minutes_until = int(time_until.total_seconds() / 60)
+            seconds_until = int(time_until.total_seconds() % 60)
+            return False, f"early_access:{minutes_until}:{seconds_until}"
 
         return True, "Link is valid"
+
+    def get_time_status(self):
+        """Get the current time status of the interview"""
+        if not self.scheduled_time:
+            return {"status": "not_scheduled", "message": "Interview not scheduled"}
+        
+        now = timezone.now()
+        
+        # Check if expired
+        if self.link_expires_at and now > self.link_expires_at:
+            return {"status": "expired", "message": "Interview link has expired"}
+        
+        # Check if early
+        if now < self.scheduled_time:
+            time_until = self.scheduled_time - now
+            days = time_until.days
+            hours = time_until.seconds // 3600
+            minutes = (time_until.seconds % 3600) // 60
+            seconds = time_until.seconds % 60
+            
+            if days > 0:
+                time_str = f"{days}d {hours}h {minutes}m"
+            elif hours > 0:
+                time_str = f"{hours}h {minutes}m"
+            else:
+                time_str = f"{minutes}m {seconds}s"
+            
+            return {
+                "status": "early", 
+                "message": f"Interview starts in {time_str}",
+                "time_until": time_str,
+                "scheduled_time": self.scheduled_time.isoformat(),
+                "current_time": now.isoformat()
+            }
+        
+        # Active
+        return {"status": "active", "message": "Interview is active"}
 
     def get_interview_url(self, request=None):
         """Get the full interview URL for the candidate"""

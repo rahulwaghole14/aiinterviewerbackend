@@ -1,6 +1,5 @@
 # interview_app/yolo_face_detector.py
-# Using ONNX Runtime instead of ultralytics for lower memory usage
-# ONNX Runtime is much lighter (~50MB) compared to PyTorch/ultralytics (~500MB+)
+# Using PyTorch/ultralytics for YOLOv8m.pt model
 # LAZY LOADING: Model loading happens only when detect_face_with_yolo() is called
 import os
 import numpy as np
@@ -17,245 +16,130 @@ except ImportError:
     print("⚠️ Warning: opencv-python not available. Image processing features will be disabled.")
 
 # Global variables for lazy loading
-_model = None
-_onnx_session = None
+_face_model = None
+_object_model = None
 _YOLO_AVAILABLE = None
-_ONNX_AVAILABLE = None  # None = not checked yet, True/False = checked
-_input_name = None
-_output_names = None
+_TORCH_AVAILABLE = None  # None = not checked yet, True/False = checked
 
-# YOLOv8 input/output details
-_MODEL_INPUT_SIZE = 640  # YOLOv8m expects 640x640 input
-_CONFIDENCE_THRESHOLD = 0.25
-_IOU_THRESHOLD = 0.45
+# YOLOv8 detection thresholds
+_FACE_CONFIDENCE_THRESHOLD = 0.50  # Higher threshold for face detection
+_OBJECT_CONFIDENCE_THRESHOLD = 0.30  # Lower threshold for object detection
+_IOU_THRESHOLD = 0.80
+
+# Model configurations - Use yolov8n.pt for both ID verification and interview
+_FACE_MODEL_CONFIG = {
+    'model_file': 'yolov8n.pt',
+    'img_size': 640,
+    'conf_threshold': _FACE_CONFIDENCE_THRESHOLD,
+    'iou_threshold': _IOU_THRESHOLD
+}
+
+_OBJECT_MODEL_CONFIG = {
+    'model_file': 'yolov8n.pt',
+    'img_size': 640,
+    'conf_threshold': _OBJECT_CONFIDENCE_THRESHOLD,
+    'iou_threshold': _IOU_THRESHOLD
+}
 
 class YOLOResult:
     """Mock YOLO result object to maintain compatibility with existing code"""
     def __init__(self, boxes):
         self.boxes = boxes
 
-def _load_onnx_model():
+def _load_pytorch_model(model_config):
     """
-    Lazy load YOLOv8 ONNX model only when needed.
+    Lazy load YOLOv8n PyTorch model for both ID verification and interview.
     This prevents worker timeout during Django startup.
-    ONNX Runtime is much lighter than PyTorch/ultralytics.
+    Uses local model files for better performance.
     """
-    global _onnx_session, _YOLO_AVAILABLE, _ONNX_AVAILABLE, _input_name, _output_names
+    global _face_model, _object_model, _YOLO_AVAILABLE, _TORCH_AVAILABLE
     
     # If already checked, return cached result
     if _YOLO_AVAILABLE is not None:
         return _YOLO_AVAILABLE
     
-    # First, try to import onnxruntime (lightweight, ~50MB)
-    if _ONNX_AVAILABLE is None:
+    # First, try to import torch (required for PyTorch models)
+    if _TORCH_AVAILABLE is None:
         try:
-            import onnxruntime as ort
-            _ONNX_AVAILABLE = True
-            print("✅ onnxruntime imported successfully (lazy load)")
+            import torch
+            _TORCH_AVAILABLE = True
+            print("✅ torch imported successfully (lazy load)")
         except ImportError as e:
-            print(f"ℹ️ onnxruntime not installed; YOLOv8 face detection unavailable: {e}")
-            print("ℹ️ Install with: pip install onnxruntime")
-            _ONNX_AVAILABLE = False
+            print(f"ℹ️ torch not installed; YOLOv8 detection unavailable: {e}")
+            print("ℹ️ Install with: pip install torch torchvision")
+            _TORCH_AVAILABLE = False
             _YOLO_AVAILABLE = False
             return False
         except Exception as e:
-            print(f"⚠️ Error importing onnxruntime: {e}")
-            _ONNX_AVAILABLE = False
+            print(f"⚠️ Error importing torch: {e}")
+            _TORCH_AVAILABLE = False
             _YOLO_AVAILABLE = False
             return False
     
-    if not _ONNX_AVAILABLE:
+    if not _TORCH_AVAILABLE:
         _YOLO_AVAILABLE = False
         return False
     
-    import onnxruntime as ort
+    import torch
     
     try:
-        # Use Path object for better cross-platform compatibility
-        # Look for .onnx file first, then fallback to .pt (for conversion)
-        model_path = Path(settings.BASE_DIR) / 'yolov8m.onnx'
-        print(f"🔍 Loading YOLOv8m ONNX model from: {model_path}")
+        # Load yolov8n.pt model (same for both face and object detection)
+        model_path = Path(settings.BASE_DIR) / model_config['model_file']
+        print(f"🔍 Loading {model_config['model_file']} from: {model_path}")
         print(f"🔍 BASE_DIR: {settings.BASE_DIR}")
         print(f"🔍 Model path exists: {model_path.exists()}")
         
-        if not model_path.exists():
-            # Fallback: try current directory
-            fallback_path = Path('yolov8m.onnx')
-            print(f"🔍 Trying fallback path: {fallback_path} (exists: {fallback_path.exists()})")
-            if fallback_path.exists():
-                model_path = fallback_path
-            else:
-                print(f"⚠️ YOLOv8m ONNX model not found at {Path(settings.BASE_DIR) / 'yolov8m.onnx'} or {fallback_path}")
-                print(f"⚠️ Please ensure yolov8m.onnx is in the project root directory")
-                print(f"ℹ️ You can convert yolov8m.pt to .onnx using: yolo export model=yolov8m.pt format=onnx")
-                _onnx_session = None
-                _YOLO_AVAILABLE = False
-                return False
+        if model_path.exists():
+            # Load local model file
+            model = torch.hub.load('ultralytics/yolov8', 'custom', path=str(model_path), pretrained=True)
+            print(f"✅ {model_config['model_file']} loaded from local file: {model_path}")
+        else:
+            # Fallback: download model
+            print(f"⚠️ {model_config['model_file']} not found at {model_path}, downloading from internet...")
+            model = torch.hub.load('ultralytics/yolov8', model_config['model_file'].replace('.pt', ''), pretrained=True)
+            print(f"✅ {model_config['model_file']} downloaded and loaded")
         
-        # Create ONNX Runtime session
-        # Use CPU provider for compatibility (no CUDA required)
-        providers = ['CPUExecutionProvider']
-        _onnx_session = ort.InferenceSession(str(model_path), providers=providers)
+        # Set model to evaluation mode and configure
+        model.eval()
+        model.conf = model_config['conf_threshold']
+        model.iou = model_config['iou_threshold']
         
-        # Get input/output names
-        _input_name = _onnx_session.get_inputs()[0].name
-        _output_names = [output.name for output in _onnx_session.get_outputs()]
+        # Since both models use the same file, store in both globals
+        if model_config['model_file'] == 'yolov8n.pt':
+            _face_model = model
+            _object_model = model
+            print(f"✅ YOLOv8n model configured for both ID verification and interview: imgsz={model_config['img_size']}, conf={model_config['conf_threshold']}")
         
-        print(f"✅ YOLOv8 ONNX model loaded successfully from: {model_path}")
-        print(f"   Input: {_input_name}, Outputs: {_output_names}")
-        print(f"⚠️ NOTE: Standard YOLOv8m (COCO) detects 'person' class, not faces specifically.")
-        print(f"⚠️ For face detection, you may need a face-specific YOLOv8 model.")
         _YOLO_AVAILABLE = True
         return True
         
     except Exception as e:
-        print(f"⚠️ Could not load YOLOv8 ONNX model: {e}")
+        print(f"⚠️ Could not load {model_config['model_file']}: {e}")
         import traceback
         traceback.print_exc()
-        _onnx_session = None
         _YOLO_AVAILABLE = False
         return False
 
-def _preprocess_image(img, input_size=640):
-    """Preprocess image for YOLOv8 ONNX model"""
-    # Resize image to model input size (640x640)
-    img_resized = cv2.resize(img, (input_size, input_size))
-    # Convert BGR to RGB
-    img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
-    # Normalize to [0, 1]
-    img_normalized = img_rgb.astype(np.float32) / 255.0
-    # Transpose to CHW format (channels, height, width)
-    img_transposed = np.transpose(img_normalized, (2, 0, 1))
-    # Add batch dimension
-    img_batch = np.expand_dims(img_transposed, axis=0)
-    return img_batch
+def _load_face_model():
+    """Load face detection model"""
+    return _load_pytorch_model(_FACE_MODEL_CONFIG)
 
-def _postprocess_output(outputs, img_shape, input_size=640, conf_threshold=0.25, iou_threshold=0.45):
-    """
-    Post-process ONNX model outputs to get bounding boxes.
-    YOLOv8 ONNX output format: [batch, features, anchors] = [1, 84, 8400]
-    where 84 = 4 (bbox coords) + 80 (class scores), 8400 = anchor points
-    """
-    if len(outputs) == 0:
-        return []
-    
-    predictions = outputs[0]  # Shape: [1, 84, 8400] for YOLOv8m
-    
-    # Handle different output shapes
-    if len(predictions.shape) == 3:
-        # Standard YOLOv8 format: [batch, features, anchors]
-        # Transpose to [anchors, features] for easier processing
-        predictions = predictions[0].transpose(1, 0)  # [8400, 84]
-    elif len(predictions.shape) == 2:
-        # Already in [anchors, features] format
-        predictions = predictions
-    else:
-        print(f"⚠️ Unexpected output shape: {predictions.shape}")
-        return []
-    
-    # Extract boxes and scores
-    boxes = []
-    scores = []
-    
-    # YOLOv8 format: [x_center, y_center, width, height, class_scores...]
-    # Coordinates are normalized (0-1) relative to input_size
-    for pred in predictions:
-        if len(pred) < 5:
-            continue
-        
-        # Get box coordinates (normalized, center format)
-        x_center, y_center, width, height = pred[0:4]
-        
-        # Get class scores (rest of the array)
-        class_scores = pred[4:]
-        max_score = np.max(class_scores)
-        max_class = np.argmax(class_scores)
-        
-        # Filter by confidence threshold
-        if max_score < conf_threshold:
-            continue
-        
-        # Convert from normalized center coordinates to corner coordinates
-        # Scale to original image size
-        img_h, img_w = img_shape[:2]
-        scale_x = img_w / input_size
-        scale_y = img_h / input_size
-        
-        # Convert center format to corner format
-        x1 = (x_center - width / 2) * input_size * scale_x
-        y1 = (y_center - height / 2) * input_size * scale_y
-        x2 = (x_center + width / 2) * input_size * scale_x
-        y2 = (y_center + height / 2) * input_size * scale_y
-        
-        # Ensure coordinates are within image bounds
-        x1 = max(0, min(x1, img_w))
-        y1 = max(0, min(y1, img_h))
-        x2 = max(0, min(x2, img_w))
-        y2 = max(0, min(y2, img_h))
-        
-        boxes.append([x1, y1, x2, y2, max_score, max_class])
-        scores.append(max_score)
-    
-    # Apply Non-Maximum Suppression (NMS)
-    if len(boxes) == 0:
-        return []
-    
-    boxes_array = np.array(boxes, dtype=np.float32)
-    scores_array = np.array(scores, dtype=np.float32)
-    
-    # Use OpenCV's NMS
-    try:
-        indices = cv2.dnn.NMSBoxes(
-            boxes_array[:, :4].tolist(),
-            scores_array.tolist(),
-            conf_threshold,
-            iou_threshold
-        )
-        
-        if indices is None or len(indices) == 0:
-            return []
-        
-        # Handle both numpy array and list formats
-        if isinstance(indices, np.ndarray):
-            indices = indices.flatten()
-        else:
-            indices = [int(i) for i in indices]
-    except Exception as e:
-        print(f"⚠️ NMS error: {e}")
-        return []
-    
-    # Create mock boxes object compatible with ultralytics format
-    class MockBox:
-        def __init__(self, box_data):
-            self.data = box_data  # [x1, y1, x2, y2, conf, cls]
-            self.xyxy = np.array([box_data[:4]], dtype=np.float32)  # Bounding box coordinates
-            self.conf = float(box_data[4])  # Confidence
-            self.cls = int(box_data[5])  # Class
-    
-    class MockBoxes:
-        def __init__(self, boxes_list):
-            self.boxes_list = boxes_list
-        
-        def __len__(self):
-            return len(self.boxes_list)
-        
-        def __getitem__(self, idx):
-            return self.boxes_list[idx]
-    
-    filtered_boxes = MockBoxes([MockBox(boxes_array[i]) for i in indices])
-    
-    return filtered_boxes
+def _load_object_model():
+    """Load object detection model"""
+    return _load_pytorch_model(_OBJECT_MODEL_CONFIG)
 
 def detect_face_with_yolo(image_input):
     """
-    Takes a file path or numpy array and returns YOLO detection results.
-    Falls back gracefully if YOLOv8 ONNX is not available.
-    Uses Haar cascade as fallback for face detection.
+    Single person detection for ID verification using yolov8n.pt (imgsz=640).
+    Ensures only one person is detected for ID verification.
+    Returns YOLO detection results with person-specific configuration.
+    Falls back gracefully if YOLO is not available.
+    Uses Haar cascade as final fallback for face detection.
     Always returns a list for consistency.
     
     Model is loaded lazily on first call to prevent startup timeout.
     """
-    global _onnx_session, _YOLO_AVAILABLE, _input_name, _output_names
+    global _face_model, _YOLO_AVAILABLE
     
     if not CV2_AVAILABLE or cv2 is None:
         raise ValueError("OpenCV not available. Image processing features are disabled.")
@@ -270,40 +154,42 @@ def detect_face_with_yolo(image_input):
 
     original_shape = img.shape
     
-    # Lazy load model on first use
+    # Lazy load face model on first use
     if _YOLO_AVAILABLE is None:
-        _load_onnx_model()
+        _load_face_model()
     
-    # Try ONNX YOLO first if available
-    if _YOLO_AVAILABLE and _onnx_session is not None:
+    # Try person detection model first if available
+    if _YOLO_AVAILABLE and _face_model is not None:
         try:
-            # Preprocess image
-            img_preprocessed = _preprocess_image(img, _MODEL_INPUT_SIZE)
-            print(f"🔍 Preprocessed image shape: {img_preprocessed.shape}, original: {original_shape}")
+            print(f"🔍 Running single person detection with yolov8n.pt (imgsz=640) for ID verification")
             
-            # Run inference
-            outputs = _onnx_session.run(_output_names, {_input_name: img_preprocessed})
-            print(f"🔍 ONNX output shapes: {[o.shape for o in outputs]}")
+            # Run inference with person model (PyTorch handles preprocessing internally)
+            results = _face_model(img, imgsz=640)
             
-            # Post-process outputs
-            boxes = _postprocess_output(
-                outputs,
-                original_shape,
-                _MODEL_INPUT_SIZE,
-                _CONFIDENCE_THRESHOLD,
-                _IOU_THRESHOLD
-            )
+            print(f"🔍 Person model detected {len(results[0])} objects")
             
-            print(f"🔍 Detected {len(boxes)} boxes after post-processing")
-            
-            # If we got results, return them
-            if len(boxes) > 0:
-                result = YOLOResult(boxes)
-                return [result]
+            # Filter for only person detections and ensure single person
+            if len(results[0]) > 0 and len(results[0].boxes) > 0:
+                # Get detected classes and boxes
+                boxes = results[0].boxes
+                labels = [results[0].names[int(cls)] for cls in boxes.cls]
+                
+                # Count only person detections
+                person_count = labels.count('person')
+                
+                if person_count == 1:
+                    print(f"✅ Single person detected for ID verification - SUCCESS")
+                    return results
+                elif person_count == 0:
+                    print("⚠️ No person detected, falling back to Haar cascade")
+                else:
+                    print(f"⚠️ Multiple persons detected ({person_count}), ID verification requires single person")
+                    # For multiple persons, still return results but let calling code handle validation
+                    return results
             else:
-                print("⚠️ YOLO detected 0 boxes, falling back to Haar cascade")
+                print("⚠️ Person model detected 0 persons, falling back to Haar cascade")
         except Exception as e:
-            print(f"⚠️ YOLO ONNX detection error: {e}")
+            print(f"⚠️ Person model detection error: {e}")
             import traceback
             traceback.print_exc()
     
@@ -356,3 +242,58 @@ def detect_face_with_yolo(image_input):
         # Return empty results on error as a list
         empty_obj = type('obj', (object,), {'boxes': []})()
         return [empty_obj]
+
+def detect_objects_with_yolo(image_input):
+    """
+    Object detection for proctoring warnings using yolov8n.pt (imgsz=640).
+    Detects: person, cell phone, mobile phone for proctoring warnings.
+    Uses the same model as ID verification for consistency.
+    Returns YOLO detection results with object-specific configuration.
+    Falls back gracefully if YOLO is not available.
+    Always returns a list for consistency.
+    
+    Model is loaded lazily on first call to prevent startup timeout.
+    """
+    global _object_model, _YOLO_AVAILABLE
+    
+    if not CV2_AVAILABLE or cv2 is None:
+        raise ValueError("OpenCV not available. Image processing features are disabled.")
+    
+    if isinstance(image_input, str):
+        img = cv2.imread(image_input)
+    else:
+        img = image_input
+
+    if img is None:
+        raise ValueError("Image not found or invalid format.")
+
+    original_shape = img.shape
+    
+    # Lazy load object model on first use
+    if _YOLO_AVAILABLE is None:
+        _load_object_model()
+    
+    # Try object detection model if available
+    if _YOLO_AVAILABLE and _object_model is not None:
+        try:
+            print(f"🔍 Running object detection with yolov8n.pt (imgsz=640) for interview proctoring")
+            
+            # Run inference with object model (PyTorch handles preprocessing internally)
+            results = _object_model(img, imgsz=640)
+            
+            print(f"🔍 Object model detected {len(results[0])} objects")
+            
+            # If we got results, return them
+            if len(results[0]) > 0:
+                return results
+            else:
+                print("⚠️ Object model detected 0 objects")
+                return []
+        except Exception as e:
+            print(f"⚠️ Object model detection error: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    print("⚠️ Object detection model not available")
+    return []

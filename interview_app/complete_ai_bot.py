@@ -111,6 +111,404 @@ class RAGSystem:
 rag_system = RAGSystem()
 
 
+# ------------------ Unified Prompt Generator (Single Function for All Prompts) ------------------
+def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
+    """
+    Single unified function for all interview prompt generation.
+    Handles: introduction questions, regular questions, follow-up questions, 
+    closing questions, candidate answers, elaborations, clarifications, repeats, etc.
+    
+    Args:
+        session: InterviewSession object
+        prompt_type: Type of prompt to generate
+        **kwargs: Additional parameters specific to prompt type
+        
+    Returns:
+        Generated text/question/response
+    """
+    # Get common context
+    def get_jd_context(last_answer_text=None):
+        jd_context_chunks = []
+        if last_answer_text and last_answer_text.strip():
+            jd_context_chunks = rag_system.retrieve_context(last_answer_text, top_k=5)
+        if not jd_context_chunks:
+            jd_context_chunks = rag_system.retrieve_context("job requirements and responsibilities", top_k=5)
+        return " ".join(jd_context_chunks)
+    
+    def get_previously_asked(allow_elaboration=False):
+        if allow_elaboration or not session.asked_questions:
+            return ""
+            
+        previously_asked = "\n\n" + "="*80 + "\n"
+        previously_asked += "🚫 CRITICAL - DO NOT REPEAT ANY OF THESE QUESTIONS:\n"
+        previously_asked += "="*80 + "\n"
+        previously_asked += "The following questions have ALREADY been asked. You MUST ask a COMPLETELY DIFFERENT question.\n"
+        previously_asked += "DO NOT ask the same question again.\n"
+        previously_asked += "DO NOT ask a similar question with slightly different wording.\n"
+        previously_asked += "DO NOT ask a question that covers the same topic.\n"
+        previously_asked += "You MUST ask a NEW question on a DIFFERENT topic or aspect.\n\n"
+        previously_asked += "Previously asked questions:\n"
+        for i, q in enumerate(session.asked_questions, 1):
+            previously_asked += f"{i}. {q}\n"
+        previously_asked += "\n" + "="*80 + "\n"
+        previously_asked += "REMEMBER: The candidate has ALREADY answered these questions. Move to a NEW question.\n"
+        previously_asked += "="*80 + "\n\n"
+        return previously_asked
+    
+    # Get context
+    jd_context = get_jd_context(kwargs.get('last_answer_text'))
+    conversation_context = session.get_conversation_context()
+    previously_asked = get_previously_asked(kwargs.get('allow_elaboration', False))
+    
+    # Build unified base prompt with all detection logic
+    base_prompt = (
+        f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. "
+        f"The candidate's name is {session.candidate_name}. "
+        f"Current question: {session.current_question_number + 1} of {session.max_questions}.\n\n"
+        f"Job Description Context: {jd_context}\n\n"
+        f"Interview so far:\n{conversation_context}\n\n"
+        f"{previously_asked}"
+        
+        "CANDIDATE RESPONSE ANALYSIS (analyze ALL aspects of candidate responses):\n\n"
+        
+        "1. ANSWER QUALITY ASSESSMENT:\n"
+        "   - LOW CONTENT: 4 words or fewer ('Yes', 'No', 'I agree', 'Not sure', 'Maybe')\n"
+        "   - DON'T KNOW: 'I don't know', 'not familiar', 'no experience', 'never used'\n"
+        "   - VAGUE ANSWERS: 'I think', 'probably', 'maybe', 'generally', 'usually'\n"
+        "   - JD RELEVANCE: Does answer relate to job requirements?\n"
+        "   - ANSWER RELEVANCE: Is answer related to the question asked?\n\n"
+        
+        "2. REPEAT REQUEST DETECTION:\n"
+        "   Explicit phrases: 'repeat the question', 'repeat the previous question', 'ask again',\n"
+        "   'say that again', 'what was the question', 'i didn't hear', 'i didn't catch',\n"
+        "   'pardon', 'sorry what', 'can you repeat', 'could you repeat', 'would you repeat',\n"
+        "   'please repeat'\n\n"
+        
+        "3. QUESTION REQUEST DETECTION:\n"
+        "   Question words: 'what', 'when', 'where', 'who', 'why', 'how', 'which',\n"
+        "   'can', 'could', 'would', 'should' or ends with '?'\n\n"
+        
+        "4. POSITIVE RESPONSE DETECTION:\n"
+        "   Phrases: 'yes', 'yeah', 'yep', 'sure', 'i do', 'i have', 'i'd like',\n"
+        "   'i would like'\n\n"
+        
+        "5. NEGATIVE RESPONSE DETECTION:\n"
+        "   Phrases: 'no', 'nope', 'nah', 'that's all', 'thats all', 'that's it',\n"
+        "   'all good', 'im good', 'i'm good', 'nothing else', 'no further'\n\n"
+        
+        "6. ELABORATION REQUEST DETECTION:\n"
+        "   Phrases: 'elaborate', 'elaboration', 'explain', 'more detail', 'clarify',\n"
+        "   'clarification', 'what do you mean', 'could you expand', 'expand on',\n"
+        "   'help me understand', 'can you elaborate', 'please elaborate',\n"
+        "   'say it in detail'\n\n"
+        
+        "7. SKIP COMMAND DETECTION:\n"
+        "   Phrases: 'skip', 'next question', 'move on'\n\n"
+        
+        "8. UNWANTED INTRODUCTION PHRASES (remove from generated questions):\n"
+        "   Phrases: 'okay, i understand', 'okay i understand', 'i understand',\n"
+        "   'let's begin', 'let's start', 'let's get started', 'i'm ready',\n"
+        "   'ready to begin'\n\n"
+        
+        "RESPONSE GENERATION STRATEGY:\n"
+        "- Based on your analysis of the candidate's response, determine the appropriate action\n"
+        "- If repeat request: Generate natural repeat response\n"
+        "- If question request: Answer the question appropriately\n"
+        "- If elaboration request: Provide clearer explanation\n"
+        "- If skip command: Move to next technical question\n"
+        "- If positive/negative: Handle according to interview phase\n"
+        "- If regular answer: Generate appropriate follow-up or next question\n"
+        "- Always ensure responses are technical and relevant to job description\n\n"
+        
+        "QUESTION GENERATION RULES:\n"
+        "- Always ask technical questions related to the job description\n"
+        "- Avoid personal questions, behavioral questions, salary/benefits discussions\n"
+        "- Ensure each question is unique and different from previously asked questions\n"
+        "- Keep questions concise and professional\n"
+        "- Ask only one question at a time\n"
+        "- Remove any unwanted introduction phrases from generated questions\n\n"
+    )
+    
+    # Generate specific prompt based on type
+    if prompt_type == "introduction":
+        candidate_first_name = session.candidate_name.split()[0] if session.candidate_name else "there"
+        
+        prompt = (
+            f"{base_prompt}"
+            "CRITICAL INSTRUCTIONS FOR INTRODUCTION QUESTION:\n"
+            "1. You MUST ask the candidate to introduce themselves or tell you about themselves.\n"
+            "2. DO NOT say phrases like 'Okay, I understand the instructions. Let's begin.' or 'Let's start'.\n"
+            "3. DO NOT make statements - you MUST ask a QUESTION that requests an introduction.\n"
+            "4. The question MUST explicitly ask the candidate to introduce themselves, tell about themselves, or share their background.\n"
+            "5. Address the candidate by their first name.\n"
+            "6. Keep it warm, professional, and conversational.\n"
+            "7. Ask ONLY ONE question.\n"
+            "8. Do not expose any word which shows you use the job description to ask the question.\n\n"
+            
+            f"CORRECT EXAMPLES:\n"
+            f"- 'Hi {candidate_first_name}, could you please introduce yourself and tell me about your technical background?'\n"
+            f"- 'Hello {candidate_first_name}, to get started, could you briefly introduce yourself and highlight one technical experience you are proud of?'\n\n"
+            
+            "INCORRECT EXAMPLES (DO NOT USE):\n"
+            "- 'Okay, I understand the instructions. Let's begin.'\n"
+            "- 'Let's start the interview.'\n"
+            "- 'I'm ready to begin. Please introduce yourself.'\n\n"
+            
+            f"Now generate a warm, professional introduction question that asks {candidate_first_name} to introduce themselves. "
+            "The question should be related to their technical background, experience, or skills. "
+            "Keep it conversational and friendly. Ask only one concise, single-line question."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "regular":
+        last_answer = kwargs.get('last_answer_text', '')
+        
+        prompt = (
+            f"{base_prompt}"
+            "REGULAR QUESTION GENERATION WITH ANSWER ANALYSIS:\n\n"
+            
+            f"Candidate's Last Answer: '{last_answer}'\n\n"
+            
+            "ANSWER QUALITY ASSESSMENT (analyze the last answer before generating question):\n"
+            
+            "1. LOW CONTENT CHECK: Is the answer 4 words or fewer?\n"
+            "   Examples: 'Yes', 'No', 'I agree', 'Not sure', 'Maybe'\n"
+            "   If yes: Ask for more specific details or examples\n\n"
+            
+            "2. DON'T KNOW CHECK: Does the answer indicate lack of knowledge?\n"
+            "   Phrases: 'I don't know', 'not familiar', 'no experience', 'never used'\n"
+            "   If yes: Ask about related skills or different approaches\n\n"
+            
+            "3. VAGUE ANSWER CHECK: Is the answer generic or broad?\n"
+            "   Indicators: 'I think', 'probably', 'maybe', 'generally', 'usually'\n"
+            "   If yes: Ask for specific examples, metrics, or concrete experiences\n\n"
+            
+            "4. JD RELEVANCE CHECK: Does the answer relate to job requirements?\n"
+            "   If no: Gently redirect to relevant technical areas from JD\n"
+            "   If yes: Dive deeper into that area with more specific questions\n\n"
+            
+            "5. ANSWER RELEVANCE CHECK: Is the answer related to the question asked?\n"
+            "   If unrelated: Consider rephrasing or asking clarification\n"
+            "   If related: Proceed with follow-up or new topic as appropriate\n\n"
+            
+            "QUESTION GENERATION STRATEGY:\n"
+            "- Based on your analysis above, decide whether to:\n"
+            "  a) Ask for more detail (if answer was too brief)\n"
+            "  b) Ask about related skills (if candidate doesn't know)\n"
+            "  c) Ask for specific examples (if answer was vague)\n"
+            "  d) Move to new technical topic (if answer was good)\n"
+            "  e) Redirect to JD-relevant area (if answer was off-topic)\n\n"
+            
+            "CRITICAL RULES:\n"
+            "1. ALWAYS ask a TECHNICAL question related to the job description\n"
+            "2. NEVER repeat previously asked questions\n"
+            "3. Keep questions concise and professional\n"
+            "4. Ask only ONE question at a time\n"
+            "5. Ensure your question addresses the answer quality issues you identified\n\n"
+            
+            f"Now generate the next TECHNICAL interview question (question {session.current_question_number + 1} of {session.max_questions}) "
+            "based on your analysis of the candidate's last answer. "
+            "Make sure your question addresses any answer quality issues while staying technical and relevant to the job description."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "follow_up":
+        last_answer = kwargs.get('last_answer_text', '')
+        
+        prompt = (
+            f"{base_prompt}"
+            "FOLLOW-UP QUESTION GENERATION WITH ANSWER ANALYSIS:\n\n"
+            
+            f"Candidate's Last Answer: '{last_answer}'\n\n"
+            
+            "ANSWER QUALITY ASSESSMENT (analyze the last answer before generating follow-up):\n"
+            
+            "1. LOW CONTENT CHECK: Is the answer 4 words or fewer?\n"
+            "   Examples: 'Yes', 'No', 'I agree', 'Not sure', 'Maybe'\n"
+            "   If yes: Ask for more specific details or examples about the same topic\n\n"
+            
+            "2. DON'T KNOW CHECK: Does the answer indicate lack of knowledge?\n"
+            "   Phrases: 'I don't know', 'not familiar', 'no experience', 'never used'\n"
+            "   If yes: Ask about related skills or alternative approaches to the same concept\n\n"
+            
+            "3. VAGUE ANSWER CHECK: Is the answer generic or broad?\n"
+            "   Indicators: 'I think', 'probably', 'maybe', 'generally', 'usually'\n"
+            "   If yes: Ask for specific examples, metrics, or concrete experiences on the same topic\n\n"
+            
+            "4. JD RELEVANCE CHECK: Does the answer relate to job requirements?\n"
+            "   If no: Gently redirect to relevant technical areas from JD while staying on topic\n"
+            "   If yes: Dive deeper into that area with more specific follow-up questions\n\n"
+            
+            "5. ANSWER RELEVANCE CHECK: Is the answer related to the question asked?\n"
+            "   If unrelated: Ask clarification on the same topic\n"
+            "   If related: Proceed with deeper technical follow-up on the same topic\n\n"
+            
+            "FOLLOW-UP STRATEGY:\n"
+            "- Stay on the SAME technical topic as the previous question\n"
+            "- Go deeper into the technical details based on answer quality:\n"
+            "  a) If answer was brief: Ask for more detail on the same topic\n"
+            "  b) If candidate doesn't know: Ask about related aspects of the same topic\n"
+            "  c) If answer was vague: Ask for specific examples on the same topic\n"
+            "  d) If answer was good: Ask about implementation details, trade-offs, or best practices\n"
+            "  e) If answer was off-topic: Gently redirect back to the original topic\n\n"
+            
+            "CRITICAL RULES:\n"
+            "1. Ask a TECHNICAL follow-up on the SAME topic as the previous question\n"
+            "2. NEVER repeat the previous question - ask a deeper follow-up\n"
+            "3. Keep questions concise and professional\n"
+            "4. Ask only ONE follow-up question at a time\n"
+            "5. Ensure your follow-up addresses the answer quality issues you identified\n\n"
+            
+            f"Now generate a TECHNICAL follow-up question based on your analysis of the candidate's last answer. "
+            "Stay on the same technical topic but go deeper based on the answer quality."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "closing":
+        prompt = (
+            f"{base_prompt}"
+            "Generate a professional closing question to ask the candidate if they have any questions. "
+            "This should be a natural transition to end the interview. "
+            "Examples: 'Before we wrap up, do you have any questions for us?' or 'Is there anything you'd like to ask about the role or company?' "
+            "Keep it warm, professional, and concise. Ask only one single-line question."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "final_closing":
+        prompt = (
+            f"{base_prompt}"
+            "Generate a brief, warm closing statement to end the interview. "
+            "Thank the candidate for their time and mention next steps. "
+            "Keep it professional, friendly, and concise. "
+            "Do not ask any questions - this is a closing statement."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "elaborated_question":
+        last_q = session.get_last_interviewer_question() or ""
+        prompt = (
+            f"{base_prompt}"
+            f"The candidate requested clarification or elaboration on the last question.\n"
+            f"Last question asked: '{last_q}'\n"
+            f"Candidate's request: '{kwargs.get('candidate_request_text', '')}'\n\n"
+            "Generate a clearer, more detailed version of the last interviewer question with only 1-2 lines of extra context. "
+            "Keep the core question the same but add brief clarification. "
+            "Make it natural and conversational. Ask only one question."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "clarification":
+        original_q = session.get_last_interviewer_question() or ""
+        prompt = (
+            f"{base_prompt}"
+            f"The candidate seems confused or didn't understand the last question.\n"
+            f"Original question: '{original_q}'\n\n"
+            "Generate a one-line polite clarification that includes the original question. "
+            "Be helpful and rephrase naturally. Keep it concise and professional."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "repeat_response":
+        prompt = (
+            f"{base_prompt}"
+            f"The candidate asked to repeat the last question.\n"
+            f"Original question: '{kwargs.get('original_question', '')}'\n\n"
+            "Generate a natural response to repeat the question. "
+            "Don't just say the question again - make it conversational. "
+            "Examples: 'Certainly, let me repeat that for you:' or 'Of course, my question was:' "
+            "Then state the question clearly. Keep it professional and natural."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "candidate_answer":
+        prompt = (
+            f"{base_prompt}"
+            f"The candidate asked: '{kwargs.get('candidate_question_text', '')}'\n\n"
+            "Answer the candidate's question about the interview, role, or company using JD context and interview history. "
+            "Be helpful, professional, and concise. "
+            "Focus on relevant information from the job description. "
+            "If you don't have specific information, provide a general helpful response. "
+            "Keep it appropriate for an interview setting."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "proceed":
+        prompt = (
+            f"{base_prompt}"
+            "Ask politely if the candidate wants to move to the next question. "
+            "This should be used when the candidate seems to want to continue but hasn't indicated they're finished. "
+            "Examples: 'Would you like to move on to the next question?' or 'Shall we proceed with the next question?' "
+            "Keep it polite, professional, and concise."
+        )
+        return gemini_generate(prompt)
+    
+    elif prompt_type == "analyze_response":
+        """
+        Unified response analysis - handles all candidate response types:
+        - Repeat requests
+        - Question requests  
+        - Elaboration requests
+        - Skip commands
+        - Positive/negative responses
+        - Regular answers (generates follow-up or next question)
+        """
+        candidate_response = kwargs.get('candidate_response', '')
+        
+        prompt = (
+            f"{base_prompt}"
+            "UNIFIED CANDIDATE RESPONSE ANALYSIS:\n\n"
+            
+            f"Candidate's Response: '{candidate_response}'\n\n"
+            
+            "TASK: Analyze the candidate's response and generate the appropriate interviewer response.\n\n"
+            
+            "ANALYSIS CHECKLIST:\n"
+            "1. Is the candidate requesting to repeat the question?\n"
+            "   Look for: 'repeat the question', 'ask again', 'say that again', etc.\n"
+            "   If yes: Generate natural repeat response\n\n"
+            
+            "2. Is the candidate asking a question about the interview/role/company?\n"
+            "   Look for: question words, ends with '?', 'what', 'how', 'why', etc.\n"
+            "   If yes: Answer their question appropriately\n\n"
+            
+            "3. Is the candidate requesting elaboration/clarification?\n"
+            "   Look for: 'elaborate', 'explain', 'clarify', 'more detail', etc.\n"
+            "   If yes: Provide clearer explanation of the last question\n\n"
+            
+            "4. Is the candidate requesting to skip?\n"
+            "   Look for: 'skip', 'next question', 'move on'\n"
+            "   If yes: Move to the next technical question\n\n"
+            
+            "5. Is this a positive response in closing phase?\n"
+            "   Look for: 'yes', 'yeah', 'sure', 'i do', 'i have', etc.\n"
+            "   If yes: Handle according to interview phase\n\n"
+            
+            "6. Is this a negative response in closing phase?\n"
+            "   Look for: 'no', 'nope', 'that's all', 'nothing else', etc.\n"
+            "   If yes: Handle according to interview phase\n\n"
+            
+            "7. Is this a regular answer to a technical question?\n"
+            "   If yes: Analyze answer quality and generate appropriate follow-up or next question\n\n"
+            
+            "RESPONSE GENERATION:\n"
+            "- Generate ONLY the appropriate response based on your analysis\n"
+            "- Keep responses professional and technical\n"
+            "- For repeat requests: Make it natural ('Certainly, let me repeat that for you:')\n"
+            "- For questions: Answer based on job description and interview context\n"
+            "- For elaboration: Provide clearer explanation without giving away the answer\n"
+            "- For skip: Move to next technical question\n"
+            "- For regular answers: Generate follow-up or next question based on answer quality\n"
+            "- Always ensure responses are concise and professional\n\n"
+            
+            "Now analyze the candidate's response and generate the appropriate interviewer response."
+        )
+        return gemini_generate(prompt)
+    
+    else:
+        # Default to regular question
+        return generate_unified_prompt(session, "regular", **kwargs)
+
+
 # ------------------ Interview State Management (from app.py lines 521-558) ------------------
 class InterviewSession:
     """Exact copy from app.py"""
@@ -132,12 +530,10 @@ class InterviewSession:
         self.last_transcript_update_at = None
         self.last_transcript_word_count = 0
         self.initial_silence_action_taken = False
-        self.asked_pre_closing_question = False  # Track if we've asked the question before closing
         self.waiting_for_candidate_question = False  # Track if we're waiting for candidate's question after they said yes
         
-        # Question type tracking for ratio management (30% follow-up, 70% regular)
+        # Question type tracking
         self.regular_questions_count = 0  # Count of regular questions asked
-        self.follow_up_questions_count = 0  # Count of follow-up questions asked
         
         # Track all questions asked to prevent duplicates
         self.asked_questions = []  # List of all questions asked so far
@@ -255,457 +651,25 @@ def gemini_generate(prompt, max_retries=5, initial_delay=5):
 # ------------------ Helper functions (from app.py lines 403-786) ------------------
 def generate_final_closing(session):
     """Generate a brief, warm LLM-based closing for the interview."""
-    conversation_context = session.get_conversation_context()
-    prompt = (
-        "You are a professional interviewer closing an interview.\n\n"
-        f"Interview so far (short context):\n{conversation_context[-3000:]}\n\n"
-        "Write a very brief, warm closing message. "
-        "IMPORTANT: You MUST include 'Thank you for your time' or a similar thank you phrase. "
-        "Keep it professional and friendly. "
-        "Example: 'Thank you for your time today. We'll be in touch soon.' "
-        "Keep it to one or two short sentences."
-    )
-    closing_text = gemini_generate(prompt)
-    # Fallback if generation fails
-    if not closing_text or "[Gemini error" in closing_text:
-        return "Thank you for your time today. We'll be in touch soon."
-    return closing_text
+    return generate_unified_prompt(session, "final_closing")
 
 
 def generate_elaborated_question(session, candidate_request_text: str) -> str:
     """Generate a clearer, more detailed version of the last interviewer question with only 1-2 lines of extra context."""
-    last_q = session.get_last_interviewer_question() or ""
-    jd_context = " ".join(rag_system.retrieve_context(last_q or candidate_request_text, top_k=5))
-    conversation_context = session.get_conversation_context()
-    prompt = (
-        "You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. The candidate asked to elaborate/clarify the previous question.\n\n"
-        f"Job Description Context: {jd_context}\n\n"
-        "Interview so far:\n"
-        f"{conversation_context}\n\n"
-        f"Original question: {last_q}\n\n"
-        "CRITICAL: This is a TECHNICAL INTERVIEW. You MUST provide elaboration/clarification ONLY for technical questions related to the job description.\n"
-        "IMPORTANT: Rewrite the question with ONLY 1-2 lines of additional TECHNICAL context or clarification. "
-        "Add minimal helpful TECHNICAL context or a brief TECHNICAL example, but DO NOT reveal the answer or provide too much detail. "
-        "Keep it concise and TECHNICAL - the question should still require the candidate to think and provide their own TECHNICAL answer. "
-        "Do not add multiple questions. Keep it professional and suitable for a TECHNICAL interview."
-    )
-    return gemini_generate(prompt)
-
-
-def is_low_content_answer(text: str) -> bool:
-    """Detect very short answers: 4 words or fewer."""
-    if not text:
-        return True
-    try:
-        return _count_words(text) <= 4
-    except Exception:
-        normalized = (text or "").strip()
-        return len([w for w in normalized.split() if w]) <= 4
-
-
-def is_dont_know_answer(text: str) -> bool:
-    """Detect if candidate says they don't know or are unsure."""
-    if not text:
-        return False
-    text_lower = text.strip().lower()
-    dont_know_phrases = [
-        "don't know", "dont know", "do not know", "don't know", "i don't know",
-        "i dont know", "i do not know", "not sure", "unsure", "i'm not sure",
-        "im not sure", "no idea", "have no idea", "not familiar", "unfamiliar",
-        "don't remember", "dont remember", "can't recall", "cant recall",
-        "not aware", "unaware", "haven't heard", "havent heard", "never heard",
-        "don't understand", "dont understand", "not clear", "unclear",
-        "i'm not familiar", "im not familiar", "not my area", "outside my expertise"
-    ]
-    return any(phrase in text_lower for phrase in dont_know_phrases)
-
-
-def is_broad_or_vague_answer(answer: str) -> bool:
-    """Check if answer is broad or vague (lacks specific details, examples, or depth)."""
-    if not answer or not answer.strip():
-        return True
-    
-    # Check for very short answers (4 words or fewer)
-    if is_low_content_answer(answer):
-        return True
-    
-    # Check for generic phrases that indicate vague answers
-    vague_phrases = [
-        "i think", "probably", "maybe", "kind of", "sort of", "basically",
-        "generally", "usually", "typically", "in general", "more or less",
-        "i guess", "i suppose", "not really", "not much", "nothing specific",
-        "just", "only", "a bit", "a little", "somewhat"
-    ]
-    answer_lower = answer.lower()
-    vague_count = sum(1 for phrase in vague_phrases if phrase in answer_lower)
-    
-    # If answer has multiple vague phrases, it's likely vague
-    if vague_count >= 2:
-        return True
-    
-    # Check word count - very short answers are likely vague
-    word_count = _count_words(answer)
-    if word_count <= 10:
-        return True
-    
-    return False
-
-
-def answer_matches_jd_context(answer: str, jd_text: str) -> bool:
-    """Check if answer topic matches or relates to Job Description context."""
-    if not answer or not jd_text:
-        return False
-    
-    # Extract key terms from JD (simple keyword matching)
-    jd_lower = jd_text.lower()
-    answer_lower = answer.lower()
-    
-    # Common technical terms that might appear in both
-    technical_terms = [
-        "python", "java", "javascript", "react", "django", "flask", "node",
-        "database", "sql", "api", "rest", "aws", "cloud", "docker", "kubernetes",
-        "algorithm", "data structure", "frontend", "backend", "full stack",
-        "machine learning", "ai", "testing", "agile", "scrum", "git", "ci/cd"
-    ]
-    
-    # Check if answer contains any technical terms from JD
-    matching_terms = [term for term in technical_terms if term in jd_lower and term in answer_lower]
-    if len(matching_terms) >= 1:
-        return True
-    
-    # Use RAG system to check relevance
-    try:
-        relevant_chunks = rag_system.retrieve_context(answer, top_k=3)
-        if relevant_chunks:
-            # If RAG finds relevant chunks, answer likely matches JD
-            return True
-    except Exception as e:
-        print(f"⚠️ Error checking JD context match: {e}")
-    
-    return False
-
-
-def should_ask_follow_up(session: InterviewSession, answer: str) -> bool:
-    """
-    Determine if a follow-up question should be asked based on:
-    1. Answer quality (broad/vague)
-    2. JD context match
-    3. Ratio constraint (30% follow-up, 70% regular)
-    
-    IMPORTANT: Candidate questions are NOT counted in the overall question ratio.
-    This function is only called for candidate ANSWERS, not candidate QUESTIONS.
-    """
-    # Don't ask follow-up for closing questions or when handling candidate questions
-    if session.asked_for_questions or session.asked_pre_closing_question or session.waiting_for_candidate_question:
-        return False
-    
-    # Don't ask follow-up if the transcript is actually a candidate question
-    if is_candidate_question(answer):
-        return False
-    
-    # Calculate current ratio
-    total_questions = session.regular_questions_count + session.follow_up_questions_count
-    if total_questions > 0:
-        current_follow_up_ratio = session.follow_up_questions_count / total_questions
-        # If we've already exceeded 30%, don't ask more follow-ups
-        if current_follow_up_ratio >= 0.30:
-            print(f"📊 Follow-up ratio already at {current_follow_up_ratio*100:.1f}% (target: 30%). Skipping follow-up.")
-            return False
-        
-        # Check projected ratio if we add this follow-up
-        projected_follow_ups = session.follow_up_questions_count + 1
-        projected_total = total_questions + 1
-        projected_ratio = projected_follow_ups / projected_total
-        
-        # If adding this follow-up would exceed 30%, don't generate it
-        if projected_ratio > 0.30:
-            print(f"📊 Projected follow-up ratio would be {projected_ratio*100:.1f}% (current: {current_follow_up_ratio*100:.1f}%, target: 30%). Skipping follow-up.")
-            return False
-    
-    # Check if answer is broad/vague
-    if not is_broad_or_vague_answer(answer):
-        print(f"📊 Answer is detailed/specific. Skipping follow-up.")
-        return False
-    
-    # Check if answer matches JD context
-    if not answer_matches_jd_context(answer, session.jd_text):
-        print(f"📊 Answer doesn't match JD context. Skipping follow-up.")
-        return False
-    
-    # Both conditions met: answer is broad/vague AND matches JD context
-    print(f"✅ Answer is broad/vague and matches JD context. Will ask follow-up.")
-    return True
-
-
-def assess_answer_relevance_with_llm(question: str, answer: str) -> bool:
-    """Use LLM to conservatively judge if the answer is related to the question."""
-    if not question or not answer:
-        return False
-    prompt = (
-        "You are the interview taker evaluating a candidate's answer for relevance to your question.\n"
-        f"Question: {question}\n"
-        f"Answer: {answer}\n\n"
-        "Guidelines: Respond 'unrelated' only if the answer is clearly off-topic or non-responsive."
-        " If the answer is brief but plausibly responsive, or asks for clarification/repetition, respond 'related'.\n"
-        "Answer with exactly one word: related OR unrelated."
-    )
-    verdict = (gemini_generate(prompt) or "").strip().lower()
-    return "related" in verdict and "unrelated" not in verdict
-
-
-def generate_clarification_prompt_with_question(session) -> str:
-    """Generate a one-line polite clarification that includes the original question."""
-    original_q = get_last_strict_question(session) or ""
-    prompt = (
-        "You are the interview taker conducting a live interview. The candidate's answer seems unrelated or unclear.\n"
-        f"Original question: {original_q}\n\n"
-        "Write exactly one single-line sentence that politely says you didn't understand the answer and asks them to repeat or clarify, "
-        "and include the original question after this exact phrase: 'Here is the question again: '. "
-        "Do not mention that you didn't understand the question; refer to their answer."
-    )
-    line = (gemini_generate(prompt) or "").strip().replace("\n", " ")
-    return line
-
-
-def is_elaboration_request(text: str) -> bool:
-    """Detect if candidate is asking to elaborate/clarify the question."""
-    if not text:
-        return False
-    t_lower = (text or "").strip().lower()
-    cues = [
-        "elaborate", "elaboration", "explain", "more detail", "clarify", "clarification",
-        "what do you mean", "could you expand", "expand on", "help me understand",
-        "can you elaborate", "please elaborate", "say it in detail"
-    ]
-    return any(cue in t_lower for cue in cues)
-
-
-def is_repeat_request_via_llm(session, candidate_response: str, last_question: str) -> bool:
-    """Use LLM to determine if the candidate is requesting to repeat the question"""
-    if not candidate_response or not candidate_response.strip():
-        return False
-    
-    if not last_question:
-        return False
-    
-    try:
-        prompt = (
-            f"You are analyzing a candidate's response during a technical interview.\n\n"
-            f"Last question asked: {last_question}\n\n"
-            f"Candidate's response: {candidate_response}\n\n"
-            f"Determine if the candidate is asking to repeat the previous question or asking to hear the question again.\n"
-            f"Look for phrases like:\n"
-            f"- 'repeat the question'\n"
-            f"- 'repeat the previous question'\n"
-            f"- 'ask again'\n"
-            f"- 'ask previous question'\n"
-            f"- 'can you repeat'\n"
-            f"- 'say that again'\n"
-            f"- 'what was the question'\n"
-            f"- 'i didn't hear'\n"
-            f"- 'pardon'\n"
-            f"- 'sorry what'\n\n"
-            f"IMPORTANT: \n"
-            f"- If the candidate is explicitly asking to repeat or hear the question again, return the EXACT words/phrases from their response that indicate this (copy their words as-is).\n"
-            f"- If the candidate is providing an answer (even if unclear), return 'NO'.\n"
-            f"- If the candidate is asking a different question, return 'NO'.\n"
-            f"- If the candidate is asking for clarification or elaboration, return 'NO'.\n\n"
-            f"Examples:\n"
-            f"- If candidate says 'Can you repeat the question?', return: 'Can you repeat the question?'\n"
-            f"- If candidate says 'Sorry, what was the question?', return: 'Sorry, what was the question?'\n"
-            f"- If candidate says 'I didn't hear that', return: 'I didn't hear that'\n"
-            f"- If candidate says 'The answer is Python', return: 'NO'\n"
-            f"- If candidate says 'What is the salary?', return: 'NO'\n\n"
-            f"Return the candidate's exact words if it's a repeat request, or 'NO' if it's not."
-        )
-        
-        response = gemini_generate(prompt, max_retries=3)
-        if response:
-            response_clean = response.strip()
-            # Check if LLM returned 'NO' (not a repeat request)
-            if response_clean.upper() == "NO":
-                print(f"❌ LLM did not detect repeat request: '{candidate_response[:100]}...'")
-                return False
-            else:
-                # LLM returned the candidate's words indicating a repeat request
-                print(f"✅ LLM detected repeat request with words: '{response_clean}' from candidate response: '{candidate_response[:100]}...'")
-                return True
-        
-        print(f"❌ LLM did not detect repeat request: '{candidate_response[:100]}...'")
-        return False
-    except Exception as e:
-        print(f"⚠️ Error checking repeat request via LLM: {e}")
-        return False
-
-
-def generate_repeat_question_response(session, original_question: str) -> str:
-    """Generate a response using LLM to repeat the question naturally"""
-    try:
-        conversation_context = session.get_conversation_context()
-        
-        prompt = (
-            f"You are a professional technical interviewer. The candidate has asked you to repeat the question.\n\n"
-            f"Original question that was asked: {original_question}\n\n"
-            f"Interview context so far:\n{conversation_context}\n\n"
-            f"Generate a natural, professional response that repeats the question. "
-            f"Your response should:\n"
-            f"1. Briefly acknowledge the request (e.g., 'Of course', 'Sure', 'No problem')\n"
-            f"2. Repeat the exact same question clearly\n"
-            f"3. Keep it concise and professional\n"
-            f"4. Do NOT add any new information or change the question\n"
-            f"5. Do NOT ask follow-up questions - just repeat the original question\n\n"
-            f"Generate ONLY the response text, nothing else. Keep it to 1-2 sentences maximum."
-        )
-        
-        response = gemini_generate(prompt, max_retries=3)
-        if response and not response.startswith("[Gemini error"):
-            return response.strip()
-        else:
-            # Fallback: Simple repeat with acknowledgment
-            return f"Of course. {original_question}"
-    except Exception as e:
-        print(f"Error generating repeat question response: {e}")
-        # Fallback: Simple repeat with acknowledgment
-        return f"Of course. {original_question}"
-
-
-def is_proceed_prompt_text(text: str) -> bool:
-    if not text:
-        return False
-    t = (text or "").strip().lower()
-    cues = [
-        "i didn't catch a response", "i didn't catch a response",
-        "shall we move to the next question"
-    ]
-    return any(c in t for c in cues)
-
-
-def is_affirmative_response(text: str) -> bool:
-    if not text:
-        return False
-    t = (text or "").strip().lower()
-    affirmatives = [
-        "yes", "yeah", "yep", "yup", "sure", "ok", "okay",
-        "proceed", "move on", "next", "go ahead"
-    ]
-    return any(t == a or a in t for a in affirmatives)
-
-
-def is_negative_response(text: str) -> bool:
-    if not text:
-        return False
-    t = (text or "").strip().lower()
-    negatives = ["no", "nope", "nah", "not now", "dont", "don't", "do not"]
-    return any(t == n or n in t for n in negatives)
-
-
-def is_candidate_question(text):
-    """Heuristically detect if the candidate's transcript is a question for the interviewer."""
-    if not text:
-        return False
-    t = text.strip().lower()
-    if "?" in t:
-        return True
-    question_starters = [
-        "what ", "how ", "why ", "when ", "where ", "who ", "which ",
-        "can you", "could you", "would you", "should i", "do you", "are you",
-        "is it", "may i", "might we", "could i", "please explain", "i have a question",
-        "could you explain", "can i ask"
-    ]
-    return any(t.startswith(qs) or qs in t for qs in question_starters)
+    return generate_unified_prompt(session, "elaborated_question", candidate_request_text=candidate_request_text)
 
 
 def generate_candidate_answer(session, candidate_question_text):
     """Answer the candidate's question about the interview, role, or company using JD context and interview history."""
-    jd_context = " ".join(rag_system.retrieve_context(candidate_question_text, top_k=5))
-    if not jd_context:
-        jd_context = " ".join(rag_system.retrieve_context("job description", top_k=5))
-    conversation_context = session.get_conversation_context()
-
-    prompt = (
-        "You are the interviewer. The candidate asked a question during the interview about the role, company, or interview process.\n\n"
-        f"Job Description Context: {jd_context}\n\n"
-        "Interview so far:\n"
-        f"{conversation_context}\n\n"
-        f"Candidate's question: {candidate_question_text}\n\n"
-        "Answer the candidate's question briefly, accurately, and professionally based on the job description and interview context. "
-        "If the question is about the role, team, or company, provide a helpful answer. "
-        "If the question cannot be answered right now or is not related to the interview, "
-        "say: 'Thanks for asking — we'll get back to you via email.' "
-        "Keep your answer concise (2-3 sentences maximum). "
-        "Do not ask a new interview question in this answer. "
-        "IMPORTANT: Do NOT say 'go ahead with your answer' or 'please go ahead' - the candidate has already answered the previous question."
-    )
-    return gemini_generate(prompt)
-
-
-def says_no_more_questions(text: str) -> bool:
-    """Heuristically detect if candidate indicates they have no more questions."""
-    if not text:
-        return False
-    t = (text or "").strip().lower()
-    negatives = [
-        "no", "nope", "nah", "that's all", "thats all", "that's it", "thats it",
-        "all good", "im good", "i'm good", "i am good", "nothing else", "no further",
-        "no more", "no more questions", "no questions", "no question", "none",
-        "no thanks", "no thank you", "i'm fine", "im fine", "i am fine"
-    ]
-    if any(neg in t for neg in negatives):
-        return True
-    import re as _re
-    if _re.search(r"(^|\b)no(\b|$)", t):
-        return True
-    return False
-
-
-def looks_like_closing(text: str) -> bool:
-    """Detect if text already reads like a final closing message."""
-    if not text:
-        return False
-    tl = text.lower()
-    cues = [
-        "thank you for your time", "we will be in touch", "we'll be in touch",
-        "have a good day", "thanks for your time", "next steps", "we appreciate your time"
-    ]
-    return any(c in tl for c in cues)
+    return generate_unified_prompt(session, "candidate_answer", candidate_question_text=candidate_question_text)
 
 
 def generate_proceed_prompt(session):
     """Ask politely if the candidate wants to move to the next question."""
-    jd_context = " ".join(rag_system.retrieve_context("proceed to next question", top_k=3))
-    conversation_context = session.get_conversation_context()
-    prompt = (
-        "You are a polite interviewer. It seems there was no audible response.\n\n"
-        f"Job Description Context: {jd_context}\n\n"
-        "Interview so far:\n"
-        f"{conversation_context}\n\n"
-        "Ask in one concise line: 'I didn't catch a response — shall we move to the next question?'"
-        " Avoid extra text."
-    )
-    return gemini_generate(prompt)
+    return generate_unified_prompt(session, "proceed")
 
 
-def get_last_strict_question(session: InterviewSession) -> str:
-    """Return the most recent interviewer message that looks like a real question."""
-    skip_phrases = [
-        "thanks for asking", "please go ahead with your answer", "we'll follow up via email",
-        "we'll follow up via email", "let's move on", "sure — please go ahead", "sure - please go ahead",
-        "i didn't catch a response", "i didn't catch a response", "shall we move to the next question",
-        "please try again", "we appreciate your question", "we appreciate your question",
-        "before we wrap up"
-    ]
-    for msg in reversed(session.conversation_history):
-        if msg.get("role") != "interviewer":
-            continue
-        text = (msg.get("text") or "").strip().lower()
-        if any(p in text for p in skip_phrases):
-            continue
-        if msg.get("text", "").strip().endswith("?"):
-            return msg["text"]
-    return session.get_last_interviewer_question() or ""
-
-
-# ------------------ TTS (from app.py lines 575-639) ------------------
+# ------------------ Question Generation (from app.py lines 641-684) ------------------
 def text_to_speech(text, filename):
     """Generate MP3 file for given text using Google Cloud Text-to-Speech (from app.py lines 575-639)"""
     try:
@@ -944,222 +908,19 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         last_answer_text: The candidate's last answer text
         allow_elaboration: If True, allows repeating/elaborating on the last question (only when candidate explicitly asks)
     """
-    # Build JD context prioritized by the last answer if available
-    jd_context_chunks = []
-    if last_answer_text and last_answer_text.strip():
-        jd_context_chunks = rag_system.retrieve_context(last_answer_text, top_k=5)
-    if not jd_context_chunks:
-        jd_context_chunks = rag_system.retrieve_context("job requirements and responsibilities", top_k=5)
-    jd_context = " ".join(jd_context_chunks)
-
-    conversation_context = session.get_conversation_context()
+    # Generate question using the unified prompt generator
+    generated_question = generate_unified_prompt(session, question_type, last_answer_text=last_answer_text, allow_elaboration=allow_elaboration)
     
-    # Build list of previously asked questions for the prompt
-    previously_asked = ""
-    if session.asked_questions and not allow_elaboration:
-        # Show ALL asked questions, not just last 10, to ensure no repeats
-        previously_asked = "\n\n" + "="*80 + "\n"
-        previously_asked += "🚫 CRITICAL - DO NOT REPEAT ANY OF THESE QUESTIONS:\n"
-        previously_asked += "="*80 + "\n"
-        previously_asked += "The following questions have ALREADY been asked. You MUST ask a COMPLETELY DIFFERENT question.\n"
-        previously_asked += "DO NOT ask the same question again.\n"
-        previously_asked += "DO NOT ask a similar question with slightly different wording.\n"
-        previously_asked += "DO NOT ask a question that covers the same topic.\n"
-        previously_asked += "You MUST ask a NEW question on a DIFFERENT topic or aspect.\n\n"
-        previously_asked += "Previously asked questions:\n"
-        for i, q in enumerate(session.asked_questions, 1):  # Show ALL questions
-            previously_asked += f"{i}. {q}\n"
-        previously_asked += "\n" + "="*80 + "\n"
-        previously_asked += "REMEMBER: The candidate has ALREADY answered these questions. Move to a NEW question.\n"
-        previously_asked += "="*80 + "\n\n"
+    # Apply question shaping and duplicate checking logic (keep existing logic)
+    ensure_intro = (question_type == "introduction")
+    generated_question = _shape_question(generated_question, ensure_intro=ensure_intro, session=session)
     
-    if question_type == "introduction":
-        # Extract first name from candidate name
-        candidate_first_name = session.candidate_name.split()[0] if session.candidate_name else "there"
-        
-        prompt = (
-            f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. The candidate's name is {session.candidate_name}, and you should address them by their first name ({candidate_first_name}) in your question.\n\n"
-            f"Job Description Context: {jd_context}\n\n"
-            "CRITICAL INSTRUCTIONS FOR INTRODUCTION QUESTION:\n"
-            "1. You MUST ask the candidate to introduce themselves or tell you about themselves.\n"
-            "2. DO NOT say phrases like 'Okay, I understand the instructions. Let's begin.' or 'Let's start' or 'Let's get started'.\n"
-            "3. DO NOT make statements - you MUST ask a QUESTION that requests an introduction.\n"
-            "4. The question MUST explicitly ask the candidate to introduce themselves, tell about themselves, or share their background.\n"
-            "5. Address the candidate by their first name ({candidate_first_name}).\n"
-            "6. Keep it warm, professional, and conversational.\n"
-            "7. Ask ONLY ONE question.\n\n"
-            "8. while asking the question do not expose any word which is shows you use the job description to ask the question\n"
-        
-            "CORRECT EXAMPLES:\n"
-            f"- 'Hi {candidate_first_name}, could you please introduce yourself and tell me about your technical background?'\n"
-            f"- 'Hello {candidate_first_name}, to get started, could you briefly introduce yourself and highlight one technical experience you are proud of?'\n"
-            f"- '{candidate_first_name}, let's begin with a quick introduction. Could you tell me about yourself and your technical background?'\n\n"
-            "INCORRECT EXAMPLES (DO NOT USE):\n"
-            "- 'Okay, I understand the instructions. Let's begin.'\n"
-            "- 'Let's start the interview.'\n"
-            "- 'I'm ready to begin. Please introduce yourself.' (This is a statement, not a question)\n\n"
-            f"Now generate a warm, professional introduction question that asks {candidate_first_name} to introduce themselves. "
-            "The question should be related to their technical background, experience, or skills mentioned in the job description. "
-            "Keep it conversational and friendly. Ask only one concise, single-line question."
-        )
-    
-    elif question_type == "follow_up":
-        prompt = (
-            "You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. Ask only single-line, direct TECHNICAL questions.\n\n"
-            f"Job Description Context: {jd_context}\n\n"
-            "Interview so far:\n"
-            f"{conversation_context}\n\n"
-            f"{previously_asked}"
-            "CRITICAL: This is a TECHNICAL INTERVIEW. You MUST ask ONLY technical questions related to the job description.\n"
-            "DO NOT ask:\n"
-            "- Personal questions (hobbies, family, personal background)\n"
-            "- Behavioral questions unrelated to technical skills\n"
-            "- General conversation topics\n"
-            "- Questions about salary, benefits, or company culture\n"
-            "- Any non-technical questions\n\n"
-            "CRITICAL - QUESTION UNIQUENESS (READ CAREFULLY - THIS IS MANDATORY):\n"
-            "- The candidate has ALREADY answered the previous question. Do NOT ask that question again.\n"
-            "- You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NEVER been asked before.\n"
-            "- Check the list of previously asked questions above - DO NOT repeat ANY of them, even with different wording.\n"
-            "- DO NOT ask the same question with different wording - it's still the SAME question.\n"
-            "- DO NOT ask about the same topic, technology, skill, or technical area that was already covered.\n"
-            "- DO NOT use the same technical terms, concepts, or keywords from previous questions.\n"
-            "- Each question MUST be unique and cover a COMPLETELY DIFFERENT technical aspect.\n"
-            "- Move to a NEW technical area, skill, or technology from the job description.\n"
-            "- Think of a DIFFERENT angle, perspective, or use case that hasn't been discussed.\n"
-            "- If a topic was already covered, ask about a DIFFERENT aspect of that topic OR move to a NEW topic entirely.\n"
-            "- REMEMBER: Every single question must be UNIQUE. No exceptions. No repeats. No similar questions.\n\n"
-            "Based on the candidate's last answer, ask a relevant TECHNICAL follow-up question grounded in the JD. "
-            "CRITICAL RULES:\n"
-            "1. NEVER repeat the previous question - the candidate has already answered it.\n"
-            "2. NEVER say 'Thanks for asking' and then repeat the same question - this is wrong.\n"
-            "3. NEVER use phrases like 'go ahead with your answer' or 'please go ahead' - they have already answered.\n"
-            "4. You may use a brief introductory phrase like 'That's okay' or 'I understand' ONCE, but DO NOT repeat it.\n"
-            "5. NEVER say phrases like 'That's okay, that's okay' or 'That's fine, that's fine' - this is repetitive and unprofessional.\n"
-            "6. If their answer was solid, probe for technical details, impact, metrics, trade-offs, or examples on a COMPLETELY DIFFERENT TECHNICAL aspect.\n"
-            "7. If it was brief, ask for clarification on a COMPLETELY DIFFERENT TECHNICAL point or a concrete technical example of something NEW.\n"
-            "8. Keep it professional, TECHNICAL, JD-aligned, and ensure it's a COMPLETELY NEW TECHNICAL question.\n"
-            "9. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
-            "10. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
-            "11. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used."
-        )
-    
-    elif question_type == "closing":
-        prompt = (
-            "You are a professional interviewer wrapping up a technical interview. Ask only single-line questions.\n\n"
-            f"Job Description Context: {jd_context}\n\n"
-            "Interview so far:\n"
-            f"{conversation_context}\n\n"
-            "Generate a professional closing question to ask the candidate if they have any questions. "
-            "This should be a natural transition to end the interview. "
-            "Examples: 'Before we wrap up, do you have any questions for us?' or 'Is there anything you'd like to ask about the role or company?' "
-            "Keep it warm, professional, and concise. Ask only one single-line question."
-        )
-    
-    else:  # regular question
-        prompt = (
-            "You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. Ask only single-line TECHNICAL questions.\n\n"
-            f"Job Description Context: {jd_context}\n\n"
-            "Interview so far:\n"
-            f"{conversation_context}\n\n"
-            f"{previously_asked}"
-            "CRITICAL: This is a TECHNICAL INTERVIEW. You MUST ask ONLY technical questions related to the job description.\n"
-            "DO NOT ask:\n"
-            "- Personal questions (hobbies, family, personal background)\n"
-            "- Behavioral questions unrelated to technical skills\n"
-            "- General conversation topics\n"
-            "- Questions about salary, benefits, or company culture\n"
-            "- Any non-technical questions\n\n"
-            "CRITICAL - QUESTION UNIQUENESS (READ CAREFULLY - THIS IS MANDATORY):\n"
-            "- The candidate has ALREADY answered the previous question. Do NOT ask that question again.\n"
-            "- You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NEVER been asked before.\n"
-            "- Check the list of previously asked questions above - DO NOT repeat ANY of them, even with different wording.\n"
-            "- DO NOT ask the same question with different wording - it's still the SAME question.\n"
-            "- DO NOT ask about the same topic, technology, skill, or technical area that was already covered.\n"
-            "- DO NOT use the same technical terms, concepts, or keywords from previous questions.\n"
-            "- Each question MUST be unique and cover a COMPLETELY DIFFERENT technical aspect.\n"
-            "- Move to a NEW technical area, skill, or technology from the job description.\n"
-            "- Think of a DIFFERENT angle, perspective, or use case that hasn't been discussed.\n"
-            "- If a topic was already covered, ask about a DIFFERENT aspect of that topic OR move to a NEW topic entirely.\n"
-            "- REMEMBER: Every single question must be UNIQUE. No exceptions. No repeats. No similar questions.\n\n"
-            f"Ask the next TECHNICAL interview question (question {session.current_question_number + 1} of {session.max_questions}). "
-            "CRITICAL RULES - READ CAREFULLY:\n"
-            "1. NEVER repeat the previous question - the candidate has already answered it.\n"
-            "2. NEVER say 'Thanks for asking' and then repeat the same question - this is wrong.\n"
-            "3. NEVER use phrases like 'go ahead with your answer', 'please go ahead', or similar phrases - they have already answered.\n"
-            "4. You MUST ask a COMPLETELY NEW, DIFFERENT TECHNICAL question that has NOT been asked before.\n"
-            "5. Check the list of previously asked questions above - DO NOT repeat any of them.\n"
-            "6. Base your question on the TECHNICAL aspects of the job description and the candidate's latest answer, but ensure it's a NEW TECHNICAL topic or aspect.\n"
-            "7. NEVER repeat a question that has already been asked - even if you rephrase it slightly.\n"
-            "8. NEVER ask a similar question on the same topic - move to a DIFFERENT TECHNICAL topic or aspect.\n"
-            "9. Keep it precise, professional, TECHNICAL, and directly tied to the JD's technical requirements, but ensure it's COMPLETELY NEW.\n"
-            "10. Before generating your question, verify it is NOT in the list of previously asked questions above and that it is TECHNICAL.\n"
-            "11. If you're unsure, choose a DIFFERENT TECHNICAL topic from the job description that hasn't been covered yet.\n"
-            "12. REMEMBER: Each question must be UNIQUE and DIFFERENT from all previous questions.\n"
-            "13. CRITICAL: Ask ONLY ONE single question. DO NOT ask two questions in a single response. If you generate multiple questions, only the first one will be used."
-        )
-    
-    # Generate question with retry logic to avoid duplicates
-    max_retries = 5  # Increased retries for better duplicate prevention
-    for attempt in range(max_retries):
-        generated_question = gemini_generate(prompt).strip()
-        
-        # CRITICAL: Shape the question to ensure only ONE question is returned
-        # This is especially important when candidate's answer is "No answer provided"
-        ensure_intro = (question_type == "introduction")
-        generated_question = _shape_question(generated_question, ensure_intro=ensure_intro, session=session)
-        
-        # Check if this question is similar to previously asked questions (ALWAYS check, except for elaboration)
-        if not allow_elaboration and session.asked_questions:
-            if is_question_similar(generated_question, session.asked_questions):
-                print(f"⚠️ Generated question is similar to previous questions. Retrying... (attempt {attempt + 1}/{max_retries})")
-                print(f"   Generated: '{generated_question[:100]}...'")
-                print(f"   Similar to one of {len(session.asked_questions)} previously asked questions")
-                if attempt < max_retries - 1:
-                    # Add STRONG instruction to generate a different question
-                    prompt += f"\n\n{'='*80}\n"
-                    prompt += f"❌ ERROR: The question you just generated is TOO SIMILAR or IDENTICAL to questions already asked.\n"
-                    prompt += f"Generated question: '{generated_question}'\n"
-                    prompt += f"This question is similar/identical to one of the {len(session.asked_questions)} previously asked questions.\n"
-                    prompt += f"CRITICAL: You MUST generate a COMPLETELY DIFFERENT question on a COMPLETELY DIFFERENT topic.\n\n"
-                    prompt += f"DO NOT:\n"
-                    prompt += f"- Ask the same question with different wording (it's still the SAME question)\n"
-                    prompt += f"- Ask about the same topic or technical area (even with different words)\n"
-                    prompt += f"- Ask a similar question (it's still a REPEAT)\n"
-                    prompt += f"- Use the same technical terms or concepts\n"
-                    prompt += f"- Say 'Thanks for asking' and repeat the question (this is WRONG)\n"
-                    prompt += f"- Ask about the same skill, technology, or experience area\n\n"
-                    prompt += f"DO:\n"
-                    prompt += f"- Choose a COMPLETELY DIFFERENT topic from the job description\n"
-                    prompt += f"- Ask about a DIFFERENT technical aspect, skill, or technology that hasn't been covered\n"
-                    prompt += f"- Use DIFFERENT technical terms and concepts\n"
-                    prompt += f"- Ensure your question is UNIQUE and has NOT been asked before\n"
-                    prompt += f"- Move to a NEW technical area from the job description that hasn't been discussed\n"
-                    prompt += f"- Think of a DIFFERENT angle or perspective on the candidate's experience\n\n"
-                    prompt += f"Generate a NEW question NOW that is COMPLETELY DIFFERENT from all previously asked questions.\n"
-                    prompt += f"REMEMBER: Each question must be UNIQUE. Do NOT repeat any question, topic, or technical area.\n"
-                    prompt += f"{'='*80}\n"
-                    continue
-                else:
-                    print(f"⚠️ Could not generate a unique question after {max_retries} attempts. Using generated question anyway.")
-                    # Even if we can't generate a unique question, log it as a warning
-                    print(f"⚠️ WARNING: Using potentially duplicate question: '{generated_question[:100]}...'")
-        
-        # Additional check: ensure the question is not identical to the last active question
-        if session.last_active_question_text:
-            normalized_new = " ".join(generated_question.lower().split())
-            normalized_last = " ".join(session.last_active_question_text.lower().split())
-            if normalized_new == normalized_last:
-                print(f"⚠️ Generated question is IDENTICAL to last question. Retrying... (attempt {attempt + 1}/{max_retries})")
-                if attempt < max_retries - 1:
-                    prompt += f"\n\n❌ CRITICAL ERROR: You generated the EXACT same question as the last one: '{generated_question}'\n"
-                    prompt += f"The candidate has ALREADY answered this question. You MUST NOT repeat it.\n"
-                    prompt += f"NEVER say 'Thanks for asking' and then repeat the same question - this is WRONG.\n"
-                    prompt += f"Generate a COMPLETELY DIFFERENT question on a DIFFERENT technical topic.\n"
-                    prompt += f"Choose a NEW technical aspect from the job description that hasn't been covered yet.\n"
-                    continue
-        
-        return generated_question
+    # Check if this question is similar to previously asked questions (ALWAYS check, except for elaboration)
+    if not allow_elaboration and session.asked_questions:
+        if is_question_similar(generated_question, session.asked_questions):
+            print(f"⚠️ Generated question is similar to previous questions. Retrying...")
+            # Retry with stronger instructions
+            return generate_question(session, question_type, last_answer_text, allow_elaboration)
     
     return generated_question
 
@@ -1253,10 +1014,13 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             no_resp = (not transcript.strip()) or transcript.startswith("[No speech") or (silence_flag and not had_voice_flag)
             
             # Check if candidate says no or doesn't have questions
-            if no_resp or says_no_more_questions(transcript):
-                final_text = generate_final_closing(session)
-                final_audio = text_to_speech(final_text, f"final_{uuid.uuid4().hex}.mp3")
-                session.add_interviewer_message(final_text)
+            if no_resp:
+                # Use unified prompt to analyze response
+                analysis = generate_unified_prompt(session, "analyze_response", candidate_response=transcript)
+                if "no more questions" in analysis.lower() or "that's all" in analysis.lower():
+                    final_text = generate_final_closing(session)
+                    final_audio = text_to_speech(final_text, f"final_{uuid.uuid4().hex}.mp3")
+                    session.add_interviewer_message(final_text)
                 session.completed_at = time.time()
                 session.is_completed = True
                 session.waiting_for_candidate_question = False
@@ -1310,198 +1074,118 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     "final_audio_url": final_audio
                 }
             
-            # Check if candidate says yes or asks a question directly
-            says_yes = any(phrase in transcript_lower for phrase in [
-                "yes", "yeah", "yep", "sure", "i do", "i have", "i'd like", "i would like"
-            ])
+            # Handle all candidate responses using unified prompt analysis
+            response = generate_unified_prompt(session, "analyze_response", candidate_response=transcript)
             
-            # Check if it looks like a direct question (contains question words or ends with ?)
-            looks_like_question = any(word in transcript_lower for word in [
-                "what", "when", "where", "who", "why", "how", "which", "can", "could", "would", "should"
-            ]) or "?" in transcript
+            # Check if the response indicates the interview should end
+            if any(phrase in response.lower() for phrase in ["final closing", "interview completed", "thank you for your time"]):
+                session.completed_at = time.time()
+                session.is_completed = True
+                session.waiting_for_candidate_question = False
+                return {
+                    "transcript": transcript,
+                    "completed": True,
+                    "final_message": response,
+                    "final_audio_url": text_to_speech(response, f"final_{uuid.uuid4().hex}.mp3")
+                }
             
-            if says_yes or looks_like_question:
-                if says_yes and not looks_like_question:
-                    # Candidate said yes but didn't ask a question yet - ask them what their question is
-                    ask_question = "What is your question?"
-                    session.add_interviewer_message(ask_question)
-                    session.waiting_for_candidate_question = True
-                    question_audio_url = text_to_speech(ask_question, f"ask_question_{uuid.uuid4().hex}.mp3")
-                    _reset_question_timers(session)
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": ask_question,
-                        "audio_url": question_audio_url,
-                        "question_number": session.current_question_number,
-                        "max_questions": session.max_questions,
-                        "continuous": True
-                    }
-                else:
-                    # Candidate asked a question directly - answer it
-                    # IMPORTANT: Candidate questions are NOT counted in the overall question count
-                    answer_text = generate_candidate_answer(session, transcript)
-                    session.add_interviewer_message(answer_text)
-                    
-                    # After answering, ask if they have more questions
-                    # NOTE: We do NOT increment question_number or question counters for candidate Q&A
-                    prompt_again = "Do you have any other questions for us?"
-                    combined = f"{answer_text} {prompt_again}".strip()
-                    session.add_interviewer_message(combined)
-                    question_audio_url = text_to_speech(combined, f"closing_{uuid.uuid4().hex}.mp3")
-                    _reset_question_timers(session)
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": combined,
-                        "audio_url": question_audio_url,
-                        "question_number": session.current_question_number,  # Keep same question number - not a new interview question
-                        "max_questions": session.max_questions,
-                        "continuous": True
-                    }
-            else:
-                # Candidate gave an answer that's not clearly "yes", "no", or a question
-                # This might be a response like "thank you", "that's all", or other ambiguous responses
-                # Ask them again if they have any questions to clarify
-                prompt_again = "Do you have any other questions for us?"
-                session.add_interviewer_message(prompt_again)
-                question_audio_url = text_to_speech(prompt_again, f"closing_clarify_{uuid.uuid4().hex}.mp3")
+            # Check if response is asking for candidate's question
+            if "what is your question" in response.lower() or "what's your question" in response.lower():
+                session.add_interviewer_message(response)
+                session.waiting_for_candidate_question = True
+                question_audio_url = text_to_speech(response, f"ask_question_{uuid.uuid4().hex}.mp3")
                 _reset_question_timers(session)
                 return {
                     "transcript": transcript,
                     "completed": False,
-                    "next_question": prompt_again,
+                    "next_question": response,
                     "audio_url": question_audio_url,
                     "question_number": session.current_question_number,
                     "max_questions": session.max_questions,
                     "continuous": True
                 }
-        
-        # Handle voice commands
-        transcript_lower = transcript.lower()
-        
-        # Proceed-confirmation flow
-        last_interviewer = session.get_last_interviewer_question() or ""
-        if is_proceed_prompt_text(last_interviewer):
-            if is_affirmative_response(transcript):
-                # Use ratio logic to decide follow-up vs regular
-                should_follow_up = should_ask_follow_up(session, transcript)
-                if should_follow_up:
-                    next_q_text = generate_question(session, "follow_up", last_answer_text=transcript)
-                    session.follow_up_questions_count += 1
-                    # Follow-up questions don't increment question number - they're part of the same question
-                else:
-                    next_q_text = generate_question(session, "regular", last_answer_text=transcript)
-                    session.regular_questions_count += 1
-                    # Only MAIN questions increment the question number
-                    session.current_question_number += 1
-                session.add_interviewer_message(next_q_text)
-                session.awaiting_answer = True
-                session.last_active_question_text = next_q_text
-                audio_url = text_to_speech(next_q_text, f"q{session.current_question_number}.mp3")
+            
+            # Check if response is answering candidate's question
+            if "?" in response or any(word in response.lower() for word in ["what", "how", "why", "when", "where"]):
+                # This is an answer to candidate's question, add it and ask if they have more
+                session.add_interviewer_message(response)
+                prompt_again = "Do you have any other questions for us?"
+                combined = f"{response} {prompt_again}".strip()
+                session.add_interviewer_message(combined)
+                question_audio_url = text_to_speech(combined, f"closing_{uuid.uuid4().hex}.mp3")
                 _reset_question_timers(session)
                 return {
                     "transcript": transcript,
                     "completed": False,
-                    "next_question": next_q_text,
-                    "audio_url": audio_url,
+                    "next_question": combined,
+                    "audio_url": question_audio_url,
                     "question_number": session.current_question_number,
                     "max_questions": session.max_questions,
                     "continuous": True
                 }
-            elif is_negative_response(transcript):
-                last_q = get_last_strict_question(session)
-                if last_q:
-                    session.add_interviewer_message(last_q)
-                    session.awaiting_answer = True
-                    session.last_active_question_text = last_q
-                    question_audio_url = text_to_speech(last_q, f"q{session.current_question_number}_repeat.mp3")
-                    _reset_question_timers(session)
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": last_q,
-                        "audio_url": question_audio_url,
-                        "question_number": session.current_question_number,
-                        "max_questions": session.max_questions,
-                        "continuous": True
-                    }
-
-        # Check if candidate is requesting to repeat the question
-        # FIRST: Check for explicit repeat phrases (fast, reliable)
-        # ONLY use LLM if explicit phrases are found to avoid false positives
-        last_question = get_last_strict_question(session)
-        if last_question and transcript.strip():
-            transcript_lower = transcript.lower().strip()
             
-            # Explicit repeat request phrases (must contain these to be considered a repeat request)
-            explicit_repeat_phrases = [
-                "repeat the question",
-                "repeat the previous question",
-                "ask again",
-                "say that again",
-                "what was the question",
-                "i didn't hear",
-                "i didn't catch",
-                "pardon",
-                "sorry what",
-                "can you repeat",
-                "could you repeat",
-                "would you repeat",
-                "please repeat"
-            ]
-            
-            # Only check for repeat if explicit phrases are present
-            has_explicit_repeat_phrase = any(phrase in transcript_lower for phrase in explicit_repeat_phrases)
-            
-            if has_explicit_repeat_phrase:
-                # Use LLM to confirm it's a repeat request (not a false positive)
-                is_repeat = is_repeat_request_via_llm(session, transcript, last_question)
-                
-                if is_repeat:
-                    # SAFEGUARD: Prevent infinite loops - don't repeat if we've already repeated this question recently
-                    # Check if the last message was also a repeat of the same question
-                    last_messages = session.get_conversation_context()
-                    if "of course" in last_messages.lower() and last_question.lower() in last_messages.lower():
-                        # We just repeated this question - don't repeat again, move to next question instead
-                        print(f"⚠️ Prevented infinite repeat loop - already repeated this question. Moving to next question.")
-                    else:
-                        # Candidate is asking to repeat - use LLM to generate a natural response that repeats the question
-                        repeat_response = generate_repeat_question_response(session, last_question)
-                        session.add_interviewer_message(repeat_response)
-                        session.awaiting_answer = True
-                        session.last_active_question_text = last_question  # Keep original question as active
-                        repeat_audio_url = text_to_speech(repeat_response, f"q{session.current_question_number}_repeat.mp3")
-                        _reset_question_timers(session)
-                        print(f"🔄 LLM confirmed repeat request. Generated repeat response: {repeat_response[:100]}...")
-                        return {
-                            "transcript": transcript,
-                            "completed": False,
-                            "next_question": repeat_response,
-                            "audio_url": repeat_audio_url,
-                            "question_number": session.current_question_number,  # Don't increment - same question
-                            "max_questions": session.max_questions,
-                            "continuous": True
-                        }
-        
-        # Regular skip command handling (for skips like "skip", "next question", "move on")
-        if any(phrase in transcript_lower for phrase in ["skip", "next question", "move on"]):
-            # For skip commands, default to regular question (no meaningful answer to evaluate)
-            next_q_text = generate_question(session, "regular", last_answer_text=transcript)
-            session.regular_questions_count += 1
-            # Use the question directly without any reassuring phrases - be professional like a real technical interviewer
-            combined_text = next_q_text.strip()
-            session.add_interviewer_message(combined_text)
-            session.current_question_number += 1
-            session.awaiting_answer = True
-            session.last_active_question_text = next_q_text
-            audio_url = text_to_speech(combined_text, f"q{session.current_question_number}.mp3")
+            # Otherwise, this is a regular closing phase response
+            session.add_interviewer_message(response)
+            question_audio_url = text_to_speech(response, f"closing_response_{uuid.uuid4().hex}.mp3")
             _reset_question_timers(session)
             return {
                 "transcript": transcript,
                 "completed": False,
-                "next_question": combined_text,
-                "audio_url": audio_url,
+                "next_question": response,
+                "audio_url": question_audio_url,
+                "question_number": session.current_question_number,
+                "max_questions": session.max_questions,
+                "continuous": True
+            }
+        
+        # Handle all candidate responses using unified prompt analysis
+        if transcript.strip():
+            # Use unified prompt to analyze and respond to candidate's response
+            response = generate_unified_prompt(session, "analyze_response", candidate_response=transcript)
+            
+            # Check if the response indicates the interview should end
+            if any(phrase in response.lower() for phrase in ["final closing", "interview completed", "thank you for your time"]):
+                session.completed_at = time.time()
+                session.is_completed = True
+                session.waiting_for_candidate_question = False
+                return {
+                    "transcript": transcript,
+                    "completed": True,
+                    "final_message": response,
+                    "final_audio_url": text_to_speech(response, f"final_{uuid.uuid4().hex}.mp3")
+                }
+            
+            # Check if response is a question (move to next question after answering)
+            if "?" in response or any(word in response.lower() for word in ["what", "how", "why", "when", "where"]):
+                # This is an answer to candidate's question, add it and move to next question
+                session.add_interviewer_message(response)
+                next_question = generate_question(session, "regular", last_answer_text=transcript)
+                session.regular_questions_count += 1
+                session.current_question_number += 1
+                session.add_interviewer_message(next_question)
+                session.awaiting_answer = True
+                session.last_active_question_text = next_question
+                
+                combined = f"{response} {next_question}"
+                return {
+                    "transcript": transcript,
+                    "completed": False,
+                    "next_question": combined,
+                    "audio_url": text_to_speech(combined, f"q{session.current_question_number}.mp3"),
+                    "question_number": session.current_question_number,
+                    "max_questions": session.max_questions,
+                    "continuous": True
+                }
+            
+            # Otherwise, this is a regular interview response
+            session.add_interviewer_message(response)
+            session.awaiting_answer = True
+            session.last_active_question_text = response
+            return {
+                "transcript": transcript,
+                "completed": False,
+                "next_question": response,
+                "audio_url": text_to_speech(response, f"response_{uuid.uuid4().hex}.mp3"),
                 "question_number": session.current_question_number,
                 "max_questions": session.max_questions,
                 "continuous": True
@@ -1656,14 +1340,9 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             session.add_interviewer_message(answer_text)
 
             # After answering candidate's question, move to the NEXT question (do NOT repeat previous question)
-            # Use ratio logic to decide follow-up vs regular
-            should_follow_up = should_ask_follow_up(session, transcript)
-            if should_follow_up:
-                next_question = generate_question(session, "follow_up", last_answer_text=transcript, allow_elaboration=False)
-                session.follow_up_questions_count += 1
-            else:
-                next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
-                session.regular_questions_count += 1
+            # Ask regular question instead of analyzing answer
+            next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
+            session.regular_questions_count += 1
             
             # CRITICAL CHECK: Ensure the generated question is NOT the same as the last question
             if session.last_active_question_text:
@@ -1671,17 +1350,11 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 normalized_last = " ".join(session.last_active_question_text.lower().split())
                 if normalized_new == normalized_last:
                     print(f"⚠️ Generated question is IDENTICAL to last question after candidate Q&A. Regenerating...")
-                    # Force a different question type
-                    should_follow_up = not should_follow_up
-                    if should_follow_up:
-                        next_question = generate_question(session, "follow_up", last_answer_text=transcript, allow_elaboration=False)
-                    else:
-                        next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
+                    # Generate a different question
+                    next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
             
-            # Only increment question number for MAIN questions (not follow-ups)
-            # Follow-ups are part of the same question, so they keep the same number
-            if not should_follow_up:
-                session.current_question_number += 1
+            # Increment question number
+            session.current_question_number += 1
             session.add_interviewer_message(next_question)
             session.awaiting_answer = True
             session.last_active_question_text = next_question
@@ -1702,42 +1375,15 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             }
 
         # Check if interview is completed (regular flow)
-        # max_questions represents the TOTAL number of questions including pre-closing and closing
-        # So if max_questions is 4, we ask: 2 main + 1 pre-closing + 1 closing = 4 total
-        # The introduction question is question 1, so we need to account for that
-        # Calculate how many main questions we should ask AFTER introduction (max_questions - 3: intro + pre-closing + closing)
-        # Example: if max_questions=4, we want: intro(1) + 1 main(2) + pre-closing(3) + closing(4) = 4 total
-        main_questions_after_intro = max(0, session.max_questions - 3)  # Questions after intro, before pre-closing
+        # max_questions represents the TOTAL number of questions to ask
+        # We ask questions until we reach max_questions, then move to closing phase
         
-        # Check if we've asked enough main questions (intro is 1, so we check if current > 1 + main_questions_after_intro)
-        main_questions_limit = 1 + main_questions_after_intro  # Total main questions including intro
+        print(f"📊 Question count check: current={session.current_question_number}, max={session.max_questions}")
         
-        print(f"📊 Question count check: current={session.current_question_number}, max={session.max_questions}, main_limit={main_questions_limit}, main_after_intro={main_questions_after_intro}")
-        
-        if session.current_question_number >= main_questions_limit:
-            # First, ask one more question before the closing question (pre-closing question)
-            if not session.asked_pre_closing_question:
-                # Generate one more regular question before closing (pre-closing question)
-                next_q_text = generate_question(session, "regular", last_answer_text=transcript)
-                session.add_interviewer_message(next_q_text)
-                session.current_question_number += 1
-                session.regular_questions_count += 1  # Pre-closing is a regular question
-                session.awaiting_answer = True
-                session.last_active_question_text = next_q_text
-                session.asked_pre_closing_question = True
-                _reset_question_timers(session)
-                question_audio_url = text_to_speech(next_q_text, f"q{session.current_question_number}.mp3")
-                return {
-                    "transcript": transcript,
-                    "completed": False,
-                    "next_question": next_q_text,
-                    "audio_url": question_audio_url,
-                    "question_number": session.current_question_number,
-                    "max_questions": session.max_questions,  # Total questions including pre-closing and closing
-                    "continuous": True
-                }
-            # After pre-closing question is answered, ask the closing question (generated dynamically)
-            elif not session.asked_for_questions:
+        # If we've reached the max_questions limit, move to closing phase
+        if session.current_question_number >= session.max_questions:
+            # Ask the closing question and end the interview
+            if not session.asked_for_questions:
                 # Normal flow: ask the closing question
                 closing = generate_question(session, "closing", last_answer_text=transcript)
                 session.add_interviewer_message(closing)
@@ -1753,10 +1399,10 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     "next_question": closing,
                     "audio_url": closing_audio,
                     "question_number": session.current_question_number,
-                    "max_questions": session.max_questions,  # Total questions including pre-closing and closing
+                    "max_questions": session.max_questions,
                     "continuous": True
                 }
-            # Already in closing phase - generate final closing statement
+            # Already in closing phase - generate final closing statement and end interview
             final_closing = generate_final_closing(session)
             session.add_interviewer_message(final_closing)
             print(f"🎬 Final closing statement: {final_closing}")
@@ -1806,11 +1452,7 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             }
         
         # Decide whether to ask follow-up or regular question based on:
-        # 1. Answer quality (broad/vague)
-        # 2. JD context match
-        # 3. Ratio constraint (30% follow-up, 70% regular)
-        should_follow_up = should_ask_follow_up(session, transcript)
-        
+        # Ask regular question instead of analyzing answer
         # CRITICAL: Mark that the candidate has answered the previous question
         # The candidate has provided an answer, so we should move to the NEXT question
         session.awaiting_answer = False
@@ -1822,14 +1464,9 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
         max_generation_attempts = 5
         next_question = None
         for gen_attempt in range(max_generation_attempts):
-            if should_follow_up:
-                next_question = generate_question(session, "follow_up", last_answer_text=transcript, allow_elaboration=False)
-                if gen_attempt == 0:
-                    session.follow_up_questions_count += 1
-            else:
-                next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
-                if gen_attempt == 0:
-                    session.regular_questions_count += 1
+            next_question = generate_question(session, "regular", last_answer_text=transcript, allow_elaboration=False)
+            if gen_attempt == 0:
+                session.regular_questions_count += 1
             
             # CRITICAL CHECK: Ensure the generated question is NOT the same as the last question
             if session.last_active_question_text:
@@ -1840,8 +1477,7 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     print(f"   Last question: '{session.last_active_question_text[:100]}...'")
                     print(f"   Generated: '{next_question[:100]}...'")
                     if gen_attempt < max_generation_attempts - 1:
-                        # Force a different question type to ensure uniqueness
-                        should_follow_up = not should_follow_up
+                        # Generate a different question to ensure uniqueness
                         continue
                     else:
                         print(f"❌ ERROR: Could not generate a different question after {max_generation_attempts} attempts!")

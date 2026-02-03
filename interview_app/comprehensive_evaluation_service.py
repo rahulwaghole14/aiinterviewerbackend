@@ -201,6 +201,27 @@ class ComprehensiveEvaluationService:
                     'accuracy_percentage': 0
                 }
             
+            print(f"🔍 DEBUG: Technical Q&A Data for LLM Analysis:")
+            print(f"   Total Technical Questions Found: {len(technical_qa)}")
+            for i, qa in enumerate(technical_qa, 1):
+                print(f"   Q{i}: {qa['question'][:80]}...")
+                print(f"   A{i}: {qa['answer'][:80]}...")
+                print(f"   ---")
+            
+            print(f"🔍 DEBUG: Behavioral Q&A Data for LLM Analysis:")
+            print(f"   Total Behavioral Questions Found: {len(behavioral_qa)}")
+            for i, qa in enumerate(behavioral_qa, 1):
+                print(f"   Q{i}: {qa['question'][:80]}...")
+                print(f"   A{i}: {qa['answer'][:80]}...")
+                print(f"   ---")
+            
+            print(f"🔍 DEBUG: Coding Submissions for LLM Analysis:")
+            print(f"   Total Coding Challenges Found: {len(coding_submissions)}")
+            for i, sub in enumerate(coding_submissions, 1):
+                print(f"   Challenge {i}: {sub['question'][:80]}...")
+                print(f"   Tests Passed: {sub['passed_tests']}/{sub['total_tests']}")
+                print(f"   ---")
+
             # Build comprehensive evaluation prompt
             evaluation_prompt = self._build_evaluation_prompt(
                 session=session,
@@ -209,6 +230,13 @@ class ComprehensiveEvaluationService:
                 coding_submissions=coding_submissions
             )
             
+            print(f"🔍 DEBUG: Full Prompt Being Sent to LLM:")
+            print(f"   Prompt Length: {len(evaluation_prompt)} characters")
+            print(f"   Technical Questions Section: {'=== TECHNICAL QUESTIONS & ANSWERS ===' in evaluation_prompt}")
+            print(f"   Question Correctness Section: {'=== QUESTION CORRECTNESS ANALYSIS ===' in evaluation_prompt}")
+            print(f"   First 500 chars of prompt: {evaluation_prompt[:500]}...")
+            print(f"   ---")
+            
             # Get AI evaluation
             if not self.model:
                 raise Exception("Gemini model not configured. Please set GEMINI_API_KEY.")
@@ -216,6 +244,23 @@ class ComprehensiveEvaluationService:
             print(f"🔄 Requesting comprehensive evaluation from Gemini...")
             response = self.model.generate_content(evaluation_prompt)
             evaluation_text = response.text
+            
+            print(f"🔍 DEBUG: LLM Response Received:")
+            print(f"   Response Length: {len(evaluation_text)} characters")
+            print(f"   Contains Question Correctness Section: {'=== QUESTION CORRECTNESS ANALYSIS ===' in evaluation_text}")
+            
+            # Extract and show the question correctness analysis section
+            correctness_section = re.search(r'=== QUESTION CORRECTNESS ANALYSIS ===(.*?)(?===|$)', evaluation_text, re.DOTALL | re.IGNORECASE)
+            if correctness_section:
+                correctness_text = correctness_section.group(1).strip()
+                print(f"   Question Correctness Analysis Found:")
+                for line in correctness_text.split('\n')[:10]:  # Show first 10 lines
+                    if line.strip():
+                        print(f"     {line.strip()}")
+            else:
+                print(f"   ⚠️ QUESTION CORRECTNESS ANALYSIS section not found in LLM response!")
+            
+            print(f"   ---")
             
             # Parse the response
             result = self._parse_evaluation_response(evaluation_text, technical_qa, behavioral_qa, coding_submissions)
@@ -481,8 +526,12 @@ Be specific, constructive, and professional. Base your scores on the actual cont
             correctness_section = re.search(r'=== QUESTION CORRECTNESS ANALYSIS ===(.*?)(?===|$)', response_text, re.DOTALL | re.IGNORECASE)
             if correctness_section:
                 correctness_text = correctness_section.group(1).strip()
+                print(f"🔍 DEBUG: Parsing Question Correctness Analysis:")
+                print(f"   Raw Correctness Text: {correctness_text[:200]}...")
+                
                 # Parse each line: Q1: CORRECT, Q2: INCORRECT, etc.
                 correctness_lines = [line.strip() for line in correctness_text.split('\n') if line.strip() and ':' in line]
+                print(f"   Parsed {len(correctness_lines)} correctness lines")
                 
                 # Count correct answers by category
                 technical_correct = 0
@@ -493,6 +542,7 @@ Be specific, constructive, and professional. Base your scores on the actual cont
                 question_index = 0
                 
                 # Technical questions
+                print(f"🔍 DEBUG: Processing {len(technical_qa)} technical questions:")
                 for i in range(len(technical_qa)):
                     question_index += 1
                     # Look for Q{question_index}: CORRECT or PARTIALLY_CORRECT
@@ -500,31 +550,41 @@ Be specific, constructive, and professional. Base your scores on the actual cont
                     match = re.search(pattern, correctness_text, re.IGNORECASE)
                     if match:
                         status = match.group(1).upper()
+                        print(f"   Q{question_index}: {status} -> Counting as correct")
                         # Count CORRECT and PARTIALLY_CORRECT as correct (you can adjust this)
                         if status in ['CORRECT', 'PARTIALLY_CORRECT']:
                             technical_correct += 1
+                    else:
+                        print(f"   Q{question_index}: NOT FOUND in correctness analysis")
                 
                 # Behavioral questions (continue numbering)
+                print(f"🔍 DEBUG: Processing {len(behavioral_qa)} behavioral questions:")
                 for i in range(len(behavioral_qa)):
                     question_index += 1
                     pattern = rf'Q{question_index}:\s*(CORRECT|PARTIALLY_CORRECT|INCORRECT)'
                     match = re.search(pattern, correctness_text, re.IGNORECASE)
                     if match:
                         status = match.group(1).upper()
+                        print(f"   Q{question_index}: {status} -> Counting as correct")
                         if status in ['CORRECT', 'PARTIALLY_CORRECT']:
                             behavioral_correct += 1
+                    else:
+                        print(f"   Q{question_index}: NOT FOUND in correctness analysis")
                 
                 # Coding challenges (continue numbering)
+                print(f"🔍 DEBUG: Processing {len(coding_submissions)} coding challenges:")
                 for i in range(len(coding_submissions)):
                     question_index += 1
                     pattern = rf'Q{question_index}:\s*(CORRECT|PARTIALLY_CORRECT|INCORRECT)'
                     match = re.search(pattern, correctness_text, re.IGNORECASE)
                     if match:
                         status = match.group(1).upper()
+                        print(f"   Q{question_index}: {status} -> Counting as correct only if CORRECT")
                         # For coding, only count CORRECT (all tests passed)
                         if status == 'CORRECT':
                             coding_correct += 1
                     else:
+                        print(f"   Q{question_index}: NOT FOUND in correctness analysis")
                         # Fallback: check if all tests passed from submission data
                         if coding_submissions[i].get('passed_tests', 0) == coding_submissions[i].get('total_tests', 0) and coding_submissions[i].get('total_tests', 0) > 0:
                             coding_correct += 1

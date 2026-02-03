@@ -757,6 +757,37 @@ class InterviewSerializer(serializers.ModelSerializer):
                 if q_pair['ai'] and not q_pair['interviewee']:
                     # Try to find interviewee response for this order
                     try:
+                        # CRITICAL FIX: Special handling for first question only
+                        if order_key == 0:
+                            print(f"🔍 SPECIAL HANDLING: Finding answer for FIRST question (order {order_key})")
+                            
+                            # For first question, try to find the correct interviewee response
+                            # Method 1: Try exact conversation_sequence match
+                            if q_pair['ai'].conversation_sequence is not None:
+                                missed_interviewee = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    conversation_sequence=q_pair['ai'].conversation_sequence,
+                                    role='INTERVIEWEE'
+                                ).first()
+                                if missed_interviewee:
+                                    q_pair['interviewee'] = missed_interviewee
+                                    print(f"✅ FIRST QUESTION FIX: Found answer by same conversation_sequence: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
+                                    continue
+                            
+                            # Method 2: Try conversation_sequence + 1
+                            if q_pair['ai'].conversation_sequence is not None:
+                                interviewee_sequence = q_pair['ai'].conversation_sequence + 1
+                                missed_interviewee = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    conversation_sequence=interviewee_sequence,
+                                    role='INTERVIEWEE'
+                                ).first()
+                                if missed_interviewee:
+                                    q_pair['interviewee'] = missed_interviewee
+                                    print(f"✅ FIRST QUESTION FIX: Found answer by conversation_sequence + 1: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
+                                    continue
+                        
+                        # Regular handling for other questions (unchanged)
                         missed_interviewee = InterviewQuestion.objects.filter(
                             session=session,
                             order=order_key,
@@ -931,6 +962,29 @@ class InterviewSerializer(serializers.ModelSerializer):
                     # CRITICAL: Try multiple methods to find the answer
                     # Method 1: Use the paired interviewee_a if available
                     if interviewee_a:
+                        # CRITICAL FIX: Special validation for first question to prevent wrong answer assignment
+                        if ai_q.order == 0:
+                            print(f"🔍 VALIDATING FIRST QUESTION ANSWER: Q{ai_q.order} -> Answer from order {interviewee_a.order}, seq {interviewee_a.conversation_sequence}")
+                            
+                            # For first question, ensure we're not getting the second question's answer
+                            # Check if the paired answer actually belongs to the first question
+                            if interviewee_a.order != 0:
+                                # This might be the wrong answer - try to find the correct one for first question
+                                print(f"⚠️ FIRST QUESTION: Paired answer from order {interviewee_a.order} != 0, searching for correct answer...")
+                                
+                                # Try to find the correct answer for first question
+                                correct_first_answer = InterviewQuestion.objects.filter(
+                                    session=session,
+                                    order=0,
+                                    role='INTERVIEWEE'
+                                ).first()
+                                
+                                if correct_first_answer and correct_first_answer.transcribed_answer:
+                                    interviewee_a = correct_first_answer
+                                    print(f"✅ FIRST QUESTION: Found correct answer from order 0: {correct_first_answer.transcribed_answer[:50] if correct_first_answer.transcribed_answer else 'No answer'}...")
+                                else:
+                                    print(f"⚠️ FIRST QUESTION: Could not find correct answer, using paired answer")
+                        
                         # Use the separate Interviewee record
                         answer_text = interviewee_a.transcribed_answer or ''
                         if answer_text.strip().startswith('A:'):

@@ -395,9 +395,9 @@ def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
         prompt = (
             f"{base_prompt}"
             "Generate a professional closing question to ask the candidate if they have any questions. "
-            "This should be a natural transition to end the interview. "
+            "This should be a natural transition to end the interview after completing all technical questions. "
             "Question MUST be maximum 2 lines long. "
-            "Examples: 'Before we wrap up, do you have any questions for us?' or 'Is there anything you'd like to ask about the role or company?' "
+            "Examples: 'Do you have any questions for us about the company, role, or anything else?' or 'Before we conclude, do you have any questions I can help answer?' "
             "Keep it warm, professional, and concise. Ask only one single-line question."
         )
         return gemini_generate(prompt)
@@ -454,11 +454,15 @@ def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
         prompt = (
             f"{base_prompt}"
             f"The candidate asked: '{kwargs.get('candidate_question_text', '')}'\n\n"
-            "Answer the candidate's question about the interview, role, or company using JD context and interview history. "
-            "Be helpful, professional, and concise. "
-            "Focus on relevant information from the job description. "
-            "If you don't have specific information, provide a general helpful response. "
-            "Keep it appropriate for an interview setting."
+            "CRITICAL RULES for answering candidate questions:\n"
+            "1. ONLY answer questions about: COMPANY, SALARY, LOCATION\n"
+            "2. For company-related questions: Answer based on job description and company info\n"
+            "3. For salary questions: Provide general salary range information if available\n"
+            "4. For location questions: Answer about work location, remote options, etc.\n"
+            "5. For ANY OTHER questions (technical answers, personal advice, etc.): Respond with EXACTLY: 'We will get back to you with thank you'\n"
+            "6. DO NOT answer technical questions, give interview tips, or provide personal advice\n"
+            "7. Keep responses professional and concise\n\n"
+            "Now analyze the candidate's question and provide the appropriate response following the rules above."
         )
         return gemini_generate(prompt)
     

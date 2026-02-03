@@ -162,6 +162,12 @@ def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
     
     # Build unified base prompt with all detection logic
     base_prompt = (
+        f"🚨🚨🚨 CRITICAL: SINGLE QUESTION RULE - READ THIS FIRST 🚨🚨🚨\n"
+        f"YOU MUST GENERATE EXACTLY ONE QUESTION ONLY!\n"
+        f"NEVER GENERATE 2 QUESTIONS IN ONE RESPONSE!\n"
+        f"IF YOU GENERATE MULTIPLE QUESTIONS, THE SYSTEM WILL BREAK!\n"
+        f"CHECK YOUR RESPONSE: COUNT THE '?' MARKS - MUST BE EXACTLY 1!\n\n"
+        
         f"You are a professional technical interviewer conducting a TECHNICAL INTERVIEW. "
         f"The candidate's name is {session.candidate_name}. "
         f"Current question: {session.current_question_number + 1} of {session.max_questions}.\n\n"
@@ -217,8 +223,13 @@ def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
         "- If elaboration request: Provide clearer explanation\n"
         "- If skip command: Move to next technical question\n"
         "- If positive/negative: Handle according to interview phase\n"
-        "- If regular answer: Generate appropriate follow-up or next question\n"
         "- Always ensure responses are technical and relevant to job description\n\n"
+        
+        "🚨 FINAL SINGLE QUESTION CHECK 🚨\n"
+        "BEFORE GENERATING: Remember you MUST ask only ONE question!\n"
+        "AFTER GENERATING: Count your '?' marks - MUST be exactly 1!\n"
+        "If you have 2+ questions, DELETE the extra ones!\n"
+        "If you have 2+ '?' marks, REMOVE the extra ones!\n\n"
         
         "QUESTION GENERATION RULES:\n"
         "- ALWAYS ask ONLY ONE technical question related to the job description\n"
@@ -490,6 +501,11 @@ def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
         
         prompt = (
             f"{base_prompt}"
+            "🚨 URGENT: SINGLE QUESTION ONLY - READ THIS FIRST 🚨\n"
+            "YOUR RESPONSE MUST CONTAIN EXACTLY ONE QUESTION MAXIMUM!\n"
+            "NEVER, EVER GENERATE TWO QUESTIONS IN ONE RESPONSE!\n"
+            "IF YOU GENERATE MULTIPLE QUESTIONS, THE INTERVIEW WILL BREAK!\n\n"
+            
             "UNIFIED CANDIDATE RESPONSE ANALYSIS:\n\n"
             
             f"Candidate's Response: '{candidate_response}'\n\n"
@@ -545,6 +561,11 @@ def generate_unified_prompt(session, prompt_type: str, **kwargs) -> str:
             "- CRITICAL: Your response must contain EXACTLY ONE question only\n"
             "- CRITICAL: Do not combine multiple questions with 'and' or 'or'\n"
             "- CRITICAL: Each response should have only one question mark (?)\n\n"
+            
+            "🚨 FINAL WARNING: CHECK YOUR RESPONSE BEFORE GENERATING 🚨\n"
+            "COUNT YOUR QUESTIONS: MUST BE EXACTLY 1 (ONE) QUESTION!\n"
+            "IF YOU HAVE 2 OR MORE QUESTIONS, DELETE THE EXTRA ONES!\n"
+            "IF YOUR RESPONSE HAS MULTIPLE '?' MARKS, REMOVE ALL BUT ONE!\n\n"
             
             "Now analyze the candidate's response and generate the appropriate interviewer response."
         )

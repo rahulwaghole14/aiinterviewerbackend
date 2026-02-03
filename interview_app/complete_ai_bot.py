@@ -566,6 +566,9 @@ class InterviewSession:
         self.completed_at = None
         self.awaiting_answer = False
         self.last_active_question_text = ""
+        # CRITICAL FIX: Add candidate questions counter to properly track question count
+        self.candidate_questions_count = 0
+        self.regular_questions_count = 0
         # Timing and activity tracking
         self.question_asked_at = 0.0
         self.first_voice_at = None
@@ -1182,6 +1185,18 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
         
         # Handle all candidate responses using unified prompt analysis
         if transcript.strip():
+            # CRITICAL FIX: Check if candidate is asking a question before processing
+            # This helps us properly track candidate questions vs main interview questions
+            candidate_is_asking_question = (
+                "?" in transcript or 
+                any(word in transcript.lower() for word in ["what", "how", "why", "when", "where", "which", "who", "can", "could", "would", "should"])
+            ) and not any(word in transcript.lower() for word in ["yes", "no", "yeah", "yep", "sure", "i think", "i believe", "i feel"])
+            
+            if candidate_is_asking_question:
+                # Candidate asked a question - increment counter but don't count towards main question limit
+                session.candidate_questions_count += 1
+                print(f"📝 Candidate asked question #{session.candidate_questions_count}: {transcript[:50]}...")
+            
             # Use unified prompt to analyze and respond to candidate's response
             response = generate_unified_prompt(session, "analyze_response", candidate_response=transcript)
             
@@ -1417,13 +1432,19 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             }
 
         # Check if interview is completed (regular flow)
-        # max_questions represents the TOTAL number of questions to ask
+        # max_questions represents the TOTAL number of MAIN questions to ask (excluding candidate questions)
         # We ask questions until we reach max_questions, then move to closing phase
         
-        print(f"📊 Question count check: current={session.current_question_number}, max={session.max_questions}")
+        # CRITICAL FIX: Calculate actual main questions asked (exclude candidate questions)
+        # Only count questions that the AI asks, not candidate questions
+        actual_main_questions = session.current_question_number
+        if hasattr(session, 'candidate_questions_count'):
+            actual_main_questions = session.current_question_number - session.candidate_questions_count
         
-        # If we've reached the max_questions limit, move to closing phase
-        if session.current_question_number >= session.max_questions:
+        print(f"📊 Question count check: current={session.current_question_number}, actual_main={actual_main_questions}, max={session.max_questions}")
+        
+        # If we've reached the max_questions limit for MAIN questions, move to closing phase
+        if actual_main_questions >= session.max_questions:
             # Ask the closing question and end the interview
             if not session.asked_for_questions:
                 # Normal flow: ask the closing question

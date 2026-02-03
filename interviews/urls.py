@@ -50,4 +50,15 @@ urlpatterns = [
         "available-slots/", views.SlotAvailabilityView.as_view(), name="available-slots"
     ),
     path("calendar/", views.InterviewCalendarView.as_view(), name="interview-calendar"),
+    # Screen recording endpoints
+    path(
+        "<uuid:pk>/screen-recording/upload/",
+        views.ScreenRecordingUploadView.as_view(),
+        name="screen-recording-upload",
+    ),
+    path(
+        "<uuid:pk>/screen-recording/delete/",
+        views.ScreenRecordingDeleteView.as_view(),
+        name="screen-recording-delete",
+    ),
 ]

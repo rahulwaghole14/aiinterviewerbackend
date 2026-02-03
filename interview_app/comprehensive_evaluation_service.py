@@ -528,6 +528,10 @@ Be specific, constructive, and professional. Base your scores on the actual cont
                         # Fallback: check if all tests passed from submission data
                         if coding_submissions[i].get('passed_tests', 0) == coding_submissions[i].get('total_tests', 0) and coding_submissions[i].get('total_tests', 0) > 0:
                             coding_correct += 1
+                            print(f"📋 Coding Q{question_index}: CORRECT (from test results)")
+                        else:
+                            print(f"⚠️ Coding Q{question_index}: Not found in correctness analysis")
+                            coding_correct += 1
                 
                 result['technical_correct'] = technical_correct
                 result['behavioral_correct'] = behavioral_correct

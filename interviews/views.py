@@ -2147,3 +2147,123 @@ class InterviewCalendarView(generics.ListAPIView):
                 "booked_slots": booked_slots,
             }
         )
+
+
+# ──────────────────────────── Screen Recording API ────────────────────────────────
+class ScreenRecordingUploadView(APIView):
+    """
+    API endpoint to upload screen recording files for interviews
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, interview_id):
+        """
+        Upload screen recording file for an interview
+        """
+        try:
+            interview = get_object_or_404(Interview, id=interview_id)
+            
+            # Check if user has permission to access this interview
+            user_role = getattr(request.user, "role", "").lower()
+            if user_role not in ["admin", "company", "hiring_agency", "recruiter"]:
+                if not request.user.is_superuser:
+                    return Response(
+                        {"error": "Permission denied"}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Check if file is provided
+            if 'screen_recording' not in request.FILES:
+                return Response(
+                    {"error": "No screen recording file provided"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            screen_recording_file = request.FILES['screen_recording']
+            duration = request.data.get('duration', None)
+            
+            # Validate file type (accept video files)
+            allowed_types = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
+            if screen_recording_file.content_type not in allowed_types:
+                return Response(
+                    {"error": f"Invalid file type. Allowed types: {', '.join(allowed_types)}"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate file size (max 500MB)
+            max_size = 500 * 1024 * 1024  # 500MB
+            if screen_recording_file.size > max_size:
+                return Response(
+                    {"error": "File too large. Maximum size is 500MB"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Save the screen recording
+            interview.screen_recording_file = screen_recording_file
+            interview.screen_recording_url = request.build_absolute_uri(
+                interview.screen_recording_file.url
+            ) if interview.screen_recording_file else ""
+            
+            if duration:
+                try:
+                    interview.screen_recording_duration = int(duration)
+                except (ValueError, TypeError):
+                    pass
+            
+            interview.save()
+            
+            return Response({
+                "message": "Screen recording uploaded successfully",
+                "screen_recording_url": interview.screen_recording_url,
+                "duration": interview.screen_recording_duration
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error uploading screen recording: {str(e)}")
+            return Response(
+                {"error": "Internal server error"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ScreenRecordingDeleteView(APIView):
+    """
+    API endpoint to delete screen recording files for interviews
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, interview_id):
+        """
+        Delete screen recording file for an interview
+        """
+        try:
+            interview = get_object_or_404(Interview, id=interview_id)
+            
+            # Check if user has permission to access this interview
+            user_role = getattr(request.user, "role", "").lower()
+            if user_role not in ["admin", "company", "hiring_agency", "recruiter"]:
+                if not request.user.is_superuser:
+                    return Response(
+                        {"error": "Permission denied"}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Delete the screen recording file
+            if interview.screen_recording_file:
+                interview.screen_recording_file.delete()
+                interview.screen_recording_file = None
+            
+            interview.screen_recording_url = ""
+            interview.screen_recording_duration = None
+            interview.save()
+            
+            return Response({
+                "message": "Screen recording deleted successfully"
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error deleting screen recording: {str(e)}")
+            return Response(
+                {"error": "Internal server error"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

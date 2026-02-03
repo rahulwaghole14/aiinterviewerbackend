@@ -44,6 +44,11 @@ class InterviewSerializer(serializers.ModelSerializer):
     
     # Interview Video
     interview_video = serializers.SerializerMethodField()
+    
+    # Screen Recording
+    screen_recording_file = serializers.SerializerMethodField()
+    screen_recording_url = serializers.SerializerMethodField()
+    screen_recording_duration = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -70,6 +75,9 @@ class InterviewSerializer(serializers.ModelSerializer):
             "questions_and_answers",
             "verification_id_image",
             "interview_video",
+            "screen_recording_file",
+            "screen_recording_url", 
+            "screen_recording_duration",
             "session_key",
         ]
         read_only_fields = [
@@ -1568,6 +1576,42 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
         except Exception as e:
             print(f"⚠️ Error getting interview video for interview {obj.id}: {e}")
+            return None
+
+    def get_screen_recording_file(self, obj):
+        """Get screen recording file URL"""
+        try:
+            if obj.screen_recording_file:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.screen_recording_file.url)
+                return obj.screen_recording_file.url
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting screen recording file for interview {obj.id}: {e}")
+            return None
+    
+    def get_screen_recording_url(self, obj):
+        """Get screen recording URL"""
+        try:
+            if obj.screen_recording_url:
+                return obj.screen_recording_url
+            elif obj.screen_recording_file:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.screen_recording_file.url)
+                return obj.screen_recording_file.url
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting screen recording URL for interview {obj.id}: {e}")
+            return None
+    
+    def get_screen_recording_duration(self, obj):
+        """Get screen recording duration in seconds"""
+        try:
+            return obj.screen_recording_duration
+        except Exception as e:
+            print(f"⚠️ Error getting screen recording duration for interview {obj.id}: {e}")
             return None
 
 

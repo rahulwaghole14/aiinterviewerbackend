@@ -354,6 +354,20 @@ class Interview(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     video_url = models.URLField(max_length=500, blank=True)
+    
+    # Screen recording fields
+    screen_recording_url = models.URLField(max_length=500, blank=True, help_text="URL to screen recording with audio")
+    screen_recording_file = models.FileField(
+        upload_to='screen_recordings/', 
+        null=True, 
+        blank=True, 
+        help_text="Screen recording video file with audio"
+    )
+    screen_recording_duration = models.IntegerField(
+        null=True, 
+        blank=True, 
+        help_text="Duration of screen recording in seconds"
+    )
 
     # Secure interview link for candidate access
     interview_link = models.CharField(

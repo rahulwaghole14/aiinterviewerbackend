@@ -28,6 +28,9 @@ class InterviewSession(models.Model):
     id_card_image = models.ImageField(upload_to='id_cards/', null=True, blank=True)
     extracted_id_details = models.TextField(null=True, blank=True)
     interview_video = models.FileField(upload_to='interview_videos/', null=True, blank=True, help_text="Complete interview video with camera, TTS questions, and candidate speech")
+    technical_interview_started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when technical interview started")
+    coding_round_completed_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when coding round was completed")
+    total_completion_time_minutes = models.FloatField(null=True, blank=True, help_text="Total time from technical interview start to coding round completion (in minutes)")
 
     def save(self, *args, **kwargs):
         if not self.session_key:

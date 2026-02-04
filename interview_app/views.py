@@ -745,10 +745,73 @@ def synthesize_speech(text, lang_code, accent_tld, output_path):
         raise Exception(f"Google Cloud TTS failed: {e}")
 
 def interview_portal(request):
-    session_key = request.GET.get('session_key')
+    session_key = (request.GET.get('session_key') or '').strip()
     print(f"DEBUG: interview_portal called with session_key: {session_key}")
+
+    # If no session_key, show a simple scheduling form on the home page.
+    # This lets you enter candidate name + JD and start the full flow
+    # without generating a link from the CLI.
     if not session_key:
-        return render(request, 'interview_app/invalid_link.html')
+        if request.method == "POST":
+            # Get form data - these are REQUIRED from portal.html
+            candidate_name = (request.POST.get("candidate_name") or "").strip()
+            job_description = (request.POST.get("job_description") or "").strip()
+            question_count_str = request.POST.get("question_count", "4").strip()
+            
+            # Validate required fields
+            if not candidate_name:
+                return render(request, 'interview_app/portal.html', {
+                    'interview_started': False,
+                    'session_key': '',
+                    'error': 'Candidate name is required'
+                })
+            if not job_description:
+                return render(request, 'interview_app/portal.html', {
+                    'interview_started': False,
+                    'session_key': '',
+                    'error': 'Job description is required'
+                })
+            
+            # Parse question_count with validation
+            try:
+                question_count = max(1, min(15, int(question_count_str)))  # Between 1 and 15
+            except (ValueError, TypeError):
+                question_count = 4  # Default if invalid
+
+            print(f"\n{'='*60}")
+            print(f"📝 FORM SUBMISSION FROM PORTAL.HTML")
+            print(f"{'='*60}")
+            print(f"   Candidate Name: {candidate_name}")
+            print(f"   Job Description Length: {len(job_description)}")
+            print(f"   Job Description Preview: {job_description[:100]}...")
+            print(f"   Question Count: {question_count}")
+            print(f"{'='*60}\n")
+
+            session = InterviewSession.objects.create(
+                candidate_name=candidate_name,
+                job_description=job_description,
+                scheduled_at=timezone.now(),
+                language_code="en",
+                accent_tld="com",
+                status="SCHEDULED",
+            )
+            
+            # Verify all data was saved correctly
+            saved_session = InterviewSession.objects.get(session_key=session.session_key)
+            print(f"✅ Session created with session_key: {session.session_key}")
+            print(f"   Saved Candidate Name: {saved_session.candidate_name}")
+            print(f"   Saved JD length: {len(saved_session.job_description or '')}")
+            print(f"   Saved JD preview: {(saved_session.job_description or '')[:100]}...")
+            print(f"   Question Count to use: {question_count}")
+            
+            # Pass question_count via query param so JS can send it to /ai/start
+            return redirect(f"/?session_key={session.session_key}&qc={question_count}")
+
+        # GET without session_key: render portal with scheduling UI only
+        return render(request, 'interview_app/portal.html', {
+            'interview_started': False,
+            'session_key': '',
+        })
     session = get_object_or_404(InterviewSession, session_key=session_key)
     print(f"DEBUG: Found session with ID: {session.id}")
     
@@ -4056,6 +4119,19 @@ def ai_start(request):
     # Get question count from InterviewSlot.ai_configuration or default to 4
     question_count = 4  # Default
     
+    # Check if question_count is provided via query parameter (from portal form submission)
+    qc_param = request.GET.get('qc', '') or data.get('qc', '')
+    if qc_param:
+        try:
+            qc_from_param = int(qc_param.strip())
+            if 1 <= qc_from_param <= 20:  # Validate range
+                question_count = qc_from_param
+                print(f"✅ Using question count from query parameter: {question_count}")
+            else:
+                print(f"⚠️ Invalid question_count from query parameter ({qc_from_param}), using default 4")
+        except (ValueError, TypeError):
+            print(f"⚠️ Invalid question_count format from query parameter ({qc_param}), using default 4")
+    
     # If no session_key, try to get it from URL or other sources
     if not session_key:
         print(f"⚠️ No session_key found in request data, checking other sources...")
@@ -4323,6 +4399,13 @@ def ai_start(request):
         
         result = start_interview(candidate_name, jd_text, max_questions=question_count)
     print(f"✅ Interview started, returned max_questions={result.get('max_questions', 'N/A')}")
+    
+    # Set technical interview start time when interview begins
+    if 'error' not in result and django_session:
+        from django.utils import timezone
+        django_session.technical_interview_started_at = timezone.now()
+        django_session.save(update_fields=['technical_interview_started_at'])
+        print(f"⏱️ Technical interview started at: {django_session.technical_interview_started_at}")
     
     # Verify the session has the correct max_questions
     if 'session_id' in result and result['session_id'] in sessions:
@@ -5232,6 +5315,39 @@ def ai_upload_answer(request):
             print(f"❌ Error: {result['error']}")
         else:
             print(f"✅ Success - Completed: {result.get('completed', False)}")
+            
+            # Handle interview completion timing for non-coding interviews
+            if result.get('completed', False) and session_id and session_id in sessions:
+                ai_session = sessions[session_id]
+                if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
+                    try:
+                        django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
+                        
+                        # Check if this is a non-coding interview completion
+                        has_code_submissions = django_session.code_submissions.exists()
+                        
+                        if not has_code_submissions:
+                            # This is a non-coding interview completion
+                            from django.utils import timezone
+                            django_session.coding_round_completed_at = timezone.now()
+                            print(f"⏱️ Non-coding interview completed at: {django_session.coding_round_completed_at}")
+                            
+                            # Calculate total completion time in minutes
+                            if django_session.technical_interview_started_at:
+                                time_difference = django_session.coding_round_completed_at - django_session.technical_interview_started_at
+                                django_session.total_completion_time_minutes = time_difference.total_seconds() / 60.0
+                                print(f"⏱️ Total completion time: {django_session.total_completion_time_minutes:.2f} minutes")
+                            else:
+                                print(f"⚠️ Technical interview start time not set, cannot calculate total duration")
+                            
+                            # Update session status to COMPLETED for non-coding interviews
+                            django_session.status = 'COMPLETED'
+                            django_session.save(update_fields=['coding_round_completed_at', 'total_completion_time_minutes', 'status'])
+                            print(f"✅ Non-coding interview marked as COMPLETED")
+                        
+                    except Exception as e:
+                        print(f"⚠️ Error handling non-coding interview completion timing: {e}")
+            
             if not result.get('completed'):
                 print(f"✅ Next question: {result.get('next_question', 'N/A')[:100]}...")
                 print(f"✅ Question number: {result.get('question_number', 'N/A')} of {result.get('max_questions', 'N/A')}")
@@ -6441,8 +6557,23 @@ def submit_coding_challenge(request):
             import traceback
             traceback.print_exc()
 
+        # Set coding round completion time and calculate total duration
+        from django.utils import timezone
+        from datetime import datetime
+        
+        session.coding_round_completed_at = timezone.now()
+        print(f"⏱️ Coding round completed at: {session.coding_round_completed_at}")
+        
+        # Calculate total completion time in minutes
+        if session.technical_interview_started_at:
+            time_difference = session.coding_round_completed_at - session.technical_interview_started_at
+            session.total_completion_time_minutes = time_difference.total_seconds() / 60.0
+            print(f"⏱️ Total completion time: {session.total_completion_time_minutes:.2f} minutes")
+        else:
+            print(f"⚠️ Technical interview start time not set, cannot calculate total duration")
+        
         session.status = 'COMPLETED'
-        session.save()
+        session.save(update_fields=['coding_round_completed_at', 'total_completion_time_minutes', 'status'])
         print(f"--- Session {session.session_key} with coding challenge marked as COMPLETED. ---")
         
         # Trigger comprehensive evaluation and persist detailed results
@@ -6610,6 +6741,11 @@ class InterviewResultsAPIView(APIView):
                 # Proctoring data
                 'proctoring_warnings': dict(warning_counts),
                 'total_warnings': sum(warning_counts.values()),
+                
+                # Timing data
+                'technical_interview_started_at': session.technical_interview_started_at.isoformat() if session.technical_interview_started_at else None,
+                'coding_round_completed_at': session.coding_round_completed_at.isoformat() if session.coding_round_completed_at else None,
+                'total_completion_time_minutes': session.total_completion_time_minutes,
             }
             
             return Response(response_data, status=status.HTTP_200_OK)

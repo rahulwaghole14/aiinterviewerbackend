@@ -81,12 +81,24 @@ class ComprehensiveEvaluationService:
                     if q.question_type == 'TECHNICAL':
                         technical_qa.append({
                             'question': question_text,
-                            'answer': q.transcribed_answer
+                            'answer': q.transcribed_answer,
+                            'question_level': q.question_level or 'MAIN',
+                            'response_time': q.response_time_seconds,
+                            'words_per_minute': q.words_per_minute,
+                            'filler_word_count': q.filler_word_count or 0,
+                            'order': q.order,
+                            'conversation_sequence': q.conversation_sequence
                         })
                     elif q.question_type == 'BEHAVIORAL':
                         behavioral_qa.append({
                             'question': question_text,
-                            'answer': q.transcribed_answer
+                            'answer': q.transcribed_answer,
+                            'question_level': q.question_level or 'MAIN',
+                            'response_time': q.response_time_seconds,
+                            'words_per_minute': q.words_per_minute,
+                            'filler_word_count': q.filler_word_count or 0,
+                            'order': q.order,
+                            'conversation_sequence': q.conversation_sequence
                         })
             
             # Process coding questions - collect ALL coding submissions
@@ -332,17 +344,39 @@ class ComprehensiveEvaluationService:
     def _build_evaluation_prompt(self, session, technical_qa, behavioral_qa, coding_submissions) -> str:
         """Build the comprehensive evaluation prompt"""
         
-        # Build Q&A transcript
+        # Build Q&A transcript with proper sequence format
         qa_transcript = ""
         if technical_qa:
-            qa_transcript += "\n=== TECHNICAL QUESTIONS & ANSWERS ===\n"
+            qa_transcript += "\n=== Questions & Answers - Round AI Interview Technical Questions ===\n"
+            qa_transcript += "\n[Exact Database Sequence - Technical Interview Performance Analysis]\n"
             for i, qa in enumerate(technical_qa, 1):
-                qa_transcript += f"\nQ{i}: {qa['question']}\nA{i}: {qa['answer']}\n"
+                qa_transcript += f"\nQuestion {i}: {qa['question']}\nAnswer {i}: {qa['answer']}\n"
+                # Add detailed performance metrics
+                qa_transcript += f"Question Level: {qa['question_level']}\n"
+                if qa['response_time']:
+                    qa_transcript += f"Response Time: {qa['response_time']} seconds\n"
+                if qa['words_per_minute']:
+                    qa_transcript += f"Speaking Rate: {qa['words_per_minute']} words per minute\n"
+                if qa['filler_word_count']:
+                    qa_transcript += f"Filler Words Used: {qa['filler_word_count']}\n"
+                qa_transcript += f"Database Order: {qa['order']} | Sequence: {qa['conversation_sequence']}\n"
+                qa_transcript += "---\n"
         
         if behavioral_qa:
-            qa_transcript += "\n=== BEHAVIORAL QUESTIONS & ANSWERS ===\n"
+            qa_transcript += "\n=== Questions & Answers - Round AI Interview Behavioral Questions ===\n"
+            qa_transcript += "\n[Exact Database Sequence - Behavioral Interview Analysis]\n"
             for i, qa in enumerate(behavioral_qa, 1):
-                qa_transcript += f"\nQ{i}: {qa['question']}\nA{i}: {qa['answer']}\n"
+                qa_transcript += f"\nQuestion {i}: {qa['question']}\nAnswer {i}: {qa['answer']}\n"
+                # Add detailed performance metrics
+                qa_transcript += f"Question Level: {qa['question_level']}\n"
+                if qa['response_time']:
+                    qa_transcript += f"Response Time: {qa['response_time']} seconds\n"
+                if qa['words_per_minute']:
+                    qa_transcript += f"Speaking Rate: {qa['words_per_minute']} words per minute\n"
+                if qa['filler_word_count']:
+                    qa_transcript += f"Filler Words Used: {qa['filler_word_count']}\n"
+                qa_transcript += f"Database Order: {qa['order']} | Sequence: {qa['conversation_sequence']}\n"
+                qa_transcript += "---\n"
         
         # Build coding submissions
         coding_text = ""
@@ -359,10 +393,19 @@ class ComprehensiveEvaluationService:
         # Job description context
         job_context = session.job_description or "No job description provided"
         
+        # Extract years of experience from job description or resume
+        years_experience = self._extract_years_of_experience(job_context, session.resume_text or "")
+        
         prompt = f"""You are an expert technical hiring manager conducting a comprehensive interview evaluation.
 
 JOB DESCRIPTION:
 {job_context[:2000]}
+
+YEARS OF EXPERIENCE EXPECTED:
+{years_experience}
+
+CANDIDATE RESUME SUMMARY:
+{session.resume_summary or 'No resume summary available.'}
 
 INTERVIEW TRANSCRIPT:
 {qa_transcript or 'No spoken questions and answers provided.'}
@@ -372,11 +415,18 @@ CODING SUBMISSIONS:
 
 EVALUATION TASK:
 Provide a comprehensive evaluation of this candidate's interview performance. Analyze:
-1. Technical knowledge and problem-solving ability
-2. Coding skills and code quality (if applicable)
+1. Technical knowledge and problem-solving ability relative to expected experience level
+2. Coding skills and code quality (if applicable) 
 3. Communication and clarity of expression
 4. Behavioral responses and cultural fit
-5. Overall performance and potential
+5. Overall performance and potential considering years of experience
+
+IMPORTANT: Evaluate the candidate's technical performance based on their demonstrated knowledge during the interview questions and answers. Consider:
+- Depth of technical understanding shown in responses
+- Problem-solving approach and methodology
+- Ability to articulate complex technical concepts
+- Practical application of knowledge
+- Performance relative to expected experience level ({years_experience})
 
 Provide your evaluation in this EXACT format (use the exact section headers):
 
@@ -409,7 +459,14 @@ Provide your evaluation in this EXACT format (use the exact section headers):
 - [Specific weakness 3]
 
 === TECHNICAL ANALYSIS ===
-[2-3 sentences analyzing technical knowledge, problem-solving approach, and depth of understanding]
+[Detailed analysis of technical performance based on the exact question-answer sequence:
+- Evaluate depth of technical knowledge demonstrated in responses
+- Analyze problem-solving methodology and approach
+- Assess ability to articulate complex technical concepts clearly
+- Consider practical application of theoretical knowledge
+- Evaluate performance relative to expected experience level
+- Identify specific technical strengths and areas for improvement
+- Comment on accuracy and completeness of technical answers]
 
 === BEHAVIORAL ANALYSIS ===
 [2-3 sentences analyzing communication skills, clarity, professionalism, and behavioral responses]
@@ -426,10 +483,23 @@ Provide your evaluation in this EXACT format (use the exact section headers):
 === RECOMMENDATION ===
 [One of: STRONG_HIRE, HIRE, MAYBE, NO_HIRE]
 
+=== TECHNICAL PERFORMANCE METRICS ANALYSIS ===
+Based on the exact question-answer sequence and performance data provided above, analyze:
+
+1. **Technical Knowledge Depth**: Evaluate the depth and breadth of technical knowledge demonstrated
+2. **Problem-Solving Approach**: Analyze methodology, logical thinking, and approach to technical problems
+3. **Communication Clarity**: Assess ability to articulate complex technical concepts clearly and concisely
+4. **Response Quality**: Evaluate accuracy, completeness, and relevance of technical answers
+5. **Performance vs Experience Level**: Compare performance against expected experience level ({years_experience})
+6. **Speaking Metrics**: Consider response times, speaking rates, and filler word usage patterns
+7. **Question Handling**: Analyze how well the candidate handles different question types and difficulty levels
+
+Provide specific examples from the Q&A sequence to support your analysis.
+
 === QUESTION CORRECTNESS ANALYSIS ===
-For each question, evaluate if the answer is CORRECT, PARTIALLY_CORRECT, or INCORRECT.
-Format: Q1: CORRECT/PARTIALLY_CORRECT/INCORRECT
-Q2: CORRECT/PARTIALLY_CORRECT/INCORRECT
+For each technical question, evaluate if the answer is CORRECT, PARTIALLY_CORRECT, or INCORRECT.
+Format: Q1: CORRECT/PARTIALLY_CORRECT/INCORRECT [Brief justification]
+Q2: CORRECT/PARTIALLY_CORRECT/INCORRECT [Brief justification]
 ... (one line per question in order)
 
 For coding challenges, mark as CORRECT only if all test cases passed. Otherwise mark as PARTIALLY_CORRECT or INCORRECT.
@@ -437,6 +507,40 @@ For coding challenges, mark as CORRECT only if all test cases passed. Otherwise 
 Be specific, constructive, and professional. Base your scores on the actual content provided.
 """
         return prompt
+    
+    def _extract_years_of_experience(self, job_description: str, resume_text: str) -> str:
+        """Extract years of experience from job description and resume"""
+        import re
+        
+        # Common patterns for years of experience
+        experience_patterns = [
+            r'(\d+)\+?\s*years?\s*(?:of\s*)?experience',
+            r'(\d+)\s*-\s*(\d+)\s*years?\s*(?:of\s*)?experience',
+            r'experience\s*:\s*(\d+)\+?\s*years?',
+            r'senior.*?(\d+)\+?\s*years?',
+            r'junior.*?(\d+)\s*years?',
+            r'mid.*?(\d+)\s*-\s*(\d+)\s*years?'
+        ]
+        
+        # Try to extract from job description first
+        for pattern in experience_patterns:
+            match = re.search(pattern, job_description, re.IGNORECASE)
+            if match:
+                if len(match.groups()) == 2:
+                    return f"{match.group(1)}-{match.group(2)} years"
+                else:
+                    return f"{match.group(1)}+ years"
+        
+        # Try to extract from resume
+        for pattern in experience_patterns:
+            match = re.search(pattern, resume_text, re.IGNORECASE)
+            if match:
+                if len(match.groups()) == 2:
+                    return f"{match.group(1)}-{match.group(2)} years"
+                else:
+                    return f"{match.group(1)}+ years"
+        
+        return "Not specified"
     
     def _parse_evaluation_response(self, response_text: str, technical_qa: list, behavioral_qa: list, coding_submissions: list) -> dict:
         """Parse the AI evaluation response into structured data"""

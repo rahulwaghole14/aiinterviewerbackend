@@ -174,9 +174,9 @@ def _count_words(text: str) -> int:
 
 # ------------------ Gemini helper (from app.py lines 394-401) ------------------
 def gemini_generate(prompt):
-    """Use gemini-2.0-flash for interview questions"""
+    """Use gemini-2.5-flash for interview questions"""
     try:
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         resp = model.generate_content(prompt)
         return resp.text if resp and resp.text else "Could not generate a response."
     except Exception as e:

@@ -130,7 +130,9 @@ try:
         print("⚠️ WARNING: GEMINI_API_KEY not set in environment. Please set GEMINI_API_KEY in .env file")
 except Exception as e:
     print(f"⚠️ WARNING: Could not configure Gemini API: {e}")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if google_credentials:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = google_credentials
 # --- DEVELOPMENT MODE SWITCH ---
 # Set to True to use hardcoded questions and skip AI generation for faster testing.
 # This does NOT affect AI evaluation in the report or email sending.

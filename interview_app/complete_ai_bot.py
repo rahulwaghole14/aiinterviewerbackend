@@ -476,13 +476,13 @@ def generate_candidate_answer(session, candidate_question_text):
     conversation_context = session.get_conversation_context()
 
     prompt = (
-        "You are the interviewer. The candidate asked a question during the interview about the role, company, or interview process.\n\n"
+        "You are the interviewer. The candidate asked a question during the interview about the role, company,sallary or interview process.\n\n"
         f"Job Description Context: {jd_context}\n\n"
         "Interview so far:\n"
         f"{conversation_context}\n\n"
         f"Candidate's question: {candidate_question_text}\n\n"
         "Answer the candidate's question briefly, accurately, and professionally based on the job description and interview context. "
-        "If the question is about the role, team, or company, provide a helpful answer. "
+        "If the question is about the role, team,sallary or company, provide a helpful answer. "
         "If the question cannot be answered right now or is not related to the interview, "
         "say: 'Thanks for asking — we'll get back to you via email.' "
         "Keep your answer concise (2-3 sentences maximum). "

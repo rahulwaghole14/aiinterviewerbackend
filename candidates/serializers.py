@@ -104,6 +104,9 @@ class CandidateSubmissionSerializer(serializers.Serializer):
     confirm_submission = serializers.BooleanField(
         required=True, help_text="Confirm that you want to submit this candidate"
     )
+    job_id = serializers.IntegerField(
+        required=False, help_text="Job ID for match calculation"
+    )
 
 
 # ────────────────────────────────────────────────────────────────
@@ -327,6 +330,14 @@ class CandidateListSerializer(serializers.ModelSerializer):
     job_title = serializers.CharField(source="job.job_title", read_only=True)
     resume_url = serializers.SerializerMethodField()
     job_matching = serializers.SerializerMethodField()
+    
+    # Gemini AI Analysis Fields
+    match_percentage = serializers.FloatField(read_only=True)
+    skill_match = serializers.FloatField(read_only=True)
+    experience_match = serializers.FloatField(read_only=True)
+    education_match = serializers.FloatField(read_only=True)
+    relevance_score = serializers.FloatField(read_only=True)
+    resume_analysis = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Candidate
@@ -342,6 +353,14 @@ class CandidateListSerializer(serializers.ModelSerializer):
             "last_updated",
             "resume_url",
             "job_matching",
+            "work_experience",
+            # Gemini AI Fields
+            "match_percentage",
+            "skill_match", 
+            "experience_match",
+            "education_match",
+            "relevance_score",
+            "resume_analysis",
         ]
 
     def get_resume_url(self, obj):
@@ -351,35 +370,27 @@ class CandidateListSerializer(serializers.ModelSerializer):
         return None
 
     def get_job_matching(self, obj):
-        """Calculate job matching percentage for the candidate"""
+        """Calculate job matching percentage for candidate using Gemini AI"""
         if (
             not obj.job
             or not obj.job.job_description
             or not obj.resume
             or not obj.resume.parsed_text
         ):
-            return None
-
-        try:
-            from utils.resume_job_matcher import resume_matcher
-
-            # Prepare resume data for matching
-            resume_data = {
-                "parsed_text": obj.resume.parsed_text,
-                "work_experience": obj.work_experience or 0,
-                "name": obj.full_name or "",
-                "email": obj.email or "",
-                "phone": obj.phone or "",
+            return {
+                "overall_match": obj.match_percentage,
+                "skill_match": obj.skill_match,
+                "experience_match": obj.experience_match,
+                "education_match": obj.education_match,
+                "relevance_score": obj.relevance_score,
             }
 
-            # Calculate matching percentage
-            job_matching_data = resume_matcher.calculate_overall_match(
-                resume_data, obj.job.job_description
-            )
-
-            return job_matching_data
-
-        except Exception as e:
-            # Log error but don't fail the serialization
-            print(f"Error calculating job match for candidate {obj.id}: {e}")
-            return None
+        # Return Gemini AI analysis if available, otherwise return stored values
+        return {
+            "overall_match": obj.match_percentage,
+            "skill_match": obj.skill_match,
+            "experience_match": obj.experience_match,
+            "education_match": obj.education_match,
+            "relevance_score": obj.relevance_score,
+            "resume_analysis": obj.resume_analysis,
+        }

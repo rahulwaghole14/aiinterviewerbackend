@@ -20,7 +20,7 @@ from .serializers import (
 from jobs.models import Job, Domain
 from utils.hierarchy_permissions import DataIsolationMixin, HierarchyPermission
 from utils.logger import ActionLogger
-from resumes.utils import extract_resume_fields
+from resumes.utils import extract_resume_fields, calculate_resume_job_match, analyze_resume_comprehensive
 import PyPDF2
 import io
 
@@ -130,6 +130,7 @@ class DataExtractionView(APIView):
             resume_file = serializer.validated_data['resume_file']
             domain = serializer.validated_data['domain']
             role = serializer.validated_data['role']
+            job_id = request.data.get('job_id', '')  # Get job_id for match calculation
             
             # Extract text from PDF
             try:
@@ -143,6 +144,37 @@ class DataExtractionView(APIView):
             
             # Extract fields from text
             extracted_data = extract_resume_fields(resume_text)
+            
+            # Get job description for match calculation
+            job_description = ""
+            if job_id:
+                try:
+                    from jobs.models import Job
+                    job = Job.objects.get(id=job_id)
+                    job_description = job.job_description or ""
+                except Job.DoesNotExist:
+                    job_description = ""
+            
+            # Calculate Gemini AI match scores if job description is available
+            match_scores = {}
+            comprehensive_analysis = {}
+            if job_description and resume_text:
+                try:
+                    match_scores = calculate_resume_job_match(resume_text, job_description)
+                    comprehensive_analysis = analyze_resume_comprehensive(resume_text, job_description)
+                    print(f"✅ Gemini AI analysis completed for single resume")
+                except Exception as e:
+                    print(f"⚠️ Gemini AI analysis failed: {e}")
+            
+            # Add Gemini AI analysis results to extracted data
+            extracted_data.update({
+                'match_percentage': match_scores.get('overall_match', 0),
+                'skill_match': match_scores.get('skill_match', 0),
+                'experience_match': match_scores.get('experience_match', 0),
+                'education_match': match_scores.get('education_match', 0),
+                'relevance_score': match_scores.get('relevance_score', 0),
+                'resume_analysis': comprehensive_analysis,
+            })
             
             # Create or update draft
             draft = CandidateDraft.objects.create(
@@ -203,13 +235,53 @@ class CandidateSubmissionView(APIView):
             with transaction.atomic():
                 # Create candidate from draft
                 verified_data = draft.verified_data or draft.extracted_data
+                
+                # Get job description for match calculation
+                job_id = serializer.validated_data.get('job_id')
+                job_description = ""
+                if job_id:
+                    try:
+                        job = Job.objects.get(id=job_id)
+                        job_description = job.job_description or ""
+                    except Job.DoesNotExist:
+                        job_description = ""
+                
+                # Calculate Gemini AI match scores
+                match_scores = {}
+                resume_text = ""
+                if draft.resume_file:
+                    try:
+                        # Extract text from resume file
+                        if draft.resume_file.name.lower().endswith('.pdf'):
+                            pdf_reader = PyPDF2.PdfReader(draft.resume_file.path)
+                            for page in pdf_reader.pages:
+                                resume_text += page.extract_text()
+                        
+                        # Calculate match scores
+                        if resume_text and job_description:
+                            match_scores = calculate_resume_job_match(resume_text, job_description)
+                            
+                            # Get comprehensive analysis
+                            comprehensive_analysis = analyze_resume_comprehensive(resume_text, job_description)
+                            
+                            print(f"✅ Gemini AI analysis completed for candidate creation")
+                    except Exception as e:
+                        print(f"⚠️ Gemini AI analysis failed: {e}")
+                
                 candidate = Candidate.objects.create(
                     recruiter=request.user,
+                    job_id=job_id if job_id else None,
                     domain=draft.domain,
                     full_name=verified_data.get('name', ''),
                     email=verified_data.get('email', ''),
                     phone=verified_data.get('phone', ''),
                     work_experience=verified_data.get('work_experience'),
+                    match_percentage=match_scores.get('overall_match'),
+                    skill_match=match_scores.get('skill_match'),
+                    experience_match=match_scores.get('experience_match'),
+                    education_match=match_scores.get('education_match'),
+                    relevance_score=match_scores.get('relevance_score'),
+                    resume_analysis=comprehensive_analysis,
                     status=Candidate.Status.NEW
                 )
                 
@@ -256,18 +328,29 @@ class BulkCandidateCreationView(APIView):
     def _handle_extract_step(self, request):
         """Extract data from uploaded resume files"""
         from resumes.models import extract_text
-        from resumes.utils import extract_resume_fields
+        from resumes.utils import extract_resume_fields, calculate_resume_job_match, analyze_resume_comprehensive
+        from jobs.models import Job
         import PyPDF2
         import io
         
         # Get domain and role from request
         domain = request.data.get('domain', '')
         role = request.data.get('role', '')
+        job_id = request.data.get('job_id', '')  # Get job_id for match calculation
         
         if not domain or not role:
             return Response({
                 'error': 'domain and role are required'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get job description for match calculation
+        job_description = ""
+        if job_id:
+            try:
+                job = Job.objects.get(id=job_id)
+                job_description = job.job_description or ""
+            except Job.DoesNotExist:
+                job_description = ""
         
         # Get resume files
         resume_files = request.FILES.getlist('resume_files')
@@ -331,12 +414,33 @@ class BulkCandidateCreationView(APIView):
                 # Extract fields from text
                 extracted_data = extract_resume_fields(resume_text)
                 
+                # Calculate Gemini AI match scores if job description is available
+                match_scores = {}
+                comprehensive_analysis = {}
+                if job_description and resume_text:
+                    try:
+                        match_scores = calculate_resume_job_match(resume_text, job_description)
+                        comprehensive_analysis = analyze_resume_comprehensive(resume_text, job_description)
+                        print(f"✅ Gemini AI analysis completed for {resume_file.name}")
+                    except Exception as e:
+                        print(f"⚠️ Gemini AI analysis failed for {resume_file.name}: {e}")
+                
                 # Add additional fields that might be useful
                 extracted_data.update({
                     'current_company': None,
                     'current_role': None,
                     'expected_salary': 0,
                     'notice_period': 0,
+                })
+                
+                # Add Gemini AI analysis results to extracted data
+                extracted_data.update({
+                    'match_percentage': match_scores.get('overall_match', 0),
+                    'skill_match': match_scores.get('skill_match', 0),
+                    'experience_match': match_scores.get('experience_match', 0),
+                    'education_match': match_scores.get('education_match', 0),
+                    'relevance_score': match_scores.get('relevance_score', 0),
+                    'resume_analysis': comprehensive_analysis,
                 })
                 
                 extracted_candidates.append({
@@ -506,6 +610,13 @@ class BulkCandidateCreationView(APIView):
                     job=job,
                     recruiter=recruiter,
                     domain=domain_name,  # Set domain from the request
+                    # Save Gemini AI analysis fields from edited data
+                    match_percentage=edited_data.get('match_percentage'),
+                    skill_match=edited_data.get('skill_match'),
+                    experience_match=edited_data.get('experience_match'),
+                    education_match=edited_data.get('education_match'),
+                    relevance_score=edited_data.get('relevance_score'),
+                    resume_analysis=edited_data.get('resume_analysis', {}),
                     status=Candidate.Status.NEW,
                 )
                 

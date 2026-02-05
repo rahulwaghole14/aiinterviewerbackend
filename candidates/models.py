@@ -88,6 +88,32 @@ class Candidate(models.Model):
     phone = models.CharField(max_length=20, blank=True)
     work_experience = models.PositiveIntegerField(null=True, blank=True)
     poc_email = models.EmailField(null=True, blank=True)
+    
+    # Gemini AI Analysis Fields
+    match_percentage = models.FloatField(
+        null=True, blank=True,
+        help_text="Overall match percentage with job description (calculated by Gemini AI)"
+    )
+    skill_match = models.FloatField(
+        null=True, blank=True,
+        help_text="Skill match percentage (calculated by Gemini AI)"
+    )
+    experience_match = models.FloatField(
+        null=True, blank=True,
+        help_text="Experience match percentage (calculated by Gemini AI)"
+    )
+    education_match = models.FloatField(
+        null=True, blank=True,
+        help_text="Education match percentage (calculated by Gemini AI)"
+    )
+    relevance_score = models.FloatField(
+        null=True, blank=True,
+        help_text="Relevance score (calculated by Gemini AI)"
+    )
+    resume_analysis = models.JSONField(
+        default=dict, blank=True,
+        help_text="Comprehensive resume analysis from Gemini AI"
+    )
 
     status = models.CharField(
         max_length=40,

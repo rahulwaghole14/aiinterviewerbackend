@@ -49,7 +49,7 @@ class ResumeViewSet(DataIsolationMixin, ModelViewSet):
             # Process the file after saving to avoid FileDataError
             try:
                 if resume.file and hasattr(resume.file, "path"):
-                    from .utils import extract_resume_fields
+                    from .utils import extract_resume_fields, calculate_resume_job_match, analyze_resume_comprehensive
                     from .models import extract_text
 
                     # Extract text from file
@@ -58,21 +58,30 @@ class ResumeViewSet(DataIsolationMixin, ModelViewSet):
                         resume.parsed_text = parsed_text
                         resume.save(update_fields=["parsed_text"])
 
-                        # Log text extraction success
-                        ActionLogger.log_user_action(
-                            user=self.request.user,
-                            action="resume_text_extraction",
-                            details={
-                                "resume_id": resume.id,
-                                "text_length": len(parsed_text),
-                            },
-                            status="SUCCESS",
-                        )
+                        # Extract data from parsed text
+                        extracted_data = {}
+                        if resume.parsed_text:
+                            # Extract basic fields (name, email, phone, experience)
+                            extracted_data = extract_resume_fields(resume.parsed_text)
 
-                        # Send notification for resume processing
-                        NotificationService.send_resume_processed_notification(
-                            resume, self.request.user
-                        )
+                            # Log successful text extraction
+                            ActionLogger.log_user_action(
+                                user=self.request.user,
+                                action="resume_text_extraction",
+                                details={
+                                    "resume_id": resume.id,
+                                    "filename": resume.file.name,
+                                    "text_length": len(resume.parsed_text),
+                                    "extracted_fields": list(extracted_data.keys()),
+                                },
+                                status="SUCCESS",
+                            )
+
+                            # Send notification for resume processing
+                            NotificationService.send_resume_processed_notification(
+                                resume, self.request.user
+                            )
+
             except Exception as e:
                 # Log text extraction failure
                 ActionLogger.log_user_action(

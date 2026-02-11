@@ -817,40 +817,103 @@ def interview_portal(request):
     session = get_object_or_404(InterviewSession, session_key=session_key)
     print(f"DEBUG: Found session with ID: {session.id}")
     
-    # This is the main validation logic block
+    # This is the main validation logic block with 30-minute access window
     if session.status != 'SCHEDULED':
         return render(request, 'interview_app/invalid_link.html', {'error': 'This interview has already been completed or has expired.'})
+    
+    # Define access buffers (15 minutes before + 15 minutes after)
+    access_buffer_before = timedelta(minutes=15)  # 15 minutes before start
+    access_buffer_after = timedelta(minutes=15)   # 15 minutes after start
+    
     if session.scheduled_at:
         now = timezone.now()
-        start_time = session.scheduled_at
-        # Link valid for 24 hours from scheduled time (not just 10 minutes)
-        validity_period = timedelta(hours=24)
-        expiry_time = start_time + validity_period
+        # Get exact slot time from interview using same logic as email
+        print(f"DEBUG: Getting interview from session_key: {session_key}")
+        try:
+            from interviews.models import Interview
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            
+            interview = Interview.objects.get(session_key=session_key)
+            print(f"DEBUG: Found interview: {interview.id}")
+            
+            # Use same logic as email: interview.started_at converted to IST
+            if interview.started_at:
+                start_time_utc = interview.started_at
+                start_time_ist = interview.started_at.astimezone(ist)
+                print(f"DEBUG: Using interview.started_at converted to IST: {start_time_ist}")
+            elif interview.schedule and interview.schedule.slot:
+                # Fallback: use slot logic like email does
+                slot = interview.schedule.slot
+                import datetime
+                start_datetime_naive = datetime.combine(slot.interview_date, slot.start_time)
+                start_time_ist = ist.localize(start_datetime_naive)
+                start_time_utc = start_time_ist.astimezone(pytz.UTC)
+                print(f"DEBUG: Using slot time: {start_time_ist}")
+            else:
+                print(f"DEBUG: No interview started_at or slot, using session time")
+                start_time_utc = session.scheduled_at
+                start_time_ist = session.scheduled_at.astimezone(ist) if session.scheduled_at else timezone.now().astimezone(ist)
+        except Interview.DoesNotExist:
+            print(f"DEBUG: No interview found, using session time")
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            start_time_utc = session.scheduled_at
+            start_time_ist = session.scheduled_at.astimezone(ist) if session.scheduled_at else timezone.now().astimezone(ist)
+        access_window_end = start_time_utc + access_buffer_after
         
         # Debug time comparison
-        print(f"DEBUG: Time comparison - Now: {now}, Start: {start_time}, Expiry: {expiry_time}")
-        print(f"DEBUG: Now < Start: {now < start_time}, Now > Expiry: {now > expiry_time}")
+        print(f"DEBUG: Time comparison - Now: {now}, Start: {start_time_utc}, Window End: {access_window_end}")
+        print(f"DEBUG: Now < Buffer Start: {now < (start_time_utc - access_buffer_before)}, Now > Window End: {now > access_window_end}")
         
-        # Case 1: The user is too early (optional - allow access anytime within 24 hours)
-        # Only show countdown if more than 1 hour before scheduled time
-        buffer_time = timedelta(hours=1)
-        if now < (start_time - buffer_time):
-            start_time_local = start_time.astimezone(pytz.timezone('Asia/Kolkata'))
-            print(f"DEBUG: User accessing early (more than 1 hour before), showing countdown. Start time local: {start_time_local}")
-            # Allow access but show countdown
-            # Don't block - just show informational message
-            pass  # Allow access even if early
+        # Debug: Print what time we're actually using
+        # Case 1: More than 15 minutes before start -> "Interview Not Started"
+        if now < (start_time_utc - access_buffer_before):
+            # Create timezone-naive datetime for template display
+            import datetime
+            ist_naive = datetime.datetime(
+                start_time_ist.year, start_time_ist.month, start_time_ist.day,
+                start_time_ist.hour, start_time_ist.minute, start_time_ist.second
+            )
+            print(f"DEBUG: Passing to template - UTC: {start_time_utc}, IST: {start_time_ist}, IST naive: {ist_naive}")
+            return render(request, 'interview_app/interview_not_started.html', {
+                'page_title': 'Interview Not Started',
+                'scheduled_time': start_time_utc,
+                'scheduled_time_ist': ist_naive,
+                'session_key': session_key
+            })
         
-        # Case 2: The user is too late (after 24 hours from scheduled time)
-        if now > expiry_time:
+        # Case 2: Within 15 minutes before start -> Countdown page
+        elif now < start_time_utc:
+            # Create timezone-naive datetime for template display
+            import datetime
+            ist_naive = datetime.datetime(
+                start_time_ist.year, start_time_ist.month, start_time_ist.day,
+                start_time_ist.hour, start_time_ist.minute, start_time_ist.second
+            )
+            return render(request, 'interview_app/interview_not_started.html', {
+                'page_title': 'Interview Starting Soon',
+                'scheduled_time': start_time_utc,
+                'scheduled_time_ist': ist_naive,
+                'session_key': session_key,
+                'show_start_button': True
+            })
+        
+        # Case 3: Within 15 minutes after start -> Allow interview access
+        elif now <= access_window_end:
+            # Allow access - interview can proceed
+            pass
+        
+        # Case 4: More than 15 minutes after start -> Link expired
+        else:
             session.status = 'EXPIRED'
             session.save()
             return render(request, 'interview_app/invalid_link.html', {
                 'page_title': 'Interview Link Expired',
-                'error': 'This interview link has expired. The link is valid for 24 hours from the scheduled time.'
+                'error': 'This interview link has expired. The link is only accessible from 15 minutes before until 15 minutes after the scheduled interview time.'
             })
     else:
-        # Case 3: The session has no scheduled time - allow access (flexible scheduling)
+        # Case: Session has no scheduled time - allow access (flexible scheduling)
         print("DEBUG: Session has no scheduled_at, allowing access for flexible scheduling")
         pass  # Allow access even without scheduled time
     # If the user is within the valid time window, proceed with the interview setup.

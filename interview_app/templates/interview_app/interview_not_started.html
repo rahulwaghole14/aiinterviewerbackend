@@ -130,33 +130,24 @@
         <div class="icon">⏰</div>
         <h1>{{ page_title|default:"Interview Access" }}</h1>
         
-        {% if show_start_button %}
-            <div class="countdown" id="countdown">
-                Interview starts in: <span id="time-display">Loading...</span>
+        <div class="info">
+            This interview is scheduled but has not started yet.
+        </div>
+        
+        <div class="time-info">
+            <div class="time-item">
+                <span class="time-label">Scheduled Time:</span>
+                <span class="time-value">{{ scheduled_time_ist|date:"F j, Y g:i A" }} IST</span>
             </div>
-            <button class="start-button" onclick="window.location.href='/interview/?session_key={{ session_key }}'">
-                Start Interview Now
-            </button>
-        {% else %}
-            <div class="info">
-                This interview is scheduled but has not started yet.
+            <div class="time-item">
+                <span class="time-label">Time Remaining:</span>
+                <span class="time-value" id="time-remaining">Loading...</span>
             </div>
-            
-            <div class="time-info">
-                <div class="time-item">
-                    <span class="time-label">Scheduled Time:</span>
-                    <span class="time-value">{{ scheduled_time_ist|date:"F j, Y g:i A" }} IST</span>
-                </div>
-                <div class="time-item">
-                    <span class="time-label">Time Remaining:</span>
-                    <span class="time-value" id="time-remaining">Loading...</span>
-                </div>
-            </div>
-            
-            <div class="info">
-                Please return closer to the scheduled interview time. The interview link will become active 15 minutes before the scheduled time.
-            </div>
-        {% endif %}
+        </div>
+        
+        <div class="info">
+            Please return closer to the scheduled interview time. The interview link will become active 15 minutes before the scheduled time.
+        </div>
         
         <div class="footer">
             <p>Session Key: <code>{{ session_key }}</code></p>

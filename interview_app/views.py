@@ -930,7 +930,7 @@ def interview_portal(request):
             os.makedirs(tts_dir, exist_ok=True)
             
             # Check if there are existing questions
-            existing_questions = session.questions.filter(question_level='MAIN').order_by('order')
+            existing_questions = session.questions.all().order_by('order')
             
             if existing_questions.exists():
                 # Load existing questions and generate audio if missing
@@ -1806,7 +1806,7 @@ def interview_portal(request):
                     question_text=q_data['text'],
                     question_type=q_data['type'],
                     order=i,
-                    question_level='MAIN'
+                    audio_url=audio_url
                 )
             
             # Ensure no duplicate coding questions remain from previous runs
@@ -3290,6 +3290,55 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
         print(f"ERROR generating follow-up question: {e}")
     
     return None
+
+@csrf_exempt
+def upload_answer(request):
+    """Handle answer submission from interviewee"""
+    try:
+        session_id = request.POST.get('session_id')
+        question_id = request.POST.get('question_id')
+        answer_text = request.POST.get('answer', '').strip()
+        response_time = request.POST.get('response_time')
+        no_audio = request.POST.get('no_audio', '').lower() in ('1', 'true', 'yes')
+        
+        if not all([session_id, question_id]):
+            return JsonResponse({'error': 'Missing session_id or question_id'}, status=400)
+        
+        try:
+            django_session = InterviewSession.objects.get(id=session_id)
+            question_obj = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
+        except (InterviewSession.DoesNotExist, InterviewQuestion.DoesNotExist):
+            return JsonResponse({'error': 'Invalid session_id or question_id'}, status=404)
+        
+        # Only save answer if candidate actually provides one OR if it's an AI response
+        if answer_text and answer_text.strip():
+            print(f"✅ Saving candidate answer: {answer_text[:50]}...")
+            # This is a genuine candidate answer
+            InterviewQuestion.objects.create(
+                session=django_session,
+                question_text=answer_text,
+                question_type=question_obj.question_type,
+                order=question_obj.order,
+                question_level='INTERVIEWEE_RESPONSE',
+                transcribed_answer=answer_text,
+                response_time_seconds=float(response_time) if response_time else 0,
+                role='INTERVIEWEE'
+            )
+            return JsonResponse({'success': 'Answer saved successfully'}, status=200)
+        
+        # If no answer provided, save "No answer provided" as an interviewee response
+        print(f"💭 No answer provided, saving as interviewee response")
+        InterviewQuestion.objects.create(
+            session=django_session,
+            question_text='',
+            question_type=question_obj.question_type,
+            order=question_obj.order,
+            question_level='INTERVIEWEE_RESPONSE',
+            transcribed_answer='No answer provided',
+            response_time_seconds=float(response_time) if response_time else 0,
+            role='INTERVIEWEE'
+        )
+        return JsonResponse({'success': 'No answer saved as interviewee response'}, status=200)
 
 @csrf_exempt
 def transcribe_audio(request):

@@ -54,31 +54,44 @@ class InterviewQuestion(models.Model):
     session = models.ForeignKey(InterviewSession, related_name='questions', on_delete=models.CASCADE)
     question_text = models.TextField()
     
-    # --- MODIFIED FIELD: Added 'CODING' choice ---
     QUESTION_TYPE_CHOICES = [
+        ('INTRODUCTION', 'Introduction'),
         ('TECHNICAL', 'Technical'),
         ('BEHAVIORAL', 'Behavioral'),
-        ('CODING', 'Coding Challenge')
+        ('CODING', 'Coding Challenge'),
+        ('PRECLOSING', 'Pre-closing'),
+        ('CLOSING', 'Closing'),
     ]
-    question_type = models.CharField(max_length=50, choices=QUESTION_TYPE_CHOICES, default='TECHNICAL')
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPE_CHOICES, default='TECHNICAL')
+    
+    QUESTION_LEVEL_CHOICES = [
+        ('INTRO', 'Introduction'),
+        ('MAIN', 'Main'),
+        ('FOLLOWUP', 'Follow-up'),
+        ('PRECLOSE', 'Pre-close'),
+        ('CLOSE', 'Close'),
+    ]
+    question_level = models.CharField(max_length=10, choices=QUESTION_LEVEL_CHOICES, default='MAIN')
     
     audio_url = models.URLField(max_length=500, null=True, blank=True)
-    question_level = models.CharField(max_length=10, default='MAIN')
+    
     parent_question = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='follow_ups')
-    transcribed_answer = models.TextField(null=True, blank=True)
-    order = models.PositiveIntegerField()
+    
+    transcribed_answer = models.TextField(null=True, blank=True, help_text="Transcribed answer from interviewee")
+    
+    order = models.PositiveIntegerField(help_text="Question order in the interview")
+    conversation_sequence = models.PositiveIntegerField(null=True, blank=True, help_text="Sequential index for conversation flow")
+    
     words_per_minute = models.IntegerField(null=True, blank=True)
     filler_word_count = models.IntegerField(null=True, blank=True)
     response_time_seconds = models.FloatField(null=True, blank=True)
-
-    # --- NEW FIELDS: For conversation sequence tracking ---
-    # conversation_sequence: Sequential index for conversation flow (0, 1, 2, 3...)
-    # AI responses get odd sequences (1, 3, 5...), Interviewee responses get even sequences (2, 4, 6...)
-    conversation_sequence = models.PositiveIntegerField(null=True, blank=True, help_text="Sequential index for conversation flow")
-    # role: 'AI' for AI-generated content, 'INTERVIEWEE' for candidate responses
-    role = models.CharField(max_length=20, null=True, blank=True, help_text="Role: AI or INTERVIEWEE")
-
-    # --- NEW FIELD: To specify the language for a coding question ---
+    
+    ROLE_CHOICES = [
+        ('AI', 'AI Interviewer'),
+        ('INTERVIEWEE', 'Interviewee'),
+    ]
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='AI', help_text="Role: AI or INTERVIEWEE")
+    
     LANGUAGE_CHOICES = [
         ('PYTHON', 'Python'),
         ('JAVASCRIPT', 'JavaScript'),
@@ -95,14 +108,41 @@ class InterviewQuestion(models.Model):
     coding_language = models.CharField(
         max_length=20,
         choices=LANGUAGE_CHOICES,
-        null=True, # Important: Allow this to be null for non-coding questions
-        blank=True
+        null=True,
+        blank=True,
+        help_text="Programming language for coding questions"
     )
+    
+    asked_at = models.DateTimeField(null=True, blank=True, help_text="When the question was asked")
+    answered_at = models.DateTimeField(null=True, blank=True, help_text="When the answer was received")
+    
+    is_follow_up = models.BooleanField(default=False, help_text="Whether this is a follow-up question")
+    question_category = models.CharField(max_length=50, null=True, blank=True, help_text="Category of the question (e.g., 'algorithms', 'communication')")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'conversation_sequence']
+        indexes = [
+            models.Index(fields=['session', 'order']),
+            models.Index(fields=['session', 'question_type']),
+            models.Index(fields=['conversation_sequence']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.conversation_sequence is None:
+            last_question = InterviewQuestion.objects.filter(session=self.session).order_by('-conversation_sequence').first()
+            if last_question:
+                self.conversation_sequence = last_question.conversation_sequence + 1
+            else:
+                self.conversation_sequence = 1
+        
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Q{self.order + 1} ({self.question_level}) for {self.session.candidate_name}"
+        return f"Q{self.order + 1} ({self.question_type}) for {self.session.candidate_name}"
 
-# --- NEW MODEL: For storing test cases for coding questions ---
 class TestCase(models.Model):
     question = models.ForeignKey(InterviewQuestion, related_name='test_cases', on_delete=models.CASCADE, to_field='id')
     input_data = models.TextField(help_text="Input for the function, e.g., '5' for factorial(5)")

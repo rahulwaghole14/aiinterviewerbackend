@@ -505,7 +505,7 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
 
                     interview = Interview.objects.get(id=interview_id)
                     # Only send notification if interview has a status that indicates it's scheduled
-                    if interview.status in ["scheduled", "confirmed"]:
+                    if interview.status == Interview.Status.SCHEDULED:
                         NotificationService.send_candidate_interview_scheduled_notification(
                             interview
                         )
@@ -543,6 +543,18 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
             )
 
         serializer.save(job=job)
+        
+        # Generate session key and interview link immediately after creation
+        interview = serializer.instance
+        
+        # Set a default scheduled time if not present (required for generate_interview_link)
+        if not interview.scheduled_time:
+            from django.utils import timezone
+            import datetime
+            interview.scheduled_time = timezone.now() + datetime.timedelta(hours=1)  # 1 hour from now
+            interview.save(update_fields=['scheduled_time'])
+        
+        interview.generate_interview_link()
 
     def perform_update(self, serializer):
         candidate = serializer.validated_data.get("candidate") or serializer.instance.candidate

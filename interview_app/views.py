@@ -3310,35 +3310,41 @@ def upload_answer(request):
         except (InterviewSession.DoesNotExist, InterviewQuestion.DoesNotExist):
             return JsonResponse({'error': 'Invalid session_id or question_id'}, status=404)
         
-        # Only save answer if candidate actually provides one OR if it's an AI response
-        if answer_text and answer_text.strip():
-            print(f"✅ Saving candidate answer: {answer_text[:50]}...")
-            # This is a genuine candidate answer
-            InterviewQuestion.objects.create(
-                session=django_session,
-                question_text=answer_text,
-                question_type=question_obj.question_type,
-                order=question_obj.order,
-                question_level='INTERVIEWEE_RESPONSE',
-                transcribed_answer=answer_text,
-                response_time_seconds=float(response_time) if response_time else 0,
-                role='INTERVIEWEE'
-            )
-            return JsonResponse({'success': 'Answer saved successfully'}, status=200)
+        # Only save answer if candidate actually provides a REAL answer
+        # Skip if answer is empty, "No answer provided", or similar
+        no_answer_phrases = [
+            'no answer provided', 'no answer', 'no response', 
+            'no speech detected', 'no audio', 'silence', 'quiet',
+            'no response detected', 'no speech', 'no audio detected'
+        ]
         
-        # If no answer provided, save "No answer provided" as an interviewee response
-        print(f"💭 No answer provided, saving as interviewee response")
-        InterviewQuestion.objects.create(
-            session=django_session,
-            question_text='',
-            question_type=question_obj.question_type,
-            order=question_obj.order,
-            question_level='INTERVIEWEE_RESPONSE',
-            transcribed_answer='No answer provided',
-            response_time_seconds=float(response_time) if response_time else 0,
-            role='INTERVIEWEE'
-        )
-        return JsonResponse({'success': 'No answer saved as interviewee response'}, status=200)
+        if answer_text and answer_text.strip():
+            # Check if this is a "no answer" response
+            answer_lower = answer_text.lower().strip()
+            is_no_answer = any(phrase in answer_lower for phrase in no_answer_phrases)
+            
+            if not is_no_answer:
+                print(f"✅ Saving real candidate answer: {answer_text[:50]}...")
+                # Save as interviewee response with same order as question
+                InterviewQuestion.objects.create(
+                    session=django_session,
+                    question_text='',  # Empty for interviewee responses
+                    question_type=question_obj.question_type,
+                    order=question_obj.order,  # Same order as the question it answers
+                    transcribed_answer=answer_text,  # The actual answer text
+                    response_time_seconds=float(response_time) if response_time else 0,
+                    role='INTERVIEWEE'
+                )
+                return JsonResponse({'success': 'Answer saved successfully'}, status=200)
+            else:
+                print(f"💭 Skipping 'no answer' response: {answer_text}")
+                return JsonResponse({'success': 'No answer detected, skipping save'}, status=200)
+        else:
+            print(f"💭 Empty answer provided, skipping save")
+            return JsonResponse({'success': 'Empty answer, skipping save'}, status=200)
+    
+    except Exception as e:
+        return JsonResponse({'error': f'Error processing answer: {str(e)}'}, status=500)
 
 @csrf_exempt
 def transcribe_audio(request):
@@ -3351,34 +3357,47 @@ def transcribe_audio(request):
         # Check if transcript is sent directly (from Deepgram WebSocket)
         transcribed_text = request.POST.get('transcript') or request.POST.get('transcribed_answer')
         
+        # Define no-answer phrases to skip
+        no_answer_phrases = [
+            'no answer provided', 'no answer', 'no response', 
+            'no speech detected', 'no audio', 'silence', 'quiet',
+            'no response detected', 'no speech', 'no audio detected'
+        ]
+        
         # If transcript is provided directly, use it (no need for Whisper)
         if transcribed_text:
             follow_up_data = None
             if session_id and question_id:
                 try:
                     question_to_update = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
-                    # Format answer with A: prefix if not already present
-                    answer_text = transcribed_text.strip()
-                    if not answer_text.startswith('A:'):
-                        answer_text = f'A: {answer_text}'
                     
-                    question_to_update.transcribed_answer = answer_text
-                    fields_to_update = ['transcribed_answer']
-                    if response_time:
-                        try:
-                            question_to_update.response_time_seconds = float(response_time)
-                            fields_to_update.append('response_time_seconds')
-                        except ValueError:
-                            pass
-                    question_to_update.save(update_fields=fields_to_update)
-
-                    # Only generate a follow-up if the question just answered was a MAIN one
-                    if transcribed_text and transcribed_text.strip() and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
-                        follow_up_data = generate_and_save_follow_up(
+                    # Check if this is a real answer (not "no answer" response)
+                    answer_lower = transcribed_text.lower().strip()
+                    is_no_answer = any(phrase in answer_lower for phrase in no_answer_phrases)
+                    
+                    if not is_no_answer and transcribed_text.strip():
+                        print(f"✅ Saving real transcribed answer: {transcribed_text[:50]}...")
+                        # Save as interviewee response with same order as question
+                        InterviewQuestion.objects.create(
                             session=question_to_update.session,
-                            parent_question=question_to_update,
-                            transcribed_answer=transcribed_text
+                            question_text='',  # Empty for interviewee responses
+                            question_type=question_to_update.question_type,
+                            order=question_to_update.order,  # Same order as the question it answers
+                            transcribed_answer=transcribed_text,  # The actual answer text
+                            response_time_seconds=float(response_time) if response_time else 0,
+                            role='INTERVIEWEE'
                         )
+                        
+                        # Only generate follow-up if the question just answered was a MAIN one and has real answer
+                        if question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
+                            follow_up_data = generate_and_save_follow_up(
+                                session=question_to_update.session,
+                                parent_question=question_to_update,
+                                transcribed_answer=transcribed_text
+                            )
+                    else:
+                        print(f"💭 Skipping 'no answer' transcription: {transcribed_text}")
+                        
                 except InterviewQuestion.DoesNotExist:
                     print(f"Warning: Could not find question with ID {question_id} to save answer.")
             return JsonResponse({'text': transcribed_text, 'follow_up_question': follow_up_data})
@@ -3386,21 +3405,8 @@ def transcribe_audio(request):
         if no_audio_flag:
             if not (session_id and question_id):
                 return JsonResponse({'error': 'Missing session_id or question_id for no-audio submission.'}, status=400)
-            try:
-                question_to_update = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
-                question_to_update.transcribed_answer = 'A: No answer provided'
-                fields_to_update = ['transcribed_answer']
-                if response_time:
-                    try:
-                        question_to_update.response_time_seconds = float(response_time)
-                        fields_to_update.append('response_time_seconds')
-                    except ValueError:
-                        pass
-                question_to_update.save(update_fields=fields_to_update)
-                return JsonResponse({'text': 'No answer provided', 'follow_up_question': None})
-            except InterviewQuestion.DoesNotExist:
-                print(f"Warning: Could not find question with ID {question_id} to save no-audio answer.")
-                return JsonResponse({'error': 'Question not found'}, status=404)
+            print(f"💭 No audio detected, skipping save")
+            return JsonResponse({'text': 'No audio detected', 'follow_up_question': None})
 
         # Fallback to Whisper if no transcript provided (for backward compatibility)
         if not whisper_model:
@@ -3420,28 +3426,34 @@ def transcribe_audio(request):
             if session_id and question_id:
                 try:
                     question_to_update = InterviewQuestion.objects.get(id=question_id, session_id=session_id)
-                    # Format answer with A: prefix if not already present
-                    answer_text = transcribed_text.strip() if transcribed_text else 'No answer provided'
-                    if not answer_text.startswith('A:'):
-                        answer_text = f'A: {answer_text}'
-
-                    question_to_update.transcribed_answer = answer_text
-                    fields_to_update = ['transcribed_answer']
-                    if response_time:
-                        try:
-                            question_to_update.response_time_seconds = float(response_time)
-                            fields_to_update.append('response_time_seconds')
-                        except ValueError:
-                            pass
-                    question_to_update.save(update_fields=fields_to_update)
-
-                    # Only generate a follow-up if the question just answered was a MAIN one
-                    if transcribed_text and transcribed_text.strip() and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
-                        follow_up_data = generate_and_save_follow_up(
+                    
+                    # Check if this is a real answer (not "no answer" response)
+                    answer_lower = transcribed_text.lower().strip()
+                    is_no_answer = any(phrase in answer_lower for phrase in no_answer_phrases)
+                    
+                    if not is_no_answer and transcribed_text.strip():
+                        print(f"✅ Saving real Whisper answer: {transcribed_text[:50]}...")
+                        # Save as interviewee response with same order as question
+                        InterviewQuestion.objects.create(
                             session=question_to_update.session,
-                            parent_question=question_to_update,
-                            transcribed_answer=transcribed_text
+                            question_text='',  # Empty for interviewee responses
+                            question_type=question_to_update.question_type,
+                            order=question_to_update.order,  # Same order as the question it answers
+                            transcribed_answer=transcribed_text,  # The actual answer text
+                            response_time_seconds=float(response_time) if response_time else 0,
+                            role='INTERVIEWEE'
                         )
+                        
+                        # Only generate follow-up if the question just answered was a MAIN one and has real answer
+                        if question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
+                            follow_up_data = generate_and_save_follow_up(
+                                session=question_to_update.session,
+                                parent_question=question_to_update,
+                                transcribed_answer=transcribed_text
+                            )
+                    else:
+                        print(f"💭 Skipping 'no answer' Whisper transcription: {transcribed_text}")
+                        
                 except InterviewQuestion.DoesNotExist:
                     print(f"Warning: Could not find question with ID {question_id} to save answer.")
             os.remove(full_path)
@@ -4580,15 +4592,15 @@ def ai_start(request):
                         conversation_sequence = max_seq + 1  # Start with 1 for first AI question
                         
                         InterviewQuestion.objects.create(
-                            session=django_session,
-                            question_text=question_text_formatted,  # AI question text (without Q: prefix)
-                            question_type='TECHNICAL',
-                            order=new_order,
-                            question_level='MAIN',
-                            audio_url=result.get('audio_url', ''),
-                            role='AI',  # This is an AI-generated question
-                            conversation_sequence=conversation_sequence  # Sequential index: 1, 3, 5, 7...
-                        )
+                                    session=django_session,
+                                    question_text=question_text_formatted,  # AI question text (without Q: prefix)
+                                    question_type='TECHNICAL',
+                                    order=new_order,
+                                    question_level='MAIN',  # CRITICAL: All AI questions should be MAIN
+                                    audio_url=result.get('audio_url', ''),
+                                    role='AI',  # This is an AI-generated question
+                                    conversation_sequence=conversation_sequence  # Sequential index: 1, 3, 5, 7...
+                                )
                         print(f"✅ Created first AI question in database with order {new_order}, conversation_sequence {conversation_sequence}, role=AI")
                     else:
                         print(f"✅ First question already exists in database")
@@ -4747,41 +4759,38 @@ def ai_upload_answer(request):
                                 print(f"✅ Found question as last (closing?): order {question_obj.order}")
                         
                         if question_obj:
-                            # CRITICAL: Always save answers for ALL questions (including technical questions)
-                            # This ensures answers appear in candidate details even if transcript is empty
-                            # Determine question type
-                            is_technical_question = question_obj.question_type and question_obj.question_type.upper() in ['TECHNICAL', 'BEHAVIORAL']
+                            # SIMPLIFIED LOGIC: Save all real answers with proper question_level
+                            no_answer_phrases = [
+                                'no answer provided', 'no answer', 'no response', 
+                                'no speech detected', 'no audio', 'silence', 'quiet',
+                                'no response detected', 'no speech', 'no audio detected'
+                            ]
                             
-                            # ALWAYS save answers for technical/behavioral questions
-                            # Also save for special questions (pre-closing/closing) or if there's an actual answer
-                            should_save = is_special_question or answer_text != 'No answer provided' or is_technical_question
+                            answer_lower = answer_text.lower().strip()
+                            is_no_answer = any(phrase in answer_lower for phrase in no_answer_phrases)
                             
-                            print(f"📝 Answer save decision for order {question_obj.order}:")
-                            print(f"   - Question type: {question_obj.question_type}")
-                            print(f"   - Is technical: {is_technical_question}")
-                            print(f"   - Is special: {is_special_question}")
-                            print(f"   - Answer text: '{answer_text[:50]}...'")
+                            # Save answer if it's a real response (not "no answer")
+                            should_save = not is_no_answer and answer_text.strip()
+                            
+                            print(f"📝 Answer save decision:")
+                            print(f"   - Question: {question_obj.question_text[:50]}...")
+                            print(f"   - Answer: {answer_text[:50]}...")
+                            print(f"   - Is no answer: {is_no_answer}")
                             print(f"   - Should save: {should_save}")
                             
                             if should_save:
-                                # IMPORTANT: Save Interviewee answer as a SEPARATE record with role='INTERVIEWEE'
-                                # Get the maximum conversation_sequence to ensure sequential indexing
+                                # Get next conversation sequence
                                 from django.db.models import Max
                                 max_seq_result = InterviewQuestion.objects.filter(
                                     session=django_session
                                 ).aggregate(max_seq=Max('conversation_sequence'))
                                 max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
                                 
-                                # Interviewee answers get even sequence numbers (2, 4, 6, 8...)
-                                # If last sequence was odd (AI question), next is even (Interviewee answer)
-                                # If last sequence was even or null, calculate next even number
-                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                    interviewee_sequence = max_seq + 1
-                                else:  # Last was Interviewee or no sequence, find next even
-                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
+                                # Interviewee answers get even sequence numbers (2,4,6,8...)
+                                interviewee_sequence = max_seq + 1
                                 
                                 # Format answer text (remove A: prefix for cleaner storage)
-                                answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
+                                answer_text_formatted = answer_text.strip()
                                 if answer_text_formatted.startswith('A:'):
                                     answer_text_formatted = answer_text_formatted.replace('A:', '').strip()
                                 
@@ -4791,99 +4800,43 @@ def ai_upload_answer(request):
                                 if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
                                     response_time = time_module.time() - ai_session.question_asked_at
                                 
-                                # Create separate record for Interviewee answer
+                                # Create interviewee response record with question_level='INTERVIEWEE_RESPONSE'
                                 interviewee_response = InterviewQuestion.objects.create(
                                     session=django_session,
-                                    question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
+                                    question_text='',  # Empty for interviewee responses
                                     question_type=question_obj.question_type,
                                     order=question_obj.order,  # Same order as the question it answers
-                                    question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
+                                    question_level='INTERVIEWEE_RESPONSE',  # CRITICAL: Set as INTERVIEWEE_RESPONSE
                                     transcribed_answer=answer_text_formatted,  # The actual answer text
                                     response_time_seconds=response_time,
-                                    role='INTERVIEWEE',  # This is an Interviewee response
-                                    conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
+                                    role='INTERVIEWEE',  # This is an interviewee response
+                                    conversation_sequence=interviewee_sequence  # Sequential index
                                 )
-                                print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
                                 
-                                # Also update the original question's transcribed_answer for backward compatibility
-                                original_order = question_obj.order  # Preserve order
-                                question_obj.transcribed_answer = f'A: {answer_text_formatted}'
-                                question_obj.response_time_seconds = response_time
-                                question_obj.save(update_fields=['transcribed_answer', 'response_time_seconds'])
-                                print(f"✅ Updated original question record for backward compatibility: {answer_text[:50]}...")
-                            elif answer_text == 'No answer provided' and not is_special_question:
-                                # IMPORTANT: Still save "No answer provided" so it appears in candidate details
-                                # This ensures all questions have corresponding answers, even if empty
-                                from django.db.models import Max
-                                max_seq_result = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).aggregate(max_seq=Max('conversation_sequence'))
-                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
+                                print(f"✅ Saved interviewee answer with question_level=INTERVIEWEE_RESPONSE: conversation_sequence {interviewee_sequence}, order {question_obj.order}")
+                            else:
+                                print(f"💭 Skipping 'no answer' response")
                                 
-                                # Calculate interviewee sequence (even number)
-                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                    interviewee_sequence = max_seq + 1
-                                else:  # Last was Interviewee or no sequence, find next even
-                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
-                                
-                                # Save "No answer provided" as a separate record
-                                interviewee_response = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text='',  # Empty for Interviewee responses
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question
-                                    question_level='INTERVIEWEE_RESPONSE',
-                                    transcribed_answer='No answer provided',  # Explicitly save this
-                                    response_time_seconds=response_time if 'response_time' in locals() else 0,
-                                    role='INTERVIEWEE',
-                                    conversation_sequence=interviewee_sequence
-                                )
-                                print(f"✅ Saved 'No answer provided' as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}")
-                                
-                                # Also update the original question's transcribed_answer for backward compatibility
-                                question_obj.transcribed_answer = 'A: No answer provided'
-                                question_obj.save(update_fields=['transcribed_answer'])
-                                print(f"✅ Updated original question record with 'No answer provided'")
                         else:
-                            print(f"⚠️ Could not find question to save answer. Creating new question...")
-                            # Create a new question if it doesn't exist (including pre-closing and closing questions)
-                            # Get the maximum order to ensure unique sequential ordering
-                            from django.db.models import Max
-                            max_order_result = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).aggregate(max_order=Max('order'))
-                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
-                            new_order = max_order + 1
-                            
-                            # Determine question level
-                            question_level = 'MAIN'
-                            if is_pre_closing_question:
-                                question_level = 'MAIN'  # Pre-closing is still MAIN level
-                            elif is_closing_question:
-                                question_level = 'MAIN'  # Closing is still MAIN level
-                            
-                            # Format question text with Q: prefix
-                            question_text_formatted = (ai_session.last_active_question_text or "Question").strip()
-                            if not question_text_formatted.startswith('Q:'):
-                                question_text_formatted = f'Q: {question_text_formatted}'
-                            
-                            # Format answer text with A: prefix
-                            answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
-                            if not answer_text_formatted.startswith('A:'):
-                                answer_text_formatted = f'A: {answer_text_formatted}'
-                            
-                            question_obj = InterviewQuestion.objects.create(
-                                session=django_session,
-                                question_text=question_text_formatted,
-                                question_type='TECHNICAL',
-                                order=new_order,
-                                question_level=question_level,
-                                transcribed_answer=answer_text_formatted  # Save the answer immediately with A: prefix
-                            )
-                            print(f"✅ Created and saved answer to new question {new_order} ({'pre-closing' if is_pre_closing_question else 'closing' if is_closing_question else 'regular'}): {answer_text[:50]}...")
+                            print(f"⚠️ No question found to associate with answer")
                     else:
-                        # No questions exist yet - create the question with answer
-                        # Use order 0 for the first question
+                        print(f"⚠️ Could not find question to save answer. Creating new question...")
+                        # Create a new question if it doesn't exist (including pre-closing and closing questions)
+                        # Get the maximum order to ensure unique sequential ordering
+                        from django.db.models import Max
+                        max_order_result = InterviewQuestion.objects.filter(
+                            session=django_session
+                        ).aggregate(max_order=Max('order'))
+                        max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
+                        new_order = max_order + 1
+                        
+                        # Determine question level
+                        question_level = 'MAIN'
+                        if is_pre_closing_question:
+                            question_level = 'MAIN'  # Pre-closing is still MAIN level
+                        elif is_closing_question:
+                            question_level = 'MAIN'  # Closing is still MAIN level
+                        
                         # Format question text with Q: prefix
                         question_text_formatted = (ai_session.last_active_question_text or "Question").strip()
                         if not question_text_formatted.startswith('Q:'):
@@ -4898,11 +4851,12 @@ def ai_upload_answer(request):
                             session=django_session,
                             question_text=question_text_formatted,
                             question_type='TECHNICAL',
-                            order=0,  # First question gets order 0
-                            question_level='MAIN',
-                            transcribed_answer=answer_text_formatted
+                            order=new_order,
+                            question_level=question_level,
+                            transcribed_answer=answer_text_formatted  # Save the answer immediately with A: prefix
                         )
-                        print(f"✅ Created first question with answer (order 0): {answer_text[:50]}...")
+                        print(f"✅ Created and saved answer to new question {new_order} ({'pre-closing' if is_pre_closing_question else 'closing' if is_closing_question else 'regular'}): {answer_text[:50]}...")
+                
                 except Exception as e:
                     print(f"⚠️ Error saving answer to database: {e}")
                     import traceback
@@ -5107,22 +5061,6 @@ def ai_upload_answer(request):
                                 ai_sequence = candidate_sequence + 1
                                 
                                 # Format AI's response (remove any A: prefix, it's going in question_text)
-                                ai_response_formatted = interviewer_answer.strip()
-                                if ai_response_formatted.startswith('A:'):
-                                    ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
-                                
-                                # Create record for AI's response
-                                ai_response_record = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text=ai_response_formatted,  # AI's response text
-                                    question_type='TECHNICAL',
-                                    order=new_order + 1,  # Next order after candidate question
-                                    question_level='AI_RESPONSE',  # Special level to identify AI responses to candidate
-                                    transcribed_answer='',  # Empty - AI response goes in question_text
-                                    role='AI',  # This is from the AI
-                                    conversation_sequence=ai_sequence,  # Odd sequence: 1, 3, 5, 7...
-                                    audio_url=result.get('audio_url', '')  # Audio for AI's response
-                                )
                                 print(f"✅ Saved AI response to candidate question: conversation_sequence {ai_sequence}, role=AI, order {new_order + 1}: {ai_response_formatted[:50]}...")
                             else:
                                 print(f"⚠️ No AI response found for candidate question")
@@ -5209,7 +5147,7 @@ def ai_upload_answer(request):
                                             question_text=ai_response_formatted,  # AI's response text
                                             question_type='TECHNICAL',
                                             order=candidate_order + 1,
-                                            question_level='AI_RESPONSE',
+                                            question_level='MAIN',  # CRITICAL: All AI responses should be MAIN
                                             transcribed_answer='',  # Empty - AI response goes in question_text
                                             role='AI',
                                             conversation_sequence=ai_sequence
@@ -5265,7 +5203,7 @@ def ai_upload_answer(request):
                                             question_text=ai_response_formatted,  # AI's response text
                                             question_type='TECHNICAL',
                                             order=max_order + 2,
-                                            question_level='AI_RESPONSE',
+                                            question_level='MAIN',  # CRITICAL: All AI responses should be MAIN
                                             transcribed_answer='',  # Empty - AI response goes in question_text
                                             role='AI',
                                             conversation_sequence=ai_sequence

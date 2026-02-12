@@ -488,7 +488,7 @@ class Interview(models.Model):
                 "resume_text": resume_text,
                 "language_code": "en-IN",
                 "accent_tld": "co.in",
-                "scheduled_at": self.started_at or timezone.now(),
+                "scheduled_at": self.scheduled_time or timezone.now(),
                 "status": "SCHEDULED",
             },
         )

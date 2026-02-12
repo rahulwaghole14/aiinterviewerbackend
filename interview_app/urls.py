@@ -3,6 +3,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
 from . import views
+from . import question_answer_views
 import os
 
 urlpatterns = [
@@ -57,6 +58,12 @@ urlpatterns = [
     path('ai/transcript_pdf', views.ai_transcript_pdf, name='ai_transcript_pdf'),
     path('api/proctoring/pdf/<uuid:session_id>/', views.download_proctoring_pdf, name='download_proctoring_pdf'),
 
+    # --- NEW QUESTION-ANSWER PAIR ENDPOINTS ---
+    path('api/questions/save-pair/', question_answer_views.save_question_answer_pair, name='save_question_answer_pair'),
+    path('api/questions/<uuid:question_id>/update-answer/', question_answer_views.update_answer_for_question, name='update_answer_for_question'),
+    path('api/questions/<uuid:session_id>/', question_answer_views.get_interview_questions, name='get_interview_questions'),
+    path('api/questions/save-conversation/', question_answer_views.save_interview_conversation, name='save_interview_conversation'),
+    path('api/questions/<uuid:session_id>/statistics/', question_answer_views.get_interview_statistics, name='get_interview_statistics'),
 
     # Auth endpoints namespace
     path('api/auth/', include('authapp.urls')),

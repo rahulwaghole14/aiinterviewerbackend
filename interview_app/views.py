@@ -94,7 +94,7 @@ except (ImportError, OSError) as e:
 # from .real_camera import RealVideoCamera as VideoCamera
 # from .simple_real_camera import SimpleRealVideoCamera as VideoCamera
 from .simple_real_camera import SimpleRealVideoCamera as VideoCamera
-from .models import InterviewSession, WarningLog, InterviewQuestion, CodeSubmission
+from .models import InterviewSession, WarningLog, InterviewQuestion, InterviewQA, CodeSubmission
 from .ai_chatbot import (
     ai_start_django,
     ai_upload_answer_django,
@@ -152,6 +152,58 @@ else:
 
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 CAMERAS, camera_lock = {}, threading.Lock()
+
+def save_qa_pair_to_interviewqa(session, question_text, answer_text, question_type='TECHNICAL', question_number=None, audio_url=None, asked_at=None, answered_at=None, response_time_seconds=None):
+    """
+    Helper function to save Q&A pairs to the new InterviewQA table
+    """
+    try:
+        # Auto-generate question number if not provided
+        if question_number is None:
+            from django.db.models import Max
+            max_q_num = InterviewQA.objects.filter(session=session).aggregate(max_num=Max('question_number'))['max_num']
+            question_number = (max_q_num or 0) + 1
+        
+        # Create or update Q&A pair
+        qa_pair, created = InterviewQA.objects.update_or_create(
+            session=session,
+            question_number=question_number,
+            defaults={
+                'question_text': question_text,
+                'answer_text': answer_text,
+                'question_type': question_type,
+                'audio_url': audio_url,
+                'asked_at': asked_at or timezone.now(),
+                'answered_at': answered_at or timezone.now(),
+                'response_time_seconds': response_time_seconds,
+                'words_per_minute': calculate_words_per_minute(answer_text) if answer_text else None,
+                'filler_word_count': count_filler_words(answer_text) if answer_text else None,
+            }
+        )
+        
+        action = "Created" if created else "Updated"
+        print(f"✅ {action} InterviewQA pair: Q{question_number} for session {session.session_key}")
+        return qa_pair
+        
+    except Exception as e:
+        print(f"❌ Error saving Q&A pair to InterviewQA: {e}")
+        return None
+
+def calculate_words_per_minute(text):
+    """Calculate words per minute from text"""
+    if not text:
+        return None
+    words = len(text.split())
+    # Assuming average speaking time of 1 minute for calculation
+    return words
+
+def count_filler_words(text):
+    """Count filler words in text"""
+    if not text:
+        return None
+    text_lower = text.lower()
+    count = sum(1 for filler in FILLER_WORDS if filler in text_lower)
+    return count
 
 # Import PyAudio recorder
 try:
@@ -1164,18 +1216,29 @@ def interview_portal(request):
                 # Delete any existing coding questions to prevent duplicates
                 try:
                     session.questions.filter(question_type='CODING').delete()
-                    print(f"✅ Deleted existing coding questions to prevent duplicates")
+                    print(f" Deleted existing coding questions to prevent duplicates")
                 except Exception as e:
-                    print(f"⚠️ Error deleting existing coding questions: {e}")
+                    print(f" Error deleting existing coding questions: {e}")
                 
                 # Save to database - ONLY ONE coding question
                 for i, coding_q in enumerate(coding_questions[:1]):  # Limit to 1 question
+                    # Save coding question to InterviewQA table
+                    save_qa_pair_to_interviewqa(
+                        session=session,
+                        question_text=coding_q['description'],
+                        answer_text='',  # Empty initially
+                        question_type='CODING',
+                        question_number=i + 1,
+                        audio_url=None
+                    )
+                    
+                    # Create minimal InterviewQuestion record ONLY for test cases (required for existing functionality)
                     coding_question_obj = InterviewQuestion.objects.create(
                         session=session,
                         question_text=coding_q['description'],
                         question_type='CODING',
                         coding_language=coding_q['language'],
-                        order=(len(all_questions) + i) if all_questions else i,
+                        order=i,
                         question_level='MAIN'
                     )
                     # Attach test cases
@@ -1328,18 +1391,22 @@ def interview_portal(request):
                     coding_questions = [hardcoded_map[requested_lang]]
                     print(f"🧩 Prepared hardcoded coding question for {requested_lang}: {coding_questions[0].get('title')}")
                 
-                # Save spoken questions to database
+                # Save spoken questions to database using ONLY new InterviewQA table
                 for i, q_data in enumerate(all_questions):
                     tts_path = os.path.join(tts_dir, f'q_{i}_{session.session_key}.mp3')
                     synthesize_speech(q_data['text'], session.language_code, session.accent_tld, tts_path)
                     audio_url = f"{settings.MEDIA_URL}tts/{os.path.basename(tts_path)}"
                     q_data['audio_url'] = audio_url
-                    InterviewQuestion.objects.create(
+                    
+                    # Save ONLY to new InterviewQA table
+                    save_qa_pair_to_interviewqa(
                         session=session,
                         question_text=q_data['text'],
+                        answer_text='',  # Empty initially, will be filled when candidate answers
                         question_type=q_data['type'],
-                        order=i,
-                        question_level='MAIN'
+                        question_number=i + 1,
+                        audio_url=audio_url,
+                        asked_at=timezone.now()
                     )
                 
                 # Delete any existing coding questions to prevent duplicates
@@ -1349,8 +1416,19 @@ def interview_portal(request):
                 except Exception as e:
                     print(f"⚠️ Error deleting existing coding questions: {e}")
                 
-                # Save coding questions to database - ONLY ONE coding question
+                # Save coding questions to database - ONLY ONE coding question to InterviewQA table
                 for i, coding_q in enumerate(coding_questions[:1]):  # Limit to 1 question
+                    # Save coding question to InterviewQA table
+                    save_qa_pair_to_interviewqa(
+                        session=session,
+                        question_text=coding_q['description'],
+                        answer_text='',  # Empty initially
+                        question_type='CODING',
+                        question_number=len(all_questions) + i + 1,
+                        audio_url=None
+                    )
+                    
+                    # Create minimal InterviewQuestion record for test cases (required for existing functionality)
                     coding_question_obj = InterviewQuestion.objects.create(
                         session=session,
                         question_text=coding_q['description'],
@@ -1795,18 +1873,22 @@ def interview_portal(request):
                 all_questions[0]['type'] = 'Ice-Breaker'
             session.save()
             tts_dir = os.path.join(settings.MEDIA_ROOT, 'tts'); os.makedirs(tts_dir, exist_ok=True)
-            # Save spoken questions to database
+            # Save spoken questions to database - ONLY to InterviewQA table
             for i, q_data in enumerate(all_questions):
                 tts_path = os.path.join(tts_dir, f'q_{i}_{session.session_key}.mp3')
                 synthesize_speech(q_data['text'], session.language_code, session.accent_tld, tts_path)
                 audio_url = f"{settings.MEDIA_URL}tts/{os.path.basename(tts_path)}"
                 q_data['audio_url'] = audio_url
-                InterviewQuestion.objects.create(
+                
+                # Save ONLY to InterviewQA table
+                save_qa_pair_to_interviewqa(
                     session=session,
                     question_text=q_data['text'],
+                    answer_text='',  # Empty initially
                     question_type=q_data['type'],
-                    order=i,
-                    audio_url=audio_url
+                    question_number=i + 1,
+                    audio_url=audio_url,
+                    asked_at=timezone.now()
                 )
             
             # Ensure no duplicate coding questions remain from previous runs
@@ -1815,8 +1897,19 @@ def interview_portal(request):
             except Exception:
                 pass
 
-            # Save coding questions (single) to database and attach test cases
+            # Save coding questions to InterviewQA table ONLY
             for i, coding_q in enumerate(coding_questions[:1]):
+                # Save coding question to InterviewQA table
+                save_qa_pair_to_interviewqa(
+                    session=session,
+                    question_text=coding_q['description'],
+                    answer_text='',  # Empty initially
+                    question_type='CODING',
+                    question_number=len(all_questions) + i + 1,
+                    audio_url=None
+                )
+                
+                # Create minimal InterviewQuestion record ONLY for test cases (required for existing functionality)
                 coding_question_obj = InterviewQuestion.objects.create(
                     session=session,
                     question_text=coding_q['description'],
@@ -4779,41 +4872,24 @@ def ai_upload_answer(request):
                             print(f"   - Should save: {should_save}")
                             
                             if should_save:
-                                # Get next conversation sequence
-                                from django.db.models import Max
-                                max_seq_result = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).aggregate(max_seq=Max('conversation_sequence'))
-                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                
-                                # Interviewee answers get even sequence numbers (2,4,6,8...)
-                                interviewee_sequence = max_seq + 1
-                                
-                                # Format answer text (remove A: prefix for cleaner storage)
-                                answer_text_formatted = answer_text.strip()
-                                if answer_text_formatted.startswith('A:'):
-                                    answer_text_formatted = answer_text_formatted.replace('A:', '').strip()
-                                
                                 # Calculate response time if available
                                 import time as time_module
                                 response_time = 0
                                 if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
                                     response_time = time_module.time() - ai_session.question_asked_at
                                 
-                                # Create interviewee response record with question_level='INTERVIEWEE_RESPONSE'
-                                interviewee_response = InterviewQuestion.objects.create(
+                                # Save to new InterviewQA table ONLY
+                                save_qa_pair_to_interviewqa(
                                     session=django_session,
-                                    question_text='',  # Empty for interviewee responses
+                                    question_text=question_obj.question_text,
+                                    answer_text=answer_text.strip(),
                                     question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question it answers
-                                    question_level='INTERVIEWEE_RESPONSE',  # CRITICAL: Set as INTERVIEWEE_RESPONSE
-                                    transcribed_answer=answer_text_formatted,  # The actual answer text
-                                    response_time_seconds=response_time,
-                                    role='INTERVIEWEE',  # This is an interviewee response
-                                    conversation_sequence=interviewee_sequence  # Sequential index
+                                    question_number=question_obj.order,  # Use order from old system
+                                    answered_at=timezone.now(),
+                                    response_time_seconds=response_time
                                 )
                                 
-                                print(f"✅ Saved interviewee answer with question_level=INTERVIEWEE_RESPONSE: conversation_sequence {interviewee_sequence}, order {question_obj.order}")
+                                print(f"✅ Saved answer to InterviewQA table: Q{question_obj.order}")
                             else:
                                 print(f"💭 Skipping 'no answer' response")
                                 

@@ -4,6 +4,7 @@ from django.conf.urls.static import static
 from django.views.static import serve
 from . import views
 from . import question_answer_views
+from . import qa_views  # Import new Q&A views
 import os
 
 urlpatterns = [

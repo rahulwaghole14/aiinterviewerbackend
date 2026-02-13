@@ -152,7 +152,53 @@ class TestCase(models.Model):
     def __str__(self):
         return f"Test case for Q: {self.question.id}"
 
-# --- NEW MODEL: For storing a candidate's code submission ---
+class InterviewQA(models.Model):
+    """
+    Simplified model for storing interview questions and answers in the same record.
+    Each record contains one question and its corresponding answer.
+    """
+    session = models.ForeignKey(InterviewSession, related_name='qa_pairs', on_delete=models.CASCADE)
+    question_number = models.PositiveIntegerField(help_text="Sequential question number (1, 2, 3...)")
+    question_text = models.TextField(help_text="The question asked by AI")
+    answer_text = models.TextField(null=True, blank=True, help_text="Candidate's answer to the question")
+    question_type = models.CharField(max_length=20, default='TECHNICAL', 
+        choices=[('INTRODUCTION', 'Introduction'), ('TECHNICAL', 'Technical'), 
+                ('BEHAVIORAL', 'Behavioral'), ('CODING', 'Coding'),
+                ('CLOSING', 'Closing')])
+    audio_url = models.URLField(max_length=500, null=True, blank=True, help_text="Audio file for the question")
+    asked_at = models.DateTimeField(null=True, blank=True, help_text="When question was asked")
+    answered_at = models.DateTimeField(null=True, blank=True, help_text="When answer was received")
+    response_time_seconds = models.FloatField(null=True, blank=True, help_text="Time taken to answer in seconds")
+    words_per_minute = models.IntegerField(null=True, blank=True, help_text="Speaking rate calculation")
+    filler_word_count = models.IntegerField(null=True, blank=True, help_text="Filler words detected")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['question_number']
+        indexes = [
+            models.Index(fields=['session', 'question_number']),
+        ]
+    
+    def __str__(self):
+        return f"Q{self.question_number} for {self.session.candidate_name}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate response time if both timestamps are available
+        if self.asked_at and self.answered_at:
+            time_diff = self.answered_at - self.asked_at
+            self.response_time_seconds = time_diff.total_seconds()
+        
+        # Auto-calculate words per minute if answer and response time available
+        if self.answer_text and self.response_time_seconds and self.response_time_seconds > 0:
+            word_count = len(self.answer_text.split())
+            minutes = self.response_time_seconds / 60
+            if minutes > 0:
+                self.words_per_minute = int(word_count / minutes)
+        
+        super().save(*args, **kwargs)
+
 class CodeSubmission(models.Model):
     session = models.ForeignKey(InterviewSession, related_name='code_submissions', on_delete=models.CASCADE)
     question_id = models.CharField(max_length=36, help_text="Question ID (can be UUID or integer)")

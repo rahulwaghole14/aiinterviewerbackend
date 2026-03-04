@@ -66,19 +66,18 @@ import urllib.parse
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse, FileResponse
 from django.views.decorators.cache import never_cache
 from django.shortcuts import render, redirect, get_object_or_404
+from django.template.loader import render_to_string
+from django.utils.safestring import mark_safe
+from django.core.mail import send_mail
 from django.template import loader
 from django.core.files.storage import default_storage
+from django.core.cache import cache
 from django.conf import settings
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
-from django.template.loader import render_to_string
-from django.utils.safestring import mark_safe
-from django.core.mail import send_mail
-# WeasyPrint import with fallback (optional dependency)
-# WeasyPrint requires system libraries (pango, cairo, etc.) which may not be available
-# Make it optional so the app can start even if WeasyPrint dependencies are missing
 try:
+    from .qa_evaluation_pdf_new import download_qa_evaluation_pdf
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
     print("✅ WeasyPrint imported successfully")
@@ -94,13 +93,15 @@ except (ImportError, OSError) as e:
 # from .real_camera import RealVideoCamera as VideoCamera
 # from .simple_real_camera import SimpleRealVideoCamera as VideoCamera
 from .simple_real_camera import SimpleRealVideoCamera as VideoCamera
-from .models import InterviewSession, WarningLog, InterviewQuestion, CodeSubmission
+from .models import InterviewSession, WarningLog, InterviewQuestion, CodeSubmission, TechnicalInterviewQA, QAConversationPair
 from .ai_chatbot import (
     ai_start_django,
     ai_upload_answer_django,
     ai_repeat_django,
     ai_transcript_pdf_django,
 )
+from .qa_conversation_service import save_qa_pair, analyze_qa_with_gemini
+from .qa_service import update_technical_qa_summary
 
 try:
     from .yolo_face_detector import detect_face_with_yolo, detect_objects_with_yolo
@@ -258,8 +259,31 @@ def release_camera_for_session(session_key, audio_file_path=None):
                                 session.video_gcs_url = gcs_video_url
                                 session.save(update_fields=['video_gcs_url'])
                                 print(f"✅ GCS video URL saved to session.video_gcs_url: {gcs_video_url}")
+                                
+                                # Update interviews.Interview model if exists
+                                try:
+                                    from interviews.models import Interview
+                                    interview = Interview.objects.filter(session_key=session_key).first()
+                                    if interview:
+                                        interview.video_url = gcs_video_url
+                                        interview.save(update_fields=['video_url'])
+                                        print(f"✅ Updated Interview model video_url from release_camera: {gcs_video_url}")
+                                except Exception as interview_err:
+                                    print(f"⚠️ Could not update Interview model with video_url: {interview_err}")
+                                    
                         else:
                             print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
+                            
+                        # Update Interview model with file path regardless of GCS
+                        try:
+                            from interviews.models import Interview
+                            interview = Interview.objects.filter(session_key=session_key).first()
+                            if interview and not interview.video_url:
+                                # Use relative path for FileField assignment if possible, or just URL if already set from GCS
+                                pass
+                        except:
+                            pass
+                            
                     except Exception as gcs_error:
                         print(f"⚠️ Error uploading video to GCS (non-critical): {gcs_error}")
                         import traceback
@@ -340,6 +364,9 @@ def create_interview_invite(request):
                 email_use_ssl = False
             
             # Validate configuration
+            use_sendgrid = getattr(settings, 'USE_SENDGRID', False)
+            is_sendgrid_backend = "sendgrid" in str(email_backend).lower() or "sgbackend" in str(email_backend).lower()
+            
             if "console" in str(email_backend).lower():
                 error_msg = "EMAIL_BACKEND is set to console - emails won't be sent!"
                 print(f"[ERROR] {error_msg}")
@@ -347,18 +374,30 @@ def create_interview_invite(request):
                     'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend in .env',
                     'languages': SUPPORTED_LANGUAGES
                 })
-            elif not email_host:
-                error_msg = "EMAIL_HOST is not set"
+            
+            # Skip SMTP-specific checks if using SendGrid
+            if not use_sendgrid and not is_sendgrid_backend:
+                if not email_host:
+                    error_msg = "EMAIL_HOST is not set"
+                    print(f"[ERROR] {error_msg}")
+                    return render(request, 'interview_app/create_invite.html', {
+                        'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_HOST=smtp.gmail.com in .env',
+                        'languages': SUPPORTED_LANGUAGES
+                    })
+                elif not email_user or not email_password:
+                    error_msg = "Email credentials incomplete"
+                    print(f"[ERROR] {error_msg}")
+                    return render(request, 'interview_app/create_invite.html', {
+                        'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in .env',
+                        'languages': SUPPORTED_LANGUAGES
+                    })
+            
+            # Additional validation for SendGrid
+            if (use_sendgrid or is_sendgrid_backend) and not getattr(settings, 'SENDGRID_API_KEY', ''):
+                error_msg = "SENDGRID_API_KEY is not set"
                 print(f"[ERROR] {error_msg}")
                 return render(request, 'interview_app/create_invite.html', {
-                    'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_HOST=smtp.gmail.com in .env',
-                    'languages': SUPPORTED_LANGUAGES
-                })
-            elif not email_user or not email_password:
-                error_msg = "Email credentials incomplete"
-                print(f"[ERROR] {error_msg}")
-                return render(request, 'interview_app/create_invite.html', {
-                    'error': f'Email configuration error: {error_msg}. Fix: Set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in .env',
+                    'error': f'Email configuration error: {error_msg}. Fix: Set SENDGRID_API_KEY in .env',
                     'languages': SUPPORTED_LANGUAGES
                 })
             
@@ -817,6 +856,27 @@ def interview_portal(request):
     session = get_object_or_404(InterviewSession, session_key=session_key)
     print(f"DEBUG: Found session with ID: {session.id}")
     
+    # Redis-based check to prevent Multiple Tabs/Systems access
+    client_id = request.GET.get('client_id')
+    cache_key = f"active_interview_{session_key}"
+    active_client = cache.get(cache_key)
+    
+    if active_client and active_client != client_id:
+        print(f"⚠️ Blocked access: Interview {session_key} already open in another tab/system.")
+        return render(request, 'interview_app/invalid_link.html', {
+            'error': 'This interview link is already opened in another tab or system. Please close other instances and try again.',
+            'page_title': 'Link Already Active'
+        })
+    
+    # If not active or same client, mark as active for 60 seconds (heartbeat will extend this)
+    if not client_id:
+        # Generate a temporary client_id if not provided (initial load)
+        import uuid
+        client_id = str(uuid.uuid4())
+        # We don't set cache here yet because the frontend needs to receive the client_id first
+    else:
+        cache.set(cache_key, client_id, timeout=60)
+
     # This is the main validation logic block with 30-minute access window
     if session.status != 'SCHEDULED':
         return render(request, 'interview_app/invalid_link.html', {'error': 'This interview has already been completed or has expired.'})
@@ -1863,6 +1923,7 @@ def interview_portal(request):
             'interview_started': True,
             'candidate_name': session.candidate_name,
             'job_description': session.job_description,
+            'client_id': client_id,
         }
         return render(request, 'interview_app/portal.html', context)
     except Exception as e:
@@ -1877,13 +1938,36 @@ def interview_portal(request):
                 'spoken_questions_data': [],
                 'coding_questions_data': [],
                 'interview_started': True,
+                'client_id': client_id if 'client_id' in locals() else None,
             }
             return render(request, 'interview_app/portal.html', context)
         except Exception as e:
             import traceback
             traceback.print_exc()
             return HttpResponse(f"An API or processing error occurred: {str(e)}", status=500)
-        
+
+@csrf_exempt
+def interview_heartbeat(request):
+    """
+    Heartbeat endpoint to keep the interview session active in Redis.
+    Called periodically from the frontend.
+    """
+    session_key = request.POST.get('session_key')
+    client_id = request.POST.get('client_id')
+    
+    if not session_key or not client_id:
+        return JsonResponse({'success': False, 'error': 'Missing session_key or client_id'}, status=400)
+    
+    cache_key = f"active_interview_{session_key}"
+    active_client = cache.get(cache_key)
+    
+    if active_client and active_client != client_id:
+        return JsonResponse({'success': False, 'error': 'Session already active in another client'}, status=403)
+    
+    # Update/Set the heartbeat in Redis (60 seconds TTL)
+    cache.set(cache_key, client_id, timeout=60)
+    return JsonResponse({'success': True})
+
 @login_required
 def dashboard(request):
     sessions = InterviewSession.objects.all().order_by('-created_at')
@@ -1980,7 +2064,7 @@ def serve_react_app(request):
 def interview_report(request, session_id):
     try:
         session = InterviewSession.objects.get(id=session_id)
-        all_questions = list(session.questions.all().order_by('order'))
+        all_questions = list(session.questions.all().order_by('order', 'conversation_sequence', 'id'))
         all_logs_list = list(session.logs.all())
         warning_counts = Counter([log.warning_type.replace('_', ' ').title() for log in all_logs_list if log.warning_type != 'excessive_movement'])
         
@@ -2013,10 +2097,18 @@ def interview_report(request, session_id):
             try:
                 print("--- Evaluating Interview Performance (Spoken & Coding) ---")
                 
-                qa_text = "".join([
-                    f"Question: {item.question_text}\nAnswer: {item.transcribed_answer or 'No answer provided.'}\n\n"
-                    for item in all_questions if item.question_type != 'CODING'
-                ])
+                # --- MODIFIED: Use TechnicalInterviewQA table (Single Row) for LLM analysis ---
+                tech_qa_obj = TechnicalInterviewQA.objects.filter(session=session).first()
+                if tech_qa_obj and tech_qa_obj.overall_qa:
+                     print(f"--- Using single TechnicalInterviewQA entry for analysis ---")
+                     qa_text = tech_qa_obj.overall_qa
+                else:
+                    # Fallback to existing logic if new table is empty (backward compatibility)
+                    print(f"--- TechnicalInterviewQA empty, falling back to InterviewQuestion table ---")
+                    qa_text = "".join([
+                        f"AI Interviewer: {item.question_text}\nInterviewee: {item.transcribed_answer or 'No answer provided.'}\n\n"
+                        for item in all_questions if item.question_type != 'CODING'
+                    ])
 
                 code_submissions_for_prompt = session.code_submissions.all()
                 code_text = ""
@@ -2289,6 +2381,8 @@ def download_report_pdf(request, session_id):
         pie_chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(pie_chart_config))}"
 
         # 5. Assemble the complete context dictionary to be passed to the template.
+        from .qa_conversation_service import get_qa_pairs_for_pdf
+        
         context = { 
             'session': session, 
             'main_questions_with_followups': main_questions_with_followups,
@@ -2303,7 +2397,9 @@ def download_report_pdf(request, session_id):
             'pie_chart_url': pie_chart_url,
             'recommendation': recommendation,
             'recommendation_color': recommendation_color,
-            'overall_percentage': overall_percentage
+            'overall_percentage': overall_percentage,
+            # Add Q&A conversation pairs for PDF
+            'qa_conversation_pairs': get_qa_pairs_for_pdf(str(session.id))
         }
         
         # 6. Download chart images and convert to base64 to avoid WeasyPrint network delays
@@ -2600,516 +2696,305 @@ def end_interview_session(request):
         if not session_key:
             return JsonResponse({"status": "error", "message": "Session key required."}, status=400)
         
-        # Stop video recording and merge with audio if provided
-        video_path = None
-        try:
-            # First, try to get the video path from InterviewSession if camera doesn't have it
-            video_path_from_db = None
-            try:
-                from interview_app.models import InterviewSession
-                session = InterviewSession.objects.get(session_key=session_key)
-                session_id_uuid = session.id  # Get the UUID for file system search
-                
-                if session.interview_video:
-                    video_path_from_db = os.path.join(settings.MEDIA_ROOT, str(session.interview_video))
-                    # If it's a converted video, try to find the original
-                    if '_converted' in str(session.interview_video) and os.path.exists(video_path_from_db):
-                        # Look for original video (without _converted)
-                        original_name = str(session.interview_video).replace('_converted', '')
-                        original_path = os.path.join(settings.MEDIA_ROOT, original_name)
-                        if os.path.exists(original_path):
-                            video_path_from_db = original_path
-                            print(f"✅ Found original video for merging: {video_path_from_db}")
-                        else:
-                            print(f"⚠️ Original video not found, will use converted: {video_path_from_db}")
-                    elif os.path.exists(video_path_from_db):
-                        print(f"✅ Found video from InterviewSession: {video_path_from_db}")
-                    else:
-                        print(f"⚠️ Video path from InterviewSession doesn't exist: {video_path_from_db}")
-                        video_path_from_db = None
-                
-                # If no video in DB, search filesystem by session_id (UUID)
-                if not video_path_from_db:
-                    print(f"🔍 Video not in database, searching filesystem by session_id: {session_id_uuid}")
-                    search_dirs = [
-                        os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw'),
-                        os.path.join(settings.MEDIA_ROOT, 'interview_videos'),  # Old folder
-                    ]
-                    session_id_str = str(session_id_uuid)
-                    for search_dir in search_dirs:
-                        if not os.path.exists(search_dir):
-                            continue
-                        try:
-                            for filename in os.listdir(search_dir):
-                                if filename.startswith(session_id_str) and filename.endswith('.mp4'):
-                                    if '_with_audio' not in filename:  # Don't use already merged
-                                        candidate = os.path.join(search_dir, filename)
-                                        if os.path.exists(candidate):
-                                            video_path_from_db = candidate
-                                            print(f"✅ Found video in filesystem: {video_path_from_db}")
-                                            break
-                            if video_path_from_db:
-                                break
-                        except Exception as e:
-                            print(f"⚠️ Error searching {search_dir}: {e}")
-            except Exception as e:
-                print(f"⚠️ Error looking up video from InterviewSession: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            camera = get_camera_for_session(session_key)
-            if camera and hasattr(camera, 'stop_video_recording'):
-                # If camera doesn't have video path but we found it in DB, set it
-                if video_path_from_db:
-                    if not hasattr(camera, '_video_file_path') or not camera._video_file_path or not os.path.exists(getattr(camera, '_video_file_path', '')):
-                        camera._video_file_path = video_path_from_db
-                        print(f"✅ Set video path in camera object from database: {video_path_from_db}")
-                    else:
-                        print(f"✅ Camera already has video path: {camera._video_file_path}")
-                
-                # Pass audio file path if provided for merging
-                audio_full_path = None
-                audio_start_ts = None
-                video_start_ts = None
-                
-                # CRITICAL: Get video start timestamp from camera for synchronization
-                # Priority 1: Get from camera's _recording_start_timestamp (set when first frame written)
-                if hasattr(camera, '_recording_start_timestamp') and camera._recording_start_timestamp:
-                    video_start_ts = camera._recording_start_timestamp
-                    print(f"🕐 Video start timestamp from camera (first frame): {video_start_ts}")
-                # Priority 2: Get from camera's _synchronized_start_time (set when start_video_recording called)
-                elif hasattr(camera, '_synchronized_start_time') and camera._synchronized_start_time:
-                    video_start_ts = camera._synchronized_start_time
-                    print(f"🕐 Video start timestamp from camera (synchronized time): {video_start_ts}")
-                # Priority 3: Get from request data
-                if not video_start_ts:
-                    video_start_ts = data.get('video_start_timestamp')
-                    if video_start_ts:
-                        try:
-                            video_start_ts = float(video_start_ts)
-                            print(f"🕐 Video start timestamp from request: {video_start_ts}")
-                        except (ValueError, TypeError):
-                            video_start_ts = None
-                
-                # CRITICAL: If audio_file_path is not provided, try to find it from uploaded audio
-                if not audio_file_path:
-                    print(f"🔍 Audio file path not provided, searching for uploaded audio file...")
-                    # Try to find audio file in interview_audio directory
-                    audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
-                    if os.path.exists(audio_dir):
-                        # Search for audio file by session_key
-                        session_id_str = str(session_id_uuid)
-                        for filename in os.listdir(audio_dir):
-                            # Check if filename contains session_key or session_id
-                            if (session_key in filename or session_id_str in filename) and (filename.endswith('.webm') or filename.endswith('.wav') or filename.endswith('.mp3')):
-                                potential_audio = os.path.join(audio_dir, filename)
-                                if os.path.exists(potential_audio) and os.path.getsize(potential_audio) > 0:
-                                    audio_file_path = os.path.relpath(potential_audio, settings.MEDIA_ROOT).replace('\\', '/')
-                                    print(f"✅ Found audio file: {audio_file_path} ({os.path.getsize(potential_audio) / 1024 / 1024:.2f} MB)")
-                                    break
-                    
-                    # If still not found, try searching with different patterns
-                    if not audio_file_path and os.path.exists(audio_dir):
-                        # Try searching for any file with "interview_audio" in name
-                        for filename in os.listdir(audio_dir):
-                            if 'interview_audio' in filename.lower() and (filename.endswith('.webm') or filename.endswith('.wav')):
-                                potential_audio = os.path.join(audio_dir, filename)
-                                if os.path.exists(potential_audio) and os.path.getsize(potential_audio) > 0:
-                                    # Check if it's recent (within last hour)
-                                    import time
-                                    file_age = time.time() - os.path.getmtime(potential_audio)
-                                    if file_age < 3600:  # Within last hour
-                                        audio_file_path = os.path.relpath(potential_audio, settings.MEDIA_ROOT).replace('\\', '/')
-                                        print(f"✅ Found recent audio file: {audio_file_path}")
-                                        break
-                
-                if audio_file_path:
-                    # Convert relative path to absolute path
-                    # Normalize path separators (handle both / and \)
-                    audio_file_path = audio_file_path.replace('/', os.sep).replace('\\', os.sep)
-                    if not os.path.isabs(audio_file_path):
-                        audio_full_path = os.path.join(settings.MEDIA_ROOT, audio_file_path)
-                    else:
-                        audio_full_path = audio_file_path
-                    # Normalize the final path
-                    audio_full_path = os.path.normpath(audio_full_path)
-                    if os.path.exists(audio_full_path):
-                        file_size = os.path.getsize(audio_full_path)
-                        print(f"✅ Audio file found for merging: {audio_full_path} ({file_size / 1024 / 1024:.2f} MB)")
-                    else:
-                        print(f"⚠️ Audio file not found: {audio_full_path}")
-                        # Try to find it in interview_audio directory
-                        audio_filename = os.path.basename(audio_file_path)
-                        alt_path = os.path.join(settings.MEDIA_ROOT, 'interview_audio', audio_filename)
-                        if os.path.exists(alt_path):
-                            audio_full_path = alt_path
-                            print(f"✅ Audio file found at alternate location: {audio_full_path}")
-                        else:
-                            audio_full_path = None
-                    
-                    # Get timestamps from request or from cache for synchronization
-                    audio_start_ts = data.get('audio_start_timestamp')
-                    video_start_ts = data.get('video_start_timestamp')
-                    
-                    # If not in request, try to get from upload_interview_audio timestamp cache
-                    if not audio_start_ts or not video_start_ts:
-                        try:
-                            # Use the function reference directly (avoid circular import)
-                            upload_func = globals().get('upload_interview_audio')
-                            if upload_func and hasattr(upload_func, '_timestamp_cache') and session_key in upload_func._timestamp_cache:
-                                cached_ts = upload_func._timestamp_cache[session_key]
-                                if not audio_start_ts:
-                                    audio_start_ts = cached_ts.get('audio_start_timestamp')
-                                if not video_start_ts:
-                                    video_start_ts = cached_ts.get('video_start_timestamp')
-                                print(f"📥 Retrieved timestamps from cache: audio={audio_start_ts}, video={video_start_ts}")
-                        except Exception as e:
-                            print(f"⚠️ Error retrieving timestamps from cache: {e}")
-                    
-                    if audio_start_ts:
-                        try:
-                            audio_start_ts = float(audio_start_ts)
-                            print(f"📥 Audio start timestamp: {audio_start_ts}")
-                        except (ValueError, TypeError):
-                            audio_start_ts = None
-                    if video_start_ts:
-                        try:
-                            video_start_ts = float(video_start_ts)
-                            print(f"📥 Video start timestamp: {video_start_ts}")
-                        except (ValueError, TypeError):
-                            video_start_ts = None
-                else:
-                    print("⚠️ No audio file path found - video will be saved without audio")
-                    print(f"   Request data keys: {list(data.keys())}")
-                    print(f"   audio_file_path value: {audio_file_path}")
-                    print(f"   Searched in: {os.path.join(settings.MEDIA_ROOT, 'interview_audio')}")
-                    
-                    # Last resort: try to find ANY audio file in interview_audio directory
-                    audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
-                    if os.path.exists(audio_dir):
-                        # Get the most recent audio file
-                        audio_files = []
-                        for filename in os.listdir(audio_dir):
-                            if filename.endswith(('.webm', '.wav', '.mp3')):
-                                file_path = os.path.join(audio_dir, filename)
-                                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-                                    audio_files.append((file_path, os.path.getmtime(file_path)))
-                        
-                        if audio_files:
-                            # Sort by modification time (most recent first)
-                            audio_files.sort(key=lambda x: x[1], reverse=True)
-                            most_recent_audio = audio_files[0][0]
-                            audio_file_path = os.path.relpath(most_recent_audio, settings.MEDIA_ROOT).replace('\\', '/')
-                            audio_full_path = most_recent_audio
-                            print(f"✅ Found most recent audio file as fallback: {audio_file_path}")
-                            # Get timestamps from cache if available
-                            try:
-                                # Use the function reference directly (avoid circular import)
-                                upload_func = globals().get('upload_interview_audio')
-                                if upload_func and hasattr(upload_func, '_timestamp_cache') and session_key in upload_func._timestamp_cache:
-                                    cached_ts = upload_func._timestamp_cache[session_key]
-                                    audio_start_ts = cached_ts.get('audio_start_timestamp')
-                                    video_start_ts = cached_ts.get('video_start_timestamp')
-                                    print(f"📥 Using cached timestamps: audio={audio_start_ts}, video={video_start_ts}")
-                            except Exception as e:
-                                print(f"⚠️ Could not get cached timestamps: {e}")
-                
-                # CRITICAL: Get synchronized stop time from request if provided
-                synchronized_stop_time = data.get('synchronized_stop_time')
-                if synchronized_stop_time:
-                    try:
-                        synchronized_stop_time = float(synchronized_stop_time)
-                        print(f"🕐 Synchronized stop time received: {synchronized_stop_time}")
-                    except (ValueError, TypeError):
-                        synchronized_stop_time = None
-                
-                # CRITICAL: Stop PyAudio recording first (if using backend recording)
-                audio_file_path_pyaudio = None
-                audio_start_ts_pyaudio = None
-                if PYAudio_AVAILABLE and session_key in AUDIO_RECORDERS:
-                    try:
-                        with audio_lock:
-                            audio_recorder = AUDIO_RECORDERS[session_key]
-                            audio_file_path_pyaudio = audio_recorder.stop_recording(synchronized_stop_time=synchronized_stop_time)
-                            audio_start_ts_pyaudio = audio_recorder.recording_start_timestamp
-                            print(f"✅ PyAudio recording stopped: {audio_file_path_pyaudio}")
-                            print(f"🕐 PyAudio start timestamp: {audio_start_ts_pyaudio}")
-                            
-                            # Use PyAudio file if available (preferred - better sync)
-                            if audio_file_path_pyaudio:
-                                audio_full_path = os.path.join(settings.MEDIA_ROOT, audio_file_path_pyaudio)
-                                audio_start_ts = audio_start_ts_pyaudio
-                                print(f"✅ Using PyAudio recorded audio for merging")
-                    except Exception as e:
-                        print(f"⚠️ Error stopping PyAudio recording: {e}")
-                        import traceback
-                        traceback.print_exc()
-                
-                # CRITICAL: Stop video and merge with audio in one call
-                # The merge function will use video duration as authoritative reference
-                # Video duration will be used to trim audio to match exactly
-                print(f"🔍 Stopping video recording and merging with audio...")
-                print(f"   Audio start timestamp: {audio_start_ts}, Video start timestamp: {video_start_ts}")
-                print(f"   Synchronized stop time: {synchronized_stop_time}")
-                print(f"   Audio file path: {audio_full_path}")
-                video_path = camera.stop_video_recording(
-                    audio_file_path=audio_full_path,
-                    audio_start_timestamp=audio_start_ts,
-                    video_start_timestamp=video_start_ts,
-                    synchronized_stop_time=synchronized_stop_time
-                )
-                if video_path:
-                    print(f"✅ Video recording stopped and saved: {video_path}")
-                    
-                    # Note: Videos merged with audio are already H.264 encoded, so no need to convert again
-                    # Only convert if it's a raw video without audio and not already converted
-                    try:
-                        video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
-                        if os.path.exists(video_full_path):
-                            # Check if file needs conversion (not already converted and not merged with audio)
-                            # Merged videos (_with_audio) are already H.264 encoded during merge
-                            if '_converted' not in video_path and '_with_audio' not in video_path:
-                                print(f"🔄 Ensuring video is browser-compatible (H.264)...")
-                                converted_path = camera.ensure_browser_compatible_video(video_full_path)
-                                if converted_path:
-                                    # Update video_path to converted version
-                                    video_path = os.path.relpath(converted_path, settings.MEDIA_ROOT).replace('\\', '/')
-                                    print(f"✅ Video converted, new path: {video_path}")
-                            elif '_with_audio' in video_path:
-                                print(f"✅ Video already merged with audio and H.264 encoded: {video_path}")
-                    except Exception as e:
-                        print(f"⚠️ Error ensuring video compatibility: {e}")
-                        import traceback
-                        traceback.print_exc()
-        except Exception as e:
-            print(f"⚠️ Error stopping video recording: {e}")
-            import traceback
-            traceback.print_exc()
-            # Even if there was an error, try to find the video file
-            if not video_path:
-                print(f"🔄 Video path is None after error, attempting to find video file...")
-                try:
-                    # Try to find video in merged folder
-                    merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
-                    if os.path.exists(merged_video_dir):
-                        # Search for video by session_key
-                        session_id_str = str(session_key)
-                        for filename in os.listdir(merged_video_dir):
-                            if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
-                                found_video = os.path.join(merged_video_dir, filename)
-                                if os.path.exists(found_video):
-                                    video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
-                                    print(f"✅ Found merged video after error: {video_path}")
-                                    break
-                except Exception as find_error:
-                    print(f"⚠️ Error finding video file: {find_error}")
+        # Sync/Quick part: Clear active session in Redis
+        cache.delete(f"active_interview_{session_key}")
         
-        session = InterviewSession.objects.get(session_key=session_key)
-        if session.status == 'SCHEDULED':
-            session.status = 'COMPLETED'
-            # Save video path if recording was active
-            if video_path:
-                # CRITICAL: Verify it's a merged video before saving
-                if '_with_audio' in video_path or 'interview_videos_merged' in video_path:
-                    # Use proper FileField.save() method to ensure file is stored in database
+        # Define a background function for heavy processing
+        def run_background_finalization(session_key_bg, data_bg, audio_file_path_bg):
+            try:
+                print(f"🧵 Background finalization thread started for session: {session_key_bg}")
+                
+                # Stop video recording and merge with audio if provided
+                video_path = None
+                try:
+                    # First, try to get the video path from InterviewSession if camera doesn't have it
+                    video_path_from_db = None
+                    session_id_uuid = None
                     try:
-                        video_full_path = os.path.join(settings.MEDIA_ROOT, video_path) if not os.path.isabs(video_path) else video_path
-                        if os.path.exists(video_full_path):
-                            with open(video_full_path, 'rb') as video_file:
-                                from django.core.files.base import ContentFile
-                                video_content = ContentFile(video_file.read(), name=os.path.basename(video_path))
-                                session.interview_video.save(os.path.basename(video_path), video_content, save=True)
-                                print(f"✅ Merged video saved to InterviewSession database field: {session.interview_video.name}")
-                        else:
-                            # Fallback: assign path string if file doesn't exist (shouldn't happen)
+                        from interview_app.models import InterviewSession
+                        session = InterviewSession.objects.get(session_key=session_key_bg)
+                        session_id_uuid = session.id
+                        
+                        if session.interview_video:
+                            video_path_from_db = os.path.join(settings.MEDIA_ROOT, str(session.interview_video))
+                            if '_converted' in str(session.interview_video) and os.path.exists(video_path_from_db):
+                                original_name = str(session.interview_video).replace('_converted', '')
+                                original_path = os.path.join(settings.MEDIA_ROOT, original_name)
+                                if os.path.exists(original_path):
+                                    video_path_from_db = original_path
+                    except Exception as e:
+                        print(f"⚠️ Background: Error looking up session: {e}")
+
+                    camera = get_camera_for_session(session_key_bg)
+                    if camera and hasattr(camera, 'stop_video_recording'):
+                        if video_path_from_db:
+                            if not hasattr(camera, '_video_file_path') or not camera._video_file_path:
+                                camera._video_file_path = video_path_from_db
+                        
+                        # Use data from the background-captured data_bg
+                        audio_full_path = None
+                        audio_start_ts = data_bg.get('audio_start_timestamp')
+                        video_start_ts = data_bg.get('video_start_timestamp')
+                        synchronized_stop_time = data_bg.get('synchronized_stop_time')
+                        
+                        # If audio_file_path_bg (relative) is provided, convert to absolute
+                        if audio_file_path_bg:
+                            audio_full_path = os.path.join(settings.MEDIA_ROOT, audio_file_path_bg) if not os.path.isabs(audio_file_path_bg) else audio_file_path_bg
+                        
+                        # PyAudio recorder handling
+                        if PYAudio_AVAILABLE and session_key_bg in AUDIO_RECORDERS:
+                            try:
+                                with audio_lock:
+                                    audio_recorder = AUDIO_RECORDERS.get(session_key_bg)
+                                    if audio_recorder:
+                                        path = audio_recorder.stop_recording(synchronized_stop_time=synchronized_stop_time)
+                                        if path:
+                                            audio_full_path = os.path.join(settings.MEDIA_ROOT, path)
+                                            audio_start_ts = audio_recorder.recording_start_timestamp
+                            except Exception as e:
+                                print(f"⚠️ Background: PyAudio stop error: {e}")
+
+                        video_path = camera.stop_video_recording(
+                            audio_file_path=audio_full_path,
+                            audio_start_timestamp=audio_start_ts,
+                            video_start_timestamp=video_start_ts,
+                            synchronized_stop_time=synchronized_stop_time
+                        )
+                        
+                        if video_path:
+                            # Convert if needed
+                            try:
+                                video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
+                                if os.path.exists(video_full_path) and '_converted' not in video_path and '_with_audio' not in video_path:
+                                    camera.ensure_browser_compatible_video(video_full_path)
+                            except Exception as e:
+                                print(f"⚠️ Background: Conversion error: {e}")
+                except Exception as e:
+                    print(f"⚠️ Background: Video processing error: {e}")
+
+                # Mark session as COMPLETED and save video
+                from interview_app.models import InterviewSession
+                session = InterviewSession.objects.get(session_key=session_key_bg)
+                session.status = 'COMPLETED'
+                if video_path:
+                    # CRITICAL: Verify it's a merged video before saving
+                    if '_with_audio' in video_path or 'interview_videos_merged' in video_path:
+                        # Use proper FileField.save() method to ensure file is stored in database
+                        try:
+                            video_full_path = os.path.join(settings.MEDIA_ROOT, video_path) if not os.path.isabs(video_path) else video_path
+                            if os.path.exists(video_full_path):
+                                with open(video_full_path, 'rb') as video_file:
+                                    from django.core.files.base import ContentFile
+                                    video_content = ContentFile(video_file.read(), name=os.path.basename(video_path))
+                                    session.interview_video.save(os.path.basename(video_path), video_content, save=True)
+                                    print(f"✅ Merged video saved to InterviewSession database field: {session.interview_video.name}")
+                            else:
+                                # Fallback: assign path string if file doesn't exist (shouldn't happen)
+                                session.interview_video = video_path
+                                session.save()
+                                print(f"⚠️ Video file not found, saved path only: {video_path}")
+                        except Exception as save_error:
+                            print(f"⚠️ Error saving video file to database: {save_error}")
+                            # Fallback: assign path string
                             session.interview_video = video_path
                             session.save()
-                            print(f"⚠️ Video file not found, saved path only: {video_path}")
-                    except Exception as save_error:
-                        print(f"⚠️ Error saving video file to database: {save_error}")
-                        # Fallback: assign path string
-                        session.interview_video = video_path
-                        session.save()
-                        print(f"✅ Merged video path saved to InterviewSession (fallback): {video_path}")
+                            print(f"✅ Merged video path saved to InterviewSession (fallback): {video_path}")
+                    else:
+                        print(f"⚠️ WARNING: Video path is not merged: {video_path}")
+                        # Try to find merged version
+                        try:
+                            merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
+                            video_basename = os.path.basename(video_path)
+                            base_name = os.path.splitext(video_basename)[0]
+                            if '_converted' in base_name:
+                                base_name = base_name.replace('_converted', '')
+                            merged_filename = f"{base_name}_with_audio.mp4"
+                            merged_path = os.path.join(merged_video_dir, merged_filename)
+                            if os.path.exists(merged_path):
+                                merged_relative = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
+                                # Use proper FileField.save() method to ensure file is stored in database
+                                try:
+                                    with open(merged_path, 'rb') as video_file:
+                                        from django.core.files.base import ContentFile
+                                        video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
+                                        session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
+                                        print(f"✅ Found and saved merged video to database: {session.interview_video.name}")
+                                except Exception as save_error:
+                                    print(f"⚠️ Error saving merged video to database: {save_error}")
+                                    # Fallback: assign path string
+                                    session.interview_video = merged_relative
+                                    session.save()
+                                    print(f"✅ Found and saved merged video (fallback): {merged_relative}")
+                            else:
+                                print(f"❌ Merged video not found, NOT saving unmerged video to database")
+                        except Exception as e:
+                            print(f"❌ Error finding merged video: {e}")
                 else:
-                    print(f"⚠️ WARNING: Video path is not merged: {video_path}")
-                    # Try to find merged version
+                    print(f"⚠️ WARNING: video_path is None - attempting to find and save video...")
+                    # CRITICAL: Try to find video file manually and save it
                     try:
                         merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
-                        video_basename = os.path.basename(video_path)
-                        base_name = os.path.splitext(video_basename)[0]
-                        if '_converted' in base_name:
-                            base_name = base_name.replace('_converted', '')
-                        merged_filename = f"{base_name}_with_audio.mp4"
-                        merged_path = os.path.join(merged_video_dir, merged_filename)
-                        if os.path.exists(merged_path):
-                            merged_relative = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
-                            # Use proper FileField.save() method to ensure file is stored in database
-                            try:
-                                with open(merged_path, 'rb') as video_file:
-                                    from django.core.files.base import ContentFile
-                                    video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
-                                    session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
-                                    print(f"✅ Found and saved merged video to database: {session.interview_video.name}")
-                            except Exception as save_error:
-                                print(f"⚠️ Error saving merged video to database: {save_error}")
-                                # Fallback: assign path string
-                                session.interview_video = merged_relative
-                                session.save()
-                                print(f"✅ Found and saved merged video (fallback): {merged_relative}")
-                        else:
-                            print(f"❌ Merged video not found, NOT saving unmerged video to database")
-                    except Exception as e:
-                        print(f"❌ Error finding merged video: {e}")
-            else:
-                print(f"⚠️ WARNING: video_path is None - attempting to find and save video...")
-                # CRITICAL: Try to find video file manually and save it
-                try:
-                    merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
-                    raw_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw')
-                    session_id_str = str(session_key)
-                    
-                    # Search merged folder first (preferred - has audio)
-                    found_video = None
-                    if os.path.exists(merged_video_dir):
-                        for filename in os.listdir(merged_video_dir):
-                            if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
-                                candidate = os.path.join(merged_video_dir, filename)
-                                if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
-                                        found_video = candidate
-                                        video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
-                                        # Use proper FileField.save() method to ensure file is stored in database
-                                        try:
-                                            with open(found_video, 'rb') as video_file:
-                                                from django.core.files.base import ContentFile
-                                                video_content = ContentFile(video_file.read(), name=os.path.basename(found_video))
-                                                session.interview_video.save(os.path.basename(found_video), video_content, save=True)
-                                                print(f"✅ Found merged video manually and saved to database: {session.interview_video.name}")
-                                        except Exception as save_error:
-                                            print(f"⚠️ Error saving video to database: {save_error}")
-                                            # Fallback: assign path string
-                                            session.interview_video = video_path
-                                            session.save()
-                                            print(f"✅ Found merged video manually and saved (fallback): {video_path}")
-                                        break
-                    
-                    # If not found in merged, try to merge raw video with audio
-                    if not found_video and audio_full_path and os.path.exists(audio_full_path):
-                        print(f"🔄 Attempting to merge raw video with audio...")
-                        if os.path.exists(raw_video_dir):
+                        raw_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_raw')
+                        session_id_str = str(session_key_bg)
+                        
+                        # Search merged folder first (preferred - has audio)
+                        found_video = None
+                        if os.path.exists(merged_video_dir):
+                            for filename in os.listdir(merged_video_dir):
+                                if session_id_str in filename and '_with_audio' in filename and filename.endswith('.mp4'):
+                                    candidate = os.path.join(merged_video_dir, filename)
+                                    if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                                            found_video = candidate
+                                            video_path = os.path.relpath(found_video, settings.MEDIA_ROOT).replace('\\', '/')
+                                            # Use proper FileField.save() method to ensure file is stored in database
+                                            try:
+                                                with open(found_video, 'rb') as video_file:
+                                                    from django.core.files.base import ContentFile
+                                                    video_content = ContentFile(video_file.read(), name=os.path.basename(found_video))
+                                                    session.interview_video.save(os.path.basename(found_video), video_content, save=True)
+                                                    print(f"✅ Found merged video manually and saved to database: {session.interview_video.name}")
+                                            except Exception as save_error:
+                                                print(f"⚠️ Error saving video to database: {save_error}")
+                                                # Fallback: assign path string
+                                                session.interview_video = video_path
+                                                session.save()
+                                                print(f"✅ Found merged video manually and saved (fallback): {video_path}")
+                                            break
+                        
+                        # If not found in merged, try to merge raw video with audio
+                        if not found_video and audio_full_path and os.path.exists(audio_full_path):
+                            print(f"🔄 Attempting to merge raw video with audio...")
+                            if os.path.exists(raw_video_dir):
+                                for filename in os.listdir(raw_video_dir):
+                                    if session_id_str in filename and filename.endswith('.mp4'):
+                                        raw_video = os.path.join(raw_video_dir, filename)
+                                        if os.path.exists(raw_video) and os.path.getsize(raw_video) > 0:
+                                            print(f"   Found raw video: {raw_video}")
+                                            # Try to merge
+                                            try:
+                                                from interview_app.simple_real_camera import merge_video_audio_pyav
+                                                video_ts = getattr(camera, '_recording_start_timestamp', None) if camera else None
+                                                merge_success = merge_video_audio_pyav(
+                                                    video_path=raw_video,
+                                                    audio_file_path=audio_full_path,
+                                                    output_path=os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4"),
+                                                    video_start_timestamp=video_ts,
+                                                    audio_start_timestamp=audio_start_ts,
+                                                    video_duration=None
+                                                )
+                                                if merge_success:
+                                                    merged_path = os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4")
+                                                    if os.path.exists(merged_path):
+                                                        video_path = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
+                                                        # Use proper FileField.save() method to ensure file is stored in database
+                                                        try:
+                                                            with open(merged_path, 'rb') as video_file:
+                                                                from django.core.files.base import ContentFile
+                                                                video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
+                                                                session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
+                                                                print(f"✅ Merged and saved video to database: {session.interview_video.name}")
+                                                        except Exception as save_error:
+                                                            print(f"⚠️ Error saving merged video to database: {save_error}")
+                                                            # Fallback: assign path string
+                                                            session.interview_video = video_path
+                                                            session.save()
+                                                            print(f"✅ Merged and saved video (fallback): {video_path}")
+                                                        found_video = merged_path
+                                                        break
+                                            except Exception as merge_err:
+                                                print(f"   ❌ Merge failed: {merge_err}")
+                        
+                        # If still not found, check raw folder (but don't save raw videos without audio)
+                        if not found_video and os.path.exists(raw_video_dir):
                             for filename in os.listdir(raw_video_dir):
                                 if session_id_str in filename and filename.endswith('.mp4'):
                                     raw_video = os.path.join(raw_video_dir, filename)
-                                    if os.path.exists(raw_video) and os.path.getsize(raw_video) > 0:
-                                        print(f"   Found raw video: {raw_video}")
-                                        # Try to merge
-                                        try:
-                                            from interview_app.simple_real_camera import merge_video_audio_pyav
-                                            video_ts = getattr(camera, '_recording_start_timestamp', None) if camera else None
-                                            merge_success = merge_video_audio_pyav(
-                                                video_path=raw_video,
-                                                audio_file_path=audio_full_path,
-                                                output_path=os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4"),
-                                                video_start_timestamp=video_ts,
-                                                audio_start_timestamp=audio_start_ts,
-                                                video_duration=None
-                                            )
-                                            if merge_success:
-                                                merged_path = os.path.join(merged_video_dir, f"{os.path.splitext(filename)[0]}_with_audio.mp4")
-                                                if os.path.exists(merged_path):
-                                                    video_path = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
-                                                    # Use proper FileField.save() method to ensure file is stored in database
-                                                    try:
-                                                        with open(merged_path, 'rb') as video_file:
-                                                            from django.core.files.base import ContentFile
-                                                            video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
-                                                            session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
-                                                            print(f"✅ Merged and saved video to database: {session.interview_video.name}")
-                                                    except Exception as save_error:
-                                                        print(f"⚠️ Error saving merged video to database: {save_error}")
-                                                        # Fallback: assign path string
-                                                        session.interview_video = video_path
-                                                        session.save()
-                                                        print(f"✅ Merged and saved video (fallback): {video_path}")
-                                                    found_video = merged_path
-                                                    break
-                                        except Exception as merge_err:
-                                            print(f"   ❌ Merge failed: {merge_err}")
-                    
-                    # If still not found, check raw folder (but don't save raw videos without audio)
-                    if not found_video and os.path.exists(raw_video_dir):
-                        for filename in os.listdir(raw_video_dir):
-                            if session_id_str in filename and filename.endswith('.mp4'):
-                                raw_video = os.path.join(raw_video_dir, filename)
-                                print(f"⚠️ Found raw video (not merged): {raw_video}")
-                                print(f"   ⚠️ This video does NOT have audio - merge may have failed")
-                                print(f"   ⚠️ NOT saving raw video to database - merge must succeed")
-                                break
+                                    print(f"⚠️ Found raw video (not merged): {raw_video}")
+                                    print(f"   ⚠️ This video does NOT have audio - merge may have failed")
+                                    print(f"   ⚠️ NOT saving raw video to database - merge must succeed")
+                                    break
+                    except Exception as e:
+                        print(f"⚠️ Error in manual video search: {e}")
+                        import traceback
+                        traceback.print_exc()
+                session.save()
+                
+                # FINAL CHECK: Verify merged video was saved
+                if session.interview_video:
+                    video_path_str = str(session.interview_video)
+                    is_merged = '_with_audio' in video_path_str or 'interview_videos_merged' in video_path_str
+                    if is_merged:
+                        print(f"✅ VERIFIED: Merged video saved to database: {video_path_str}")
+                    else:
+                        print(f"⚠️ WARNING: Video saved but NOT merged: {video_path_str}")
+                        print(f"   This should not happen - video should have _with_audio suffix")
+                else:
+                    print(f"❌ CRITICAL: No video path saved to database for session {session_key_bg}")
+                    print(f"   Possible causes:")
+                    print(f"   1. FFmpeg merge failed")
+                    print(f"   2. Video file not found")
+                    print(f"   3. Audio file not found")
+                    print(f"   4. Exception during merge process")
+                    print(f"   Check server logs for detailed error messages")
+                
+                print(f"--- Spoken-only session {session_key_bg} marked as COMPLETED. ---")
+                
+                # Trigger comprehensive evaluation for spoken-only interviews
+                try:
+                    from interview_app.comprehensive_evaluation_service import comprehensive_evaluation_service
+                    evaluation_results = comprehensive_evaluation_service.evaluate_complete_interview(session_key_bg)
+                    print(f"--- Comprehensive evaluation completed for session {session_key_bg} ---")
+                    print(f"Overall Score: {evaluation_results['overall_score']:.1f}/100")
+                    print(f"Recommendation: {evaluation_results['recommendation']}")
                 except Exception as e:
-                    print(f"⚠️ Error in manual video search: {e}")
+                    print(f"--- Error in comprehensive evaluation: {e} ---")
+                
+                # Create Evaluation after interview completion - SYNCHRONOUSLY for immediate availability
+                try:
+                    from evaluation.services import create_evaluation_from_session
+                    print(f"🔄 Creating evaluation synchronously for session {session_key_bg}...")
+                    evaluation = create_evaluation_from_session(session_key_bg)
+                    if evaluation:
+                        print(f"✅ Evaluation created and saved to database for session {session_key_bg}")
+                        try:
+                            # Get interview from evaluation relationship
+                            interview_id = evaluation.interview.id if evaluation.interview else 'N/A'
+                            print(f"   Evaluation ID: {evaluation.id}, Interview ID: {interview_id}")
+                        except Exception:
+                            print(f"   Evaluation ID: {evaluation.id}, Interview ID: N/A")
+                        # Verify it's accessible immediately
+                        from evaluation.models import Evaluation
+                        try:
+                            verify_eval = Evaluation.objects.get(id=evaluation.id)
+                            print(f"   ✅ Verification: Evaluation {verify_eval.id} is accessible in database")
+                        except Evaluation.DoesNotExist:
+                            print(f"   ⚠️ WARNING: Evaluation not found immediately after creation")
+                    else:
+                        print(f"⚠️ Evaluation creation returned None for session {session_key_bg}")
+                except Exception as e:
+                    print(f"⚠️ Error creating evaluation: {e}")
                     import traceback
                     traceback.print_exc()
-            session.save()
-            
-            # FINAL CHECK: Verify merged video was saved
-            if session.interview_video:
-                video_path_str = str(session.interview_video)
-                is_merged = '_with_audio' in video_path_str or 'interview_videos_merged' in video_path_str
-                if is_merged:
-                    print(f"✅ VERIFIED: Merged video saved to database: {video_path_str}")
-                else:
-                    print(f"⚠️ WARNING: Video saved but NOT merged: {video_path_str}")
-                    print(f"   This should not happen - video should have _with_audio suffix")
-            else:
-                print(f"❌ CRITICAL: No video path saved to database for session {session_key}")
-                print(f"   Possible causes:")
-                print(f"   1. FFmpeg merge failed")
-                print(f"   2. Video file not found")
-                print(f"   3. Audio file not found")
-                print(f"   4. Exception during merge process")
-                print(f"   Check server logs for detailed error messages")
-            
-            print(f"--- Spoken-only session {session_key} marked as COMPLETED. ---")
-            
-            # Trigger comprehensive evaluation for spoken-only interviews
-            try:
-                from interview_app.comprehensive_evaluation_service import comprehensive_evaluation_service
-                evaluation_results = comprehensive_evaluation_service.evaluate_complete_interview(session_key)
-                print(f"--- Comprehensive evaluation completed for session {session_key} ---")
-                print(f"Overall Score: {evaluation_results['overall_score']:.1f}/100")
-                print(f"Recommendation: {evaluation_results['recommendation']}")
+                
+                release_camera_for_session(session_key_bg)
+                
+                # Cleanup camera object
+                with camera_lock:
+                    if session_key_bg in CAMERAS:
+                        del CAMERAS[session_key_bg]
+                
+                print(f"✅ Background finalization COMPLETE for session: {session_key_bg}")
             except Exception as e:
-                print(f"--- Error in comprehensive evaluation: {e} ---")
-            
-            # Create Evaluation after interview completion - SYNCHRONOUSLY for immediate availability
-            try:
-                from evaluation.services import create_evaluation_from_session
-                print(f"🔄 Creating evaluation synchronously for session {session_key}...")
-                evaluation = create_evaluation_from_session(session_key)
-                if evaluation:
-                    print(f"✅ Evaluation created and saved to database for session {session_key}")
-                    try:
-                        # Get interview from evaluation relationship
-                        interview_id = evaluation.interview.id if evaluation.interview else 'N/A'
-                        print(f"   Evaluation ID: {evaluation.id}, Interview ID: {interview_id}")
-                    except Exception:
-                        print(f"   Evaluation ID: {evaluation.id}, Interview ID: N/A")
-                    # Verify it's accessible immediately
-                    from evaluation.models import Evaluation
-                    try:
-                        verify_eval = Evaluation.objects.get(id=evaluation.id)
-                        print(f"   ✅ Verification: Evaluation {verify_eval.id} is accessible in database")
-                    except Evaluation.DoesNotExist:
-                        print(f"   ⚠️ WARNING: Evaluation not found immediately after creation")
-                else:
-                    print(f"⚠️ Evaluation creation returned None for session {session_key}")
-            except Exception as e:
-                print(f"⚠️ Error creating evaluation: {e}")
+                print(f"❌ CRITICAL error in background thread: {e}")
                 import traceback
                 traceback.print_exc()
-            
-        release_camera_for_session(session_key)
-        return JsonResponse({"status": "ok"})
+
+        # Launch the thread
+        bg_thread = threading.Thread(target=run_background_finalization, args=(session_key, data, audio_file_path))
+        bg_thread.daemon = True
+        bg_thread.start()
+        
+        return JsonResponse({"status": "success", "message": "Interview ending process started in background."})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
@@ -3270,6 +3155,9 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
             synthesize_speech(follow_up_text, session.language_code, session.accent_tld, tts_path)
             audio_url = os.path.join(settings.MEDIA_URL, 'tts', os.path.basename(tts_path))
 
+            from django.db.models import Max
+            max_seq = InterviewQuestion.objects.filter(session=session).aggregate(max_seq=Max('conversation_sequence'))['max_seq'] or 0
+            
             follow_up_question = InterviewQuestion.objects.create(
                 session=session,
                 question_text=follow_up_text,
@@ -3277,7 +3165,9 @@ def generate_and_save_follow_up(session, parent_question, transcribed_answer):
                 question_level='FOLLOW_UP',
                 parent_question=parent_question,
                 order=parent_question.order,
-                audio_url=audio_url
+                audio_url=audio_url,
+                role='AI',
+                conversation_sequence=max_seq + 1
             )
             
             return {
@@ -3322,6 +3212,16 @@ def transcribe_audio(request):
                         except ValueError:
                             pass
                     question_to_update.save(update_fields=fields_to_update)
+
+                    # --- NEW: Save to separate TechnicalInterviewQA table (Single Row Update) ---
+                    if question_to_update.question_type == 'TECHNICAL':
+                        try:
+                            # Use qa_service to re-aggregate and update the single row
+                            update_technical_qa_summary(question_to_update.session)
+                            print(f"✅ Updated TechnicalInterviewQA for Q{question_to_update.order}")
+                        except Exception as e:
+                            print(f"❌ Error updating TechnicalInterviewQA: {e}")
+                    # --------------------------------------------------------
 
                     # Only generate a follow-up if the question just answered was a MAIN one
                     if transcribed_text and transcribed_text.strip() and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
@@ -3385,6 +3285,16 @@ def transcribe_audio(request):
                         except ValueError:
                             pass
                     question_to_update.save(update_fields=fields_to_update)
+                    
+                    # --- NEW: Save to separate TechnicalInterviewQA table (Single Row Update) ---
+                    if question_to_update.question_type == 'TECHNICAL':
+                        try:
+                            # Use qa_service to re-aggregate and update the single row
+                            update_technical_qa_summary(question_to_update.session)
+                            print(f"✅ Updated TechnicalInterviewQA (Whisper) for Q{question_to_update.order}")
+                        except Exception as e:
+                            print(f"❌ Error updating TechnicalInterviewQA (Whisper): {e}")
+                    # --------------------------------------------------------
 
                     # Only generate a follow-up if the question just answered was a MAIN one
                     if transcribed_text and transcribed_text.strip() and question_to_update.question_level == 'MAIN' and question_to_update.session.language_code == 'en':
@@ -3465,7 +3375,7 @@ def gen(camera_instance):
                 except:
                     # Last resort: minimal valid JPEG
                     yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x11\x08\x01\xe0\x02\x80\x03\x01"\x00\x02\x11\x01\x03\x11\x01\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\xff\xc4\x00\x14\x10\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00\x3f\x00\xaa\xff\xd9' + b'\r\n\r\n')
+                           b'Content-Type: image/jpeg\r\n\r\n' + b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x11\x08\x01\xe0\x02\x80\x03\x01"\x00\x02\x11\x01\x03\x11\x01\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\xff\xc4\x00\x14\x10\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00\x3f\x00\xaa\xff\xd9' + b'\r\n\r\n')
                 time.sleep(0.067)
     except GeneratorExit:
         print(f"📺 Video stream closed for camera {camera_instance.session_id}")
@@ -4418,8 +4328,7 @@ def ai_start(request):
         if not last_question:
             # Try to get from database
             last_question_obj = InterviewQuestion.objects.filter(
-                session=django_session,
-                role='AI'
+                session=django_session
             ).order_by('-order').first()
             if last_question_obj:
                 last_question = last_question_obj.question_text
@@ -4430,14 +4339,21 @@ def ai_start(request):
         # This ensures sequential numbering: 1, 2, 3, 4...
         existing_main_questions = InterviewQuestion.objects.filter(
             session=django_session,
-            role='AI',
-            question_level='MAIN'  # Only count MAIN questions for sequential numbering
+            question_level='MAIN',  # Only count MAIN questions for sequential numbering
+            role='AI'  # Only count AI-generated questions
         ).exclude(
             question_type='CODING'  # Exclude coding questions from technical question count
         ).count()
-        # current_question_number should be 1-indexed, so if we have 2 MAIN questions, next is question 3
-        ai_session.current_question_number = existing_main_questions + 1
-        print(f"📊 Question numbering: Found {existing_main_questions} MAIN questions, setting current_question_number={ai_session.current_question_number}")
+        
+        # IMPORTANT: Use the session's own current_question_number if it exists, otherwise calculate from database
+        if ai_session.current_question_number > 0:
+            # Session already has a question number, use it
+            print(f"📊 Using session's current_question_number={ai_session.current_question_number}")
+        else:
+            # Session question number is 0, set it to the count of existing questions
+            # If we have 2 questions, the next question should be question 3
+            ai_session.current_question_number = existing_main_questions
+            print(f"📊 Question numbering: Found {existing_main_questions} MAIN questions, setting current_question_number={ai_session.current_question_number}")
         
         result = {
             "session_id": existing_session_id,
@@ -4530,15 +4446,15 @@ def ai_start(request):
                         max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
                         conversation_sequence = max_seq + 1  # Start with 1 for first AI question
                         
-                        InterviewQuestion.objects.create(
+                        question_obj = InterviewQuestion.objects.create(
                             session=django_session,
-                            question_text=question_text_formatted,  # AI question text (without Q: prefix)
+                            question_text=question_text_formatted,
                             question_type='TECHNICAL',
                             order=new_order,
                             question_level='MAIN',
                             audio_url=result.get('audio_url', ''),
-                            role='AI',  # This is an AI-generated question
-                            conversation_sequence=conversation_sequence  # Sequential index: 1, 3, 5, 7...
+                            conversation_sequence=conversation_sequence,  # Sequential index: 1, 3, 5, 7...
+                            role='AI'  # This is an AI-generated question
                         )
                         print(f"✅ Created first AI question in database with order {new_order}, conversation_sequence {conversation_sequence}, role=AI")
                     else:
@@ -4554,6 +4470,15 @@ def ai_start(request):
         print(f"✅ Session ID: {result.get('session_id', 'N/A')}")
         print(f"✅ Question: {result.get('question', 'N/A')[:100]}...")
         print(f"✅ Audio URL: {result.get('audio_url', 'N/A')}")
+        # --- NEW: Update single-row TechnicalInterviewQA summary ---
+    if django_session:
+        try:
+            from .qa_service import update_technical_qa_summary
+            update_technical_qa_summary(django_session)
+            print(f"✅ Updated TechnicalInterviewQA summary for session {django_session.id} (Initial Question)")
+        except Exception as e:
+            print(f"⚠️ Error updating TechnicalInterviewQA summary: {e}")
+
     print(f"{'='*60}\n")
     
     status_code = 200 if 'error' not in result else 400
@@ -4567,7 +4492,7 @@ def ai_upload_answer(request):
     from .models import InterviewSession as DjangoSession, InterviewQuestion
     
     try:
-        # Support both multipart and JSON
+        # 1. Parse Request
         session_id = request.POST.get('session_id')
         session_key = request.POST.get('session_key')
         if not session_id and request.body:
@@ -4576,858 +4501,225 @@ def ai_upload_answer(request):
             session_key = data.get('session_key') or session_key
             transcript = data.get('transcript', '')
         else:
-            session_key = request.POST.get('session_key') or session_key
+            session_key = (request.POST.get('session_key') or session_key)
             transcript = (request.POST.get('transcript') or '').strip()
         
-        print(f"\n{'='*60}")
-        print(f"📝 AI_UPLOAD_ANSWER called")
-        print(f"   Session ID: {session_id}")
-        print(f"   Session Key: {session_key}")
-        print(f"   Transcript: {transcript[:100] if transcript else 'Empty'}...")
-        print(f"   Transcript length: {len(transcript) if transcript else 0}")
-        print(f"{'='*60}")
+        print(f"\n{'='*60}\n📝 AI_UPLOAD_ANSWER: {session_id}")
         
-        # Save answer to database if session exists
-        if session_id and session_id in sessions:
-            ai_session = sessions[session_id]
-            # Try to find the Django session using session_key stored in ai_session
-            django_session = None
-            if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
-                try:
-                    django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
-                except DjangoSession.DoesNotExist:
-                    print(f"⚠️ Django session not found for session_key: {ai_session.django_session_key}")
-            
-            # If we have a Django session, save the answer to InterviewQuestion
-            # IMPORTANT: Also save "No answer provided" for closing questions
-            if django_session:
-                try:
-                    # Find the current question for this session based on question number
-                    current_q_num = ai_session.current_question_number
-                    # Get the last question that was asked (current_question_number - 1 is the one being answered)
-                    question_to_answer = current_q_num - 1 if current_q_num > 0 else 0
-                    
-                    # Find the question by order (question numbers are 1-indexed in UI, 0-indexed in code)
-                    questions = InterviewQuestion.objects.filter(
-                        session=django_session
-                    ).order_by('order')
-                    
-                    # Check if this is a pre-closing or closing question answer
-                    is_pre_closing_question = False
-                    is_closing_question = False
-                    
-                    # Check pre-closing question flag
-                    if hasattr(ai_session, 'asked_pre_closing_question') and ai_session.asked_pre_closing_question:
-                        # Check if we just answered the pre-closing question (before asked_for_questions is set)
-                        if hasattr(ai_session, 'asked_for_questions') and not ai_session.asked_for_questions:
-                            is_pre_closing_question = True
-                            print(f"📝 Detected pre-closing question answer")
-                    
-                    # Check if this is a closing question answer
-                    if hasattr(ai_session, 'last_active_question_text') and ai_session.last_active_question_text:
-                        closing_phrases = ["do you have any question", "any questions for", "before we wrap up"]
-                        is_closing_question = any(phrase in ai_session.last_active_question_text.lower() for phrase in closing_phrases)
-                        if is_closing_question:
-                            print(f"📝 Detected closing question answer")
-                    
-                    # Determine answer text:
-                    # - If transcript exists and is valid, use it (even if it's "no")
-                    # - If transcript is empty or invalid, use "No answer provided"
-                    # IMPORTANT: Clean transcript to remove common prefixes and invalid markers
-                    cleaned_transcript = transcript.strip() if transcript else ''
-                    
-                    # Remove common invalid markers
-                    invalid_markers = ['[No speech detected]', '[No speech', 'No speech detected', 'No speech']
-                    is_invalid = False
-                    for marker in invalid_markers:
-                        if cleaned_transcript.startswith(marker) or cleaned_transcript == marker:
-                            is_invalid = True
-                            break
-                    
-                    if cleaned_transcript and not is_invalid and len(cleaned_transcript) > 0:
-                        answer_text = cleaned_transcript
-                        print(f"✅ Using valid transcript as answer: {answer_text[:50]}...")
-                    else:
-                        answer_text = 'No answer provided'
-                        print(f"⚠️ Transcript is empty or invalid, using 'No answer provided'")
-                    
-                    # IMPORTANT: Always save answers for pre-closing and closing questions
-                    is_special_question = is_pre_closing_question or is_closing_question
-                    
-                    if questions.exists():
-                        # Try to find the question by matching the last_active_question_text first (most reliable)
-                        question_obj = None
-                        if hasattr(ai_session, 'last_active_question_text') and ai_session.last_active_question_text:
-                            # Try exact text match first
-                            matching_question = questions.filter(
-                                question_text=ai_session.last_active_question_text
-                            ).first()
-                            if matching_question:
-                                question_obj = matching_question
-                                print(f"✅ Found question by exact text match: order {question_obj.order}")
-                            else:
-                                # Try partial match (in case of slight variations)
-                                for q in questions:
-                                    if ai_session.last_active_question_text.lower().strip() in q.question_text.lower() or q.question_text.lower() in ai_session.last_active_question_text.lower().strip():
-                                        question_obj = q
-                                        print(f"✅ Found question by partial text match: order {question_obj.order}")
-                                        break
-                        
-                        # If not found by text, try by order
-                        if not question_obj and question_to_answer < questions.count():
-                            question_obj = questions[question_to_answer]
-                            print(f"✅ Found question by order index: {question_to_answer}")
-                        
-                        # If still not found, try to find the last question without an answer (for pre-closing/closing)
-                        if not question_obj:
-                            unanswered_question = questions.filter(transcribed_answer__isnull=True).last()
-                            if unanswered_question:
-                                question_obj = unanswered_question
-                                print(f"✅ Found last unanswered question: order {question_obj.order}")
-                        
-                        # For pre-closing/closing questions, also try to find by checking if it's the second-to-last or last question
-                        if not question_obj and is_special_question:
-                            # Pre-closing and closing are usually the last or second-to-last questions
-                            if questions.count() >= 2:
-                                # Try second-to-last (might be pre-closing)
-                                question_obj = questions[questions.count() - 2]
-                                print(f"✅ Found question as second-to-last (pre-closing?): order {question_obj.order}")
-                            elif questions.count() >= 1:
-                                # Try last question (might be closing)
-                                question_obj = questions.last()
-                                print(f"✅ Found question as last (closing?): order {question_obj.order}")
-                        
-                        if question_obj:
-                            # CRITICAL: Always save answers for ALL questions (including technical questions)
-                            # This ensures answers appear in candidate details even if transcript is empty
-                            # Determine question type
-                            is_technical_question = question_obj.question_type and question_obj.question_type.upper() in ['TECHNICAL', 'BEHAVIORAL']
-                            
-                            # ALWAYS save answers for technical/behavioral questions
-                            # Also save for special questions (pre-closing/closing) or if there's an actual answer
-                            should_save = is_special_question or answer_text != 'No answer provided' or is_technical_question
-                            
-                            print(f"📝 Answer save decision for order {question_obj.order}:")
-                            print(f"   - Question type: {question_obj.question_type}")
-                            print(f"   - Is technical: {is_technical_question}")
-                            print(f"   - Is special: {is_special_question}")
-                            print(f"   - Answer text: '{answer_text[:50]}...'")
-                            print(f"   - Should save: {should_save}")
-                            
-                            if should_save:
-                                # IMPORTANT: Save Interviewee answer as a SEPARATE record with role='INTERVIEWEE'
-                                # Get the maximum conversation_sequence to ensure sequential indexing
-                                from django.db.models import Max
-                                max_seq_result = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).aggregate(max_seq=Max('conversation_sequence'))
-                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                
-                                # Interviewee answers get even sequence numbers (2, 4, 6, 8...)
-                                # If last sequence was odd (AI question), next is even (Interviewee answer)
-                                # If last sequence was even or null, calculate next even number
-                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                    interviewee_sequence = max_seq + 1
-                                else:  # Last was Interviewee or no sequence, find next even
-                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
-                                
-                                # Format answer text (remove A: prefix for cleaner storage)
-                                answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
-                                if answer_text_formatted.startswith('A:'):
-                                    answer_text_formatted = answer_text_formatted.replace('A:', '').strip()
-                                
-                                # Calculate response time if available
-                                import time as time_module
-                                response_time = 0
-                                if hasattr(ai_session, 'question_asked_at') and ai_session.question_asked_at:
-                                    response_time = time_module.time() - ai_session.question_asked_at
-                                
-                                # Create separate record for Interviewee answer
-                                interviewee_response = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text='',  # Empty for Interviewee responses (content is in transcribed_answer)
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question it answers
-                                    question_level='INTERVIEWEE_RESPONSE',  # Special level to identify Interviewee responses
-                                    transcribed_answer=answer_text_formatted,  # The actual answer text
-                                    response_time_seconds=response_time,
-                                    role='INTERVIEWEE',  # This is an Interviewee response
-                                    conversation_sequence=interviewee_sequence  # Sequential index: 2, 4, 6, 8...
-                                )
-                                print(f"✅ Saved Interviewee answer as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}: {answer_text[:50]}...")
-                                
-                                # Also update the original question's transcribed_answer for backward compatibility
-                                original_order = question_obj.order  # Preserve order
-                                question_obj.transcribed_answer = f'A: {answer_text_formatted}'
-                                question_obj.response_time_seconds = response_time
-                                question_obj.save(update_fields=['transcribed_answer', 'response_time_seconds'])
-                                print(f"✅ Updated original question record for backward compatibility: {answer_text[:50]}...")
-                            elif answer_text == 'No answer provided' and not is_special_question:
-                                # IMPORTANT: Still save "No answer provided" so it appears in candidate details
-                                # This ensures all questions have corresponding answers, even if empty
-                                from django.db.models import Max
-                                max_seq_result = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).aggregate(max_seq=Max('conversation_sequence'))
-                                max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                
-                                # Calculate interviewee sequence (even number)
-                                if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                    interviewee_sequence = max_seq + 1
-                                else:  # Last was Interviewee or no sequence, find next even
-                                    interviewee_sequence = ((max_seq // 2) + 1) * 2
-                                
-                                # Save "No answer provided" as a separate record
-                                interviewee_response = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text='',  # Empty for Interviewee responses
-                                    question_type=question_obj.question_type,
-                                    order=question_obj.order,  # Same order as the question
-                                    question_level='INTERVIEWEE_RESPONSE',
-                                    transcribed_answer='No answer provided',  # Explicitly save this
-                                    response_time_seconds=response_time if 'response_time' in locals() else 0,
-                                    role='INTERVIEWEE',
-                                    conversation_sequence=interviewee_sequence
-                                )
-                                print(f"✅ Saved 'No answer provided' as separate record: conversation_sequence {interviewee_sequence}, role=INTERVIEWEE, order {question_obj.order}")
-                                
-                                # Also update the original question's transcribed_answer for backward compatibility
-                                question_obj.transcribed_answer = 'A: No answer provided'
-                                question_obj.save(update_fields=['transcribed_answer'])
-                                print(f"✅ Updated original question record with 'No answer provided'")
-                        else:
-                            print(f"⚠️ Could not find question to save answer. Creating new question...")
-                            # Create a new question if it doesn't exist (including pre-closing and closing questions)
-                            # Get the maximum order to ensure unique sequential ordering
-                            from django.db.models import Max
-                            max_order_result = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).aggregate(max_order=Max('order'))
-                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
-                            new_order = max_order + 1
-                            
-                            # Determine question level
-                            question_level = 'MAIN'
-                            if is_pre_closing_question:
-                                question_level = 'MAIN'  # Pre-closing is still MAIN level
-                            elif is_closing_question:
-                                question_level = 'MAIN'  # Closing is still MAIN level
-                            
-                            # Format question text with Q: prefix
-                            question_text_formatted = (ai_session.last_active_question_text or "Question").strip()
-                            if not question_text_formatted.startswith('Q:'):
-                                question_text_formatted = f'Q: {question_text_formatted}'
-                            
-                            # Format answer text with A: prefix
-                            answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
-                            if not answer_text_formatted.startswith('A:'):
-                                answer_text_formatted = f'A: {answer_text_formatted}'
-                            
-                            question_obj = InterviewQuestion.objects.create(
-                                session=django_session,
-                                question_text=question_text_formatted,
-                                question_type='TECHNICAL',
-                                order=new_order,
-                                question_level=question_level,
-                                transcribed_answer=answer_text_formatted  # Save the answer immediately with A: prefix
-                            )
-                            print(f"✅ Created and saved answer to new question {new_order} ({'pre-closing' if is_pre_closing_question else 'closing' if is_closing_question else 'regular'}): {answer_text[:50]}...")
-                    else:
-                        # No questions exist yet - create the question with answer
-                        # Use order 0 for the first question
-                        # Format question text with Q: prefix
-                        question_text_formatted = (ai_session.last_active_question_text or "Question").strip()
-                        if not question_text_formatted.startswith('Q:'):
-                            question_text_formatted = f'Q: {question_text_formatted}'
-                        
-                        # Format answer text with A: prefix
-                        answer_text_formatted = answer_text.strip() if answer_text else 'No answer provided'
-                        if not answer_text_formatted.startswith('A:'):
-                            answer_text_formatted = f'A: {answer_text_formatted}'
-                        
-                        question_obj = InterviewQuestion.objects.create(
-                            session=django_session,
-                            question_text=question_text_formatted,
-                            question_type='TECHNICAL',
-                            order=0,  # First question gets order 0
-                            question_level='MAIN',
-                            transcribed_answer=answer_text_formatted
-                        )
-                        print(f"✅ Created first question with answer (order 0): {answer_text[:50]}...")
-                except Exception as e:
-                    print(f"⚠️ Error saving answer to database: {e}")
-                    import traceback
-                    traceback.print_exc()
-        
-        # Validate session_id before calling upload_answer
-        if not session_id:
-            print(f"❌ ERROR: session_id is missing from request")
-            return JsonResponse({"error": "session_id is required"}, status=400)
-        
-        # CRITICAL: If session_id not in memory sessions, try to restore from Django session
+        # 2. Link/Restore Session
         if session_id not in sessions:
-            print(f"⚠️ WARNING: session_id '{session_id}' not found in memory sessions dict")
-            print(f"   Available sessions: {list(sessions.keys())[:5]}...")  # Show first 5 for debugging
-            
-            # Try to restore session from Django database
+            django_session = DjangoSession.objects.filter(session_key=session_key).first()
+            if django_session:
+                from .complete_ai_bot import start_interview
+                res = start_interview(django_session.candidate_name, django_session.job_description or "")
+                if 'session_id' in res:
+                    session_id = res['session_id']
+                    sessions[session_id].django_session_key = django_session.session_key
+                else: return JsonResponse({"error": "Restore failed"}, status=400)
+            else: return JsonResponse({"error": "Session not found"}, status=400)
+
+        ai_session = sessions[session_id]
+        django_session = None
+        if hasattr(ai_session, 'django_session_key'):
+            django_session = DjangoSession.objects.filter(session_key=ai_session.django_session_key).first()
+
+        # 3. Pre-bot: Intent & Answer Saving
+        is_cand_q = False
+        if django_session and transcript:
             try:
-                # Find Django session by session_key (might be stored in InterviewSession)
-                django_session = None
-                # Try to get session_key from request body first
-                if request.body:
-                    try:
-                        data = json.loads(request.body.decode('utf-8'))
-                        session_key = data.get('session_key')
-                        if session_key:
-                            django_session = DjangoSession.objects.filter(session_key=session_key).first()
-                            if django_session:
-                                print(f"✅ Found Django session from request body: {session_key}")
-                    except Exception as e:
-                        print(f"⚠️ Error parsing request body for session_key: {e}")
+                from .complete_ai_bot import analyze_candidate_intent
+                intent = analyze_candidate_intent(transcript)
+                is_cand_q = (intent != 'answer')
+                print(f"🤖 Intent: {intent}")
                 
-                # If not found in body, try GET parameter
-                if not django_session:
-                    session_key = request.GET.get('session_key')
-                    if session_key:
-                        django_session = DjangoSession.objects.filter(session_key=session_key).first()
-                        if django_session:
-                            print(f"✅ Found Django session from GET param: {session_key}")
-                
-                # If we found Django session, try to recreate AI session from database
-                if django_session:
-                    print(f"✅ Found Django session, attempting to restore AI session from database...")
-                    
-                    # FIRST: Check if there's already a session in memory with this django_session_key
-                    existing_session_id = None
-                    for sid, sess in sessions.items():
-                        if hasattr(sess, 'django_session_key') and sess.django_session_key == django_session.session_key:
-                            existing_session_id = sid
-                            print(f"✅ Found existing session in memory: {sid}")
-                            break
-                    
-                    if existing_session_id:
-                        # Reuse existing session
-                        session_id = existing_session_id
-                        restored_session = sessions[session_id]
-                        # Update current_question_number based on existing MAIN questions
-                        # CRITICAL: Only count MAIN questions (exclude follow-ups, closing, candidate questions)
-                        existing_main_questions = InterviewQuestion.objects.filter(
-                            session=django_session,
-                            role='AI',
-                            question_level='MAIN'  # Only count MAIN questions for sequential numbering
-                        ).exclude(
-                            question_type='CODING'  # Exclude coding questions from technical question count
-                        ).count()
-                        # current_question_number should be 1-indexed, so if we have 2 MAIN questions, next is question 3
-                        restored_session.current_question_number = existing_main_questions + 1
-                        print(f"📊 Question numbering (restore): Found {existing_main_questions} MAIN questions, setting current_question_number={restored_session.current_question_number}")
-                        print(f"✅ Reusing existing session: {session_id}, current_question_number={restored_session.current_question_number}")
-                    else:
-                        # Create new session and restore state
-                        jd_text = django_session.job_description or ""
-                        candidate_name = django_session.candidate_name or "Candidate"
-                        
-                        if jd_text:
-                            # Recreate session using start_interview logic
-                            from .complete_ai_bot import start_interview
-                            # Get max_questions from existing questions count or default to 4
-                            existing_questions = InterviewQuestion.objects.filter(
-                                session=django_session,
-                                role='AI'  # Only count AI questions
-                            ).count()
-                            max_questions = max(existing_questions + 1, 4)  # At least one more than existing
-                            
-                            print(f"🔄 Creating new session with max_questions={max_questions}")
-                            restore_result = start_interview(candidate_name, jd_text, max_questions=max_questions)
-                            
-                            if 'session_id' in restore_result and 'error' not in restore_result:
-                                # Link restored session to Django session
-                                restored_session_id = restore_result['session_id']
-                                if restored_session_id in sessions:
-                                    restored_session = sessions[restored_session_id]
-                                    restored_session.django_session_key = django_session.session_key
-                                    # Update current_question_number based on existing MAIN questions
-                                    # CRITICAL: Only count MAIN questions (exclude follow-ups, closing, candidate questions)
-                                    existing_main_questions = InterviewQuestion.objects.filter(
-                                        session=django_session,
-                                        role='AI',
-                                        question_level='MAIN'  # Only count MAIN questions for sequential numbering
-                                    ).exclude(
-                                        question_type='CODING'  # Exclude coding questions from technical question count
-                                    ).count()
-                                    # current_question_number should be 1-indexed, so if we have 2 MAIN questions, next is question 3
-                                    restored_session.current_question_number = existing_main_questions + 1
-                                    print(f"📊 Question numbering (new session restore): Found {existing_main_questions} MAIN questions, setting current_question_number={restored_session.current_question_number}")
-                                    print(f"✅ Session restored: {restored_session_id}, current_question_number={restored_session.current_question_number}")
-                                    # Use restored session_id
-                                    session_id = restored_session_id
-                                else:
-                                    print(f"❌ Failed to restore session - restored session_id not in sessions dict")
-                            else:
-                                print(f"❌ Failed to restore session: {restore_result.get('error', 'Unknown error')}")
-                        else:
-                            print(f"❌ Cannot restore session - no job description found")
-                else:
-                    print(f"❌ Could not find Django session to restore from")
-            except Exception as e:
-                print(f"⚠️ Error attempting to restore session: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # If still not found after restore attempt, return error
-            if session_id not in sessions:
-                print(f"❌ ERROR: session_id '{session_id}' still not found after restore attempt")
-                return JsonResponse({"error": "Invalid session ID. Please refresh the page and start a new interview."}, status=400)
-        
+                if not is_cand_q:
+                    last_q = InterviewQuestion.objects.filter(session=django_session, role='AI').order_by('-order').first()
+                    if last_q and not last_q.transcribed_answer:
+                        from django.db.models import Max
+                        atxt = transcript.strip() or "No answer provided"
+                        if not atxt or "[No speech" in atxt: atxt = "No answer provided"
+                        max_seq = InterviewQuestion.objects.filter(session=django_session).aggregate(max_seq=Max('conversation_sequence'))['max_seq'] or 0
+                        InterviewQuestion.objects.create(
+                            session=django_session, question_text='', question_type=last_q.question_type,
+                            order=last_q.order, question_level='INTERVIEWEE_RESPONSE', transcribed_answer=atxt,
+                            role='INTERVIEWEE', conversation_sequence=max_seq + 1
+                        )
+                        last_q.transcribed_answer = f"A: {atxt}"; last_q.save(update_fields=['transcribed_answer'])
+            except Exception as e: print(f"⚠️ Pre-bot error: {e}")
+
+        # 4. Call AI Bot
         result = upload_answer(session_id, transcript)
-        
-        # Check if upload_answer returned an error
-        if 'error' in result:
-            print(f"❌ ERROR from upload_answer: {result.get('error')}")
+        if 'error' in result: 
+            print(f"❌ Bot error: {result.get('error')}")
             return JsonResponse(result, status=400)
-        
-        # Handle candidate questions and AI answers - save them to database
-        if session_id and session_id in sessions:
-            ai_session = sessions[session_id]
-            if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
-                try:
-                    django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
-                    
-                    # Check if this is a candidate question scenario (candidate asked a question, AI answered)
-                    interviewer_answer = result.get('interviewer_answer', '')
-                    if interviewer_answer:
-                        # This is a candidate question - save both the question and AI's answer
-                        from .complete_ai_bot import is_candidate_question
-                        if is_candidate_question(transcript):
-                            # IMPORTANT: When candidate asks a question:
-                            # 1. Save candidate's question with role='INTERVIEWEE' in transcribed_answer
-                            # 2. Save AI's response with role='AI' in question_text
-                            
-                            print(f"📝 Detected candidate question: {transcript[:100]}...")
-                            
-                            # Get the AI's response to the candidate's question from the result
-                            interviewer_answer = result.get('next_question', '') or result.get('message', '')
-                            if not interviewer_answer and hasattr(ai_session, 'conversation_history'):
-                                # Try to get the last interviewer message
-                                for msg in reversed(ai_session.conversation_history):
-                                    if msg.get('role') == 'interviewer':
-                                        interviewer_answer = msg.get('text', '')
-                                        break
-                            
-                            # Get maximum order and sequence
-                            from django.db.models import Max
-                            max_order_result = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).aggregate(max_order=Max('order'))
-                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
-                            new_order = max_order + 1
-                            
-                            max_seq_result = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).aggregate(max_seq=Max('conversation_sequence'))
-                            max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                            
-                            # Step 1: Save candidate's question with role='INTERVIEWEE'
-                            # Candidate questions get even sequence numbers (2, 4, 6, 8...)
-                            if max_seq % 2 == 1:  # Last was AI (odd), next is Interviewee (even)
-                                candidate_sequence = max_seq + 1
-                            else:  # Last was Interviewee or no sequence, find next even
-                                candidate_sequence = ((max_seq // 2) + 1) * 2
-                            
-                            # Format candidate's question (remove any Q: prefix, it's going in transcribed_answer)
-                            candidate_q_formatted = transcript.strip()
-                            if candidate_q_formatted.startswith('Q:'):
-                                candidate_q_formatted = candidate_q_formatted.replace('Q:', '').strip()
-                            
-                            # Create record for candidate's question
-                            candidate_question_record = InterviewQuestion.objects.create(
-                                session=django_session,
-                                question_text='',  # Empty - candidate question goes in transcribed_answer
-                                question_type='TECHNICAL',
-                                order=new_order,
-                                question_level='CANDIDATE_QUESTION',  # Special level to identify candidate questions
-                                transcribed_answer=candidate_q_formatted,  # Candidate's question text
-                                role='INTERVIEWEE',  # This is from the candidate
-                                conversation_sequence=candidate_sequence  # Even sequence: 2, 4, 6, 8...
-                            )
-                            print(f"✅ Saved candidate question: conversation_sequence {candidate_sequence}, role=INTERVIEWEE, order {new_order}: {candidate_q_formatted[:50]}...")
-                            
-                            # Step 2: Save AI's response with role='AI'
-                            if interviewer_answer:
-                                # AI response gets odd sequence number (1, 3, 5, 7...)
-                                ai_sequence = candidate_sequence + 1
-                                
-                                # Format AI's response (remove any A: prefix, it's going in question_text)
-                                ai_response_formatted = interviewer_answer.strip()
-                                if ai_response_formatted.startswith('A:'):
-                                    ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
-                                
-                                # Create record for AI's response
-                                ai_response_record = InterviewQuestion.objects.create(
-                                    session=django_session,
-                                    question_text=ai_response_formatted,  # AI's response text
-                                    question_type='TECHNICAL',
-                                    order=new_order + 1,  # Next order after candidate question
-                                    question_level='AI_RESPONSE',  # Special level to identify AI responses to candidate
-                                    transcribed_answer='',  # Empty - AI response goes in question_text
-                                    role='AI',  # This is from the AI
-                                    conversation_sequence=ai_sequence,  # Odd sequence: 1, 3, 5, 7...
-                                    audio_url=result.get('audio_url', '')  # Audio for AI's response
-                                )
-                                print(f"✅ Saved AI response to candidate question: conversation_sequence {ai_sequence}, role=AI, order {new_order + 1}: {ai_response_formatted[:50]}...")
-                            else:
-                                print(f"⚠️ No AI response found for candidate question")
-                            
-                            # Skip the normal answer saving logic for candidate questions
-                            # The candidate question and AI response have been saved above
-                            # Continue with normal flow to return the result
-                    
-                    # Also check for candidate questions in closing phase (when AI answers candidate's question)
-                    # Check if the result contains a combined response (answer + "Do you have any other questions?")
-                    next_question_text = result.get('next_question', '')
-                    if next_question_text and 'do you have any other question' in next_question_text.lower() and not interviewer_answer:
-                        # This might be after answering a candidate question - check if transcript is a question
-                        from .complete_ai_bot import is_candidate_question
-                        if is_candidate_question(transcript):
-                            # Check if we already saved this candidate question
-                            existing_candidate_q = InterviewQuestion.objects.filter(
-                                session=django_session,
-                                question_text=transcript,
-                                question_level='CANDIDATE_QUESTION'
-                            ).first()
-                            
-                            if not existing_candidate_q:
-                                # Check if the last question is a closing question - if so, insert candidate question before it
-                                closing_phrases = ["do you have any question", "any questions for", "before we wrap up"]
-                                last_question = InterviewQuestion.objects.filter(
-                                    session=django_session
-                                ).order_by('-order').first()
-                                
-                                # Extract AI's answer from the combined text (before "Do you have any other questions?")
-                                answer_parts = next_question_text.split('Do you have any other questions')
-                                ai_answer = answer_parts[0].strip() if answer_parts else next_question_text
-                                
-                                if last_question and any(phrase in last_question.question_text.lower() for phrase in closing_phrases):
-                                    # Last question is a closing question - insert candidate question before it
-                                    candidate_order = last_question.order
-                                    # Shift closing question and any questions after it by +1
-                                    from django.db.models import F
-                                    InterviewQuestion.objects.filter(
-                                        session=django_session,
-                                        order__gte=candidate_order
-                                    ).update(order=F('order') + 1)
-                                    
-                                    # Format candidate's question (remove Q: prefix, it goes in transcribed_answer)
-                                    candidate_q_formatted = transcript.strip()
-                                    if candidate_q_formatted.startswith('Q:'):
-                                        candidate_q_formatted = candidate_q_formatted.replace('Q:', '').strip()
-                                    
-                                    # Format AI's response (remove A: prefix, it goes in question_text of AI record)
-                                    ai_response_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
-                                    if ai_response_formatted.startswith('A:'):
-                                        ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
-                                    
-                                    # Get max order and sequence
-                                    from django.db.models import Max
-                                    max_seq_result = InterviewQuestion.objects.filter(
-                                        session=django_session
-                                    ).aggregate(max_seq=Max('conversation_sequence'))
-                                    max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                    
-                                    # Step 1: Save candidate question with role='INTERVIEWEE' in transcribed_answer
-                                    if max_seq % 2 == 1:
-                                        candidate_sequence = max_seq + 1
-                                    else:
-                                        candidate_sequence = ((max_seq // 2) + 1) * 2
-                                    
-                                    candidate_question_obj = InterviewQuestion.objects.create(
-                                        session=django_session,
-                                        question_text='',  # Empty - candidate question goes in transcribed_answer
-                                        question_type='TECHNICAL',
-                                        order=candidate_order,  # Insert before closing question
-                                        question_level='CANDIDATE_QUESTION',
-                                        transcribed_answer=candidate_q_formatted,  # Candidate's question text
-                                        role='INTERVIEWEE',
-                                        conversation_sequence=candidate_sequence
-                                    )
-                                    print(f"✅ Saved candidate question (closing phase): conversation_sequence {candidate_sequence}, role=INTERVIEWEE, order {candidate_order}: {candidate_q_formatted[:50]}...")
-                                    
-                                    # Step 2: Save AI response with role='AI' in question_text
-                                    if ai_response_formatted and ai_response_formatted != 'No answer provided':
-                                        ai_sequence = candidate_sequence + 1
-                                        ai_response_obj = InterviewQuestion.objects.create(
-                                            session=django_session,
-                                            question_text=ai_response_formatted,  # AI's response text
-                                            question_type='TECHNICAL',
-                                            order=candidate_order + 1,
-                                            question_level='AI_RESPONSE',
-                                            transcribed_answer='',  # Empty - AI response goes in question_text
-                                            role='AI',
-                                            conversation_sequence=ai_sequence
-                                        )
-                                        print(f"✅ Saved AI response (closing phase): conversation_sequence {ai_sequence}, role=AI, order {candidate_order + 1}: {ai_response_formatted[:50]}...")
-                                else:
-                                    # No closing question found, use normal max_order + 1
-                                    existing_questions = InterviewQuestion.objects.filter(
-                                        session=django_session
-                                    ).order_by('-order')
-                                    max_order = existing_questions.first().order if existing_questions.exists() else -1
-                                    
-                                    # Format candidate's question (remove Q: prefix, it goes in transcribed_answer)
-                                    candidate_q_formatted = transcript.strip()
-                                    if candidate_q_formatted.startswith('Q:'):
-                                        candidate_q_formatted = candidate_q_formatted.replace('Q:', '').strip()
-                                    
-                                    # Format AI's response (remove A: prefix, it goes in question_text of AI record)
-                                    ai_response_formatted = ai_answer.strip() if ai_answer else 'No answer provided'
-                                    if ai_response_formatted.startswith('A:'):
-                                        ai_response_formatted = ai_response_formatted.replace('A:', '').strip()
-                                    
-                                    # Get max order and sequence
-                                    from django.db.models import Max
-                                    max_seq_result = InterviewQuestion.objects.filter(
-                                        session=django_session
-                                    ).aggregate(max_seq=Max('conversation_sequence'))
-                                    max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                                    
-                                    # Step 1: Save candidate question with role='INTERVIEWEE' in transcribed_answer
-                                    if max_seq % 2 == 1:
-                                        candidate_sequence = max_seq + 1
-                                    else:
-                                        candidate_sequence = ((max_seq // 2) + 1) * 2
-                                    
-                                    candidate_question_obj = InterviewQuestion.objects.create(
-                                        session=django_session,
-                                        question_text='',  # Empty - candidate question goes in transcribed_answer
-                                        question_type='TECHNICAL',
-                                        order=max_order + 1,
-                                        question_level='CANDIDATE_QUESTION',
-                                        transcribed_answer=candidate_q_formatted,  # Candidate's question text
-                                        role='INTERVIEWEE',
-                                        conversation_sequence=candidate_sequence
-                                    )
-                                    print(f"✅ Saved candidate question (closing phase): conversation_sequence {candidate_sequence}, role=INTERVIEWEE, order {max_order + 1}: {candidate_q_formatted[:50]}...")
-                                    
-                                    # Step 2: Save AI response with role='AI' in question_text
-                                    if ai_response_formatted and ai_response_formatted != 'No answer provided':
-                                        ai_sequence = candidate_sequence + 1
-                                        ai_response_obj = InterviewQuestion.objects.create(
-                                            session=django_session,
-                                            question_text=ai_response_formatted,  # AI's response text
-                                            question_type='TECHNICAL',
-                                            order=max_order + 2,
-                                            question_level='AI_RESPONSE',
-                                            transcribed_answer='',  # Empty - AI response goes in question_text
-                                            role='AI',
-                                            conversation_sequence=ai_sequence
-                                        )
-                                        print(f"✅ Saved AI response (closing phase): conversation_sequence {ai_sequence}, role=AI, order {max_order + 2}: {ai_response_formatted[:50]}...")
-                    
-                    # Also check for closing question in final_message if interview is completed
-                    if not next_question_text and result.get('completed') and result.get('final_message'):
-                        # This is the final closing message, not a question
-                        pass
-                    elif next_question_text and next_question_text.strip():
-                        # Check if this question already exists
-                        existing_questions = InterviewQuestion.objects.filter(
-                            session=django_session
-                        ).order_by('order')
-                        
-                        # Get the current question number from AI session
-                        current_q_num = ai_session.current_question_number
-                        
-                        # Check if question at this order already exists
-                        question_exists = existing_questions.filter(order=current_q_num - 1).exists()
-                        
-                        if not question_exists:
-                            # Determine question type - check if it's a pre-closing or closing question
-                            is_closing_question = any(phrase in next_question_text.lower() for phrase in [
-                                "do you have any question", "any questions for", "before we wrap up"
-                            ])
-                            
-                            # Check if this is a pre-closing question
-                            is_pre_closing = False
-                            if hasattr(ai_session, 'asked_pre_closing_question') and ai_session.asked_pre_closing_question:
-                                if hasattr(ai_session, 'asked_for_questions') and not ai_session.asked_for_questions:
-                                    is_pre_closing = True
-                            
-                            # Get the maximum order to ensure unique sequential ordering
-                            from django.db.models import Max
-                            max_order_result = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).aggregate(max_order=Max('order'))
-                            max_order = max_order_result['max_order'] if max_order_result['max_order'] is not None else -1
-                            new_order = max_order + 1
-                            
-                            # IMPORTANT: If this is a closing question, check if there's a candidate question that should come before it
-                            # Candidate questions should always come before closing questions
-                            if is_closing_question:
-                                # Check if there's a candidate question without a following closing question
-                                candidate_questions = InterviewQuestion.objects.filter(
-                                    session=django_session,
-                                    question_level='CANDIDATE_QUESTION'
-                                ).order_by('-order')
-                                
-                                if candidate_questions.exists():
-                                    last_candidate = candidate_questions.first()
-                                    # Check if there's already a closing question after this candidate question
-                                    closing_after_candidate = InterviewQuestion.objects.filter(
-                                        session=django_session,
-                                        order__gt=last_candidate.order
-                                    ).filter(
-                                        question_text__icontains='do you have any question'
-                                    ).exists()
-                                    
-                                    if not closing_after_candidate:
-                                        # No closing question after candidate - use candidate's order + 1
-                                        new_order = last_candidate.order + 1
-                                        print(f"✅ Adjusting closing question order to {new_order} (after candidate question at order {last_candidate.order})")
-                            
-                            # Format question text (remove Q: prefix for cleaner storage)
-                            question_text_formatted = next_question_text.strip()
-                            if question_text_formatted.startswith('Q:'):
-                                question_text_formatted = question_text_formatted.replace('Q:', '').strip()
-                            
-                            # Get the maximum conversation_sequence to ensure sequential indexing
-                            max_seq_result = InterviewQuestion.objects.filter(
-                                session=django_session
-                            ).aggregate(max_seq=Max('conversation_sequence'))
-                            max_seq = max_seq_result['max_seq'] if max_seq_result['max_seq'] is not None else 0
-                            
-                            # AI questions get odd sequence numbers (1, 3, 5, 7...)
-                            # If last sequence was even (Interviewee answer), next is AI (odd)
-                            # If last sequence was odd or null, calculate next odd number
-                            if max_seq % 2 == 0 and max_seq > 0:  # Last was Interviewee (even), next is AI (odd)
-                                ai_sequence = max_seq + 1
-                            else:  # Last was AI or no sequence, find next odd
-                                ai_sequence = ((max_seq // 2) + 1) * 2 + 1
-                            
-                            # Create new AI question with proper sequential order
-                            question_obj = InterviewQuestion.objects.create(
-                                session=django_session,
-                                question_text=question_text_formatted,  # AI question text (without Q: prefix)
-                                question_type='TECHNICAL',
-                                order=new_order,  # Use calculated order (may be adjusted for closing questions)
-                                question_level='MAIN',
-                                audio_url=result.get('audio_url', ''),
-                                role='AI',  # This is an AI-generated question
-                                conversation_sequence=ai_sequence  # Sequential index: 1, 3, 5, 7...
-                            )
-                            question_type_label = 'pre-closing' if is_pre_closing else 'closing' if is_closing_question else 'regular'
-                            print(f"✅ Created new AI {question_type_label} question: conversation_sequence {ai_sequence}, role=AI, order {new_order}: {next_question_text[:50]}...")
-                            
-                            # CRITICAL: Recalculate question_number from database AFTER saving the question
-                            # This ensures accurate sequential numbering: 1, 2, 3, 4...
-                            existing_main_questions = InterviewQuestion.objects.filter(
-                                session=django_session,
-                                role='AI',
-                                question_level='MAIN'  # Only count MAIN questions
-                            ).exclude(
-                                question_type='CODING'  # Exclude coding questions
-                            ).count()
-                            
-                            # Update both the AI session and the result with the correct question_number
-                            ai_session.current_question_number = existing_main_questions
-                            result['question_number'] = existing_main_questions
-                            print(f"📊 Question numbering (after save): Found {existing_main_questions} MAIN questions in database, updated question_number={existing_main_questions}")
-                            
-                            # If interview is completed and we just created the closing question,
-                            # OR if this is a pre-closing/closing question, try to save the answer if transcript is available
-                            if result.get('completed') or is_closing_question or is_pre_closing:
-                                try:
-                                    # For pre-closing/closing questions, save actual transcript if available (even if it's "no")
-                                    # Only use "No answer provided" if transcript is truly empty
-                                    if transcript and transcript.strip() and not transcript.startswith("[") and not transcript.startswith("[No speech"):
-                                        answer_text = transcript.strip()
-                                        # Format answer with A: prefix
-                                        if not answer_text.startswith('A:'):
-                                            answer_text = f'A: {answer_text}'
-                                        question_obj.transcribed_answer = answer_text
-                                        question_obj.save()
-                                        print(f"✅ Saved answer to {question_type_label} question: {answer_text[:50]}...")
-                                    else:
-                                        # Don't save "No answer provided" yet - wait for the actual answer
-                                        print(f"⚠️ No transcript available yet for {question_type_label} question, will save when answer comes")
-                                except Exception as e:
-                                    print(f"⚠️ Error saving {question_type_label} question answer: {e}")
-                except Exception as e:
-                    print(f"⚠️ Error creating question in database: {e}")
-        
-        # CRITICAL: Before returning, recalculate question_number from database to ensure accuracy
-        # This handles cases where question was saved but question_number wasn't updated
-        if 'error' not in result and not result.get('completed') and session_id and session_id in sessions:
-            ai_session = sessions[session_id]
-            if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
-                try:
-                    django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
-                    # Count MAIN questions (excluding CODING) to get accurate question number
-                    existing_main_questions = InterviewQuestion.objects.filter(
-                        session=django_session,
-                        role='AI',
-                        question_level='MAIN'
-                    ).exclude(
-                        question_type='CODING'
-                    ).count()
-                    
-                    # Update question_number in result and session
-                    result['question_number'] = existing_main_questions
-                    ai_session.current_question_number = existing_main_questions
-                    print(f"📊 Final question_number check: {existing_main_questions} MAIN questions, question_number={existing_main_questions}")
-                except Exception as e:
-                    print(f"⚠️ Error recalculating question_number: {e}")
-        
-        if 'error' in result:
-            print(f"❌ Error: {result['error']}")
-        else:
-            print(f"✅ Success - Completed: {result.get('completed', False)}")
+
+        # 5. Post-bot: Save Records and Q&A Pairs
+        if django_session:
+            from django.db.models import Max
+            max_seq = InterviewQuestion.objects.filter(session=django_session).aggregate(max_seq=Max('conversation_sequence'))['max_seq'] or 0
+            max_ord = InterviewQuestion.objects.filter(session=django_session).aggregate(max_ord=Max('order'))['max_ord'] or -1
             
-            # Handle interview completion timing for non-coding interviews
-            if result.get('completed', False) and session_id and session_id in sessions:
-                ai_session = sessions[session_id]
-                if hasattr(ai_session, 'django_session_key') and ai_session.django_session_key:
+            # Track the last AI question for Q&A pair creation
+            last_ai_question = None
+            if not is_cand_q:
+                # Get the most recent AI question that hasn't been paired with an answer yet
+                # This ensures we're matching the correct question with the candidate's answer
+                
+                # First, get all AI questions in order
+                all_ai_questions = InterviewQuestion.objects.filter(
+                    session=django_session, 
+                    role='AI',
+                    question_level__in=['MAIN', 'FOLLOW_UP', 'CLARIFICATION', 'INTRODUCTORY']
+                ).order_by('conversation_sequence', 'created_at')
+                
+                # Get all questions that already have Q&A pairs
+                answered_questions = QAConversationPair.objects.filter(
+                    session=django_session
+                ).values_list('question_text', flat=True)
+                
+                # Find the first AI question that hasn't been answered yet
+                for question in all_ai_questions:
+                    if question.question_text not in answered_questions:
+                        last_ai_question = question
+                        break
+                
+                print(f"🎯 Found last AI question for Q&A pairing: {last_ai_question.question_text[:100] if last_ai_question else 'None'}...")
+                print(f"   Question Level: {last_ai_question.question_level if last_ai_question else 'None'}")
+                print(f"   Conversation Sequence: {last_ai_question.conversation_sequence if last_ai_question else 'None'}")
+                print(f"   Total AI Questions: {all_ai_questions.count()}")
+                print(f"   Already Answered: {len(answered_questions)}")
+            
+            if is_cand_q:
+                # Save Candidate Question as Q&A pair
+                # For candidate questions: AI response goes in question_text, candidate question goes in answer_text
+                ai_response = result.get('interviewer_answer') or result.get('next_question') or "I understand."
+                
+                print(f"🗣️ Candidate asked question: {transcript.strip()[:100]}...")
+                print(f"🤖 AI responded: {ai_response[:100]}...")
+                
+                qa_pair = save_qa_pair(
+                    session_key=django_session.session_key,
+                    question_text=ai_response,  # AI's response
+                    answer_text=transcript.strip(),  # Candidate's question
+                    question_type='CANDIDATE_QUESTION'
+                )
+                
+                print(f"✅ Candidate Q&A pair saved with ID: {qa_pair.id if qa_pair else 'None'}")
+                
+                # Trigger LLM analysis asynchronously
+                if qa_pair:
                     try:
-                        django_session = DjangoSession.objects.get(session_key=ai_session.django_session_key)
-                        
-                        # Check if this is a non-coding interview completion
-                        has_code_submissions = django_session.code_submissions.exists()
-                        
-                        if not has_code_submissions:
-                            # This is a non-coding interview completion
-                            from django.utils import timezone
-                            django_session.coding_round_completed_at = timezone.now()
-                            print(f"⏱️ Non-coding interview completed at: {django_session.coding_round_completed_at}")
-                            
-                            # Calculate total completion time in minutes
-                            if django_session.technical_interview_started_at:
-                                time_difference = django_session.coding_round_completed_at - django_session.technical_interview_started_at
-                                django_session.total_completion_time_minutes = time_difference.total_seconds() / 60.0
-                                print(f"⏱️ Total completion time: {django_session.total_completion_time_minutes:.2f} minutes")
-                            else:
-                                print(f"⚠️ Technical interview start time not set, cannot calculate total duration")
-                            
-                            # Update session status to COMPLETED for non-coding interviews
-                            django_session.status = 'COMPLETED'
-                            django_session.save(update_fields=['coding_round_completed_at', 'total_completion_time_minutes', 'status'])
-                            print(f"✅ Non-coding interview marked as COMPLETED")
-                        
+                        analyze_qa_with_gemini(qa_pair)
                     except Exception as e:
-                        print(f"⚠️ Error handling non-coding interview completion timing: {e}")
+                        print(f"⚠️ Error analyzing candidate question Q&A: {e}")
+                
+                # Save Candidate Question in InterviewQuestion table
+                max_seq += 1
+                InterviewQuestion.objects.create(
+                    session=django_session, question_text='', question_type='TECHNICAL',
+                    order=max_ord + 1, question_level='CANDIDATE_QUESTION', transcribed_answer=transcript.strip(),
+                    role='INTERVIEWEE', conversation_sequence=max_seq
+                )
+                # Save AI Response
+                max_seq += 1
+                ai_resp = result.get('interviewer_answer') or result.get('next_question') or "I understand."
+                InterviewQuestion.objects.create(
+                    session=django_session, question_text=ai_resp, question_type='TECHNICAL',
+                    order=max_ord + 2, question_level='AI_RESPONSE', role='AI',
+                    conversation_sequence=max_seq, audio_url=result.get('audio_url', '')
+                )
+            elif result.get('next_question'):
+                qtext = result['next_question'].strip()
+                if qtext.startswith('Q:'): qtext = qtext[2:].strip()
+                if not InterviewQuestion.objects.filter(session=django_session, question_text=qtext).exists():
+                    max_seq += 1
+                    InterviewQuestion.objects.create(
+                        session=django_session, question_text=qtext, question_type='TECHNICAL',
+                        order=max_ord + 1, question_level='MAIN', role='AI',
+                        conversation_sequence=max_seq, audio_url=result.get('audio_url', '')
+                    )
             
-            if not result.get('completed'):
-                print(f"✅ Next question: {result.get('next_question', 'N/A')[:100]}...")
-                print(f"✅ Question number: {result.get('question_number', 'N/A')} of {result.get('max_questions', 'N/A')}")
-                print(f"✅ Audio URL: {result.get('audio_url', 'NOT PROVIDED')}")
-                if not result.get('audio_url'):
-                    print(f"⚠️ WARNING: No audio URL returned for next question!")
-        print(f"{'='*60}\n")
-        
-        status_code = 200 if 'error' not in result else 400
-        return JsonResponse(result, status=status_code)
+            # Save Q&A pair for candidate answers
+            if not is_cand_q and transcript and last_ai_question:
+                # Check if we've already saved a Q&A pair for this specific question in this session
+                existing_qa = QAConversationPair.objects.filter(
+                    session=django_session,
+                    question_text=last_ai_question.question_text
+                ).first()
+                
+                if existing_qa:
+                    print(f"⚠️ Q&A pair already exists for this question, skipping...")
+                    print(f"   Existing Question: {existing_qa.question_text[:100]}...")
+                    print(f"   Existing Answer: {existing_qa.answer_text[:100]}...")
+                    print(f"   Existing ID: {existing_qa.id}")
+                    print(f"   Created: {existing_qa.created_at}")
+                else:
+                    # Determine question type based on the actual question level
+                    question_type = last_ai_question.question_level
+                    
+                    # Map question levels to QA conversation types
+                    if question_type == 'MAIN':
+                        question_type = 'TECHNICAL' if max_ord >= 1 else 'INTRODUCTORY'
+                    elif question_type == 'FOLLOW_UP':
+                        question_type = 'FOLLOW_UP'
+                    elif question_type == 'CLARIFICATION':
+                        question_type = 'CLARIFICATION'
+                    elif question_type == 'INTRODUCTORY':
+                        question_type = 'INTRODUCTORY'
+                    else:
+                        question_type = 'TECHNICAL'  # fallback
+                    
+                    print(f"💾 Saving NEW Q&A pair:")
+                    print(f"   Question: {last_ai_question.question_text[:100]}...")
+                    print(f"   Answer: {transcript[:100]}...")
+                    print(f"   Type: {question_type}")
+                    print(f"   Question ID: {last_ai_question.id}")
+                    print(f"   Question Level: {last_ai_question.question_level}")
+                    
+                    # Calculate response time (if available)
+                    response_time = None
+                    if hasattr(last_ai_question, 'created_at'):
+                        time_diff = timezone.now() - last_ai_question.created_at
+                        response_time = time_diff.total_seconds()
+                    
+                    # Save the Q&A pair
+                    qa_pair = save_qa_pair(
+                        session_key=django_session.session_key,
+                        question_text=last_ai_question.question_text,
+                        answer_text=transcript.strip(),
+                        question_type=question_type,
+                        response_time_seconds=response_time
+                    )
+                    
+                    print(f"✅ Q&A pair saved with ID: {qa_pair.id if qa_pair else 'None'}")
+                    
+                    # Trigger LLM analysis asynchronously
+                    if qa_pair:
+                        try:
+                            analyze_qa_with_gemini(qa_pair)
+                        except Exception as e:
+                            print(f"⚠️ Error analyzing Q&A pair: {e}")
+            elif not is_cand_q and transcript and not last_ai_question:
+                print(f"⚠️ No unanswered AI question found for this transcript:")
+                print(f"   Transcript: {transcript[:100]}...")
+                print(f"   This might indicate all questions have been answered or there's a timing issue")
+            
+            # Update sequence numbering for UI
+            q_count = InterviewQuestion.objects.filter(session=django_session, role='AI', question_level='MAIN').count()
+            ai_session.current_question_number = q_count
+            result['question_number'] = q_count
+            
+            try:
+                from .qa_service import update_technical_qa_summary
+                update_technical_qa_summary(django_session)
+            except: pass
+
+        return JsonResponse(result)
     except Exception as e:
-        print(f"❌ Exception in ai_upload_answer: {e}")
-        import traceback
-        traceback.print_exc()
+        import traceback; traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+
 
 
 @csrf_exempt
@@ -5441,6 +4733,26 @@ def ai_repeat(request):
     result = ai_repeat_django(session_id)
     status_code = 200 if 'error' not in result else 400
     return JsonResponse(result, status=status_code)
+
+
+from django.shortcuts import redirect
+from django.http import HttpResponse
+
+def redirect_to_qa_evaluation_pdf(request):
+    """
+    Redirect old transcript_pdf endpoint to new qa_evaluation_pdf endpoint
+    This ensures all PDF generation uses the new Gemini LLM-powered function
+    """
+    session_key = request.GET.get('session_key', '')
+    session_id = request.GET.get('session_id', '')
+    
+    # Build redirect URL to the new LLM-powered endpoint
+    redirect_url = f'/ai/qa_evaluation_pdf?session_key={session_key}'
+    if session_id:
+        redirect_url = f'/ai/qa_evaluation_pdf?session_id={session_id}'
+    
+    print(f"🔄 Redirecting from old endpoint to new LLM-powered endpoint: {redirect_url}")
+    return redirect(redirect_url)
 
 
 @csrf_exempt
@@ -6641,23 +5953,37 @@ def submit_coding_challenge(request):
         session.save(update_fields=['coding_round_completed_at', 'total_completion_time_minutes', 'status'])
         print(f"--- Session {session.session_key} with coding challenge marked as COMPLETED. ---")
         
-        # Trigger comprehensive evaluation and persist detailed results
-        try:
-            from evaluation.services import create_evaluation_from_session
-            evaluation = create_evaluation_from_session(session.session_key)
-            if evaluation and evaluation.details:
-                ai_analysis = evaluation.details.get('ai_analysis', {})
-                overall = ai_analysis.get('overall_score_10') or (ai_analysis.get('overall_score', 0) / 10.0)
-                recommendation = ai_analysis.get('recommendation') or ai_analysis.get('hiring_recommendation')
-                print(f"--- Comprehensive evaluation stored for session {session.session_key} ---")
-                print(f"Overall Score (0-10): {overall:.2f}")
-                if recommendation:
-                    print(f"Recommendation: {recommendation}")
-        except Exception as e:
-            print(f"--- Error creating stored evaluation: {e} ---")
+        # NEW: Trigger comprehensive evaluation in BACKGROUND if final submission
+        def run_background_evaluation(sess_key):
+            try:
+                print(f"🧵 Background evaluation thread started for session: {sess_key}")
+                from evaluation.services import create_evaluation_from_session
+                evaluation = create_evaluation_from_session(sess_key)
+                if evaluation and evaluation.details:
+                    ai_analysis = evaluation.details.get('ai_analysis', {})
+                    overall = ai_analysis.get('overall_score_10') or (ai_analysis.get('overall_score', 0) / 10.0)
+                    recommendation = ai_analysis.get('recommendation') or ai_analysis.get('hiring_recommendation')
+                    print(f"--- Comprehensive evaluation stored for session {sess_key} ---")
+                    print(f"Overall Score (0-10): {overall:.2f}")
+                    if recommendation:
+                        print(f"Recommendation: {recommendation}")
+                print(f"✅ Background evaluation COMPLETE for session: {sess_key}")
+            except Exception as e:
+                print(f"❌ Error in background evaluation: {e}")
+                import traceback
+                traceback.print_exc()
+
+        eval_thread = threading.Thread(target=run_background_evaluation, args=(session.session_key,))
+        eval_thread.daemon = True
+        eval_thread.start()
         
         release_camera_for_session(session.session_key)
-        return JsonResponse({"status": "ok", "message": "Submission successful."})
+        return JsonResponse({
+            "status": "success", 
+            "message": "Coding challenge submitted and interview marked as COMPLETED. Final processing started in background.",
+            "passed_all_tests": (passed_count == total_count),
+            "output_log": final_log
+        })
     except Exception as e:
         traceback.print_exc()
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
@@ -6686,8 +6012,8 @@ class InterviewResultsAPIView(APIView):
                 # You can add more specific permission logic here
                 pass
             
-            # Get all questions and answers
-            all_questions = list(session.questions.all().order_by('order'))
+            # Get all questions and answers (robust sort order for proper UI sequence)
+            all_questions = list(session.questions.all().order_by('order', 'conversation_sequence', 'id'))
             all_logs_list = list(session.logs.all())
             warning_counts = Counter([log.warning_type.replace('_', ' ').title() for log in all_logs_list if log.warning_type != 'excessive_movement'])
             
@@ -6811,6 +6137,16 @@ class InterviewResultsAPIView(APIView):
                 'technical_interview_started_at': session.technical_interview_started_at.isoformat() if session.technical_interview_started_at else None,
                 'coding_round_completed_at': session.coding_round_completed_at.isoformat() if session.coding_round_completed_at else None,
                 'total_completion_time_minutes': session.total_completion_time_minutes,
+                
+                # Recordings and Videos
+                'interview_video_url': session.interview_video.url if session.interview_video else (session.video_gcs_url if session.video_gcs_url else None),
+                'screen_recording_url': session.screen_recording.url if session.screen_recording else (session.screen_recording_gcs_url if session.screen_recording_gcs_url else None),
+                'video_url': session.interview_video.url if session.interview_video else (session.video_gcs_url if session.video_gcs_url else None),
+                'screen_url': session.screen_recording.url if session.screen_recording else (session.screen_recording_gcs_url if session.screen_recording_gcs_url else None),
+                'video_recording_url': session.interview_video.url if session.interview_video else (session.video_gcs_url if session.video_gcs_url else None),
+                'screen_recording_file_url': session.screen_recording.url if session.screen_recording else (session.screen_recording_gcs_url if session.screen_recording_gcs_url else None),
+                'video_gcs_url': session.video_gcs_url,
+                'screen_recording_gcs_url': session.screen_recording_gcs_url,
             }
             
             return Response(response_data, status=status.HTTP_200_OK)
@@ -7261,6 +6597,106 @@ def upload_interview_audio(request):
 
 @csrf_exempt
 @require_POST
+def upload_screen_recording(request):
+    """Upload screen recording of the candidate (technical + coding round)"""
+    try:
+        session_key = request.POST.get('session_key')
+        video_file = request.FILES.get('video')
+        
+        if not session_key or not video_file:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Missing required data: session_key and video file'
+            }, status=400)
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(session_key=session_key)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Session not found'
+            }, status=404)
+        
+        # Save screen recording file
+        video_filename = f"screen_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.webm"
+        # We use a custom path or just save to the FileField
+        video_path = session.screen_recording.save(video_filename, video_file, save=True)
+        session.save()
+        
+        print(f"✅ Screen recording saved to InterviewSession: {video_path}")
+        
+        # Upload to Google Cloud Storage if configured
+        gcs_video_url = None
+        try:
+            from .gcs_storage import upload_video_to_gcs
+            import os
+            
+            # Get full path to video file
+            if hasattr(session.screen_recording, 'path'):
+                video_full_path = session.screen_recording.path
+            else:
+                video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
+            
+            if os.path.exists(video_full_path):
+                # Generate GCS file path
+                gcs_video_path = f"screen_recordings/{session.id}_{video_filename}"
+                
+                # Determine content type
+                content_type = 'video/webm'
+                if video_filename.lower().endswith('.mp4'):
+                    content_type = 'video/mp4'
+                
+                # Upload to GCS
+                gcs_video_url = upload_video_to_gcs(video_full_path, gcs_video_path, content_type)
+                if gcs_video_url:
+                    print(f"✅ Screen recording uploaded to GCS: {gcs_video_url}")
+                    # Store GCS URL in screen_recording_gcs_url field
+                    session.screen_recording_gcs_url = gcs_video_url
+                    session.save(update_fields=['screen_recording_gcs_url'])
+                    
+                    # Update interviews.Interview model if exists
+                    try:
+                        from interviews.models import Interview
+                        interview = Interview.objects.filter(session_key=session_key).first()
+                        if interview:
+                            interview.screen_recording_url = gcs_video_url
+                            interview.save(update_fields=['screen_recording_url'])
+                            print(f"✅ Updated Interview model screen_recording_url: {gcs_video_url}")
+                    except Exception as interview_err:
+                        print(f"⚠️ Could not update Interview model with gcs_url: {interview_err}")
+            
+            # Non-GCS update for Interview model (file field)
+            try:
+                from interviews.models import Interview
+                interview = Interview.objects.filter(session_key=session_key).first()
+                if interview and not interview.screen_recording_file:
+                    interview.screen_recording_file = session.screen_recording
+                    interview.save(update_fields=['screen_recording_file'])
+                    print(f"✅ Updated Interview model screen_recording_file: {session.screen_recording.name}")
+            except Exception as interview_err:
+                print(f"⚠️ Could not update Interview model with file: {interview_err}")
+                
+            else:
+                print(f"⚠️ Screen recording file not found for GCS upload: {video_full_path}")
+        except Exception as gcs_error:
+            print(f"⚠️ Error uploading screen recording to GCS (non-critical): {gcs_error}")
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Screen recording uploaded successfully',
+            'video_url': session.screen_recording.url if session.screen_recording else None,
+            'gcs_url': gcs_video_url
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
+
 def upload_interview_video(request):
     """Upload complete interview video (camera + microphone + TTS audio)"""
     try:
@@ -7320,6 +6756,32 @@ def upload_interview_video(request):
                     session.video_gcs_url = gcs_video_url
                     session.save(update_fields=['video_gcs_url'])
                     print(f"✅ GCS video URL saved: {gcs_video_url}")
+                    
+                    # Update interviews.Interview model if exists
+                    try:
+                        from interviews.models import Interview
+                        interview = Interview.objects.filter(session_key=session_key).first()
+                        if interview:
+                            interview.video_url = gcs_video_url
+                            interview.save(update_fields=['video_url'])
+                            print(f"✅ Updated Interview model video_url: {gcs_video_url}")
+                    except Exception as interview_err:
+                        print(f"⚠️ Could not update Interview model with video_url: {interview_err}")
+            
+            # Non-GCS update for Interview model (started_at, ended_at, status)
+            try:
+                from interviews.models import Interview
+                interview = Interview.objects.filter(session_key=session_key).first()
+                if interview:
+                    if not interview.started_at and session.scheduled_at:
+                        interview.started_at = session.scheduled_at
+                    interview.status = Interview.Status.COMPLETED
+                    interview.ended_at = timezone.now()
+                    interview.save(update_fields=['status', 'ended_at', 'started_at'])
+                    print(f"✅ Updated Interview model status to COMPLETED")
+            except Exception as interview_err:
+                print(f"⚠️ Could not update Interview model status: {interview_err}")
+                
             else:
                 print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
         except Exception as gcs_error:

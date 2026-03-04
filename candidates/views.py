@@ -65,6 +65,63 @@ class CandidateDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
         if self.request.method in ['PUT', 'PATCH']:
             return CandidateUpdateSerializer
         return CandidateSerializer
+    
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve candidate details with Q&A conversation pairs
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+        
+        # Add Q&A conversation pairs if candidate has interview sessions
+        try:
+            from interview_app.models import InterviewSession, QAConversationPair
+            from interview_app.qa_conversation_service import get_qa_pairs_for_session
+            
+            # Get all interview sessions for this candidate
+            sessions = InterviewSession.objects.filter(
+                candidate_email__iexact=instance.email
+            ).order_by('-created_at')
+            
+            qa_conversations = []
+            for session in sessions:
+                qa_pairs = get_qa_pairs_for_session(session.session_key)
+                if qa_pairs.exists():
+                    qa_data = []
+                    for qa in qa_pairs:
+                        qa_data.append({
+                            'id': str(qa.id),
+                            'question_number': qa.question_number,
+                            'question_text': qa.question_text,
+                            'answer_text': qa.answer_text,
+                            'question_type': qa.question_type,
+                            'timestamp': qa.timestamp.isoformat(),
+                            'response_time_seconds': qa.response_time_seconds,
+                            'words_per_minute': qa.words_per_minute,
+                            'filler_word_count': qa.filler_word_count,
+                            'sentiment_score': qa.sentiment_score,
+                            'llm_analysis': qa.llm_analysis,
+                            'llm_score': qa.llm_score,
+                            'included_in_pdf': qa.included_in_pdf
+                        })
+                    
+                    qa_conversations.append({
+                        'session_id': str(session.id),
+                        'session_key': session.session_key,
+                        'candidate_name': session.candidate_name,
+                        'created_at': session.created_at.isoformat(),
+                        'status': session.status,
+                        'qa_pairs': qa_data
+                    })
+            
+            data['qa_conversations'] = qa_conversations
+            
+        except Exception as e:
+            print(f"⚠️ Error loading Q&A conversations: {e}")
+            data['qa_conversations'] = []
+        
+        return Response(data)
 
 
 class CandidateSummaryView(APIView):
@@ -142,9 +199,6 @@ class DataExtractionView(APIView):
                 return Response({'error': f'Failed to extract text from PDF: {str(e)}'}, 
                               status=status.HTTP_400_BAD_REQUEST)
             
-            # Extract fields from text
-            extracted_data = extract_resume_fields(resume_text)
-            
             # Get job description for match calculation
             job_description = ""
             if job_id:
@@ -155,26 +209,29 @@ class DataExtractionView(APIView):
                 except Job.DoesNotExist:
                     job_description = ""
             
-            # Calculate Gemini AI match scores if job description is available
-            match_scores = {}
-            comprehensive_analysis = {}
-            if job_description and resume_text:
+            # Extract fields from text using Gemini (including match scores and parameters)
+            extracted_data = extract_resume_fields(resume_text, job_description)
+            
+            # Since extract_resume_fields now returns comprehensive data including match scores,
+            # we don't need to call calculate_resume_job_match separately if it was successful.
+            if 'resume_analysis' in extracted_data:
+                print(f"✅ Gemini AI analysis completed for single resume via comprehensive extraction")
+            elif job_description and resume_text:
+                # Fallback if comprehensive extraction didn't include everything
                 try:
                     match_scores = calculate_resume_job_match(resume_text, job_description)
                     comprehensive_analysis = analyze_resume_comprehensive(resume_text, job_description)
-                    print(f"✅ Gemini AI analysis completed for single resume")
+                    extracted_data.update({
+                        'match_percentage': match_scores.get('overall_match', 0),
+                        'skill_match': match_scores.get('skill_match', 0),
+                        'experience_match': match_scores.get('experience_match', 0),
+                        'education_match': match_scores.get('education_match', 0),
+                        'relevance_score': match_scores.get('relevance_score', 0),
+                        'resume_analysis': comprehensive_analysis,
+                    })
+                    print(f"✅ Gemini AI analysis completed for single resume (fallback)")
                 except Exception as e:
-                    print(f"⚠️ Gemini AI analysis failed: {e}")
-            
-            # Add Gemini AI analysis results to extracted data
-            extracted_data.update({
-                'match_percentage': match_scores.get('overall_match', 0),
-                'skill_match': match_scores.get('skill_match', 0),
-                'experience_match': match_scores.get('experience_match', 0),
-                'education_match': match_scores.get('education_match', 0),
-                'relevance_score': match_scores.get('relevance_score', 0),
-                'resume_analysis': comprehensive_analysis,
-            })
+                    print(f"⚠️ Gemini AI analysis fallback failed: {e}")
             
             # Create or update draft
             draft = CandidateDraft.objects.create(
@@ -271,7 +328,7 @@ class CandidateSubmissionView(APIView):
                 candidate = Candidate.objects.create(
                     recruiter=request.user,
                     job_id=job_id if job_id else None,
-                    domain=draft.domain,
+                    domain=verified_data.get('domain', draft.domain),
                     full_name=verified_data.get('name', ''),
                     email=verified_data.get('email', ''),
                     phone=verified_data.get('phone', ''),
@@ -411,37 +468,37 @@ class BulkCandidateCreationView(APIView):
                     failed_extractions += 1
                     continue
                 
-                # Extract fields from text
-                extracted_data = extract_resume_fields(resume_text)
+                # Extract fields from text using Gemini (including match scores and parameters)
+                extracted_data = extract_resume_fields(resume_text, job_description)
                 
-                # Calculate Gemini AI match scores if job description is available
-                match_scores = {}
-                comprehensive_analysis = {}
-                if job_description and resume_text:
+                # If comprehensive extraction was used, domain and role might be updated from resume
+                # otherwise keep the ones from request if they are present in extracted_data
+                
+                if 'resume_analysis' not in extracted_data and job_description and resume_text:
+                    # Fallback for Match calculation if not done in comprehensive step
                     try:
                         match_scores = calculate_resume_job_match(resume_text, job_description)
                         comprehensive_analysis = analyze_resume_comprehensive(resume_text, job_description)
-                        print(f"✅ Gemini AI analysis completed for {resume_file.name}")
+                        extracted_data.update({
+                            'match_percentage': match_scores.get('overall_match', 0),
+                            'skill_match': match_scores.get('skill_match', 0),
+                            'experience_match': match_scores.get('experience_match', 0),
+                            'education_match': match_scores.get('education_match', 0),
+                            'relevance_score': match_scores.get('relevance_score', 0),
+                            'resume_analysis': comprehensive_analysis,
+                        })
+                        print(f"✅ Gemini AI analysis completed for {resume_file.name} (fallback)")
                     except Exception as e:
                         print(f"⚠️ Gemini AI analysis failed for {resume_file.name}: {e}")
                 
-                # Add additional fields that might be useful
-                extracted_data.update({
-                    'current_company': None,
-                    'current_role': None,
-                    'expected_salary': 0,
-                    'notice_period': 0,
-                })
-                
-                # Add Gemini AI analysis results to extracted data
-                extracted_data.update({
-                    'match_percentage': match_scores.get('overall_match', 0),
-                    'skill_match': match_scores.get('skill_match', 0),
-                    'experience_match': match_scores.get('experience_match', 0),
-                    'education_match': match_scores.get('education_match', 0),
-                    'relevance_score': match_scores.get('relevance_score', 0),
-                    'resume_analysis': comprehensive_analysis,
-                })
+                # Ensure additional fields exist
+                if 'current_company' not in extracted_data:
+                    extracted_data.update({
+                        'current_company': None,
+                        'current_role': extracted_data.get('job_role'),
+                        'expected_salary': 0,
+                        'notice_period': 0,
+                    })
                 
                 extracted_candidates.append({
                     'filename': resume_file.name,
@@ -609,7 +666,7 @@ class BulkCandidateCreationView(APIView):
                     work_experience=edited_data.get('work_experience', 0) or 0,
                     job=job,
                     recruiter=recruiter,
-                    domain=domain_name,  # Set domain from the request
+                    domain=edited_data.get('domain', domain_name),  # Use edited domain if available
                     # Save Gemini AI analysis fields from edited data
                     match_percentage=edited_data.get('match_percentage'),
                     skill_match=edited_data.get('skill_match'),

@@ -560,9 +560,10 @@ class InterviewSerializer(serializers.ModelSerializer):
             return 0
     
     def get_questions_and_answers(self, obj):
-        """Get questions and answers for this interview"""
+        """Get questions and answers for this interview - combines QAConversationPair and InterviewQuestion"""
         try:
-            from interview_app.models import InterviewSession, InterviewQuestion
+            from interview_app.models import InterviewSession, QAConversationPair, InterviewQuestion, CodeSubmission
+            from interview_app.qa_conversation_service import get_qa_pairs_for_session_ordered
             from django.utils import timezone
             
             # Find the session for this interview using session_key
@@ -618,1065 +619,250 @@ class InterviewSerializer(serializers.ModelSerializer):
                 print(f"⚠️ No session found for interview {obj.id}")
                 return []
             
-            # Get all conversation items (AI and Interviewee responses) in sequential order
-            # Order by 'conversation_sequence' if available (new format), otherwise by 'order' and 'id' (old format)
-            # IMPORTANT: Use conversation_sequence for proper sequential ordering of AI/Interviewee conversation
-            questions = InterviewQuestion.objects.filter(
-                session=session
-            ).order_by(
-                'conversation_sequence',  # Primary: Use conversation_sequence for sequential ordering
-                'order',  # Secondary: Fallback to order if conversation_sequence is null
-                'id'  # Tertiary: Use id for consistency when both are same
-            )
-            
-            # Additional validation: Ensure order values are sequential and fix any gaps
-            # This helps catch any ordering issues
-            question_list = list(questions)
-            if question_list:
-                orders = [q.order for q in question_list]
-                if len(set(orders)) != len(orders):
-                    print(f"⚠️ WARNING: Duplicate order values detected! Orders: {orders}")
-                # Log order sequence for debugging
-                print(f"📋 Question order sequence: {[f'Q{q.order}({q.question_level})' for q in question_list]}")
-            
-            print(f"✅ Found {questions.count()} questions for session {session.session_key}")
-            # Debug: Print all questions with their order, role, conversation_sequence, and answers
-            for q in questions:
-                answer_display = q.transcribed_answer[:50] if q.transcribed_answer else '(NULL)'
-                role_display = q.role or '(no role)'
-                seq_display = q.conversation_sequence if q.conversation_sequence is not None else '(no seq)'
-                print(f"   Q{q.order} (seq:{seq_display}, role:{role_display}): {q.question_text[:50] if q.question_text else '(no text)'}... | Answer: {answer_display}... | Type: {q.question_type} | Level: {q.question_level}")
-            
-            # Also log all INTERVIEWEE records separately for debugging
-            interviewee_records = InterviewQuestion.objects.filter(
-                session=session,
-                role='INTERVIEWEE'
-            ).order_by('order', 'conversation_sequence')
-            print(f"📋 Found {interviewee_records.count()} INTERVIEWEE records:")
-            for ir in interviewee_records:
-                answer_display = ir.transcribed_answer[:50] if ir.transcribed_answer else '(NULL)'
-                print(f"   INTERVIEWEE Order {ir.order} (seq:{ir.conversation_sequence}, level:{ir.question_level}): Answer: {answer_display}...")
-            
-            # Import CodeSubmission model
-            from interview_app.models import CodeSubmission
-            
             qa_list = []
-            # Process questions sequentially (already sorted by conversation_sequence, order, id)
-            # IMPORTANT: For CODING questions, we need to handle them separately since answers come from CodeSubmission
-            coding_questions_list = []  # Track coding questions separately
-            questions_by_order = {}  # Group non-coding questions by order for pairing AI with Interviewee
             
-            # First pass: Separate CODING questions and group non-coding questions
-            for q in questions:
-                question_type = (q.question_type or '').upper()
-                
-                # For CODING questions, track them separately
-                if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
-                    if q.question_text and q.question_text.strip():
-                        coding_questions_list.append(q)
-                        print(f"✅ Added CODING question to separate list: ConvSeq {q.conversation_sequence}, Order {q.order}, ID {q.id}, Type: {q.question_type}, Question: {q.question_text[:50]}...")
+            # Part 1: Get regular Q&A pairs from QAConversationPair (technical, behavioral, candidate questions)
+            qa_data = get_qa_pairs_for_session_ordered(session.session_key)
+            chronological_pairs = qa_data['chronological_pairs']
+            
+            print(f"✅ Found {chronological_pairs.count()} regular Q&A pairs for session {session.session_key}")
+            
+            for qa in chronological_pairs:
+                # Skip CODING questions from QAConversationPair - we'll handle them separately
+                if qa.question_type == 'CODING':
                     continue
-                
-                # For non-coding questions, group by order (they may share same order if AI and Interviewee)
-                order_key = q.order
-                if order_key not in questions_by_order:
-                    questions_by_order[order_key] = {'ai': None, 'interviewee': None, 'conversation_sequence': None, 'order': order_key}
-                
-                # Update conversation_sequence if available (use the AI question's sequence)
-                if q.conversation_sequence is not None:
-                    if questions_by_order[order_key]['conversation_sequence'] is None:
-                        questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
-                    elif q.role and q.role.upper() == 'AI':
-                        # Prefer AI question's conversation_sequence for ordering
-                        questions_by_order[order_key]['conversation_sequence'] = q.conversation_sequence
-                
-                # Check if this is an AI question/response or Interviewee answer/question
-                has_role = q.role is not None and q.role.strip()
-                if has_role:
-                    if q.role.upper() == 'AI' and q.question_text:
-                        # AI question or AI response to candidate question
-                        # IMPORTANT: Only add if it's not a candidate question incorrectly saved
-                        if q.question_level != 'CANDIDATE_QUESTION':
-                            questions_by_order[order_key]['ai'] = q
-                        else:
-                            # This shouldn't happen, but if AI record has CANDIDATE_QUESTION level, skip it
-                            print(f"⚠️ Skipping AI record with CANDIDATE_QUESTION level: {q.id}")
-                    elif q.role.upper() == 'INTERVIEWEE':
-                        if q.question_level == 'CANDIDATE_QUESTION':
-                            # Candidate asked a question - this should be shown in answer section
-                            # The AI's response (if exists) should be in question section
-                            # IMPORTANT: Candidate questions should have empty question_text and text in transcribed_answer
-                            if not q.question_text or not q.question_text.strip():
-                                questions_by_order[order_key]['interviewee'] = q
-                            else:
-                                # Candidate question incorrectly has question_text - move it to transcribed_answer
-                                print(f"⚠️ Candidate question {q.id} has question_text, should be in transcribed_answer")
-                                if not q.transcribed_answer:
-                                    q.transcribed_answer = q.question_text
-                                    q.question_text = ''
-                                    q.save(update_fields=['question_text', 'transcribed_answer'])
-                                questions_by_order[order_key]['interviewee'] = q
-                        elif q.transcribed_answer or q.question_level == 'INTERVIEWEE_RESPONSE':
-                            # Regular candidate answer (including "No answer provided")
-                            # IMPORTANT: Include all INTERVIEWEE_RESPONSE records, even if transcribed_answer is empty
-                            # This ensures all questions have corresponding answers displayed
-                            if not questions_by_order[order_key]['interviewee']:
-                                questions_by_order[order_key]['interviewee'] = q
-                                print(f"✅ Added INTERVIEWEE record to order {order_key}: {q.transcribed_answer[:50] if q.transcribed_answer else 'No answer'}...")
-                            else:
-                                # If there's already an interviewee record, prefer the one with transcribed_answer
-                                if q.transcribed_answer and not questions_by_order[order_key]['interviewee'].transcribed_answer:
-                                    questions_by_order[order_key]['interviewee'] = q
-                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} with one that has answer: {q.transcribed_answer[:50]}...")
-                                elif q.transcribed_answer and len(q.transcribed_answer) > len(questions_by_order[order_key]['interviewee'].transcribed_answer or ''):
-                                    # Prefer longer answer if both have answers
-                                    questions_by_order[order_key]['interviewee'] = q
-                                    print(f"✅ Replaced INTERVIEWEE record for order {order_key} with longer answer: {q.transcribed_answer[:50]}...")
-                elif q.question_text and q.question_text.strip():
-                    # Old format: question_text exists, treat as AI question
-                    # But check role first - if role is INTERVIEWEE, it's a candidate question
-                    if q.role and q.role.upper() == 'INTERVIEWEE':
-                        # This is a candidate question in old format - move to interviewee
-                        if q.question_level == 'CANDIDATE_QUESTION':
-                            questions_by_order[order_key]['interviewee'] = q
-                        else:
-                            questions_by_order[order_key]['ai'] = q
-                    else:
-                        questions_by_order[order_key]['ai'] = q
-            
-            # Now create Q&A pairs from grouped questions - sort by conversation_sequence first, then order
-            sorted_order_keys = sorted(questions_by_order.keys(), key=lambda k: (
-                questions_by_order[k].get('conversation_sequence') if questions_by_order[k].get('conversation_sequence') is not None else 999999,
-                questions_by_order[k].get('order', 0)
-            ))
-            
-            # Before processing, check for any AI questions without interviewee answers
-            # and try to find their corresponding interviewee responses
-            for order_key in sorted_order_keys:
-                q_pair = questions_by_order[order_key]
-                if q_pair['ai'] and not q_pair['interviewee']:
-                    # Try to find interviewee response for this order
-                    try:
-                        # CRITICAL FIX: Special handling for first question only
-                        if order_key == 0:
-                            print(f"🔍 SPECIAL HANDLING: Finding answer for FIRST question (order {order_key})")
-                            
-                            # For first question, try to find the correct interviewee response
-                            # Method 1: Try exact conversation_sequence match
-                            if q_pair['ai'].conversation_sequence is not None:
-                                missed_interviewee = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    conversation_sequence=q_pair['ai'].conversation_sequence,
-                                    role='INTERVIEWEE'
-                                ).first()
-                                if missed_interviewee:
-                                    q_pair['interviewee'] = missed_interviewee
-                                    print(f"✅ FIRST QUESTION FIX: Found answer by same conversation_sequence: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
-                                    continue
-                            
-                            # Method 2: Try conversation_sequence + 1
-                            if q_pair['ai'].conversation_sequence is not None:
-                                interviewee_sequence = q_pair['ai'].conversation_sequence + 1
-                                missed_interviewee = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    conversation_sequence=interviewee_sequence,
-                                    role='INTERVIEWEE'
-                                ).first()
-                                if missed_interviewee:
-                                    q_pair['interviewee'] = missed_interviewee
-                                    print(f"✅ FIRST QUESTION FIX: Found answer by conversation_sequence + 1: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
-                                    continue
-                        
-                        # Regular handling for other questions (unchanged)
-                        missed_interviewee = InterviewQuestion.objects.filter(
-                            session=session,
-                            order=order_key,
-                            role='INTERVIEWEE',
-                            question_level='INTERVIEWEE_RESPONSE'
-                        ).first()
-                        if missed_interviewee:
-                            q_pair['interviewee'] = missed_interviewee
-                            print(f"✅ Found missed interviewee response for order {order_key} during pairing: {missed_interviewee.transcribed_answer[:50] if missed_interviewee.transcribed_answer else 'No answer'}...")
-                    except Exception as e:
-                        print(f"⚠️ Error finding missed interviewee response for order {order_key}: {e}")
-            
-            for order_key in sorted_order_keys:
-                q_pair = questions_by_order[order_key]
-                ai_q = q_pair['ai']
-                interviewee_a = q_pair['interviewee']
-                
-                # Handle candidate questions: if no AI question but there's an interviewee with CANDIDATE_QUESTION
-                if not ai_q and interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                    # Candidate asked a question - look for AI response in next order
-                    next_order = order_key + 1
-                    if next_order in questions_by_order and questions_by_order[next_order]['ai']:
-                        ai_response = questions_by_order[next_order]['ai']
-                        if ai_response.question_level == 'AI_RESPONSE':
-                            # Use AI response as question, candidate question as answer
-                            ai_q = ai_response
-                            # Don't process the AI response again when we get to its order
-                            questions_by_order[next_order]['processed'] = True
-                            print(f"✅ Paired candidate question (order {order_key}) with AI response (order {next_order})")
-                    else:
-                        # No AI response found yet - skip this for now, it will be processed when AI response is created
-                        print(f"⚠️ Candidate question at order {order_key} has no AI response yet, skipping")
-                        continue
-                
-                # Skip if no AI question (after trying to find AI response for candidate questions)
-                if not ai_q:
-                    continue
-                
-                # Skip if already processed (as part of candidate question handling)
-                if questions_by_order[order_key].get('processed'):
-                    continue
-                
-                # Determine question type (case-insensitive)
-                # IMPORTANT: Use the original question_type from database, then uppercase for comparison
-                original_question_type = ai_q.question_type or 'TECHNICAL'
-                question_type = original_question_type.upper()
-                
-                # Get question text - always from AI (role='AI', question_text field)
-                question_text = ai_q.question_text or ''
-                if question_text.strip().startswith('Q:'):
-                    question_text = question_text.replace('Q:', '').strip()
-                
-                # Special handling: If AI response is to a candidate question, get candidate question as answer
-                # IMPORTANT: For candidate questions, the question_text should be AI's response, 
-                # and the answer should be the candidate's question
-                if ai_q.question_level == 'AI_RESPONSE':
-                    # This is AI responding to a candidate question
-                    # Question section: AI's response (already in question_text from ai_q.question_text)
-                    # Answer section: Need to find the candidate's question
-                    # Look for interviewee record with CANDIDATE_QUESTION at current or previous order
-                    if not interviewee_a or interviewee_a.question_level != 'CANDIDATE_QUESTION':
-                        # Try to find candidate question at previous order
-                        prev_order = order_key - 1
-                        if prev_order in questions_by_order:
-                            prev_pair = questions_by_order[prev_order]
-                            if prev_pair.get('interviewee') and prev_pair['interviewee'].question_level == 'CANDIDATE_QUESTION':
-                                interviewee_a = prev_pair['interviewee']
-                                print(f"✅ Found candidate question at previous order {prev_order}")
-                elif interviewee_a and interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                    # Candidate question is at same order as AI response
-                    # This is correct - will be handled in answer section below
-                    pass
-                
-                # Get answer based on question type
-                # Handle both 'CODING' and 'CODING CHALLENGE' types
-                if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
-                    # For CODING questions, get answer from CodeSubmission
-                    answer_text = None
-                    created_at = None
-                    response_time = 0
-                    try:
-                        print(f"🔍 Looking for CodeSubmission for CODING question ID: {ai_q.id} (as string: {str(ai_q.id)}, UUID: {ai_q.id})")
-                        
-                        # Try multiple ways to find the CodeSubmission
-                        # First: exact match by session and question_id (try both UUID string and direct UUID)
-                        question_id_str = str(ai_q.id)
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session,
-                            question_id=question_id_str
-                        ).order_by('-created_at').first()
-                        
-                        # Also try without hyphens (in case UUID is stored differently)
-                        if not code_submission:
-                            question_id_no_hyphens = question_id_str.replace('-', '')
-                            code_submission = CodeSubmission.objects.filter(
-                                session=session,
-                                question_id=question_id_no_hyphens
-                            ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            print(f"✅ Found CodeSubmission by exact match: ID {code_submission.id}, Question ID: {code_submission.question_id}")
-                        else:
-                            # Second: try by session only (get the most recent one)
-                            print(f"⚠️ No exact match found, trying by session only...")
-                            code_submission = CodeSubmission.objects.filter(
-                                session=session
-                            ).order_by('-created_at').first()
-                            
-                            if code_submission:
-                                print(f"✅ Found CodeSubmission by session: ID {code_submission.id}, Question ID: {code_submission.question_id} (expected: {str(ai_q.id)})")
-                            else:
-                                # Third: try any CodeSubmission for this question ID (across all sessions)
-                                print(f"⚠️ No match by session, trying by question_id only...")
-                                code_submission = CodeSubmission.objects.filter(
-                                    question_id=str(ai_q.id)
-                                ).order_by('-created_at').first()
-                                
-                                if code_submission:
-                                    print(f"✅ Found CodeSubmission by question_id only: ID {code_submission.id}")
-                        
-                        if code_submission and code_submission.submitted_code:
-                            answer_text = code_submission.submitted_code
-                            created_at = code_submission.created_at
-                            print(f"✅ Using CodeSubmission answer: {len(answer_text)} characters")
-                        else:
-                            # Check if there's a transcribed_answer as fallback
-                            # The transcribed_answer might contain the code if CodeSubmission lookup failed
-                            if ai_q.transcribed_answer:
-                                transcribed = ai_q.transcribed_answer
-                                # Check if transcribed_answer contains "Submitted Code:" - extract the code part
-                                if "Submitted Code:" in transcribed:
-                                    # Extract code after "Submitted Code:"
-                                    code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                                    answer_text = transcribed[code_start:].strip()
-                                    print(f"⚠️ No CodeSubmission found, extracted code from transcribed_answer: {len(answer_text)} characters")
-                                else:
-                                    # Use transcribed_answer as-is, but remove A: prefix if present
-                                    answer_text = transcribed
-                                    if answer_text.strip().startswith('A:'):
-                                        answer_text = answer_text.replace('A:', '').strip()
-                                    print(f"⚠️ No CodeSubmission found, using transcribed_answer: {len(answer_text)} characters")
-                            else:
-                                answer_text = 'No code submitted'
-                                print(f"⚠️ No CodeSubmission and no transcribed_answer, using 'No code submitted'")
-                            created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                    except Exception as e:
-                        print(f"⚠️ Error fetching CodeSubmission for question {ai_q.id}: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        # Fallback to transcribed_answer if available
-                        if ai_q.transcribed_answer:
-                            transcribed = ai_q.transcribed_answer
-                            # Check if transcribed_answer contains "Submitted Code:" - extract the code part
-                            if "Submitted Code:" in transcribed:
-                                # Extract code after "Submitted Code:"
-                                code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                                answer_text = transcribed[code_start:].strip()
-                            else:
-                                answer_text = transcribed
-                                if answer_text.strip().startswith('A:'):
-                                    answer_text = answer_text.replace('A:', '').strip()
-                        else:
-                            answer_text = 'No code submitted'
-                        created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
+                    
+                if qa.question_type == 'CANDIDATE_QUESTION':
+                    # For candidate questions, show candidate question in answer section and AI response in question section
+                    qa_item = {
+                        'question_number': qa.question_number,
+                        'question_text': qa.question_text,  # AI's response
+                        'answer_text': qa.answer_text,     # Candidate's question
+                        'question_type': qa.question_type,
+                        'response_time': qa.response_time_seconds,
+                        'words_per_minute': qa.words_per_minute,
+                        'filler_word_count': qa.filler_word_count,
+                        'sentiment_score': qa.sentiment_score,
+                        'is_candidate_question': True,
+                        'timestamp': qa.timestamp.isoformat() if qa.timestamp else None,
+                        'session_key': qa.session_key
+                    }
                 else:
-                    # For TECHNICAL and BEHAVIORAL questions
-                    # Initialize answer_text to avoid UnboundLocalError
-                    answer_text = None
-                    created_at = None
-                    response_time = 0
-                    
-                    # CRITICAL: Try multiple methods to find the answer
-                    # Method 1: Use the paired interviewee_a if available
-                    if interviewee_a:
-                        # CRITICAL FIX: Special validation for first question to prevent wrong answer assignment
-                        if ai_q.order == 0:
-                            print(f"🔍 VALIDATING FIRST QUESTION ANSWER: Q{ai_q.order} -> Answer from order {interviewee_a.order}, seq {interviewee_a.conversation_sequence}")
-                            
-                            # For first question, ensure we're not getting the second question's answer
-                            # Check if the paired answer actually belongs to the first question
-                            if interviewee_a.order != 0:
-                                # This might be the wrong answer - try to find the correct one for first question
-                                print(f"⚠️ FIRST QUESTION: Paired answer from order {interviewee_a.order} != 0, searching for correct answer...")
-                                
-                                # Try to find the correct answer for first question
-                                correct_first_answer = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    order=0,
-                                    role='INTERVIEWEE'
-                                ).first()
-                                
-                                if correct_first_answer and correct_first_answer.transcribed_answer:
-                                    interviewee_a = correct_first_answer
-                                    print(f"✅ FIRST QUESTION: Found correct answer from order 0: {correct_first_answer.transcribed_answer[:50] if correct_first_answer.transcribed_answer else 'No answer'}...")
-                                else:
-                                    print(f"⚠️ FIRST QUESTION: Could not find correct answer, using paired answer")
-                        
-                        # Use the separate Interviewee record
-                        answer_text = interviewee_a.transcribed_answer or ''
-                        if answer_text.strip().startswith('A:'):
-                            answer_text = answer_text.replace('A:', '').strip()
-                        
-                        # IMPORTANT: If this is a candidate question (question_level='CANDIDATE_QUESTION'),
-                        # the transcribed_answer contains the candidate's question, which should be shown in answer section
-                        if interviewee_a.question_level == 'CANDIDATE_QUESTION':
-                            # Candidate asked a question - show it in answer section
-                            # The answer_text already contains the candidate's question from transcribed_answer
-                            answer_text = answer_text.strip() if answer_text else 'No question provided'
-                            print(f"✅ Using candidate question as answer: {answer_text[:50]}...")
-                        
-                        created_at = interviewee_a.session.created_at if hasattr(interviewee_a.session, 'created_at') else None
-                        response_time = interviewee_a.response_time_seconds or 0
-                        print(f"✅ Found answer from paired interviewee_a for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
-                    
-                    # Method 2: Try to find interviewee response by order, role, and question_level
-                    if not answer_text or (answer_text and answer_text.strip() == ''):
-                        try:
-                            print(f"🔍 Method 2: Searching for interviewee response for order {ai_q.order}, question ID {ai_q.id}...")
-                            
-                            # First try: exact match by order, role, and question_level
-                            missed_interviewee = InterviewQuestion.objects.filter(
-                                session=session,
-                                order=ai_q.order,
-                                role='INTERVIEWEE',
-                                question_level='INTERVIEWEE_RESPONSE'
-                            ).first()
-                            
-                            if missed_interviewee:
-                                print(f"✅ Method 2.1: Found by exact match (order={ai_q.order}, role=INTERVIEWEE, level=INTERVIEWEE_RESPONSE)")
-                            
-                            # Second try: if not found, try by order and role only (ignore question_level)
-                            if not missed_interviewee:
-                                missed_interviewee = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    order=ai_q.order,
-                                    role='INTERVIEWEE'
-                                ).exclude(
-                                    question_level='CANDIDATE_QUESTION'  # Exclude candidate questions
-                                ).first()
-                                
-                                if missed_interviewee:
-                                    print(f"✅ Method 2.2: Found by order and role (order={ai_q.order}, role=INTERVIEWEE)")
-                            
-                            # Third try: if still not found, try by conversation_sequence (even sequence = interviewee)
-                            if not missed_interviewee and ai_q.conversation_sequence is not None:
-                                # Interviewee responses have even conversation_sequence (2, 4, 6...)
-                                # AI questions have odd conversation_sequence (1, 3, 5...)
-                                interviewee_sequence = ai_q.conversation_sequence + 1
-                                missed_interviewee = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    conversation_sequence=interviewee_sequence,
-                                    role='INTERVIEWEE'
-                                ).first()
-                                
-                                if missed_interviewee:
-                                    print(f"✅ Method 2.3: Found by conversation_sequence (seq={interviewee_sequence})")
-                            
-                            # Fourth try: find any INTERVIEWEE record with same order (most permissive)
-                            if not missed_interviewee:
-                                all_interviewees = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    order=ai_q.order,
-                                    role='INTERVIEWEE'
-                                ).order_by('-id')  # Get most recent
-                                
-                                if all_interviewees.exists():
-                                    missed_interviewee = all_interviewees.first()
-                                    print(f"✅ Method 2.4: Found by order only (order={ai_q.order}, found {all_interviewees.count()} records, using most recent)")
-                            
-                            if missed_interviewee:
-                                answer_text = missed_interviewee.transcribed_answer or ''
-                                if answer_text.strip().startswith('A:'):
-                                    answer_text = answer_text.replace('A:', '').strip()
-                                created_at = missed_interviewee.session.created_at if hasattr(missed_interviewee.session, 'created_at') else None
-                                response_time = missed_interviewee.response_time_seconds or 0
-                                print(f"✅ Found missed interviewee response for order {ai_q.order} (sequence {missed_interviewee.conversation_sequence}): {answer_text[:50] if answer_text else 'No answer'}...")
-                            else:
-                                print(f"⚠️ Method 2: No interviewee response found for order {ai_q.order}, question ID {ai_q.id}")
-                                # Log all interviewee records for this session to help debug
-                                all_interviewees = InterviewQuestion.objects.filter(
-                                    session=session,
-                                    role='INTERVIEWEE'
-                                ).order_by('order', 'conversation_sequence')
-                                print(f"   Total INTERVIEWEE records in session: {all_interviewees.count()}")
-                                for ir in all_interviewees[:10]:  # Show first 10
-                                    print(f"   - Order {ir.order}, Seq {ir.conversation_sequence}, Level {ir.question_level}, Answer: {ir.transcribed_answer[:30] if ir.transcribed_answer else '(NULL)'}...")
-                        except Exception as e:
-                            print(f"⚠️ Error looking for missed interviewee response: {e}")
-                            import traceback
-                            traceback.print_exc()
-                    
-                    # Method 3: Final fallback - use transcribed_answer from the AI question record itself
-                    if not answer_text or (answer_text and answer_text.strip() == ''):
-                        if ai_q.transcribed_answer is not None and ai_q.transcribed_answer.strip():
-                            answer_text = ai_q.transcribed_answer
-                            if answer_text.strip().startswith('A:'):
-                                answer_text = answer_text.replace('A:', '').strip()
-                            if answer_text == "None" or answer_text.lower() == "none":
-                                answer_text = ''
-                            print(f"✅ Using transcribed_answer from AI question record for order {ai_q.order}: {answer_text[:50] if answer_text else 'No answer'}...")
-                        else:
-                            # Ultimate fallback: no answer available
-                            answer_text = ''
-                            print(f"⚠️ No answer found for order {ai_q.order}, question ID {ai_q.id}")
-                    
-                    # Set created_at and response_time if not already set
-                    if created_at is None:
-                        created_at = ai_q.session.created_at if hasattr(ai_q.session, 'created_at') else None
-                    if response_time == 0:
-                        response_time = ai_q.response_time_seconds or 0
-                    
-                    # Format the answer - ensure we always have something to display
-                    if answer_text is None:
-                        answer_text = 'No answer provided'
-                    elif isinstance(answer_text, str):
-                        stripped = answer_text.strip()
-                        if stripped == '' or stripped.lower() == 'none':
-                            answer_text = 'No answer provided'
-                        # Remove any "A:" prefix that might be left
-                        if answer_text.startswith('A:'):
-                            answer_text = answer_text[2:].strip()
-                    
-                    # CRITICAL: If answer_text is still empty after all fallbacks, log a warning
-                    if not answer_text or answer_text.strip() == '':
-                        print(f"⚠️ WARNING: No answer found for question order {ai_q.order}, ID {ai_q.id}, question: {ai_q.question_text[:50]}...")
-                        print(f"   - AI question transcribed_answer: {ai_q.transcribed_answer[:50] if ai_q.transcribed_answer else '(NULL)'}")
-                        print(f"   - Interviewee record exists: {bool(interviewee_a)}")
-                        if interviewee_a:
-                            print(f"   - Interviewee transcribed_answer: {interviewee_a.transcribed_answer[:50] if interviewee_a.transcribed_answer else '(NULL)'}")
-                        answer_text = 'No answer provided'  # Final fallback
-                
-                # Create Q&A item in old format (question_text and answer together)
-                # IMPORTANT: Preserve the original question_type from database (not the uppercased version)
-                original_question_type = ai_q.question_type or 'TECHNICAL'
-                
-                # Get conversation_sequence and order for proper ordering
-                conversation_seq = ai_q.conversation_sequence if hasattr(ai_q, 'conversation_sequence') and ai_q.conversation_sequence is not None else None
-                order_value = ai_q.order if hasattr(ai_q, 'order') else order_key
-                
-                qa_item = {
-                    'id': str(ai_q.id),
-                    'order': order_value,
-                    'conversation_sequence': conversation_seq,  # Add conversation_sequence for proper ordering
-                    'question_text': question_text,
-                    'question_type': original_question_type,  # Use original case from database
-                    'answer': answer_text,
-                    'response_time': response_time if (question_type != 'CODING' and question_type != 'CODING CHALLENGE') else (interviewee_a.response_time_seconds if interviewee_a else 0),
-                    'answered_at': created_at,
-                    'question_level': ai_q.question_level or 'MAIN',
-                    # Add role information for sequential display (like PDF)
-                    'role': 'interviewer',  # AI questions are from interviewer
-                    'text': question_text,  # For sequential format compatibility
-                }
-                
-                # For CODING questions, also include code submission metadata
-                if question_type == 'CODING':
-                    try:
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session,
-                            question_id=str(ai_q.id)
-                        ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            qa_item['code_submission'] = {
-                                'id': str(code_submission.id),
-                                'passed_all_tests': code_submission.passed_all_tests,
-                                'language': code_submission.language,
-                                'output_log': code_submission.output_log,
-                                'created_at': code_submission.created_at.isoformat() if code_submission.created_at else None,
-                            }
-                            # Also add is_correct flag based on test results
-                            qa_item['is_correct'] = code_submission.passed_all_tests
-                            print(f"✅ Added code_submission metadata to CODING Q&A item: ID {ai_q.id}, Passed: {code_submission.passed_all_tests}")
-                    except Exception as e:
-                        print(f"⚠️ Error adding code_submission metadata: {e}")
+                    # For regular AI questions, show AI question and candidate answer
+                    qa_item = {
+                        'question_number': qa.question_number,
+                        'question_text': qa.question_text,  # AI's question
+                        'answer_text': qa.answer_text,     # Candidate's answer
+                        'question_type': qa.question_type,
+                        'response_time': qa.response_time_seconds,
+                        'words_per_minute': qa.words_per_minute,
+                        'filler_word_count': qa.filler_word_count,
+                        'sentiment_score': qa.sentiment_score,
+                        'is_candidate_question': False,
+                        'timestamp': qa.timestamp.isoformat() if qa.timestamp else None,
+                        'session_key': qa.session_key
+                    }
                 
                 qa_list.append(qa_item)
-                
-                # Debug: Log coding questions being added
-                if question_type == 'CODING' or question_type == 'CODING CHALLENGE':
-                    print(f"✅ Added CODING Q&A item: Order {order_key}, ID {ai_q.id}, Type: {original_question_type}, Has Answer: {bool(answer_text and answer_text != 'No code submitted')}")
+                print(f"   Added Q#{qa.question_number} ({qa.question_type}): {qa.question_text[:50]}...")
             
-            # Now process CODING questions separately and add them to qa_list
-            # This ensures they're included even if they share the same order as TECHNICAL questions
-            print(f"🔍 Processing {len(coding_questions_list)} CODING questions separately...")
-            for coding_q in coding_questions_list:
-                order_key = coding_q.order
-                original_question_type = coding_q.question_type or 'CODING'
-                question_type = original_question_type.upper()
+            # Part 2: Get coding questions from InterviewQuestion (same as previous implementation)
+            coding_questions = InterviewQuestion.objects.filter(
+                session=session,
+                question_type='CODING'
+            ).order_by('order', 'created_at')
+            
+            print(f"🔧 Processing {coding_questions.count()} CODING questions from InterviewQuestion...")
+            
+            for coding_q in coding_questions:
+                print(f"🔍 Processing CODING question: {coding_q.id}, Order: {coding_q.order}")
                 
                 # Get question text
                 question_text = coding_q.question_text or ''
                 if question_text.strip().startswith('Q:'):
                     question_text = question_text.replace('Q:', '').strip()
                 
-                # Get answer from CodeSubmission
+                # Get answer from transcribed_answer (same as previous implementation)
                 answer_text = None
                 created_at = None
                 response_time = 0
+                code_submission_data = None
+                
                 try:
-                    print(f"🔍 Looking for CodeSubmission for CODING question ID: {coding_q.id} (as string: {str(coding_q.id)}, UUID: {coding_q.id})")
+                    print(f"🔍 Looking for answer in transcribed_answer for CODING question ID: {coding_q.id}")
                     
-                    # Try multiple ways to find the CodeSubmission
-                    question_id_str = str(coding_q.id)
-                    code_submission = CodeSubmission.objects.filter(
-                        session=session,
-                        question_id=question_id_str
-                    ).order_by('-created_at').first()
-                    
-                    # Also try without hyphens (in case UUID is stored differently)
-                    if not code_submission:
-                        question_id_no_hyphens = question_id_str.replace('-', '')
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session,
-                            question_id=question_id_no_hyphens
-                        ).order_by('-created_at').first()
-                    
-                    if code_submission:
-                        print(f"✅ Found CodeSubmission by exact match: ID {code_submission.id}, Question ID: {code_submission.question_id}")
-                    else:
-                        # Second: try by session only (get the most recent one)
-                        print(f"⚠️ No exact match found, trying by session only...")
-                        code_submission = CodeSubmission.objects.filter(
-                            session=session
-                        ).order_by('-created_at').first()
-                        
-                        if code_submission:
-                            print(f"✅ Found CodeSubmission by session: ID {code_submission.id}, Question ID: {code_submission.question_id} (expected: {question_id_str})")
-                        else:
-                            # Third: try any CodeSubmission for this question ID (across all sessions)
-                            print(f"⚠️ No match by session, trying by question_id only...")
-                            code_submission = CodeSubmission.objects.filter(
-                                question_id=question_id_str
-                            ).order_by('-created_at').first()
-                            
-                            if code_submission:
-                                print(f"✅ Found CodeSubmission by question_id only: ID {code_submission.id}")
-                    
-                    if code_submission and code_submission.submitted_code:
-                        answer_text = code_submission.submitted_code
-                        created_at = code_submission.created_at
-                        print(f"✅ Using CodeSubmission answer: {len(answer_text)} characters")
-                    else:
-                        # Check if there's a transcribed_answer as fallback
-                        if coding_q.transcribed_answer:
-                            transcribed = coding_q.transcribed_answer
-                            # Check if transcribed_answer contains "Submitted Code:" - extract the code part
-                            if "Submitted Code:" in transcribed:
-                                code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
-                                answer_text = transcribed[code_start:].strip()
-                                print(f"⚠️ No CodeSubmission found, extracted code from transcribed_answer: {len(answer_text)} characters")
-                            else:
-                                answer_text = transcribed
-                                if answer_text.strip().startswith('A:'):
-                                    answer_text = answer_text.replace('A:', '').strip()
-                                print(f"⚠️ No CodeSubmission found, using transcribed_answer: {len(answer_text)} characters")
-                        else:
-                            answer_text = 'No code submitted'
-                            print(f"⚠️ No CodeSubmission and no transcribed_answer, using 'No code submitted'")
-                        created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
-                except Exception as e:
-                    print(f"⚠️ Error fetching CodeSubmission for question {coding_q.id}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Fallback to transcribed_answer if available
+                    # Primary source: transcribed_answer from the coding question itself
                     if coding_q.transcribed_answer:
                         transcribed = coding_q.transcribed_answer
+                        # Check if transcribed_answer contains "Submitted Code:" - extract the code part
                         if "Submitted Code:" in transcribed:
                             code_start = transcribed.find("Submitted Code:") + len("Submitted Code:")
                             answer_text = transcribed[code_start:].strip()
+                            print(f"✅ Extracted code from transcribed_answer: {len(answer_text)} characters")
                         else:
                             answer_text = transcribed
                             if answer_text.strip().startswith('A:'):
                                 answer_text = answer_text.replace('A:', '').strip()
+                            print(f"✅ Using transcribed_answer: {len(answer_text)} characters")
                     else:
                         answer_text = 'No code submitted'
+                        print(f"⚠️ No transcribed_answer, using 'No code submitted'")
+                    
+                    created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
+                    
+                    # Also get CodeSubmission metadata if available (for test results, etc.)
+                    try:
+                        question_id_str = str(coding_q.id)
+                        code_submission = CodeSubmission.objects.filter(
+                            session=session,
+                            question_id=question_id_str
+                        ).order_by('-created_at').first()
+                        
+                        if code_submission:
+                            print(f"✅ Found CodeSubmission metadata: ID {code_submission.id}")
+                            code_submission_data = {
+                                'id': str(code_submission.id),
+                                'code': code_submission.submitted_code,
+                                'language': getattr(code_submission, 'language', None),
+                                'test_results': getattr(code_submission, 'test_results', None),
+                                'passed_all_tests': getattr(code_submission, 'passed_all_tests', None),
+                                'execution_time_seconds': getattr(code_submission, 'execution_time_seconds', None),
+                                'output_log': getattr(code_submission, 'output_log', None),
+                                'error_message': getattr(code_submission, 'error_message', None)
+                            }
+                    except Exception as e:
+                        print(f"⚠️ Error fetching CodeSubmission metadata: {e}")
+                        code_submission_data = None
+                        
+                except Exception as e:
+                    print(f"⚠️ Error fetching answer for coding question {coding_q.id}: {e}")
+                    answer_text = 'Error loading code submission'
                     created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
                 
-                # Create Q&A item for CODING question
-                # Get conversation_sequence for proper ordering
-                conversation_seq = coding_q.conversation_sequence if hasattr(coding_q, 'conversation_sequence') and coding_q.conversation_sequence is not None else None
-                
+                # Create coding Q&A item
                 qa_item = {
-                    'id': str(coding_q.id),
-                    'order': order_key,
-                    'conversation_sequence': conversation_seq,  # Add conversation_sequence for proper ordering
+                    'question_number': coding_q.order,
                     'question_text': question_text,
-                    'question_type': original_question_type,
-                    'answer': answer_text,
-                    'response_time': 0,
-                    'answered_at': created_at,
-                    'question_level': coding_q.question_level or 'MAIN',
+                    'answer_text': answer_text,
+                    'question_type': 'CODING',
+                    'response_time': response_time,
+                    'words_per_minute': None,
+                    'filler_word_count': None,
+                    'sentiment_score': None,
+                    'is_candidate_question': False,
+                    'timestamp': created_at.isoformat() if created_at else None,
+                    'session_key': session.session_key,
+                    'code_submission': code_submission_data
                 }
                 
-                # Add code submission metadata
-                try:
-                    if code_submission:
-                        qa_item['code_submission'] = {
-                            'id': str(code_submission.id),
-                            'passed_all_tests': code_submission.passed_all_tests,
-                            'language': code_submission.language,
-                            'output_log': code_submission.output_log,
-                            'created_at': code_submission.created_at.isoformat() if code_submission.created_at else None,
-                        }
-                        qa_item['is_correct'] = code_submission.passed_all_tests
-                        print(f"✅ Added code_submission metadata to CODING Q&A item: ID {coding_q.id}, Passed: {code_submission.passed_all_tests}")
-                except Exception as e:
-                    print(f"⚠️ Error adding code_submission metadata: {e}")
-                
                 qa_list.append(qa_item)
-                print(f"✅ Added CODING Q&A item to list: Order {order_key}, ID {coding_q.id}, Has Answer: {bool(answer_text and answer_text != 'No code submitted')}")
+                print(f"✅ Added CODING Q#{coding_q.order}: {question_text[:50]}...")
             
-            # Sort by conversation_sequence first (if available), then by order, then by id
-            # This ensures proper sequential ordering of questions
-            qa_list.sort(key=lambda x: (
-                x.get('conversation_sequence') if x.get('conversation_sequence') is not None else 999999,  # Use conversation_sequence if available
-                x.get('order', 0),  # Fallback to order
-                x.get('id', '')  # Final fallback to id
-            ))
+            # Sort final qa_list by question_number to maintain chronological order
+            qa_list.sort(key=lambda x: x.get('question_number', 0))
             
-            # CRITICAL: Also create a sequential conversation format (like PDF) for proper script display
-            # This ensures all conversation turns are shown in order, matching the PDF format
-            sequential_conversation = []
-            
-            # Get all questions in sequential order (by conversation_sequence)
-            all_sequential_questions = InterviewQuestion.objects.filter(
-                session=session
-            ).exclude(
-                # Exclude CODING questions from sequential conversation (they're handled separately)
-                question_type='CODING'
-            ).order_by(
-                'conversation_sequence',
-                'order',
-                'id'
-            )
-            
-            # Build sequential conversation list
-            for q in all_sequential_questions:
-                # Skip empty records
-                if not q.question_text and not q.transcribed_answer:
-                    continue
-                
-                # Determine role based on question record
-                if q.role and q.role.upper() == 'AI':
-                    # AI/Interviewer message
-                    text = q.question_text or ''
-                    if text.strip():
-                        sequential_conversation.append({
-                            'role': 'interviewer',
-                            'text': text,
-                            'conversation_sequence': q.conversation_sequence,
-                            'order': q.order,
-                            'question_level': q.question_level or 'MAIN',
-                            'question_type': q.question_type or 'TECHNICAL'
-                        })
-                
-                if q.role and q.role.upper() == 'INTERVIEWEE':
-                    # Candidate message
-                    text = q.transcribed_answer or ''
-                    if text.strip():
-                        # Remove A: prefix if present
-                        if text.strip().startswith('A:'):
-                            text = text.replace('A:', '').strip()
-                        if text.strip():
-                            sequential_conversation.append({
-                                'role': 'candidate',
-                                'text': text,
-                                'conversation_sequence': q.conversation_sequence,
-                                'order': q.order,
-                                'question_level': q.question_level or 'INTERVIEWEE_RESPONSE',
-                                'question_type': q.question_type or 'TECHNICAL'
-                            })
-                elif not q.role and q.question_text:
-                    # Old format - question_text exists, treat as AI
-                    text = q.question_text or ''
-                    if text.strip():
-                        sequential_conversation.append({
-                            'role': 'interviewer',
-                            'text': text,
-                            'conversation_sequence': q.conversation_sequence,
-                            'order': q.order,
-                            'question_level': q.question_level or 'MAIN',
-                            'question_type': q.question_type or 'TECHNICAL'
-                        })
-                    # Also add answer if exists
-                    if q.transcribed_answer:
-                        text = q.transcribed_answer
-                        if text.strip().startswith('A:'):
-                            text = text.replace('A:', '').strip()
-                        if text.strip():
-                            sequential_conversation.append({
-                                'role': 'candidate',
-                                'text': text,
-                                'conversation_sequence': (q.conversation_sequence or 0) + 1,  # Candidate comes after AI
-                                'order': q.order,
-                                'question_level': 'INTERVIEWEE_RESPONSE',
-                                'question_type': q.question_type or 'TECHNICAL'
-                            })
-            
-            # Sort sequential conversation by conversation_sequence
-            sequential_conversation.sort(key=lambda x: (
-                x.get('conversation_sequence') if x.get('conversation_sequence') is not None else 999999,
-                x.get('order', 0),
-            ))
-            
-            print(f"✅ Returning {len(qa_list)} Q&A items for interview {obj.id} in sequential order")
-            print(f"✅ Also created {len(sequential_conversation)} sequential conversation items (like PDF format)")
-            
-            # Debug: Print final Q&A list with conversation_sequence for ordering verification
-            coding_count = 0
-            technical_count = 0
-            for idx, qa in enumerate(qa_list):
-                q_preview = qa.get('question_text', '')[:50] if qa.get('question_text') else 'None'
-                a_preview = qa.get('answer', '')[:50] if qa.get('answer') else 'None'
-                q_type = qa.get('question_type', 'UNKNOWN')
-                order = qa.get('order', 'N/A')
-                conv_seq = qa.get('conversation_sequence', 'N/A')
-                print(f"   [{idx+1}] ConvSeq={conv_seq}, Order={order}: Type={q_type}, Q: {q_preview}... | A: {a_preview}...")
-                if (q_type or '').upper() == 'CODING':
-                    coding_count += 1
-                    print(f"      ⭐ CODING question found! ID: {qa.get('id')}, Has Answer: {bool(qa.get('answer') and qa.get('answer') != 'No code submitted')}")
-                else:
-                    technical_count += 1
-            print(f"📊 Summary: {coding_count} CODING questions, {technical_count} TECHNICAL/BEHAVIORAL questions")
-            
-            # Store sequential_conversation separately for frontend use
-            # This allows frontend to display the complete conversation script like PDF
-            # We'll add it as metadata to the first item for easy access
-            if qa_list:
-                qa_list[0]['_sequential_conversation'] = sequential_conversation
-            
-            if coding_count == 0:
-                print(f"⚠️ WARNING: No CODING questions found in Q&A list! Check if coding questions exist in database.")
-                # Debug: Check if any coding questions exist in the database
-                coding_in_db = InterviewQuestion.objects.filter(session=session, question_type='CODING').count()
-                print(f"   Database check: {coding_in_db} CODING questions found in InterviewQuestion table")
-                if coding_in_db > 0:
-                    db_coding = InterviewQuestion.objects.filter(session=session, question_type='CODING')
-                    for db_q in db_coding:
-                        print(f"      DB CODING Q: Order {db_q.order}, ID {db_q.id}, Text: {db_q.question_text[:50]}...")
+            print(f"✅ Returning {len(qa_list)} total Q&A items for interview {obj.id}")
             return qa_list
+            
         except Exception as e:
-            print(f"⚠️ Error getting Q&A for interview {obj.id}: {e}")
             import traceback
+            print(f"❌ Error in get_questions_and_answers for interview {obj.id}: {e}")
             traceback.print_exc()
             return []
-    
+
     def get_verification_id_image(self, obj):
-        """Get verification ID image URL from InterviewSession if verification was successful"""
+        """Get verification ID image URL"""
         try:
-            from interview_app.models import InterviewSession
-            from django.conf import settings
-            
-            # Find the session for this interview using session_key
-            session = None
+            # Try to get from InterviewSession first
             if obj.session_key:
+                from interview_app.models import InterviewSession
                 try:
                     session = InterviewSession.objects.get(session_key=obj.session_key)
+                    if session.id_card_image and hasattr(session.id_card_image, 'url'):
+                        # Construct absolute URL for frontend consumption
+                        from django.conf import settings
+                        if hasattr(session.id_card_image, 'url'):
+                            image_url = session.id_card_image.url
+                            # If it's a relative URL, make it absolute
+                            if image_url.startswith('/'):
+                                # For development, use localhost:8000
+                                if settings.DEBUG:
+                                    image_url = f"http://127.0.0.1:8000{image_url}"
+                                # For production, you might want to use your domain
+                                # image_url = f"https://yourdomain.com{image_url}"
+                            return image_url
                 except InterviewSession.DoesNotExist:
                     pass
             
-            # If not found by session_key, try to find by candidate and recent date
-            if not session and obj.candidate:
-                try:
-                    sessions = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at')
-                    
-                    # If interview has a created_at, try to match by date proximity
-                    if obj.created_at:
-                        from datetime import timedelta
-                        time_window_start = obj.created_at - timedelta(hours=1)
-                        time_window_end = obj.created_at + timedelta(hours=1)
-                        sessions = sessions.filter(
-                            created_at__gte=time_window_start,
-                            created_at__lte=time_window_end
-                        )
-                    
-                    session = sessions.first()
-                except Exception:
-                    pass
-            
-            # If still not found, try to find by interview round and candidate
-            if not session and obj.candidate and obj.interview_round:
-                try:
-                    session = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at').first()
-                except Exception:
-                    pass
-            
-            # Return image URL if session exists, has id_card_image, and verification was successful
-            if session and session.id_card_image and session.id_verification_status == 'Verified':
-                if session.id_card_image:
-                    request = self.context.get('request')
-                    if request:
-                        return request.build_absolute_uri(session.id_card_image.url)
-                    else:
-                        # Fallback: construct URL manually
-                        media_url = settings.MEDIA_URL.rstrip('/')
-                        image_url = session.id_card_image.url.lstrip('/')
-                        return f"{media_url}/{image_url}"
-            
-            return None
-        except Exception as e:
-            print(f"⚠️ Error getting verification ID image for interview {obj.id}: {e}")
-            return None
-    
-    def get_interview_video(self, obj):
-        """Get interview video URL from InterviewSession if available"""
-        try:
-            from interview_app.models import InterviewSession
-            from django.conf import settings
-            
-            # Find the session for this interview using session_key
-            session = None
-            if obj.session_key:
-                try:
-                    session = InterviewSession.objects.get(session_key=obj.session_key)
-                except InterviewSession.DoesNotExist:
-                    pass
-            
-            # If not found by session_key, try to find by candidate and recent date
-            if not session and obj.candidate:
-                try:
-                    sessions = InterviewSession.objects.filter(
-                        candidate_email=obj.candidate.email
-                    ).order_by('-created_at')
-                    
-                    if obj.created_at:
-                        from datetime import timedelta
-                        time_window_start = obj.created_at - timedelta(hours=1)
-                        time_window_end = obj.created_at + timedelta(hours=1)
-                        sessions = sessions.filter(
-                            created_at__gte=time_window_start,
-                            created_at__lte=time_window_end
-                        )
-                    
-                    session = sessions.first()
-                except Exception:
-                    pass
-            
-            # Return video URL if session exists and has video
-            if session and session.interview_video:
-                # Verify the video file actually exists and is a merged video
-                try:
-                    video_file_path = session.interview_video.path
-                    video_path_str = str(session.interview_video)
-                    
-                    # CRITICAL: Only return merged videos (from interview_videos_merged/ or with _with_audio suffix)
-                    is_merged = 'interview_videos_merged' in video_path_str or '_with_audio' in video_path_str
-                    
-                    if not is_merged:
-                        print(f"⚠️ Video in database is not merged: {video_path_str}")
-                        print(f"   Searching for merged version in interview_videos_merged/...")
-                        
-                        # Try to find merged version in interview_videos_merged/ folder
-                        merged_video_dir = os.path.join(settings.MEDIA_ROOT, 'interview_videos_merged')
-                        if os.path.exists(merged_video_dir):
-                            # Extract base filename from video path
-                            video_basename = os.path.basename(video_file_path)
-                            base_name = os.path.splitext(video_basename)[0]
-                            # Remove any suffixes like _converted
-                            if '_converted' in base_name:
-                                base_name = base_name.replace('_converted', '')
-                            
-                            # Look for merged video
-                            merged_filename = f"{base_name}_with_audio.mp4"
-                            merged_path = os.path.join(merged_video_dir, merged_filename)
-                            
-                            if os.path.exists(merged_path):
-                                print(f"✅ Found merged video: {merged_path}")
-                                video_file_path = merged_path
-                                # Update the path string for URL construction
-                                video_path_str = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
-                                is_merged = True
-                            else:
-                                # Try to find any video with session_id in merged folder
-                                session_id_str = str(session.id)
-                                for filename in os.listdir(merged_video_dir):
-                                    if filename.startswith(session_id_str) and filename.endswith('.mp4'):
-                                        if '_with_audio' in filename or 'interview_videos_merged' in filename:
-                                            merged_path = os.path.join(merged_video_dir, filename)
-                                            if os.path.exists(merged_path):
-                                                print(f"✅ Found merged video by session_id: {merged_path}")
-                                                video_file_path = merged_path
-                                                video_path_str = os.path.relpath(merged_path, settings.MEDIA_ROOT).replace('\\', '/')
-                                                is_merged = True
-                                                break
-                    
-                    if not is_merged:
-                        print(f"❌ No merged video found for session {session.id}")
-                        print(f"   Only merged videos (from interview_videos_merged/) should be shown in candidate details")
-                        return None
-                    
-                    if not os.path.exists(video_file_path):
-                        print(f"⚠️ Merged video file does not exist at path: {video_file_path}")
-                        return None
-                    if os.path.getsize(video_file_path) == 0:
-                        print(f"⚠️ Merged video file is empty: {video_file_path}")
-                        return None
-                    
-                    print(f"✅ Verified merged video exists: {video_file_path}")
-                    print(f"   File size: {os.path.getsize(video_file_path) / 1024 / 1024:.2f} MB")
-                    
-                except Exception as e:
-                    print(f"⚠️ Error checking merged video file: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    return None
-                
-                # Construct URL for merged video
-                request = self.context.get('request')
-                if request:
-                    # Build URL from the merged video path
-                    if video_path_str.startswith('interview_videos_merged/'):
-                        video_url = f"/media/{video_path_str}"
-                    elif video_path_str.startswith('/media/'):
-                        video_url = video_path_str
-                    else:
-                        video_url = f"/media/{video_path_str}"
-                    
-                    absolute_url = request.build_absolute_uri(video_url)
-                    print(f"✅ Returning merged video URL: {absolute_url}")
-                    print(f"   Video file path: {video_file_path}")
-                    return absolute_url
+            # Fallback to interview's own verification_id_image if it exists
+            if hasattr(obj, 'verification_id_image') and obj.verification_id_image:
+                if hasattr(obj.verification_id_image, 'url'):
+                    from django.conf import settings
+                    image_url = obj.verification_id_image.url
+                    if image_url.startswith('/') and settings.DEBUG:
+                        image_url = f"http://127.0.0.1:8000{image_url}"
+                    return image_url
                 else:
-                    # Fallback: return relative URL that frontend can handle
-                    if video_path_str.startswith('interview_videos_merged/'):
-                        video_url = f"/media/{video_path_str}"
-                    elif video_path_str.startswith('/media/'):
-                        video_url = video_path_str
-                    else:
-                        video_url = f"/media/{video_path_str}"
-                    
-                    print(f"✅ Returning merged video URL (fallback, relative): {video_url}")
-                    print(f"   Video file path: {video_file_path}")
-                    return video_url
+                    # If it's a string path, construct URL
+                    from django.conf import settings
+                    media_url = settings.MEDIA_URL.rstrip('/')
+                    image_path = f"{media_url}/{obj.verification_id_image.lstrip('/')}"
+                    if settings.DEBUG:
+                        image_path = f"http://127.0.0.1:8000{image_path}"
+                    return image_path
             
             return None
         except Exception as e:
-            print(f"⚠️ Error getting interview video for interview {obj.id}: {e}")
+            print(f"⚠️ Error getting verification ID image: {e}")
+            return None
+
+    def get_interview_video(self, obj):
+        """Get interview video URL"""
+        try:
+            # Try to get from InterviewSession first
+            if obj.session_key:
+                from interview_app.models import InterviewSession
+                try:
+                    session = InterviewSession.objects.get(session_key=obj.session_key)
+                    if session.interview_video and hasattr(session.interview_video, 'url'):
+                        return session.interview_video.url
+                except InterviewSession.DoesNotExist:
+                    pass
+            
+            # Fallback to interview's own video_url
+            if obj.video_url:
+                return obj.video_url
+            
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting interview video: {e}")
             return None
 
     def get_screen_recording_file(self, obj):
         """Get screen recording file URL"""
         try:
-            if obj.screen_recording_file:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(obj.screen_recording_file.url)
+            if obj.screen_recording_file and hasattr(obj.screen_recording_file, 'url'):
                 return obj.screen_recording_file.url
             return None
         except Exception as e:
-            print(f"⚠️ Error getting screen recording file for interview {obj.id}: {e}")
+            print(f"⚠️ Error getting screen recording file: {e}")
             return None
-    
+
     def get_screen_recording_url(self, obj):
         """Get screen recording URL"""
         try:
-            if obj.screen_recording_url:
-                return obj.screen_recording_url
-            elif obj.screen_recording_file:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(obj.screen_recording_file.url)
-                return obj.screen_recording_file.url
-            return None
+            return obj.screen_recording_url if obj.screen_recording_url else None
         except Exception as e:
-            print(f"⚠️ Error getting screen recording URL for interview {obj.id}: {e}")
+            print(f"⚠️ Error getting screen recording URL: {e}")
             return None
-    
+
     def get_screen_recording_duration(self, obj):
         """Get screen recording duration in seconds"""
         try:
-            return obj.screen_recording_duration
+            return obj.screen_recording_duration if obj.screen_recording_duration else None
         except Exception as e:
-            print(f"⚠️ Error getting screen recording duration for interview {obj.id}: {e}")
+            print(f"⚠️ Error getting screen recording duration: {e}")
             return None
-
-
-class InterviewFeedbackSerializer(serializers.ModelSerializer):
-    """
-    Serializer for updating interview feedback
-    """
-
-    class Meta:
-        model = Interview
-        fields = ["interview_round", "feedback"]
 
 
 class InterviewSlotSerializer(serializers.ModelSerializer):
@@ -1699,34 +885,27 @@ class InterviewSlotSerializer(serializers.ModelSerializer):
             "id",
             "slot_type",
             "status",
-            "interview_date",
+            "date",
             "start_time",
             "end_time",
             "duration_minutes",
             "ai_interview_type",
-            "ai_configuration",
-            "company",
-            "company_name",
-            "job",
-            "job_title",
-            "is_recurring",
-            "recurring_pattern",
-            "notes",
             "max_candidates",
             "current_bookings",
+            "company_name",
+            "job_title",
             "is_available",
             "available_spots",
             "full_start_datetime",
             "full_end_datetime",
-            "legacy_start_datetime",
-            "legacy_end_datetime",
             "created_at",
             "updated_at",
         ]
         read_only_fields = [
-            "id",
             "created_at",
             "updated_at",
+            "company_name",
+            "job_title",
             "is_available",
             "available_spots",
             "full_start_datetime",
@@ -1734,22 +913,22 @@ class InterviewSlotSerializer(serializers.ModelSerializer):
         ]
 
     def get_available_spots(self, obj):
+        """Calculate available spots"""
         return max(0, obj.max_candidates - obj.current_bookings)
 
     def get_full_start_datetime(self, obj):
-        """Return combined datetime for frontend compatibility"""
-        return obj.get_full_start_datetime()
+        """Combine date and start time for backward compatibility"""
+        if obj.date and obj.start_time:
+            from datetime import datetime
+            return datetime.combine(obj.date, obj.start_time)
+        return None
 
     def get_full_end_datetime(self, obj):
-        """Return combined datetime for frontend compatibility"""
-        return obj.get_full_end_datetime()
-
-    def validate(self, data):
-        if data.get("start_time") and data.get("end_time"):
-            if data["start_time"] >= data["end_time"]:
-                raise serializers.ValidationError("End time must be after start time")
-
-        return data
+        """Combine date and end time for backward compatibility"""
+        if obj.date and obj.end_time:
+            from datetime import datetime
+            return datetime.combine(obj.date, obj.end_time)
+        return None
 
 
 class InterviewScheduleSerializer(serializers.ModelSerializer):
@@ -1774,232 +953,98 @@ class InterviewScheduleSerializer(serializers.ModelSerializer):
             "slot",
             "status",
             "booking_notes",
-            "booked_at",
-            "confirmed_at",
-            "cancelled_at",
-            "cancellation_reason",
-            "cancelled_by",
+            "interview_details",
+            "slot_details",
+            "ai_interview_type",
+            "candidate_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "created_at",
+            "updated_at",
             "interview_details",
             "slot_details",
             "ai_interview_type",
             "candidate_name",
         ]
-        read_only_fields = [
-            "id",
-            "booked_at",
-            "confirmed_at",
-            "cancelled_at",
-            "cancelled_by",
-        ]
 
     def get_interview_details(self, obj):
-        return {
-            "id": obj.interview.id,
-            "candidate_name": obj.interview.candidate.full_name,
-            "status": obj.interview.status,
-            "started_at": obj.interview.started_at,
-            "ended_at": obj.interview.ended_at,
-        }
+        """Get interview details"""
+        if obj.interview:
+            return {
+                "id": obj.interview.id,
+                "candidate_name": obj.interview.candidate.full_name if obj.interview.candidate else None,
+                "job_title": obj.interview.job.job_title if obj.interview.job else None,
+                "status": obj.interview.status,
+                "interview_round": obj.interview.interview_round,
+            }
+        return None
 
     def get_slot_details(self, obj):
-        return {
-            "id": obj.slot.id,
-            "ai_interview_type": obj.slot.ai_interview_type,
-            "start_time": obj.slot.start_time,
-            "end_time": obj.slot.end_time,
-            "duration_minutes": obj.slot.duration_minutes,
-            "company_name": obj.slot.company.name,
-        }
-
-    def validate(self, data):
-        # Check if slot is available
-        if "slot" in data:
-            slot = data["slot"]
-            if not slot.is_available():
-                raise serializers.ValidationError(
-                    "Selected slot is not available for booking"
-                )
-
-            # Check if interview is already scheduled
-            if "interview" in data:
-                interview = data["interview"]
-                if hasattr(interview, "schedule") and interview.schedule:
-                    raise serializers.ValidationError("Interview is already scheduled")
-
-        return data
-
-
-class AIInterviewConfigurationSerializer(serializers.ModelSerializer):
-    """
-    Serializer for AI interview configuration patterns
-    """
-
-    company_name = serializers.CharField(source="company.name", read_only=True)
-
-    class Meta:
-        model = AIInterviewConfiguration
-        fields = [
-            "id",
-            "company",
-            "company_name",
-            "interview_type",
-            "day_of_week",
-            "start_time",
-            "end_time",
-            "slot_duration",
-            "break_duration",
-            "ai_settings",
-            "valid_from",
-            "valid_until",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "created_at", "updated_at"]
-
-    def validate(self, data):
-        if data.get("start_time") and data.get("end_time"):
-            if data["start_time"] >= data["end_time"]:
-                raise serializers.ValidationError("End time must be after start time")
-        return data
-
-
-class InterviewConflictSerializer(serializers.ModelSerializer):
-    """
-    Serializer for interview conflicts
-    """
-
-    primary_interview_details = serializers.SerializerMethodField()
-    conflicting_interview_details = serializers.SerializerMethodField()
-    resolved_by_name = serializers.CharField(
-        source="resolved_by.full_name", read_only=True
-    )
-
-    class Meta:
-        model = InterviewConflict
-        fields = [
-            "id",
-            "conflict_type",
-            "resolution",
-            "primary_interview",
-            "conflicting_interview",
-            "conflict_details",
-            "resolution_notes",
-            "detected_at",
-            "resolved_at",
-            "resolved_by",
-            "primary_interview_details",
-            "conflicting_interview_details",
-            "resolved_by_name",
-        ]
-        read_only_fields = ["id", "detected_at", "resolved_at", "resolved_by"]
-
-    def get_primary_interview_details(self, obj):
-        return {
-            "id": obj.primary_interview.id,
-            "candidate_name": obj.primary_interview.candidate.full_name,
-            "status": obj.primary_interview.status,
-            "started_at": obj.primary_interview.started_at,
-            "ended_at": obj.primary_interview.ended_at,
-        }
-
-    def get_conflicting_interview_details(self, obj):
-        if obj.conflicting_interview:
+        """Get slot details"""
+        if obj.slot:
             return {
-                "id": obj.conflicting_interview.id,
-                "candidate_name": obj.conflicting_interview.candidate.full_name,
-                "status": obj.conflicting_interview.status,
-                "started_at": obj.conflicting_interview.started_at,
-                "ended_at": obj.conflicting_interview.ended_at,
+                "id": obj.slot.id,
+                "date": obj.slot.date,
+                "start_time": obj.slot.start_time,
+                "end_time": obj.slot.end_time,
+                "duration_minutes": obj.slot.duration_minutes,
+                "ai_interview_type": obj.slot.ai_interview_type,
+                "max_candidates": obj.slot.max_candidates,
+                "current_bookings": obj.slot.current_bookings,
             }
         return None
 
 
+class AIInterviewConfigurationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIInterviewConfiguration
+        fields = '__all__'
+
+
+class InterviewConflictSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewConflict
+        fields = '__all__'
+
+
 class SlotBookingSerializer(serializers.Serializer):
-    """
-    Serializer for booking a slot for an interview
-    """
-
-    interview_id = serializers.UUIDField()
-    slot_id = serializers.UUIDField()
-    booking_notes = serializers.CharField(required=False, allow_blank=True)
-
-    def validate(self, data):
-        from .models import Interview, InterviewSlot
-
-        # Validate interview exists
-        try:
-            interview = Interview.objects.get(id=data["interview_id"])
-            data["interview"] = interview
-        except Interview.DoesNotExist:
-            raise serializers.ValidationError("Interview not found")
-
-        # Validate slot exists and is available
-        try:
-            slot = InterviewSlot.objects.get(id=data["slot_id"])
-            data["slot"] = slot
-        except InterviewSlot.DoesNotExist:
-            raise serializers.ValidationError("Slot not found")
-
-        if not slot.is_available():
-            raise serializers.ValidationError("Slot is not available for booking")
-
-        # Check if interview is already scheduled
-        if hasattr(interview, "schedule") and interview.schedule:
-            raise serializers.ValidationError("Interview is already scheduled")
-
-        return data
+    """Serializer for booking a slot"""
+    interview_id = serializers.IntegerField(required=True)
+    booking_notes = serializers.CharField(required=False, allow_blank=True, max_length=500)
 
 
 class SlotSearchSerializer(serializers.Serializer):
-    """
-    Serializer for searching available slots
-    """
-
+    """Serializer for slot search parameters"""
     company_id = serializers.IntegerField(required=False)
-    ai_interview_type = serializers.CharField(required=False)
     job_id = serializers.IntegerField(required=False)
-    start_date = serializers.DateField()
-    end_date = serializers.DateField()
-    start_time = serializers.TimeField(required=False)
-    end_time = serializers.TimeField(required=False)
-    duration_minutes = serializers.IntegerField(required=False, default=60)
-
-    def validate(self, data):
-        if data["start_date"] > data["end_date"]:
-            raise serializers.ValidationError(
-                "Start date must be before or equal to end date"
-            )
-        return data
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    ai_interview_type = serializers.CharField(required=False, allow_blank=True)
 
 
 class RecurringSlotSerializer(serializers.Serializer):
-    """
-    Serializer for creating recurring slots
-    """
-
-    company_id = serializers.IntegerField()
-    ai_interview_type = serializers.CharField(default="general")
-    job_id = serializers.IntegerField(required=False)
-    start_date = serializers.DateField()
-    end_date = serializers.DateField()
-    start_time = serializers.TimeField()
-    end_time = serializers.TimeField()
+    """Serializer for creating recurring slots"""
+    start_date = serializers.DateField(required=True)
+    end_date = serializers.DateField(required=True)
+    start_time = serializers.TimeField(required=True)
+    end_time = serializers.TimeField(required=True)
+    duration_minutes = serializers.IntegerField(required=True, min_value=15, max_value=480)
+    max_candidates = serializers.IntegerField(required=True, min_value=1, max_value=100)
+    ai_interview_type = serializers.CharField(required=True, allow_blank=False, max_length=50)
+    recurring_pattern = serializers.ChoiceField(
+        choices=[
+            ('daily', 'Daily'),
+            ('weekly', 'Weekly'),
+            ('monthly', 'Monthly'),
+        ],
+        required=True
+    )
     days_of_week = serializers.ListField(
-        child=serializers.IntegerField(min_value=1, max_value=7), min_length=1
+        child=serializers.IntegerField(min_value=0, max_value=6),
+        required=False,
+        allow_empty=True,
+        help_text="Days of week (0=Monday, 6=Sunday) for weekly pattern"
     )
-    slot_duration = serializers.IntegerField(default=60, min_value=15, max_value=480)
-    break_duration = serializers.IntegerField(default=15, min_value=0, max_value=60)
-    max_candidates_per_slot = serializers.IntegerField(
-        default=1, min_value=1, max_value=10
-    )
-    ai_configuration = serializers.JSONField(required=False, default=dict)
-    notes = serializers.CharField(required=False, allow_blank=True)
-
-    def validate(self, data):
-        if data["start_date"] > data["end_date"]:
-            raise serializers.ValidationError(
-                "Start date must be before or equal to end date"
-            )
-        if data["start_time"] >= data["end_time"]:
-            raise serializers.ValidationError("End time must be after start time")
-        return data
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=500)

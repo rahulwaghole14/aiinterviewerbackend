@@ -311,6 +311,23 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.onrender\.com$",  # Allow all Render subdomains
 ]
 
+# Redis Cache configuration
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,  # Prevent app from crashing if Redis is down
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
+        }
+    }
+}
+print(f"[OK] Redis cache configured at: {REDIS_URL}")
+
 # CSRF trusted origins - required for CSRF exemption to work properly
 CSRF_TRUSTED_ORIGINS = [
     "https://aiinterviewerbackend-2.onrender.com",

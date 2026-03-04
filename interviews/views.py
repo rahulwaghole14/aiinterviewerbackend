@@ -27,7 +27,6 @@ from .models import (
 from jobs.models import Job
 from .serializers import (
     InterviewSerializer,
-    InterviewFeedbackSerializer,
     InterviewSlotSerializer,
     InterviewScheduleSerializer,
     AIInterviewConfigurationSerializer,
@@ -595,34 +594,6 @@ class InterviewViewSet(DataIsolationMixin, viewsets.ModelViewSet):
         )
         return super().destroy(request, *args, **kwargs)
 
-    @action(
-        detail=True,
-        methods=["patch"],
-        url_path="feedback",
-        permission_classes=[IsAdminOnly],
-    )
-    def edit_feedback(self, request, pk=None):
-        """
-        PATCH /api/interviews/<id>/feedback/
-        Admin‑only endpoint to update interview feedback.
-        """
-        interview = self.get_object()
-        serializer = InterviewFeedbackSerializer(
-            interview, data=request.data, partial=True
-        )
-
-        if serializer.is_valid():
-            serializer.save()
-            ActionLogger.log_user_action(
-                user=request.user,
-                action="interview_feedback_update",
-                details={"interview_id": pk},
-                status="SUCCESS",
-            )
-            return Response(serializer.data)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class InterviewStatusSummaryView(APIView):
     """
@@ -724,7 +695,8 @@ class InterviewDetailView(DataIsolationMixin, generics.RetrieveUpdateDestroyAPIV
 
 class InterviewDownloadPDFView(DataIsolationMixin, generics.GenericAPIView):
     """
-    Download PDF report for an interview using the ai_transcript_pdf function
+    Download PDF report for an interview using download_qa_evaluation_pdf function
+    This provides Gemini LLM-powered Skills Assessment Matrix and AI Evaluation
     """
     queryset = Interview.objects.all()
     permission_classes = [InterviewHierarchyPermission]
@@ -743,17 +715,17 @@ class InterviewDownloadPDFView(DataIsolationMixin, generics.GenericAPIView):
             )
         
         try:
-            # Import the PDF generation function from interview_app as specified in the guide
-            from interview_app.views import ai_transcript_pdf
+            # Import the new PDF generation function from interview_app as specified in the guide
+            from interview_app.views import download_qa_evaluation_pdf
             
-            # Create a new request with session_key parameter for ai_transcript_pdf function
+            # Create a new request with session_key parameter for download_qa_evaluation_pdf function
             # We need to modify the request GET parameters to include session_key
             request.GET = request.GET.copy()
             request.GET['session_key'] = interview.session_key
             
-            # Call the ai_transcript_pdf function with session_key parameter
-            # This function uses WeasyPrint and report_pdf.html template as specified in the guide
-            return ai_transcript_pdf(request)
+            # Call the download_qa_evaluation_pdf function with session_key parameter
+            # This function uses Gemini LLM and qa_evaluation_pdf_fixed.html template for AI-powered analysis
+            return download_qa_evaluation_pdf(request)
             
         except Exception as e:
             logger.error(f"Error generating PDF for interview {interview.id}: {str(e)}")
@@ -827,16 +799,6 @@ class InterviewGenerateLinkView(DataIsolationMixin, generics.GenericAPIView):
                 {"error": f"Failed to generate interview link: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-class InterviewFeedbackView(generics.UpdateAPIView):
-    """
-    Update interview feedback (admin only)
-    """
-
-    queryset = Interview.objects.all()
-    serializer_class = InterviewFeedbackSerializer
-    permission_classes = [InterviewHierarchyPermission]
 
 
 class InterviewSlotViewSet(DataIsolationMixin, viewsets.ModelViewSet):
@@ -2267,3 +2229,44 @@ class ScreenRecordingDeleteView(APIView):
                 {"error": "Internal server error"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+from django.http import FileResponse, Http404
+from django.views.decorators.http import require_http_methods
+from django.conf import settings
+import os
+
+@require_http_methods(["GET"])
+def serve_verification_id_image(request, session_key, filename):
+    """Serve verification ID images with proper headers and error handling"""
+    try:
+        from interview_app.models import InterviewSession
+        
+        # Get the session
+        session = get_object_or_404(InterviewSession, session_key=session_key)
+        
+        # Verify the file belongs to this session
+        if not session.id_card_image or filename not in session.id_card_image.name:
+            raise Http404("Image not found")
+        
+        # Check if file exists
+        if not os.path.exists(session.id_card_image.path):
+            raise Http404("Image file not found on disk")
+        
+        # Serve the file with proper headers
+        response = FileResponse(
+            open(session.id_card_image.path, 'rb'),
+            content_type='image/jpeg'  # You might want to detect the actual content type
+        )
+        
+        # Add caching headers
+        response['Cache-Control'] = 'public, max-age=3600'  # Cache for 1 hour
+        response['Access-Control-Allow-Origin'] = '*'  # Allow CORS for frontend
+        
+        return response
+        
+    except Http404:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving verification ID image: {e}")
+        raise Http404("Error serving image")

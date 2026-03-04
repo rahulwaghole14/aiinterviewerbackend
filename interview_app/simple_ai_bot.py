@@ -285,6 +285,34 @@ def start_interview(candidate_name: str, jd_text: str, max_questions: int = 4) -
         return {"error": str(e)}
 
 
+def generate_next_question_with_limit_check(session, question_type="regular", last_answer_text=None, context=""):
+    """
+    Centralized function to generate questions with strict limit enforcement.
+    Returns None if limit reached, otherwise returns question text.
+    """
+    print(f"🔍 {context}: Before generating - current={session.current_question_number}, max={session.max_questions}")
+    
+    # STRICT CHECK: Don't generate any questions if limit reached
+    if session.current_question_number >= session.max_questions:
+        print(f"🛑 {context}: Question limit reached ({session.current_question_number}/{session.max_questions}), STOPPING")
+        session.completed_at = time.time()
+        session.is_completed = True
+        return None
+    
+    # Generate the question
+    question_text = generate_question(session, question_type, last_answer_text=last_answer_text)
+    
+    # Increment question number
+    session.current_question_number += 1
+    session.add_interviewer_message(question_text)
+    session.awaiting_answer = True
+    session.last_active_question_text = question_text
+    
+    print(f"📊 {context}: Generated question {session.current_question_number}/{session.max_questions}")
+    print(f"📊 Question text: '{question_text[:50]}...'" if len(question_text) > 50 else f"'{question_text}'")
+    
+    return question_text
+
 def upload_answer(session_id: str, transcript: str) -> Dict:
     """Simplified version of app.py /upload_answer"""
     try:
@@ -297,7 +325,9 @@ def upload_answer(session_id: str, transcript: str) -> Dict:
             return {
                 "transcript": transcript,
                 "completed": True,
-                "message": "Interview completed. Thank you for your time!"
+                "message": "Interview completed. Thank you for your time!",
+                "question_number": session.current_question_number,
+                "max_questions": session.max_questions
             }
         
         # Add candidate message
@@ -332,18 +362,25 @@ def upload_answer(session_id: str, transcript: str) -> Dict:
                 "continuous": True
             }
         
-        # Generate next question
-        if session.current_question_number == 1:
-            next_question = generate_question(session, "follow_up", last_answer_text=transcript)
-        else:
-            next_question = generate_question(session, "regular", last_answer_text=transcript)
+        # Use centralized question generation with limit check
+        question_type = "follow_up" if session.current_question_number == 1 else "regular"
         
-        print(f"🤖 Generated next question: {next_question[:100]}...")
+        next_question = generate_next_question_with_limit_check(
+            session, 
+            question_type, 
+            last_answer_text=transcript, 
+            context="SIMPLE AI BOT"
+        )
         
-        session.add_interviewer_message(next_question)
-        session.current_question_number += 1
-        session.awaiting_answer = True
-        session.last_active_question_text = next_question
+        if next_question is None:
+            # Limit reached, interview completed
+            return {
+                "transcript": transcript,
+                "completed": True,
+                "message": "Interview completed. Question limit reached.",
+                "question_number": session.current_question_number,
+                "max_questions": session.max_questions
+            }
         
         audio_url = text_to_speech(next_question, f"q{session.current_question_number}.mp3")
         _reset_question_timers(session)

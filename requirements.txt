@@ -10,6 +10,8 @@ channels-redis==4.1.0  # Redis backend for Channels (optional but recommended)
 # Database
 psycopg2-binary==2.9.10
 dj-database-url==3.0.1
+django-redis==5.4.0
+redis==5.0.1
 
 # Server
 gunicorn==23.0.0

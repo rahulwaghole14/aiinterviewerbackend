@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Q&A Script + AI Evaluation Report - {{ session.id }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        * {
+            box-sizing: border-box;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 11px;
+            color: #333;
+            line-height: 1.5;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        h1, h2, h3, h4, h5 {
+            color: #333;
+            font-weight: bold;
+            word-wrap: break-word;
+        }
+        h1 {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        h2 {
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .section {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            page-break-inside: avoid;
+            width: 100%;
+            max-width: 100%;
+        }
+        .skills-matrix {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 10px;
+        }
+        .skills-matrix th {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-weight: bold;
+            color: #333;
+        }
+        .skills-matrix td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+        .skill-excellent {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .skill-good {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .skill-average {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .skill-poor {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .question-block {
+            page-break-inside: avoid;
+            margin-bottom: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            word-wrap: break-word;
+            max-width: 100%;
+        }
+        .question-block:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
+        .answer {
+            font-style: italic;
+            color: #555;
+            word-wrap: break-word;
+        }
+        .recommendation-section {
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 8px;
+            text-align: center;
+            page-break-inside: avoid;
+            border: 3px solid;
+        }
+        .recommendation-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .overall-score {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .performance-level {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .level-excellent {
+            background-color: #28a745;
+            color: white;
+        }
+        .level-good {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .level-average {
+            background-color: #ffc107;
+            color: #333;
+        }
+        .level-poor {
+            background-color: #dc3545;
+            color: white;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 9px;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Q&A Script + AI Evaluation Report</h1>
+    <p><strong>Candidate:</strong> {{ session.candidate_name }}</p>
+    <p><strong>Session ID:</strong> {{ session.id }}</p>
+    <p><strong>Date:</strong> {{ session.created_at|date:"F d, Y H:i" }}</p>
+
+    <!-- Skills Assessment Matrix Section -->
+    <div class="section">
+        <h2>Skills Assessment Matrix</h2>
+        <table class="skills-matrix">
+            <thead>
+                <tr>
+                    <th>SKILL</th>
+                    <th>CATEGORY</th>
+                    <th>SCORE</th>
+                    <th>PERFORMANCE LEVEL</th>
+                    <th>COMMENTS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for skill in skills_assessment %}
+                <tr>
+                    <td>{{ skill.skill }}</td>
+                    <td>{{ skill.category }}</td>
+                    <td>{{ skill.score }}%</td>
+                    <td class="skill-{{ skill.performance_level|lower }}">
+                        {{ skill.performance_level }}
+                    </td>
+                    <td>{{ skill.comments|default:"No comments available." }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Overall Score Section -->
+    <div class="section">
+        <h2>Overall Assessment</h2>
+        <div class="recommendation-section" style="background-color: {{ overall_color }}; border-color: {{ overall_color }};">
+            <div class="recommendation-title" style="color: {{ overall_color }};">
+                FINAL RECOMMENDATION
+            </div>
+            <div class="overall-score" style="color: {{ overall_color }};">
+                Overall Score: {{ overall_score }}%
+            </div>
+            <div class="performance-level level-{{ overall_level|lower }}" style="color: white;">
+                {{ overall_level }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Q&A Script Section -->
+    <div class="section">
+        <h2>Complete Q&A Script</h2>
+        {% for main_question in main_questions_with_followups %}
+            {% if main_question.question_type != 'CODING' %}
+                <div class="question-block">
+                    <h4>Q{{ main_question.order|add:1 }}: {{ main_question.question_text|truncatewords:50 }}</h4>
+                    <p class="answer"><strong>Answer:</strong> {{ main_question.transcribed_answer|default:"No answer recorded."|truncatewords:200 }}</p>
+                    
+                    {% for follow_up in main_question.follow_ups.all %}
+                        <div class="question-block">
+                            <h5>Follow-Up: {{ follow_up.question_text|truncatewords:50 }}</h5>
+                            <p class="answer"><strong>Answer:</strong> {{ follow_up.transcribed_answer|default:"No answer recorded."|truncatewords:200 }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Coding Challenge Section -->
+    {% if code_submissions %}
+    <div class="section">
+        <h2>Coding Challenge Solutions</h2>
+        {% for submission in code_submissions %}
+            <div class="question-block">
+                <h4>Challenge: {{ submission.question.question_text|truncatewords:50 }}</h4>
+                <p class="answer"><strong>Language:</strong> {{ submission.language }}</p>
+                <p><strong>Submitted Code:</strong></p>
+                <pre>{{ submission.submitted_code|default:"No code was submitted."|truncatewords:500 }}</pre>
+                
+                <p style="margin-top:15px;"><strong>Test Results & Output:</strong></p>
+                <pre>{{ submission.output_log|default:"Test results were not recorded."|truncatewords:300 }}</pre>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- AI Evaluation Summary -->
+    {% if session.is_evaluated and session.language_code == 'en' %}
+    <div class="section">
+        <h2>AI Evaluation Summary</h2>
+        <p><strong>Resume Analysis:</strong></p>
+        <pre>{{ session.resume_feedback|default:"Evaluation not available." }}</pre>
+        
+        <p><strong>Interview Performance Analysis:</strong></p>
+        <pre>{{ session.answers_feedback|default:"Evaluation not available." }}</pre>
+        
+        <p><strong>Overall Candidate Profile:</strong></p>
+        <pre>{{ session.overall_performance_feedback|default:"Evaluation not available." }}</pre>
+    </div>
+    {% endif %}
+
+</body>
+</html>

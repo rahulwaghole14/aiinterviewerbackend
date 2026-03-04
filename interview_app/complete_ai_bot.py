@@ -1,3 +1,7 @@
+"""
+COMPLETE AI Bot - Full port from app.py (1678 lines) for Django
+This includes ALL prompts, RAG system, and advanced interview logic
+"""
 import os
 import re
 import uuid
@@ -8,7 +12,7 @@ from django.conf import settings
 import numpy as np
 
 # Configure Gemini - Using 2.5-flash as per your app.py
-GEMINI_API_KEY = getattr(settings, 'GEMINI_API_KEY', '')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     print("✅ Gemini API configured successfully in complete_ai_bot.py")
@@ -169,18 +173,32 @@ def _reset_question_timers(session: InterviewSession):
 def _count_words(text: str) -> int:
     if not text:
         return 0
-    return len(re.findall(r"\b\w+\b", text))
+    try:
+        return len(re.findall(r"\b\w+\b", text))
+    except Exception:
+        normalized = (text or "").strip()
+        return len([w for w in normalized.split() if w])
 
 
 # ------------------ Gemini helper (from app.py lines 394-401) ------------------
 def gemini_generate(prompt):
-    """Use gemini-2.5-flash for interview questions"""
+    """Use gemini-2.0-flash for interview questions"""
     try:
+        print(f"🔍 Sending prompt to Gemini: {prompt[:200]}...")
         model = genai.GenerativeModel("gemini-2.5-flash")
         resp = model.generate_content(prompt)
-        return resp.text if resp and resp.text else "Could not generate a response."
+        
+        if resp and resp.text:
+            result = resp.text.strip()
+            print(f"✅ Gemini response: {result[:100]}...")
+            return result
+        else:
+            print(f"⚠️ Gemini returned empty response: {resp}")
+            return "Could not generate a response."
     except Exception as e:
         print(f"❌ Gemini error: {e}")
+        import traceback
+        traceback.print_exc()
         return f"[Gemini error: {str(e)}]"
 
 
@@ -316,22 +334,21 @@ def answer_matches_jd_context(answer: str, jd_text: str) -> bool:
     return False
 
 
-def should_ask_follow_up(session: InterviewSession, answer: str) -> bool:
+def should_ask_follow_up(session: InterviewSession, answer: str, intent: str = "answer") -> bool:
     """
     Determine if a follow-up question should be asked based on:
     1. Answer quality (broad/vague)
     2. JD context match
     3. Ratio constraint (30% follow-up, 70% regular)
     
-    IMPORTANT: Candidate questions are NOT counted in the overall question ratio.
-    This function is only called for candidate ANSWERS, not candidate QUESTIONS.
+    IMPORTANT: Candidate questions/repeats/elaborations are NOT counted in the overall question ratio.
     """
     # Don't ask follow-up for closing questions or when handling candidate questions
     if session.asked_for_questions or session.asked_pre_closing_question or session.waiting_for_candidate_question:
         return False
     
-    # Don't ask follow-up if the transcript is actually a candidate question
-    if is_candidate_question(answer):
+    # Don't ask follow-up if the transcript is not a direct answer
+    if intent != "answer":
         return False
     
     # Calculate current ratio
@@ -398,28 +415,46 @@ def generate_clarification_prompt_with_question(session) -> str:
     return line
 
 
+def analyze_candidate_intent(text: str) -> str:
+    """
+    Use LLM to categorize candidate intent: answer, repeat, elaborate, or inquiry.
+    Allows for more robust detection than simple heuristics.
+    """
+    if not text or text.strip().startswith("[") or len(text.split()) > 50:
+        return "answer"
+    
+    prompt = (
+        "Analyze the following candidate transcript from an interview and categorize their intent.\n\n"
+        f"Transcript: \"{text}\"\n\n"
+        "Categories:\n"
+        "1. 'answer': The candidate is providing an answer to a question.\n"
+        "2. 'repeat': The candidate is asking to repeat the last question (e.g., 'can you say that again?', 'pardon?', 'repeat please').\n"
+        "3. 'elaborate': The candidate is asking for clarification or more detail on the question (e.g., 'can you explain what you mean?', 'can you elaborate?').\n"
+        "4. 'inquiry': The candidate is asking a question about the company, role, or interview process (e.g., 'what is the team size?', 'how long is this interview?').\n\n"
+        "Respond with exactly one word from the categories: answer, repeat, elaborate, inquiry."
+    )
+    
+    try:
+        # Use a simplified check to avoid overhead if possible, but for accuracy use LLM as requested
+        verdict = (gemini_generate(prompt) or "").strip().lower()
+        if "repeat" in verdict: return "repeat"
+        if "elaborate" in verdict: return "elaborate"
+        if "inquiry" in verdict: return "inquiry"
+        if "answer" in verdict: return "answer"
+        return "answer"
+    except Exception as e:
+        print(f"⚠️ Error in intent analysis: {e}")
+        return "answer"
+
+
 def is_elaboration_request(text: str) -> bool:
-    """Detect if candidate is asking to elaborate/clarify the question."""
-    if not text:
-        return False
-    t_lower = (text or "").strip().lower()
-    cues = [
-        "elaborate", "elaboration", "explain", "more detail", "clarify", "clarification",
-        "what do you mean", "could you expand", "expand on", "help me understand",
-        "can you elaborate", "please elaborate", "say it in detail"
-    ]
-    return any(cue in t_lower for cue in cues)
+    """Detect using LLM if candidate is asking to elaborate/clarify the question."""
+    return analyze_candidate_intent(text) == "elaborate"
 
 
 def is_repeat_request(text: str) -> bool:
-    if not text:
-        return False
-    t_lower = (text or "").strip().lower()
-    cues = [
-        "repeat", "again", "can you repeat", "please repeat", "ask again",
-        "repeat the question", "ask that question again", "say it again"
-    ]
-    return any(cue in t_lower for cue in cues)
+    """Detect using LLM if candidate is asking to repeat the question."""
+    return analyze_candidate_intent(text) == "repeat"
 
 
 def is_proceed_prompt_text(text: str) -> bool:
@@ -453,19 +488,9 @@ def is_negative_response(text: str) -> bool:
 
 
 def is_candidate_question(text):
-    """Heuristically detect if the candidate's transcript is a question for the interviewer."""
-    if not text:
-        return False
-    t = text.strip().lower()
-    if "?" in t:
-        return True
-    question_starters = [
-        "what ", "how ", "why ", "when ", "where ", "who ", "which ",
-        "can you", "could you", "would you", "should i", "do you", "are you",
-        "is it", "may i", "might we", "could i", "please explain", "i have a question",
-        "could you explain", "can i ask"
-    ]
-    return any(t.startswith(qs) or qs in t for qs in question_starters)
+    """Detect using LLM if the candidate's transcript is a question, repeat, or elaboration request."""
+    intent = analyze_candidate_intent(text)
+    return intent != "answer"
 
 
 def generate_candidate_answer(session, candidate_question_text):
@@ -476,13 +501,13 @@ def generate_candidate_answer(session, candidate_question_text):
     conversation_context = session.get_conversation_context()
 
     prompt = (
-        "You are the interviewer. The candidate asked a question during the interview about the role, company,sallary or interview process.\n\n"
+        "You are the interviewer. The candidate asked a question during the interview about the role, company, or interview process.\n\n"
         f"Job Description Context: {jd_context}\n\n"
         "Interview so far:\n"
         f"{conversation_context}\n\n"
         f"Candidate's question: {candidate_question_text}\n\n"
         "Answer the candidate's question briefly, accurately, and professionally based on the job description and interview context. "
-        "If the question is about the role, team,sallary or company, provide a helpful answer. "
+        "If the question is about the role, team, or company, provide a helpful answer. "
         "If the question cannot be answered right now or is not related to the interview, "
         "say: 'Thanks for asking — we'll get back to you via email.' "
         "Keep your answer concise (2-3 sentences maximum). "
@@ -671,8 +696,6 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         prompt = (
             f"You are a professional interviewer. The candidate's name is {session.candidate_name}.\n\n"
             f"Job Description Context: {jd_context}\n\n"
-            f"INTERVIEW CONFIGURATION: This interview will have a total of {session.max_questions} questions including introduction, main questions, pre-closing, and closing.\n"
-            f"Current Question: 1 of {session.max_questions} (Introduction)\n\n"
             "Ask a warm, professional introduction question to start the interview. "
             "Keep it conversational and friendly. Ask only one concise, single-line question."
         )
@@ -681,8 +704,6 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         prompt = (
             "You are a professional technical interviewer conducting a technical interview. Ask only single-line, direct questions.\n\n"
             f"Job Description Context: {jd_context}\n\n"
-            f"INTERVIEW CONFIGURATION: Total of {session.max_questions} questions including introduction, main questions, pre-closing, and closing.\n"
-            f"Current Question: {session.current_question_number + 1} of {session.max_questions} (Follow-up)\n\n"
             "Interview so far:\n"
             f"{conversation_context}\n\n"
             "Based on the candidate's last answer, ask a relevant follow-up question grounded in the JD. "
@@ -694,25 +715,10 @@ def generate_question(session, question_type="introduction", last_answer_text=No
             "If it was brief, ask for clarification or a concrete example. Keep it professional and JD-aligned."
         )
     
-    elif question_type == "pre_closing":
-        prompt = (
-            "You are a professional interviewer conducting the final technical question before closing. Ask only single-line questions.\n\n"
-            f"Job Description Context: {jd_context}\n\n"
-            f"INTERVIEW CONFIGURATION: Total of {session.max_questions} questions. This is the PRE-CLOSING question ({session.current_question_number + 1} of {session.max_questions}).\n"
-            f"Current Question: {session.current_question_number + 1} of {session.max_questions} (Pre-Closing)\n\n"
-            "Interview so far:\n"
-            f"{conversation_context}\n\n"
-            "Ask one final technical question before moving to the closing phase. This should be a meaningful question that wraps up the technical assessment. "
-            "Choose a question that addresses any gaps in the technical evaluation or explores an important aspect of the job requirements. "
-            "Keep it professional and relevant to the job description. Ask only one single-line question."
-        )
-    
     elif question_type == "closing":
         prompt = (
             "You are a professional interviewer wrapping up a technical interview. Ask only single-line questions.\n\n"
             f"Job Description Context: {jd_context}\n\n"
-            f"INTERVIEW CONFIGURATION: Total of {session.max_questions} questions. This is the FINAL question ({session.max_questions} of {session.max_questions}).\n"
-            f"Current Question: {session.max_questions} of {session.max_questions} (Closing)\n\n"
             "Interview so far:\n"
             f"{conversation_context}\n\n"
             "Generate a professional closing question to ask the candidate if they have any questions. "
@@ -725,8 +731,6 @@ def generate_question(session, question_type="introduction", last_answer_text=No
         prompt = (
             "You are a professional interviewer conducting an interview. Ask only single-line questions.\n\n"
             f"Job Description Context: {jd_context}\n\n"
-            f"INTERVIEW CONFIGURATION: Total of {session.max_questions} questions including introduction, main questions, pre-closing, and closing.\n"
-            f"Current Question: {session.current_question_number + 1} of {session.max_questions} (Main Question)\n\n"
             "Interview so far:\n"
             f"{conversation_context}\n\n"
             f"Ask the next interview question (question {session.current_question_number + 1} of {session.max_questions}). "
@@ -820,6 +824,10 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
             transcript = "[No speech detected]"
         session.add_candidate_message(transcript)
         print(f"💾 Saved candidate message: '{(transcript[:120] + ('...' if len(transcript) > 120 else ''))}'")
+        
+        # Analyze candidate intent once using LLM to be reused throughout the function
+        intent = analyze_candidate_intent(transcript)
+        print(f"🤖 Detected candidate intent: {intent}")
         
         # If we received content, we are no longer awaiting an answer
         if transcript.strip() and not transcript.startswith("["):
@@ -997,7 +1005,7 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
         if is_proceed_prompt_text(last_interviewer):
             if is_affirmative_response(transcript):
                 # Use ratio logic to decide follow-up vs regular
-                should_follow_up = should_ask_follow_up(session, transcript)
+                should_follow_up = should_ask_follow_up(session, transcript, intent=intent)
                 if should_follow_up:
                     next_q_text = generate_question(session, "follow_up", last_answer_text=transcript)
                     session.follow_up_questions_count += 1
@@ -1038,7 +1046,7 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     }
 
         # Repeat command
-        if any(word in transcript_lower for word in ["repeat", "again", "can you repeat", "please repeat"]):
+        if intent == "repeat":
             last_q = get_last_strict_question(session)
             if last_q:
                 audio_url = text_to_speech(last_q, f"repeat_{uuid.uuid4().hex}.mp3")
@@ -1135,19 +1143,10 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 "continuous": True
             }
         
-        # If the candidate asked a question
-        if is_candidate_question(transcript):
-            elaboration_cues = [
-                "elaborate", "elaboration", "explain", "more detail", "clarify", "clarification",
-                "what do you mean", "could you expand", "expand on", "help me understand"
-            ]
-            repeat_cues = [
-                "ask again", "ask that previous", "previous question", "repeat the question",
-                "ask that question again", "can you ask that question", "can you ask again"
-            ]
-            t_lower = transcript.lower()
-            wants_elaboration = any(cue in t_lower for cue in elaboration_cues)
-            wants_repeat = any(cue in t_lower for cue in repeat_cues)
+        # If the candidate asked a question, requested repetition, or elaboration
+        if intent != "answer":
+            wants_elaboration = (intent == "elaborate")
+            wants_repeat = (intent == "repeat")
 
             if wants_repeat:
                 last_q = get_last_strict_question(session)
@@ -1214,190 +1213,44 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 "max_questions": session.max_questions,
                 "continuous": True
             }
-
-        # Check if interview is completed (regular flow)
-        # max_questions represents the TOTAL number of questions including pre-closing and closing
-        # Handle edge cases for small question counts
+        
+        # SIMPLIFIED QUESTION COUNTING LOGIC
+        # For max_questions=5: Ask 5 questions total (intro + 4 main) + closing
+        # For max_questions=4: Ask 4 questions total (intro + 3 main) + closing
         
         print(f"📊 Question count check: current={session.current_question_number}, max={session.max_questions}")
         
-        # Handle different question count scenarios
-        if session.max_questions <= 1:
-            # Only 1 question: intro only, then closing
-            if session.current_question_number >= 1:
-                # Go directly to closing
-                if not session.asked_for_questions:
-                    closing = generate_question(session, "closing", last_answer_text=transcript)
-                    session.add_interviewer_message(closing)
-                    session.current_question_number += 1
-                    session.awaiting_answer = True
-                    session.last_active_question_text = closing
-                    session.asked_for_questions = True
-                    _reset_question_timers(session)
-                    closing_audio = text_to_speech(closing, f"closing_{uuid.uuid4().hex}.mp3")
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": closing,
-                        "audio_url": closing_audio,
-                        "question_number": session.current_question_number,
-                        "max_questions": session.max_questions,
-                        "continuous": True
-                    }
-                else:
-                    # Already in closing phase
-                    session.completed_at = time.time()
-                    session.is_completed = True
-                    return {
-                        "transcript": transcript,
-                        "completed": True,
-                        "message": "Interview completed. Thank you for your time!"
-                    }
-        elif session.max_questions == 2:
-            # 2 questions: intro + closing (no pre-closing)
-            if session.current_question_number >= 1:
-                # Go directly to closing
-                if not session.asked_for_questions:
-                    closing = generate_question(session, "closing", last_answer_text=transcript)
-                    session.add_interviewer_message(closing)
-                    session.current_question_number += 1
-                    session.awaiting_answer = True
-                    session.last_active_question_text = closing
-                    session.asked_for_questions = True
-                    _reset_question_timers(session)
-                    closing_audio = text_to_speech(closing, f"closing_{uuid.uuid4().hex}.mp3")
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": closing,
-                        "audio_url": closing_audio,
-                        "question_number": session.current_question_number,
-                        "max_questions": session.max_questions,
-                        "continuous": True
-                    }
-                else:
-                    # Already in closing phase
-                    session.completed_at = time.time()
-                    session.is_completed = True
-                    return {
-                        "transcript": transcript,
-                        "completed": True,
-                        "message": "Interview completed. Thank you for your time!"
-                    }
-        else:
-            # 3 or more questions: intro + main questions + pre-closing + closing
-            # The flow is: intro + main questions + pre-closing + closing = max_questions
-            # Example: if max_questions=3: intro(1) + pre-closing(2) + closing(3) = 3 total (no main questions)
-            # Example: if max_questions=4: intro(1) + 1 main(2) + pre-closing(3) + closing(4) = 4 total
-            # Example: if max_questions=5: intro(1) + 2 main(2-3) + pre-closing(4) + closing(5) = 5 total
-            
-            # Calculate how many main questions we should ask (excluding intro, pre-closing, and closing)
-            # Reserve 2 slots for pre-closing and closing, 1 for intro = 3 total reserved
-            main_questions_to_ask = max(0, session.max_questions - 3)  # Main questions after intro
-            
-            # Calculate the question number where we should start pre-closing
-            # After intro (1) + main_questions_to_ask
-            pre_closing_start_number = 1 + main_questions_to_ask
-            
-            print(f"📊 Detailed check: main_to_ask={main_questions_to_ask}, pre_closing_start={pre_closing_start_number}")
-            
-            # Check if we've reached the point where we should ask pre-closing question
-            if session.current_question_number >= pre_closing_start_number:
-                # First, ask one more question before the closing question (pre-closing question)
-                if not session.asked_pre_closing_question:
-                    # Check if candidate gave a "don't know" answer - if so, skip pre-closing and go directly to closing
-                    if is_dont_know_answer(transcript):
-                        print(f"⚠️ Candidate gave 'don't know' answer at pre-closing stage, skipping pre-closing question and going directly to closing")
-                        session.asked_pre_closing_question = True  # Mark as asked so we skip it
-                        # Go directly to closing question
-                        closing = generate_question(session, "closing", last_answer_text=transcript)
-                        session.add_interviewer_message(closing)
-                        session.current_question_number += 1
-                        session.awaiting_answer = True
-                        session.last_active_question_text = closing
-                        session.asked_for_questions = True
-                        _reset_question_timers(session)
-                        closing_audio = text_to_speech(closing, f"closing_{uuid.uuid4().hex}.mp3")
-                        return {
-                            "transcript": transcript,
-                            "completed": False,
-                            "next_question": closing,
-                            "audio_url": closing_audio,
-                            "question_number": session.current_question_number,
-                            "max_questions": session.max_questions,
-                            "continuous": True
-                        }
-                    
-                    # Generate pre-closing question before closing
-                    next_q_text = generate_question(session, "pre_closing", last_answer_text=transcript)
-                    session.add_interviewer_message(next_q_text)
-                    session.current_question_number += 1
-                    session.regular_questions_count += 1  # Pre-closing is a regular question
-                    session.awaiting_answer = True
-                    session.last_active_question_text = next_q_text
-                    session.asked_pre_closing_question = True
-                    _reset_question_timers(session)
-                    question_audio_url = text_to_speech(next_q_text, f"q{session.current_question_number}.mp3")
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": next_q_text,
-                        "audio_url": question_audio_url,
-                        "question_number": session.current_question_number,
-                        "max_questions": session.max_questions,  # Total questions including pre-closing and closing
-                        "continuous": True
-                    }
-                # After pre-closing question is answered, ask the closing question (generated dynamically)
-                elif not session.asked_for_questions:
-                    # Check if candidate gave a "don't know" answer to pre-closing question
-                    # If so, go directly to closing without asking another question
-                    if is_dont_know_answer(transcript):
-                        print(f"⚠️ Candidate gave 'don't know' answer to pre-closing question, going directly to closing")
-                        # Go directly to closing question
-                        closing = generate_question(session, "closing", last_answer_text=transcript)
-                        session.add_interviewer_message(closing)
-                        session.current_question_number += 1
-                        session.awaiting_answer = True
-                        session.last_active_question_text = closing
-                        session.asked_for_questions = True
-                        _reset_question_timers(session)
-                        closing_audio = text_to_speech(closing, f"closing_{uuid.uuid4().hex}.mp3")
-                        return {
-                            "transcript": transcript,
-                            "completed": False,
-                            "next_question": closing,
-                            "audio_url": closing_audio,
-                            "question_number": session.current_question_number,
-                            "max_questions": session.max_questions,  # Total questions including pre-closing and closing
-                            "continuous": True
-                        }
-                    
-                    # Normal flow: ask the closing question
-                    closing = generate_question(session, "closing", last_answer_text=transcript)
-                    session.add_interviewer_message(closing)
-                    session.current_question_number += 1
-                    session.awaiting_answer = True
-                    session.last_active_question_text = closing
-                    session.asked_for_questions = True
-                    _reset_question_timers(session)
-                    closing_audio = text_to_speech(closing, f"closing_{uuid.uuid4().hex}.mp3")
-                    return {
-                        "transcript": transcript,
-                        "completed": False,
-                        "next_question": closing,
-                        "audio_url": closing_audio,
-                        "question_number": session.current_question_number,
-                        "max_questions": session.max_questions,  # Total questions including pre-closing and closing
-                        "continuous": True
-                    }
-                # Already in closing phase
-                session.completed_at = time.time()
-                session.is_completed = True
+        # Check if we've reached the question limit
+        if session.current_question_number >= session.max_questions:
+            # Time for closing question
+            if not session.asked_for_questions:
+                print(f"🎯 Reached question limit ({session.max_questions}), asking closing question")
+                closing = generate_question(session, "closing", last_answer_text=transcript)
+                session.add_interviewer_message(closing)
+                session.current_question_number += 1
+                session.awaiting_answer = True
+                session.last_active_question_text = closing
+                session.asked_for_questions = True
+                _reset_question_timers(session)
+                closing_audio = text_to_speech(closing, f"closing_{uuid.uuid4().hex}.mp3")
                 return {
                     "transcript": transcript,
-                    "completed": True,
-                    "message": "Interview completed. Thank you for your time!"
+                    "completed": False,
+                    "next_question": closing,
+                    "audio_url": closing_audio,
+                    "question_number": session.current_question_number,
+                    "max_questions": session.max_questions,
+                    "continuous": True
                 }
+            
+            # Already asked closing question, complete interview
+            session.completed_at = time.time()
+            session.is_completed = True
+            return {
+                "transcript": transcript,
+                "completed": True,
+                "message": "Interview completed. Thank you for your time!"
+            }
         
         # Gate moving to next question until 5s of no new words after first voice
         if session.awaiting_answer and session.first_voice_at is not None:
@@ -1412,46 +1265,11 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                     "max_questions": session.max_questions,
                     "continuous": True
                 }
-
-        # Generate next question
-        # Handle edge cases for small question counts first
-        if session.max_questions <= 1:
-            # Only 1 question: intro only, should have been handled above
-            print(f"⚠️ WARNING: Should have completed after intro for max_questions=1")
-            return {
-                "transcript": transcript,
-                "completed": False,
-                "error": "Question limit reached"
-            }
-        elif session.max_questions == 2:
-            # 2 questions: intro + closing (no pre-closing), should have been handled above
-            print(f"⚠️ WARNING: Should have completed after intro for max_questions=2")
-            return {
-                "transcript": transcript,
-                "completed": False,
-                "error": "Question limit reached"
-            }
-        else:
-            # 3 or more questions: use the same calculation as above for consistency
-            main_questions_to_ask = max(0, session.max_questions - 3)  # Main questions after intro
-            pre_closing_start_number = 1 + main_questions_to_ask  # After intro + main questions
-            
-            if session.current_question_number >= pre_closing_start_number:
-                # We've reached the limit, should have been handled above
-                # This shouldn't happen, but just in case, return error
-                print(f"⚠️ WARNING: Reached main questions limit ({pre_closing_start_number}) but didn't trigger pre-closing")
-                print(f"   Current: {session.current_question_number}, Max: {session.max_questions}")
-                return {
-                    "transcript": transcript,
-                    "completed": False,
-                    "error": "Question limit reached"
-                }
         
         # Decide whether to ask follow-up or regular question based on:
         # 1. Answer quality (broad/vague)
         # 2. JD context match
-        # 3. Ratio constraint (30% follow-up, 70% regular)
-        should_follow_up = should_ask_follow_up(session, transcript)
+        should_follow_up = should_ask_follow_up(session, transcript, intent=intent)
         
         if should_follow_up:
             next_question = generate_question(session, "follow_up", last_answer_text=transcript)
@@ -1471,11 +1289,13 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
                 print(f"📊 Follow-up ratio: {session.follow_up_questions_count} follow-ups / {total_asked} total = {ratio:.1f}%")
         
         session.add_interviewer_message(next_question)
-        session.current_question_number += 1
         session.awaiting_answer = True
         session.last_active_question_text = next_question
         
-        print(f"📊 Question progress: {session.current_question_number}/{session.max_questions} (main limit: {pre_closing_start_number})")
+        # Increment question number AFTER setting up the question
+        session.current_question_number += 1
+        
+        print(f"📊 Question progress: {session.current_question_number}/{session.max_questions}")
         
         audio_url = text_to_speech(next_question, f"q{session.current_question_number}.mp3")
         _reset_question_timers(session)
@@ -1493,7 +1313,6 @@ def upload_answer(session_id: str, transcript: str, silence_flag: bool = False, 
         print(f"❌ Error in /upload_answer: {e}")
         import traceback
         traceback.print_exc()
-        return {"error": str(e)}
 
 
 def repeat_question(session_id: str) -> Dict:

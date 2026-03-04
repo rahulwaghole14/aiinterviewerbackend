@@ -11,6 +11,7 @@ urlpatterns = [
     path('generate-link/', views.generate_interview_link, name='generate_interview_link'),
     # Interview portal route (specific route, not catch-all)
     path('interview/', views.interview_portal, name='interview_portal'),
+    path('interview/heartbeat/', views.interview_heartbeat, name='interview_heartbeat'),
     # Root path - serve React app (interview portal accessed via /interview/)
     path('', views.serve_react_app, name='react_app_root'),
     path('report/<uuid:session_id>/pdf/', views.download_report_pdf, name='download_report_pdf'),
@@ -42,6 +43,7 @@ urlpatterns = [
 
     # --- VIDEO RECORDING ENDPOINTS ---
     path('ai/recording/upload_video/', views.upload_interview_video, name='upload_interview_video'),
+    path('ai/recording/upload_screen/', views.upload_screen_recording, name='upload_screen_recording'),
     path('ai/recording/upload_audio/', views.upload_interview_audio, name='upload_interview_audio'),
     
     # Video serving endpoint with proper headers (supports both old and new folder structure)
@@ -54,7 +56,8 @@ urlpatterns = [
     path('ai/start', views.ai_start, name='ai_start'),
     path('ai/upload_answer', views.ai_upload_answer, name='ai_upload_answer'),
     path('ai/repeat', views.ai_repeat, name='ai_repeat'),
-    path('ai/transcript_pdf', views.ai_transcript_pdf, name='ai_transcript_pdf'),
+    path('ai/transcript_pdf', views.redirect_to_qa_evaluation_pdf, name='ai_transcript_pdf'),  # Redirect to new LLM-powered endpoint
+    path('ai/qa_evaluation_pdf', views.download_qa_evaluation_pdf, name='download_qa_evaluation_pdf'),
     path('api/proctoring/pdf/<uuid:session_id>/', views.download_proctoring_pdf, name='download_proctoring_pdf'),
 
 

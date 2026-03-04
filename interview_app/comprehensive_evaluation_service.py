@@ -45,61 +45,59 @@ class ComprehensiveEvaluationService:
             behavioral_qa = []
             coding_submissions = []
             
-            # Build a map of question_id -> question_text for AI questions
-            ai_questions_map = {}
+            # 1. Group all records by order and role for robust pairing
+            order_mapping = {}
             for q in all_questions:
-                # AI questions have role='AI' and question_text
-                if (q.role == 'AI' or (not q.role and q.question_text)) and q.question_text:
-                    ai_questions_map[q.id] = {
-                        'text': q.question_text,
-                        'type': q.question_type,
-                        'order': q.order
+                # Store AI questions and Interviewee answers by order
+                ord_key = q.order
+                if ord_key not in order_mapping:
+                    order_mapping[ord_key] = {'AI': None, 'INTERVIEWEE': None}
+                
+                role = (q.role or '').upper()
+                if role == 'AI' and q.question_text:
+                    if q.question_level != 'CANDIDATE_QUESTION':
+                        order_mapping[ord_key]['AI'] = q
+                elif role == 'INTERVIEWEE':
+                    # Only accept records with transcribed_answer
+                    if q.transcribed_answer and q.transcribed_answer.strip():
+                        order_mapping[ord_key]['INTERVIEWEE'] = q
+                else:
+                    # Old format fallback
+                    if q.question_text and not q.transcribed_answer:
+                        order_mapping[ord_key]['AI'] = q
+                    elif q.transcribed_answer:
+                        order_mapping[ord_key]['INTERVIEWEE'] = q
+
+            # 2. Build technical_qa and behavioral_qa lists from mapped pairs
+            for ord_key in sorted(order_mapping.keys()):
+                pair = order_mapping[ord_key]
+                ai_q = pair['AI']
+                int_a = pair['INTERVIEWEE']
+                
+                if ai_q:
+                    q_text = ai_q.question_text
+                    # Clean prefix
+                    if q_text.strip().startswith('Q:'):
+                        q_text = q_text.replace('Q:', '').strip()
+                        
+                    a_text = int_a.transcribed_answer if int_a else "No answer recorded."
+                    q_type = (ai_q.question_type or '').upper()
+                    
+                    qa_entry = {
+                        'question': q_text,
+                        'answer': a_text,
+                        'question_level': ai_q.question_level or 'MAIN',
+                        'response_time': ai_q.response_time_seconds or (int_a.response_time_seconds if int_a else 0),
+                        'words_per_minute': int_a.words_per_minute if int_a else 0,
+                        'filler_word_count': int_a.filler_word_count if int_a else 0,
+                        'order': ai_q.order,
+                        'conversation_sequence': ai_q.conversation_sequence
                     }
-            
-            # Process interviewee answers and match with AI questions
-            for q in all_questions:
-                # Interviewee answers have role='INTERVIEWEE' and transcribed_answer
-                if q.role == 'INTERVIEWEE' and q.transcribed_answer:
-                    # Find the corresponding AI question
-                    # Try to find by order (answer usually has same order as question)
-                    corresponding_question = None
-                    for ai_q in all_questions:
-                        if (ai_q.role == 'AI' or (not ai_q.role and ai_q.question_text)) and ai_q.order == q.order:
-                            corresponding_question = ai_q.question_text
-                            break
                     
-                    # If not found by order, try to find by conversation_sequence (answer is usually sequence-1)
-                    if not corresponding_question and q.conversation_sequence:
-                        prev_seq = q.conversation_sequence - 1
-                        for ai_q in all_questions:
-                            if ai_q.conversation_sequence == prev_seq and ai_q.question_text:
-                                corresponding_question = ai_q.question_text
-                                break
-                    
-                    question_text = corresponding_question or 'Question not available'
-                    
-                    if q.question_type == 'TECHNICAL':
-                        technical_qa.append({
-                            'question': question_text,
-                            'answer': q.transcribed_answer,
-                            'question_level': q.question_level or 'MAIN',
-                            'response_time': q.response_time_seconds,
-                            'words_per_minute': q.words_per_minute,
-                            'filler_word_count': q.filler_word_count or 0,
-                            'order': q.order,
-                            'conversation_sequence': q.conversation_sequence
-                        })
-                    elif q.question_type == 'BEHAVIORAL':
-                        behavioral_qa.append({
-                            'question': question_text,
-                            'answer': q.transcribed_answer,
-                            'question_level': q.question_level or 'MAIN',
-                            'response_time': q.response_time_seconds,
-                            'words_per_minute': q.words_per_minute,
-                            'filler_word_count': q.filler_word_count or 0,
-                            'order': q.order,
-                            'conversation_sequence': q.conversation_sequence
-                        })
+                    if q_type == 'TECHNICAL':
+                        technical_qa.append(qa_entry)
+                    elif q_type == 'BEHAVIORAL':
+                        behavioral_qa.append(qa_entry)
             
             # Process coding questions - collect ALL coding submissions
             # First, get all coding submissions for this session

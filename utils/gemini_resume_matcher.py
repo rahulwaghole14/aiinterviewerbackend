@@ -44,19 +44,20 @@ class GeminiResumeMatcher:
         1. Look for phrases like "X years of experience", "X+ years", "X years experience"
         2. Consider all work experiences mentioned and calculate the total
         3. If multiple experiences are mentioned, sum them up (considering overlaps)
-        4. Return ONLY a single integer number representing total years of experience
+        4. Return ONLY Decimal number representing total years of experience
         5. If no clear experience information is found, return 0
         
         Examples:
         - "5 years of software development experience" -> 5
         - "3+ years in frontend, 2 years in backend" -> 5
+        - "1.6 years of software development experience" -> 1.6
         - "Experience from 2018 to 2023" -> 5
         - "No experience mentioned" -> 0
         
         Respond with Decimal number, no explanation:
         -if experience is only in months or less then 1 year then show the month infront of that month number)
         Examples:
-        - "6 month of software development experience" -> 6 Months
+        - "6 month of software development experience" -> 6.0 Months
         - "8 months in frontend" -> 8 Months
         """
 
@@ -166,7 +167,7 @@ class GeminiResumeMatcher:
             # Return fallback calculation
             return self._fallback_match_calculation(resume_text, job_description)
 
-    def analyze_resume_comprehensive(self, resume_text: str, job_description: str = None) -> Dict:
+    def extract_resume_comprehensive(self, resume_text: str, job_description: str = None) -> Dict:
         """
         Comprehensive resume analysis using Gemini AI
         
@@ -198,22 +199,31 @@ class GeminiResumeMatcher:
                 "current_role": "<current/most recent role>",
                 "key_skills": ["<skill1>", "<skill2>", "..."],
                 "education": ["<education1>", "<education2>", "..."],
-                "certifications": ["<cert1>", "<cert2>", "..."]
+                "certifications": ["<cert1>", "<cert2>", "..."],
+                "domain": "<primary professional domain, e.g. Software Development, HR, Marketing>",
+                "job_role": "<the target or current job role most suitable for this candidate>"
             }},
             "analysis": {{
                 "career_level": "<Junior|Mid|Senior|Lead|Manager>",
                 "industry_focus": "<primary industry/domain>",
                 "strengths": ["<strength1>", "<strength2>", "..."],
                 "areas_for_improvement": ["<area1>", "<area2>", "..."]
+            }},
+            "match_scores": {{
+                "overall_match": <0-100 float>,
+                "skill_match": <0-100 float>,
+                "experience_match": <0-100 float>,
+                "education_match": <0-100 float>,
+                "relevance_score": <0-100 float>
             }}
         }}
         
         Instructions:
-        1. Extract all available information accurately
-        2. Infer career level from experience and responsibilities
-        3. Identify key technical and soft skills
-        4. Highlight strengths and areas that could be improved
-        5. Respond with valid JSON only
+        1. Extract all available information accurately.
+        2. If JOB CONTEXT is provided, calculate match_scores comparing the resume to the JD.
+        3. If no JOB CONTEXT is provided, set all match_scores to 0.
+        4. Infer domain and job_role from the candidate's history and current JD if provided.
+        5. Respond with valid JSON only.
         """
 
         try:
@@ -223,6 +233,14 @@ class GeminiResumeMatcher:
                 json_match = re.search(r'\{.*\}', response.text.strip(), re.DOTALL)
                 if json_match:
                     analysis = json.loads(json_match.group())
+                    print(f"✅ Gemini comprehensive extraction completed")
+                    # Ensure match_scores exists if not provided by AI
+                    if 'match_scores' not in analysis:
+                        analysis['match_scores'] = {
+                            "overall_match": 0.0, "skill_match": 0.0, 
+                            "experience_match": 0.0, "education_match": 0.0, 
+                            "relevance_score": 0.0
+                        }
                     return analysis
             
             return {}

@@ -667,10 +667,11 @@ class InterviewSerializer(serializers.ModelSerializer):
                 print(f"   Added Q#{qa.question_number} ({qa.question_type}): {qa.question_text[:50]}...")
             
             # Part 2: Get coding questions from InterviewQuestion (same as previous implementation)
+            # Temporarily remove ordering by fields that might not exist
             coding_questions = InterviewQuestion.objects.filter(
                 session=session,
                 question_type='CODING'
-            ).order_by('order', 'created_at')
+            ).order_by('order')
             
             print(f"🔧 Processing {coding_questions.count()} CODING questions from InterviewQuestion...")
             

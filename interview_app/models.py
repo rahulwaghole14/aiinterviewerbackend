@@ -118,14 +118,7 @@ class InterviewQuestion(models.Model):
         help_text="Programming language for coding questions"
     )
     
-    asked_at = models.DateTimeField(null=True, blank=True, help_text="When the question was asked")
-    answered_at = models.DateTimeField(null=True, blank=True, help_text="When the answer was received")
-    
-    is_follow_up = models.BooleanField(default=False, help_text="Whether this is a follow-up question")
-    question_category = models.CharField(max_length=50, null=True, blank=True, help_text="Category of the question (e.g., 'algorithms', 'communication')")
-    
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['order', 'conversation_sequence']

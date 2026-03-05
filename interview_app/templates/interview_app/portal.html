@@ -1908,8 +1908,8 @@
         let hasEverReceivedText = false; // Track if we've ever received any transcript
         let answeringPhaseStartTime = null; // Track when answering phase started
         const MAX_ANSWERING_TIME = 10000; // 10 seconds maximum total time
-        const SILENCE_FOR_AUTO_SUBMIT = 5000; // 5 seconds of silence to auto-submit
-        const MIN_RECORDING_TIME = 8000; // Minimum 2 seconds before auto-submit can trigger
+        const SILENCE_FOR_AUTO_SUBMIT = 10000; // 5 seconds of silence to auto-submit
+        const MIN_RECORDING_TIME = 10000; // Minimum 2 seconds before auto-submit can trigger
 
         // Function to start silence monitoring
         function startSilenceMonitoring() {

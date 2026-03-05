@@ -132,16 +132,34 @@ class ComprehensiveEvaluationService:
                     
                     question_text = question.question_text if question and question.question_text else f"Coding Challenge {len(coding_submissions) + 1}"
                     
+                    # Parse test counts from output_log since passed_count/total_count fields don't exist
+                    passed_tests = 0
+                    total_tests = 0
+                    if code_submission.output_log:
+                        # Look for pattern like "Test Results: 3/3 passed"
+                        import re
+                        match = re.search(r'Test Results:\s*(\d+)/(\d+)\s+passed', code_submission.output_log)
+                        if match:
+                            passed_tests = int(match.group(1))
+                            total_tests = int(match.group(2))
+                        else:
+                            # Alternative: look for individual test results
+                            test_results = re.findall(r'✅.*?Test Case \d+:', code_submission.output_log)
+                            if test_results:
+                                total_tests = len(test_results)
+                                # If passed_all_tests is True, all tests passed
+                                passed_tests = total_tests if code_submission.passed_all_tests else 0
+                    
                     coding_submissions.append({
                         'question': question_text,
                         'code': code_submission.submitted_code or '',
                         'language': code_submission.language or 'Unknown',
                         'test_results': code_submission.output_log or 'No test results',
-                        'passed_tests': code_submission.passed_count or 0,
-                        'total_tests': code_submission.total_count or 0,
+                        'passed_tests': passed_tests,
+                        'total_tests': total_tests,
                         'passed_all_tests': code_submission.passed_all_tests or False
                     })
-                    print(f"✅ Added coding submission: {question_text[:50]}... ({code_submission.language}, {code_submission.passed_count}/{code_submission.total_count} tests passed)")
+                    print(f"✅ Added coding submission: {question_text[:50]}... ({code_submission.language}, {passed_tests}/{total_tests} tests passed)")
                 except Exception as e:
                     print(f"⚠️ Error processing code submission {code_submission.id}: {e}")
                     import traceback

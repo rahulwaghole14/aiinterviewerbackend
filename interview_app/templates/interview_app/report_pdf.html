@@ -272,6 +272,57 @@
         {% endfor %}
     </div>
 
+    <!-- Q&A Conversation Pairs Section -->
+    {% if qa_conversation_pairs %}
+    <div class="section">
+        <h2>Complete Q&A Conversation</h2>
+        {% for qa in qa_conversation_pairs %}
+            <div class="question-block" style="margin-bottom: 20px; page-break-inside: avoid;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="margin: 0; color: #2c3e50;">Q{{ qa.question_number }}: {{ qa.question_type|title }}</h4>
+                    {% if qa.llm_score %}
+                        <span style="background-color: #3498db; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                            Score: {{ qa.llm_score|floatformat:1 }}/10
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <div style="background-color: #f8f9fa; padding: 12px; border-left: 4px solid #3498db; margin-bottom: 10px;">
+                    <strong style="color: #2c3e50;">Question:</strong>
+                    <p style="margin: 5px 0 0 0;">{{ qa.question_text }}</p>
+                </div>
+                
+                <div style="background-color: #ffffff; padding: 12px; border-left: 4px solid #27ae60; margin-bottom: 10px;">
+                    <strong style="color: #27ae60;">Answer:</strong>
+                    <p style="margin: 5px 0 0 0;">{{ qa.answer_text|default:"No answer provided." }}</p>
+                </div>
+                
+                {% if qa.llm_analysis %}
+                <div style="background-color: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin-bottom: 10px; font-size: 14px;">
+                    <strong style="color: #856404;">AI Analysis:</strong>
+                    <p style="margin: 5px 0 0 0;">{{ qa.llm_analysis|truncatewords:100 }}</p>
+                </div>
+                {% endif %}
+                
+                <div style="display: flex; gap: 15px; font-size: 12px; color: #6c757d; margin-top: 8px;">
+                    {% if qa.response_time_seconds %}
+                        <span>⏱️ {{ qa.response_time_seconds|floatformat:1 }}s</span>
+                    {% endif %}
+                    {% if qa.words_per_minute %}
+                        <span>🗣️ {{ qa.words_per_minute|floatformat:0 }} WPM</span>
+                    {% endif %}
+                    {% if qa.filler_word_count %}
+                        <span>🔄 {{ qa.filler_word_count }} fillers</span>
+                    {% endif %}
+                    {% if qa.sentiment_score %}
+                        <span>😊 {{ qa.sentiment_score|floatformat:2 }} sentiment</span>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Coding Challenge Section -->
     {% if code_submissions %}
     <div class="section">

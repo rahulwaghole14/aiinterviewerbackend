@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.utils import timezone
 
 class InterviewSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -28,6 +29,9 @@ class InterviewSession(models.Model):
     id_card_image = models.ImageField(upload_to='id_cards/', null=True, blank=True)
     extracted_id_details = models.TextField(null=True, blank=True)
     interview_video = models.FileField(upload_to='interview_videos/', null=True, blank=True, help_text="Complete interview video with camera, TTS questions, and candidate speech")
+    video_gcs_url = models.URLField(max_length=500, null=True, blank=True, help_text="Google Cloud Storage URL for the interview video")
+    screen_recording = models.FileField(upload_to='screen_recordings/', null=True, blank=True, help_text="Screen recording of the candidate during the interview")
+    screen_recording_gcs_url = models.URLField(max_length=500, null=True, blank=True, help_text="Google Cloud Storage URL for the screen recording")
     technical_interview_started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when technical interview started")
     coding_round_completed_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when coding round was completed")
     total_completion_time_minutes = models.FloatField(null=True, blank=True, help_text="Total time from technical interview start to coding round completion (in minutes)")
@@ -104,6 +108,7 @@ class InterviewQuestion(models.Model):
         ('RUBY', 'Ruby'),
         ('CSHARP', 'C#'),
         ('SQL', 'SQL'),
+        ('SWIFT', 'Swift'),  # Added 'SWIFT' to LANGUAGE_CHOICES
     ]
     coding_language = models.CharField(
         max_length=20,
@@ -211,3 +216,55 @@ class CodeSubmission(models.Model):
 
     def __str__(self):
         return f"Code submission by {self.session.candidate_name} for Q: {self.question_id}"
+
+# --- NEW MODEL: For storing separate question answer for technical interview ---
+class TechnicalInterviewQA(models.Model):
+    session = models.ForeignKey(InterviewSession, related_name='technical_qa', on_delete=models.CASCADE)
+    overall_qa = models.TextField(help_text="Stores the full QA interaction in a single continuous format: 'AI Interviewer: <Q> | Interviewee: <A>'")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"QA for {self.session.id} - {self.created_at}"
+
+# --- COMPREHENSIVE Q&A CONVERSATION MODEL ---
+class QAConversationPair(models.Model):
+    """Model to save all question-answer pairs during interview"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(InterviewSession, related_name='qa_conversation_pairs', on_delete=models.CASCADE)
+    session_key = models.CharField(max_length=255, db_index=True, null=True, blank=True, help_text="Session key for easy identification and filtering")
+    question_text = models.TextField(help_text="Question asked by AI (introductory, technical, follow-up, or clarification)")
+    answer_text = models.TextField(help_text="Answer given by candidate or question asked by candidate")
+    question_type = models.CharField(max_length=20, choices=[
+        ('INTRODUCTORY', 'Introductory'),
+        ('TECHNICAL', 'Technical'),
+        ('FOLLOW_UP', 'Follow-up'),
+        ('CLARIFICATION', 'Clarification'),
+        ('CANDIDATE_QUESTION', 'Candidate Question'),
+        ('ELABORATION_REQUEST', 'Elaboration Request'),
+    ], default='TECHNICAL')
+    question_number = models.IntegerField(help_text="Sequential number of the question in the interview (positive for AI questions, negative for candidate questions)")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    response_time_seconds = models.FloatField(null=True, blank=True, help_text="Time taken to respond in seconds")
+    words_per_minute = models.FloatField(null=True, blank=True, help_text="Speaking rate calculated from answer")
+    filler_word_count = models.PositiveIntegerField(default=0, help_text="Count of filler words in answer")
+    sentiment_score = models.FloatField(null=True, blank=True, help_text="Sentiment analysis score of the answer")
+    
+    # LLM Analysis fields
+    llm_analysis = models.TextField(null=True, blank=True, help_text="Gemini analysis of this Q&A pair")
+    llm_score = models.FloatField(null=True, blank=True, help_text="Score given by LLM for this Q&A")
+    analysis_timestamp = models.DateTimeField(null=True, blank=True, help_text="When LLM analysis was performed")
+    
+    # PDF generation flags
+    included_in_pdf = models.BooleanField(default=True, help_text="Whether this Q&A should be included in PDF report")
+    pdf_display_order = models.PositiveIntegerField(default=0, help_text="Order for displaying in PDF")
+    
+    class Meta:
+        ordering = ['question_number', 'timestamp']
+        indexes = [
+            models.Index(fields=['session', 'question_number']),
+            models.Index(fields=['session', 'question_type']),
+            models.Index(fields=['session_key']),  # Add index for session_key
+        ]
+    
+    def __str__(self):
+        return f"Q{self.question_number}: {self.question_text[:50]}... - {self.session.candidate_name} ({self.session_key})"

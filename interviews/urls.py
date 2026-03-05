@@ -29,11 +29,6 @@ urlpatterns = [
     path("", views.InterviewListCreateView.as_view(), name="interview-list-create"),
     path("<uuid:pk>/", views.InterviewDetailView.as_view(), name="interview-detail"),
     path(
-        "<uuid:pk>/feedback/",
-        views.InterviewFeedbackView.as_view(),
-        name="interview-feedback",
-    ),
-    path(
         "<uuid:pk>/generate-link/",
         views.InterviewGenerateLinkView.as_view(),
         name="interview-generate-link",
@@ -60,5 +55,11 @@ urlpatterns = [
         "<uuid:pk>/screen-recording/delete/",
         views.ScreenRecordingDeleteView.as_view(),
         name="screen-recording-delete",
+    ),
+    # Verification ID image serving
+    path(
+        "verification-id/<str:session_key>/<str:filename>/",
+        views.serve_verification_id_image,
+        name="serve-verification-id-image",
     ),
 ]

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Analysis Report - {{ session.candidate_name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #ffffff;
+            color: #000000;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border: 1px solid #ddd;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #000;
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .header .subtitle {
+            color: #666;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .analysis-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ccc;
+            background: #f9f9f9;
+        }
+        .analysis-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 15px 0;
+            color: #000;
+            text-transform: uppercase;
+        }
+        .analysis-content {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #000;
+            font-weight: normal;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .emoji {
+            font-size: 18px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Voice Analysis Report</h1>
+            <div class="subtitle">
+                Candidate: {{ session.candidate_name }} | 
+                Session: {{ session.session_key }} | 
+                Date: {{ session.created_at|date:"F j, Y" }}
+            </div>
+        </div>
+
+        <!-- Voice Activity Detection -->
+        {% if overall_vad %}
+        <div class="analysis-section">
+            <div class="analysis-content">
+                <span class="emoji">🎙</span><strong>Overall Voice Activity Detection Speech Analysis:</strong> Speech Time: {{ overall_vad.total_speech_time|floatformat:1 }}s Pause Time: {{ overall_vad.pause_duration|floatformat:1 }}s Speech Percentage: {{ overall_vad.speech_percentage|floatformat:1 }}% Silence Percentage: {{ overall_vad.silence_percentage|floatformat:1 }}%
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Speaker Diarization -->
+        {% if overall_diar %}
+        <div class="analysis-section">
+            <div class="analysis-content">
+                <span class="emoji">👥</span><strong>Overall Speaker Diarization Speaker Analysis:</strong> {{ overall_diar.num_speakers }} speaker
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- No Data Message -->
+        {% if not overall_vad and not overall_diar %}
+        <div class="analysis-section">
+            <div class="analysis-content" style="text-align: center; color: #666; font-style: italic;">
+                No voice analysis data available for this interview session.
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            Generated on {% now "F j, Y, H:i:s" %} | AI Interview System
+        </div>
+    </div>
+</body>
+</html>

@@ -66,6 +66,25 @@ def create_evaluation_from_session(session_key: str):
                     interview.status = Interview.Status.COMPLETED
                     interview.save(update_fields=['status'])
                     print(f"✅ Interview {interview.id} status updated to 'completed'")
+                    
+                    # Trigger voice analysis workflow
+                    try:
+                        from interview_app.voice_analysis_workflow import voice_analysis_workflow
+                        if interview.session_key:
+                            print(f"🎙 Triggering voice analysis for completed interview {interview.id}...")
+                            voice_result = voice_analysis_workflow.trigger_voice_analysis_on_completion(interview.session_key)
+                            if voice_result.get('success'):
+                                print(f"✅ Voice analysis completed successfully for interview {interview.id}")
+                                if voice_result.get('analysis'):
+                                    analysis = voice_result['analysis']
+                                    print(f"   🎙 Speech Time: {analysis.get('speech_time', 0)}s")
+                                    print(f"   🎙 Speech %: {analysis.get('speech_percentage', 0)}%")
+                                    print(f"   👥 Speakers: {analysis.get('num_speakers', 0)}")
+                            else:
+                                print(f"⚠️ Voice analysis trigger failed: {voice_result.get('error', 'Unknown error')}")
+                    except Exception as voice_err:
+                        print(f"⚠️ Error triggering voice analysis: {voice_err}")
+                        # Don't fail the evaluation process if voice analysis fails
                 return existing_evaluation
                 
         except Evaluation.DoesNotExist:
@@ -516,6 +535,25 @@ def create_evaluation_from_session(session_key: str):
             interview.status = Interview.Status.COMPLETED
             interview.save(update_fields=['status'])
             print(f"✅ Interview {interview.id} status updated to 'completed'")
+            
+            # Trigger voice analysis workflow
+            try:
+                from interview_app.voice_analysis_workflow import voice_analysis_workflow
+                if interview.session_key:
+                    print(f"🎙 Triggering voice analysis for completed interview {interview.id}...")
+                    voice_result = voice_analysis_workflow.trigger_voice_analysis_on_completion(interview.session_key)
+                    if voice_result.get('success'):
+                        print(f"✅ Voice analysis completed successfully for interview {interview.id}")
+                        if voice_result.get('analysis'):
+                            analysis = voice_result['analysis']
+                            print(f"   🎙 Speech Time: {analysis.get('speech_time', 0)}s")
+                            print(f"   🎙 Speech %: {analysis.get('speech_percentage', 0)}%")
+                            print(f"   👥 Speakers: {analysis.get('num_speakers', 0)}")
+                    else:
+                        print(f"⚠️ Voice analysis trigger failed: {voice_result.get('error', 'Unknown error')}")
+            except Exception as voice_err:
+                print(f"⚠️ Error triggering voice analysis: {voice_err}")
+                # Don't fail the evaluation process if voice analysis fails
         
         print(f"✅ Evaluation created for interview {interview.id}")
         print(f"   - Overall Score: {overall_score:.1f}/100 ({overall_score / 10.0:.1f}/10)")

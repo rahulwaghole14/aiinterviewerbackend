@@ -1966,6 +1966,118 @@ class InterviewConflictViewSet(DataIsolationMixin, viewsets.ReadOnlyModelViewSet
         serializer = self.get_serializer(conflict)
         return Response(serializer.data)
 
+    @action(detail=True, methods=["post"])
+    def trigger_voice_analysis(self, request, pk=None):
+        """
+        Manually trigger voice analysis for an interview
+        """
+        interview = self.get_object()
+        
+        if not interview.session_key:
+            return Response(
+                {"error": "Interview has no session key"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from interview_app.voice_analysis_workflow import voice_analysis_workflow
+            
+            print(f"🎙 Manually triggering voice analysis for interview {interview.id}...")
+            result = voice_analysis_workflow.trigger_voice_analysis_on_completion(interview.session_key)
+            
+            if result.get('success'):
+                return Response({
+                    "success": True,
+                    "message": "Voice analysis triggered successfully",
+                    "result": result
+                })
+            else:
+                return Response({
+                    "error": result.get('error', 'Voice analysis failed'),
+                    "result": result
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            logger.error(f"Error triggering voice analysis for interview {interview.id}: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=["get"])
+    def voice_analysis_summary(self, request, pk=None):
+        """
+        Get voice analysis summary for an interview
+        """
+        interview = self.get_object()
+        
+        if not interview.session_key:
+            return Response(
+                {"error": "Interview has no session key"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from interview_app.voice_analysis_workflow import voice_analysis_workflow
+            
+            summary = voice_analysis_workflow.get_voice_analysis_summary(interview.session_key)
+            
+            return Response({
+                "success": True,
+                "summary": summary
+            })
+                
+        except Exception as e:
+            logger.error(f"Error getting voice analysis summary for interview {interview.id}: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=["get"])
+    def download_voice_analysis_pdf(self, request, pk=None):
+        """
+        Download voice analysis PDF for an interview
+        """
+        interview = self.get_object()
+        
+        if not interview.session_key:
+            return Response(
+                {"error": "Interview has no session key"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from interview_app.models import InterviewSession
+            from django.http import HttpResponse, Http404
+            
+            session = InterviewSession.objects.get(session_key=interview.session_key)
+            
+            if not session.voice_analysis_pdf:
+                return Response(
+                    {"error": "Voice analysis PDF not available"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Serve the PDF file
+            try:
+                with open(session.voice_analysis_pdf.path, 'rb') as pdf_file:
+                    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+                    response['Content-Disposition'] = f'attachment; filename="voice_analysis_{interview.session_key}.pdf"'
+                    return response
+            except FileNotFoundError:
+                return Response(
+                    {"error": "PDF file not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+                
+        except Exception as e:
+            logger.error(f"Error downloading voice analysis PDF for interview {interview.id}: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class SlotAvailabilityView(generics.ListAPIView):
     """

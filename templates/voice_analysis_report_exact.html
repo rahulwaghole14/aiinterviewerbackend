@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Analysis Report - {{ session.candidate_name }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #ffffff;
+            color: #333;
+            font-size: 12px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .header .subtitle {
+            color: #666;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .analysis-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #eee;
+            background: #f9f9f9;
+        }
+        .analysis-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .analysis-content {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #555;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #000;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #666;
+            font-size: 11px;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Voice Analysis Report</h1>
+            <div class="subtitle">
+                Candidate: {{ session.candidate_name }} | 
+                Session: {{ session.session_key }} | 
+                Date: {{ session.created_at|date:"F j, Y" }}
+            </div>
+        </div>
+
+        <!-- Voice Activity Detection -->
+        {% if overall_vad %}
+        <div class="analysis-section">
+            <div class="analysis-title">🎙 Overall Voice Activity Detection Speech Analysis:</div>
+            <div class="analysis-content">
+                Speech Time: <span class="highlight">{{ overall_vad.total_speech_time|floatformat:1 }}s</span> 
+                Pause Time: <span class="highlight">{{ overall_vad.pause_duration|floatformat:1 }}s</span> 
+                Speech Percentage: <span class="highlight">{{ overall_vad.speech_percentage|floatformat:1 }}%</span> 
+                Silence Percentage: <span class="highlight">{{ overall_vad.silence_percentage|floatformat:1 }}%</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Speaker Diarization -->
+        {% if overall_diar %}
+        <div class="analysis-section">
+            <div class="analysis-title">👥 Overall Speaker Diarization Speaker Analysis:</div>
+            <div class="analysis-content">
+                <span class="highlight">{{ overall_diar.num_speakers }}</span> speaker
+                {% if overall_diar.candidate_speech_percentage %}
+                    | Candidate Speech: <span class="highlight">{{ overall_diar.candidate_speech_percentage|floatformat:1 }}%</span>
+                    {% if overall_diar.interviewer_speech_percentage %}
+                    | Interviewer Speech: <span class="highlight">{{ overall_diar.interviewer_speech_percentage|floatformat:1 }}%</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- No Data Message -->
+        {% if not overall_vad and not overall_diar %}
+        <div class="analysis-section">
+            <div class="analysis-content" style="text-align: center; color: #666; font-style: italic;">
+                No voice analysis data available for this interview session.
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            Generated on {% now "F j, Y, H:i:s" %} | AI Interview System
+        </div>
+    </div>
+</body>
+</html>

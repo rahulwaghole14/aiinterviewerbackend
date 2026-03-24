@@ -2,6 +2,9 @@ import uuid
 from django.db import models
 from django.utils import timezone
 
+# Import voice analysis models
+from .voice_models import VoiceActivityDetection, SpeakerDiarization, AnswerVoiceAnalysis
+
 class InterviewSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     session_key = models.CharField(max_length=40, unique=True, blank=True)
@@ -31,7 +34,8 @@ class InterviewSession(models.Model):
     interview_video = models.FileField(upload_to='interview_videos/', null=True, blank=True, help_text="Complete interview video with camera, TTS questions, and candidate speech")
     video_gcs_url = models.URLField(max_length=500, null=True, blank=True, help_text="Google Cloud Storage URL for the interview video")
     screen_recording = models.FileField(upload_to='screen_recordings/', null=True, blank=True, help_text="Screen recording of the candidate during the interview")
-    screen_recording_gcs_url = models.URLField(max_length=500, null=True, blank=True, help_text="Google Cloud Storage URL for the screen recording")
+    screen_recording_gcs_url = models.URLField(max_length=500, null=True, blank=True, help_text="Google Cloud Storage URL for screen recording")
+    voice_analysis_pdf = models.FileField(upload_to='voice_analysis_reports/', null=True, blank=True, help_text="Voice analysis PDF report")
     technical_interview_started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when technical interview started")
     coding_round_completed_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when coding round was completed")
     total_completion_time_minutes = models.FloatField(null=True, blank=True, help_text="Total time from technical interview start to coding round completion (in minutes)")

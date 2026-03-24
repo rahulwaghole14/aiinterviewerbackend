@@ -80,6 +80,12 @@ urlpatterns = [
     path('api/interviews/', include('interviews.urls')),
     path('api/evaluation/', include('evaluation.urls')),  # Evaluation CRUD endpoints
     path('api/requests/', include('candidates.urls')),  # Requests endpoints (pending, etc.)
+    
+    # --- VOICE ANALYSIS ENDPOINTS ---
+    path('api/voice/analyze/', views.analyze_interview_voice, name='analyze_interview_voice'),
+    path('api/voice/pdf/<uuid:session_key>/', views.generate_voice_analysis_pdf, name='generate_voice_analysis_pdf'),
+    path('api/voice/data/<uuid:session_key>/', views.get_voice_analysis_data, name='get_voice_analysis_data'),
+    path('api/voice/trigger/', views.trigger_voice_analysis_at_interview_end, name='trigger_voice_analysis_at_interview_end'),
 ]
 
 # Serve frontend static assets (CSS, JS, images from Vite build)

@@ -49,6 +49,9 @@ class InterviewSerializer(serializers.ModelSerializer):
     screen_recording_file = serializers.SerializerMethodField()
     screen_recording_url = serializers.SerializerMethodField()
     screen_recording_duration = serializers.SerializerMethodField()
+    
+    # Voice Analysis PDF
+    voice_analysis_pdf_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -78,6 +81,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             "screen_recording_file",
             "screen_recording_url", 
             "screen_recording_duration",
+            "voice_analysis_pdf_url",
             "session_key",
         ]
         read_only_fields = [
@@ -865,6 +869,25 @@ class InterviewSerializer(serializers.ModelSerializer):
             print(f"⚠️ Error getting screen recording duration: {e}")
             return None
 
+    def get_voice_analysis_pdf_url(self, obj):
+        """Get voice analysis PDF URL"""
+        try:
+            # Try to get from InterviewSession
+            if obj.session_key:
+                from interview_app.models import InterviewSession
+                try:
+                    session = InterviewSession.objects.get(session_key=obj.session_key)
+                    if session.voice_analysis_pdf and hasattr(session.voice_analysis_pdf, 'url'):
+                        return session.voice_analysis_pdf.url
+                except InterviewSession.DoesNotExist:
+                    print(f"⚠️ InterviewSession not found for session_key: {obj.session_key}")
+                except Exception as e:
+                    print(f"⚠️ Error getting voice analysis PDF: {e}")
+            return None
+        except Exception as e:
+            print(f"⚠️ Error getting voice analysis PDF: {e}")
+            return None
+
 
 class InterviewSlotSerializer(serializers.ModelSerializer):
     """
@@ -886,13 +909,15 @@ class InterviewSlotSerializer(serializers.ModelSerializer):
             "id",
             "slot_type",
             "status",
-            "date",
+            "interview_date",
             "start_time",
             "end_time",
             "duration_minutes",
             "ai_interview_type",
             "max_candidates",
             "current_bookings",
+            "company",
+            "job",
             "company_name",
             "job_title",
             "is_available",
@@ -919,16 +944,16 @@ class InterviewSlotSerializer(serializers.ModelSerializer):
 
     def get_full_start_datetime(self, obj):
         """Combine date and start time for backward compatibility"""
-        if obj.date and obj.start_time:
+        if obj.interview_date and obj.start_time:
             from datetime import datetime
-            return datetime.combine(obj.date, obj.start_time)
+            return datetime.combine(obj.interview_date, obj.start_time)
         return None
 
     def get_full_end_datetime(self, obj):
         """Combine date and end time for backward compatibility"""
-        if obj.date and obj.end_time:
+        if obj.interview_date and obj.end_time:
             from datetime import datetime
-            return datetime.combine(obj.date, obj.end_time)
+            return datetime.combine(obj.interview_date, obj.end_time)
         return None
 
 

@@ -76,6 +76,8 @@ from django.conf import settings
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 try:
     from .qa_evaluation_pdf_new import download_qa_evaluation_pdf
     from weasyprint import HTML
@@ -6817,3 +6819,186 @@ def upload_interview_video(request):
 
 
 # Video recording functionality removed
+
+# =================== VOICE ANALYSIS FUNCTIONALITY ===================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def analyze_interview_voice(request):
+    """
+    Analyze voice activity for a complete interview session
+    """
+    try:
+        data = json.loads(request.body)
+        session_key = data.get('session_key')
+        audio_file_path = data.get('audio_file_path')
+        use_fast_analysis = data.get('use_fast_analysis', False)
+        
+        if not session_key or not audio_file_path:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'session_key and audio_file_path are required'
+            }, status=400)
+        
+        # Choose analysis service based on preference
+        if use_fast_analysis:
+            from .voice_analysis_service_fast import FastVoiceAnalysisService
+            service = FastVoiceAnalysisService()
+        else:
+            from .voice_analysis_service import VoiceAnalysisService
+            service = VoiceAnalysisService()
+        
+        # Perform analysis
+        result = service.analyze_complete_interview_audio(audio_file_path, session_key)
+        
+        if result.get('success'):
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Voice analysis completed successfully',
+                'data': result
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': result.get('error', 'Voice analysis failed'),
+                'data': result
+            }, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error during voice analysis: {str(e)}'
+        }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def generate_voice_analysis_pdf(request, session_key):
+    """
+    Generate and download voice analysis PDF report
+    """
+    try:
+        from .voice_analysis_pdf import generate_voice_analysis_pdf
+        
+        # Generate PDF
+        pdf_response = generate_voice_analysis_pdf(session_key, save_to_session=True)
+        
+        if pdf_response.status_code == 200:
+            return pdf_response
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Failed to generate PDF report'
+            }, status=500)
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error generating PDF: {str(e)}'
+        }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_voice_analysis_data(request, session_key):
+    """
+    Get voice analysis data for a session
+    """
+    try:
+        from .voice_analysis_service import VoiceAnalysisService
+        
+        service = VoiceAnalysisService()
+        data = service.get_voice_analysis_for_session(session_key)
+        
+        if data:
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Voice analysis data retrieved',
+                'data': data
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'No voice analysis data found for this session'
+            }, status=404)
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error retrieving voice analysis: {str(e)}'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def trigger_voice_analysis_at_interview_end(request):
+    """
+    Automatically trigger voice analysis when interview ends
+    """
+    try:
+        data = json.loads(request.body)
+        session_key = data.get('session_key')
+        interview_video_path = data.get('interview_video_path')
+        
+        if not session_key or not interview_video_path:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'session_key and interview_video_path are required'
+            }, status=400)
+        
+        # Get session
+        try:
+            session = InterviewSession.objects.get(session_key=session_key)
+        except InterviewSession.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Session not found'
+            }, status=404)
+        
+        # Use fast analysis for automatic processing
+        from .voice_analysis_service_fast import FastVoiceAnalysisService
+        service = FastVoiceAnalysisService()
+        
+        # Analyze the interview video/audio
+        result = service.analyze_complete_interview_audio(interview_video_path, session_key)
+        
+        if result.get('success'):
+            # Update session status
+            session.status = 'COMPLETED'
+            session.save(update_fields=['status'])
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Voice analysis triggered at interview end',
+                'data': result
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': result.get('error', 'Voice analysis failed'),
+                'data': result
+            }, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error triggering voice analysis: {str(e)}'
+        }, status=500)

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Platform</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Interview Platform</h1>
+        
+        <div class="status">
+            <h3>🚀 Backend Server Running</h3>
+            <p>The Django backend is successfully running and serving this page.</p>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Frontend Build Required</strong>
+            <p>The React frontend build needs to be properly deployed. Please run:</p>
+            <code>cd frontend && npm run build</code>
+            <p>Then copy the build files to this location.</p>
+        </div>
+        
+        <div class="status">
+            <h3>📡 API Endpoints Available</h3>
+            <ul>
+                <li><a href="/api/">REST API</a></li>
+                <li><a href="/admin/">Django Admin</a></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

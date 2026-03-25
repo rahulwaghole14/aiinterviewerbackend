@@ -2,10 +2,14 @@
 Voice Analysis Service for Interview Project
 Handles Voice Activity Detection and Speaker Diarization using Hugging Face models
 """
-
 import os
 import json
 import logging
+import time
+import threading
+import queue
+import cv2
+import numpy as np
 from datetime import datetime
 from django.conf import settings
 from django.utils import timezone
@@ -18,6 +22,7 @@ from .voice_models import (
     SpeakerDiarization,
     AnswerVoiceAnalysis,
 )
+from .yolo_camera import SimpleRealVideoCamera
 
 logger = logging.getLogger(__name__)
 

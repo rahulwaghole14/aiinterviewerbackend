@@ -34,9 +34,50 @@ class VoiceAnalysisWorkflow:
         self.hf_token = os.getenv('HUGGINGFACE_TOKEN', '')
         self.voice_service = VoiceAnalysisService()
     
+    def _find_audio_file(self, session_key):
+        """
+        Find audio file for a session using the same logic as analyze_audio_from_session
+        
+        Args:
+            session_key (str): Interview session key
+            
+        Returns:
+            str: Path to audio file or None if not found
+        """
+        from django.conf import settings
+        import os
+        
+        # Priority 1: Check for converted WAV audio file (HuggingFace compatible)
+        converted_wav_path = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_interview_audio_converted.wav"
+        if os.path.exists(converted_wav_path):
+            return converted_wav_path
+        
+        # Priority 2: Check for original WAV audio file
+        wav_file_path = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_interview_audio.wav"
+        if os.path.exists(wav_file_path):
+            return wav_file_path
+        
+        # Priority 3: Check for WebM audio file
+        webm_file_path = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_interview_audio.webm"
+        if os.path.exists(webm_file_path):
+            return webm_file_path
+        
+        # Priority 4: Check interview video (contains audio)
+        from interview_app.models import InterviewSession
+        session = InterviewSession.objects.get(session_key=session_key)
+        if session.interview_video and hasattr(session.interview_video, 'path'):
+            video_path = session.interview_video.path
+            if os.path.exists(video_path):
+                # Extract audio from video for analysis
+                audio_path = self.extract_audio_from_video(video_path)
+                logger.info(f"Using extracted audio from video: {audio_path}")
+                return audio_path
+        
+        return None
+    
     def analyze_audio_from_session(self, session_key):
         """
-        Analyze audio from interview session and generate voice analysis data
+        Analyze audio from interview session using HuggingFace models
         
         Args:
             session_key (str): Interview session key
@@ -45,28 +86,106 @@ class VoiceAnalysisWorkflow:
             dict: Analysis results
         """
         try:
+            from interview_app.models import InterviewSession
             session = InterviewSession.objects.get(session_key=session_key)
             
-            # Get audio file path from session
-            audio_path = None
+            # Get audio file path using the helper method
+            audio_path = self._find_audio_file(session_key)
             
-            # Check for interview video (which contains audio)
-            if session.interview_video and hasattr(session.interview_video, 'path'):
-                audio_path = session.interview_video.path
-                logger.info(f"🎙 Using interview video audio: {audio_path}")
-            
-            # If no audio found, create sample data for demo
+            # If no audio found, return error
             if not audio_path or not os.path.exists(audio_path):
-                logger.warning(f"⚠️ No audio file found for session {session_key}, creating sample data")
-                return self.create_sample_voice_analysis(session_key)
+                logger.error(f"No audio file found for session {session_key}")
+                return {"error": "No audio file found for analysis"}
             
-            # For now, create sample data based on typical interview patterns
-            # In production, this would use actual audio processing
-            return self.create_sample_voice_analysis(session_key)
+            # Use real HuggingFace models for analysis
+            logger.info(f"Starting real voice analysis with HuggingFace models: {audio_path}")
+            
+            # Perform actual voice analysis using HuggingFace models
+            analysis_result = self.voice_service.analyze_complete_interview_audio(audio_path, session_key)
+            
+            if analysis_result.get('success'):
+                logger.info(f"Real voice analysis completed for session {session_key}")
+                
+                # Extract real metrics from analysis
+                vad_results = analysis_result.get('vad', {})
+                diar_results = analysis_result.get('diarization', {})
+                
+                # Handle None results gracefully
+                if vad_results is None:
+                    vad_results = {}
+                if diar_results is None:
+                    diar_results = {}
+                
+                return {
+                    "success": True,
+                    "vad_id": str(vad_results.get('id', '')),
+                    "diar_id": str(diar_results.get('id', '')),
+                    "speech_time": vad_results.get('total_speech_time', 0.0),
+                    "pause_time": vad_results.get('pause_duration', 0.0),
+                    "speech_percentage": vad_results.get('speech_percentage', 0.0),
+                    "silence_percentage": vad_results.get('silence_percentage', 0.0),
+                    "num_speakers": diar_results.get('num_speakers', 1),
+                    "candidate_speech_percentage": diar_results.get('candidate_speech_percentage', 0.0),
+                    "interviewer_speech_percentage": diar_results.get('interviewer_speech_percentage', 0.0),
+                    "real_analysis": True
+                }
+            else:
+                logger.error(f"Real voice analysis failed: {analysis_result.get('error')}")
+                return {"error": analysis_result.get('error', 'Unknown error')}
             
         except Exception as e:
-            logger.error(f"❌ Audio analysis failed: {e}")
+            logger.error(f"Audio analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
             return {"error": str(e)}
+    
+    def extract_audio_from_video(self, video_path):
+        """Extract audio from video file using FFmpeg"""
+        try:
+            import subprocess
+            import tempfile
+            
+            # Create temporary audio file
+            temp_audio = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            temp_audio.close()
+            
+            # Use FFmpeg to extract audio
+            ffmpeg_path = self.get_ffmpeg_path()
+            if not ffmpeg_path:
+                logger.error("FFmpeg not available for audio extraction")
+                return None
+            
+            cmd = [
+                ffmpeg_path,
+                '-i', video_path,
+                '-vn',  # No video
+                '-acodec', 'pcm_s16le',  # Audio codec
+                '-ar', '16000',  # Sample rate
+                '-ac', '1',  # Mono
+                '-y',  # Overwrite
+                temp_audio.name
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                logger.info(f"✅ Audio extracted from video: {temp_audio.name}")
+                return temp_audio.name
+            else:
+                logger.error(f"❌ Audio extraction failed: {result.stderr}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error extracting audio from video: {e}")
+            return None
+    
+    def get_ffmpeg_path(self):
+        """Get FFmpeg executable path"""
+        try:
+            from interview_app.audio_processor import get_ffmpeg_path
+            return get_ffmpeg_path()
+        except:
+            return None
     
     def create_sample_voice_analysis(self, session_key):
         """
@@ -277,41 +396,54 @@ class VoiceAnalysisWorkflow:
         Args:
             session_key (str): Interview session key
         """
+        import time
+        
         try:
-            logger.info(f"🎯 Triggering voice analysis for completed interview: {session_key}")
+            logger.info(f"Triggering voice analysis for completed interview: {session_key}")
             
-            # Check if voice analysis already exists
-            session = InterviewSession.objects.get(session_key=session_key)
+            # Wait for audio file to be available (up to 30 seconds)
+            logger.info("Waiting for audio file to be available...")
+            audio_file_path = self._find_audio_file(session_key)
+            max_wait_time = 30  # seconds
+            wait_interval = 2   # seconds
+            waited_time = 0
             
-            if session.voice_analysis_pdf:
-                logger.info(f"Voice analysis PDF already exists for session {session_key}")
-                return {"success": True, "message": "Voice analysis already completed"}
+            while not audio_file_path and waited_time < max_wait_time:
+                logger.info(f"Audio file not found, waiting {wait_interval}s... (total waited: {waited_time}s)")
+                time.sleep(wait_interval)
+                waited_time += wait_interval
+                audio_file_path = self._find_audio_file(session_key)
             
-            # Step 1: Analyze audio and create voice analysis data
-            logger.info("🎙 Analyzing audio from interview session...")
+            if not audio_file_path:
+                logger.error(f"❌ No audio file found for session {session_key} after waiting {max_wait_time}s")
+                return {
+                    "success": False,
+                    "error": f"No audio file found after waiting {max_wait_time}s"
+                }
+            
+            logger.info(f"✅ Audio file found: {audio_file_path}")
+            
+            # Step 1: Analyze audio from session
+            logger.info("Analyzing audio from interview session...")
             analysis_result = self.analyze_audio_from_session(session_key)
             
-            if not analysis_result.get('success'):
-                logger.error(f"❌ Audio analysis failed: {analysis_result.get('error')}")
-                return analysis_result
-            
             # Step 2: Generate PDF report
-            logger.info("📄 Generating voice analysis PDF...")
+            logger.info("Generating voice analysis PDF...")
             pdf_result = self.generate_voice_analysis_report(session_key)
             
             if pdf_result.get('success'):
-                logger.info(f"✅ Voice analysis completed for session {session_key}")
+                logger.info(f"Voice analysis completed for session {session_key}")
                 return {
                     "success": True,
                     "analysis": analysis_result,
                     "pdf": pdf_result
                 }
             else:
-                logger.error(f"❌ PDF generation failed: {pdf_result.get('error')}")
+                logger.error(f"PDF generation failed: {pdf_result.get('error')}")
                 return pdf_result
                 
         except Exception as e:
-            logger.error(f"❌ Failed to trigger voice analysis: {e}")
+            logger.error(f"Failed to trigger voice analysis: {e}")
             return {"error": str(e)}
     
     def get_voice_analysis_summary(self, session_key):

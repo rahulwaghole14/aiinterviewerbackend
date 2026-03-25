@@ -157,10 +157,9 @@ class VoiceAnalysisService:
             segments = []
             
             # Process VAD timeline
-            for segment in vad_result.itersegments(yield_label=True):
+            for segment, track, label in vad_result.itertracks(yield_label=True):
                 start_time = segment.start
                 end_time = segment.end
-                label = segment.labels[0] if segment.labels else 'UNKNOWN'
                 duration = end_time - start_time
                 
                 total_duration = max(total_duration, end_time)
@@ -229,15 +228,18 @@ class VoiceAnalysisService:
             # Run diarization on entire audio
             diarization = self.diarization_model(audio_file_path)
             
-            # Process results
+            # Process diarization results
             speaker_changes = 0
             speaker_change_timestamps = []
             speaker_labels = {}
             candidate_time = 0
             interviewer_time = 0
             
-            # Iterate through diarization segments
+            # Track speakers and their speech time
+            speaker_times = {}
             last_speaker = None
+            
+            # Iterate through diarization segments
             for turn, _, speaker in diarization.itertracks(yield_label=True):
                 start_time = turn.start
                 end_time = turn.end
@@ -249,7 +251,12 @@ class VoiceAnalysisService:
                     speaker_change_timestamps.append(start_time)
                     last_speaker = speaker
                 
-                # Track speaker time
+                # Accumulate speaker time
+                if speaker not in speaker_times:
+                    speaker_times[speaker] = 0
+                speaker_times[speaker] += duration
+                
+                # Track speaker labels
                 if speaker not in speaker_labels:
                     speaker_labels[speaker] = []
                 speaker_labels[speaker].append({
@@ -257,13 +264,39 @@ class VoiceAnalysisService:
                     'end': end_time,
                     'duration': duration
                 })
+            
+            # Determine number of speakers and handle single speaker with background noise
+            num_speakers = len(speaker_times)
+            total_speech_time = sum(speaker_times.values())
+            
+            # If 2 speakers detected but one is dominant (>65%), treat as single speaker
+            if num_speakers == 2:
+                dominant_speaker = max(speaker_times, key=speaker_times.get)
+                dominant_time = speaker_times[dominant_speaker]
+                dominant_percentage = (dominant_time / total_speech_time) * 100
                 
-                # Assume first speaker is interviewer, second is candidate
-                # This is a simplification - in production, you'd need more sophisticated logic
-                if 'SPEAKER_00' in speaker:
-                    interviewer_time += duration
-                elif 'SPEAKER_01' in speaker:
-                    candidate_time += duration
+                if dominant_percentage > 65:
+                    logger.info(f"Dominant speaker {dominant_speaker} has {dominant_percentage:.1f}% of speech time - treating as single speaker")
+                    num_speakers = 1
+                    candidate_time = dominant_time
+                    interviewer_time = 0
+                else:
+                    # Genuine multi-speaker scenario
+                    # Assign candidate and interviewer based on speech time
+                    sorted_speakers = sorted(speaker_times.items(), key=lambda x: x[1], reverse=True)
+                    candidate_time = sorted_speakers[0][1]  # Most speaking time
+                    interviewer_time = sorted_speakers[1][1]  # Second most speaking time
+            elif num_speakers == 1:
+                # Single speaker detected
+                candidate_time = total_speech_time
+                interviewer_time = 0
+            else:
+                # Multiple speakers detected
+                sorted_speakers = sorted(speaker_times.items(), key=lambda x: x[1], reverse=True)
+                if len(sorted_speakers) >= 1:
+                    candidate_time = sorted_speakers[0][1]
+                if len(sorted_speakers) >= 2:
+                    interviewer_time = sorted_speakers[1][1]
             
             total_time = candidate_time + interviewer_time
             candidate_percentage = (candidate_time / total_time * 100) if total_time > 0 else 0
@@ -281,7 +314,7 @@ class VoiceAnalysisService:
                 question=None,  # No question - this is for the entire interview
                 speaker_changes=speaker_changes,
                 speaker_change_timestamps=speaker_change_timestamps,
-                num_speakers=len(speaker_labels),
+                num_speakers=num_speakers,
                 speaker_labels=speaker_labels,
                 candidate_speech_percentage=candidate_percentage,
                 interviewer_speech_percentage=interviewer_percentage,

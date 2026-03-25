@@ -70,6 +70,11 @@
             font-size: 18px;
             margin-right: 8px;
         }
+        .section-title {
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -88,7 +93,11 @@
         {% if overall_vad %}
         <div class="analysis-section">
             <div class="analysis-content">
-                <span class="emoji">🎙</span><strong>Overall Voice Activity Detection Speech Analysis:</strong> Speech Time: {{ overall_vad.total_speech_time|floatformat:1 }}s Pause Time: {{ overall_vad.pause_duration|floatformat:1 }}s Speech Percentage: {{ overall_vad.speech_percentage|floatformat:1 }}% Silence Percentage: {{ overall_vad.silence_percentage|floatformat:1 }}%
+                <div class="section-title">Overall Voice Activity Detection Speech Analysis:</div>
+                Speech Time: {{ overall_vad.total_speech_time|floatformat:1 }}s<br>
+                Pause Time: {{ overall_vad.pause_duration|floatformat:1 }}s<br>
+                Speech Percentage: {{ overall_vad.speech_percentage|floatformat:1 }}%<br>
+                Silence Percentage: {{ overall_vad.silence_percentage|floatformat:1 }}%
             </div>
         </div>
         {% endif %}
@@ -97,7 +106,8 @@
         {% if overall_diar %}
         <div class="analysis-section">
             <div class="analysis-content">
-                <span class="emoji">👥</span><strong>Overall Speaker Diarization Speaker Analysis:</strong> {{ overall_diar.num_speakers }} speaker
+                <div class="section-title">Overall Speaker Diarization Speaker Analysis:</div>
+                {{ overall_diar.num_speakers }} speaker
             </div>
         </div>
         {% endif %}

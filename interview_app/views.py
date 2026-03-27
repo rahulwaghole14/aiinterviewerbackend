@@ -1419,6 +1419,36 @@ def interview_portal(request):
                 # Delete any existing coding questions to prevent duplicates
                 try:
                     session.questions.filter(question_type='CODING').delete()
+                except Exception as e:
+                    print(f"⚠️ Error deleting existing coding questions: {e}")
+                
+                # Save coding questions to database - ONLY ONE coding question
+                for i, coding_q in enumerate(coding_questions[:1]):
+                    coding_question_obj = InterviewQuestion.objects.create(
+                        session=session,
+                        question_text=coding_q['description'],
+                        question_type='CODING',
+                        coding_language=coding_q['language'],
+                        order=len(all_questions) + i,
+                        question_level='MAIN'
+                    )
+                    
+                    # Also save to CodeSubmission model for proper tracking
+                    try:
+                        CodeSubmission.objects.create(
+                            session=session,
+                            question_id=str(coding_question_obj.id),
+                            submitted_code=''  # Will be filled when candidate submits solution
+                        )
+                        print(f"✅ Created CodeSubmission record for coding question")
+                    except Exception as e:
+                        print(f"⚠️ Error creating CodeSubmission: {e}")
+                    
+                    # Attach test cases
+                    try:
+                        from .models import TestCase
+                        if TestCase and coding_q.get('test_cases'):
+                            for tc in coding_q['test_cases']:
                                 TestCase.objects.create(
                                     question=coding_question_obj,
                                     input_data=str(tc.get('input', '')),
@@ -1907,11 +1937,6 @@ def interview_portal(request):
                                 pass
                 except Exception as e:
                     print(f"⚠️ Error attaching test cases: {e}")
-                                input_data=str(tc.get('input', '')),
-                                expected_output=str(tc.get('expected_output', ''))
-                            )
-                        except Exception:
-                            pass
                 # Update the coding_questions_data with the real database ID
                 coding_q['id'] = str(coding_question_obj.id)
         

@@ -12,7 +12,7 @@ import re
 # Filler words for analysis
 FILLER_WORDS = ['um', 'uh', 'er', 'ah', 'like', 'okay', 'right', 'so', 'you know', 'i mean', 'basically', 'actually', 'literally']
 
-def save_qa_pair(session_key, question_text, answer_text, question_type='TECHNICAL', response_time_seconds=None):
+def save_qa_pair(session_key, question_text, answer_text, question_type='TECHNICAL', response_time_seconds=None, conversation_sequence=None):
     """
     Save a question-answer pair to the database with proper chronological sequencing
     
@@ -22,6 +22,7 @@ def save_qa_pair(session_key, question_text, answer_text, question_type='TECHNIC
         answer_text: Answer given by candidate (or candidate question)
         question_type: Type of question (INTRODUCTORY, TECHNICAL, FOLLOW_UP, CANDIDATE_QUESTION, etc.)
         response_time_seconds: Time taken to respond
+        conversation_sequence: The actual conversation sequence number from the interview
     
     Returns:
         QAConversationPair object
@@ -30,9 +31,15 @@ def save_qa_pair(session_key, question_text, answer_text, question_type='TECHNIC
         # Get session
         session = InterviewSession.objects.get(session_key=session_key)
         
-        # Get the next sequential question number for ALL types
-        last_qa = QAConversationPair.objects.filter(session=session).order_by('-question_number').first()
-        question_number = (last_qa.question_number + 1) if last_qa else 1
+        # Use conversation_sequence if provided, otherwise get next sequential number
+        if conversation_sequence is not None:
+            question_number = conversation_sequence
+            print(f"🎯 Using provided conversation_sequence: {question_number}")
+        else:
+            # Get the next sequential question number for ALL types
+            last_qa = QAConversationPair.objects.filter(session=session).order_by('-question_number').first()
+            question_number = (last_qa.question_number + 1) if last_qa else 1
+            print(f"🔢 Calculating next question_number: {question_number}")
         
         # Use the same number for display order to maintain chronological sequence
         pdf_display_order = question_number

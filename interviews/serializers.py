@@ -624,6 +624,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                 return []
             
             qa_list = []
+            coding_qa_list = []  # Separate list for coding questions
             
             # Part 1: Get regular Q&A pairs from QAConversationPair (technical, behavioral, candidate questions)
             qa_data = get_qa_pairs_for_session_ordered(session.session_key)
@@ -744,7 +745,7 @@ class InterviewSerializer(serializers.ModelSerializer):
                     answer_text = 'Error loading code submission'
                     created_at = coding_q.session.created_at if hasattr(coding_q.session, 'created_at') else None
                 
-                # Create coding Q&A item
+                # Create coding Q&A item and add to separate list
                 qa_item = {
                     'question_number': coding_q.order,
                     'question_text': question_text,
@@ -760,14 +761,16 @@ class InterviewSerializer(serializers.ModelSerializer):
                     'code_submission': code_submission_data
                 }
                 
-                qa_list.append(qa_item)
+                coding_qa_list.append(qa_item)
                 print(f"✅ Added CODING Q#{coding_q.order}: {question_text[:50]}...")
             
             # Sort final qa_list by question_number to maintain chronological order
             qa_list.sort(key=lambda x: x.get('question_number', 0))
+            coding_qa_list.sort(key=lambda x: x.get('question_number', 0))
             
-            print(f"✅ Returning {len(qa_list)} total Q&A items for interview {obj.id}")
-            return qa_list
+            print(f"✅ Returning {len(qa_list)} technical Q&A items and {len(coding_qa_list)} coding Q&A items for interview {obj.id}")
+            # Return combined list for backward compatibility, but coding questions are separated
+            return qa_list + coding_qa_list
             
         except Exception as e:
             import traceback

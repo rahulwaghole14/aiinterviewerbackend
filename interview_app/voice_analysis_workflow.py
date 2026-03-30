@@ -46,23 +46,36 @@ class VoiceAnalysisWorkflow:
         """
         from django.conf import settings
         import os
+        import glob
         
         # Priority 1: Check for converted WAV audio file (HuggingFace compatible)
         converted_wav_path = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_interview_audio_converted.wav"
         if os.path.exists(converted_wav_path):
             return converted_wav_path
         
-        # Priority 2: Check for original WAV audio file
+        # Priority 2: Check for timestamped WAV files (new format)
+        timestamped_wav_pattern = f"{settings.MEDIA_ROOT}/interview_audio/*_{session_key}_*.wav"
+        timestamped_files = glob.glob(timestamped_wav_pattern)
+        if timestamped_files:
+            return timestamped_files[0]  # Return the first match
+        
+        # Priority 3: Check for timestamped WAV files without session_key prefix
+        timestamped_wav_pattern2 = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_*.wav"
+        timestamped_files2 = glob.glob(timestamped_wav_pattern2)
+        if timestamped_files2:
+            return timestamped_files2[0]  # Return the first match
+        
+        # Priority 4: Check for original WAV audio file
         wav_file_path = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_interview_audio.wav"
         if os.path.exists(wav_file_path):
             return wav_file_path
         
-        # Priority 3: Check for WebM audio file
+        # Priority 5: Check for WebM audio file
         webm_file_path = f"{settings.MEDIA_ROOT}/interview_audio/{session_key}_interview_audio.webm"
         if os.path.exists(webm_file_path):
             return webm_file_path
         
-        # Priority 4: Check interview video (contains audio)
+        # Priority 6: Check interview video (contains audio)
         from interview_app.models import InterviewSession
         session = InterviewSession.objects.get(session_key=session_key)
         if session.interview_video and hasattr(session.interview_video, 'path'):
@@ -415,7 +428,7 @@ class VoiceAnalysisWorkflow:
                 audio_file_path = self._find_audio_file(session_key)
             
             if not audio_file_path:
-                logger.error(f"❌ No audio file found for session {session_key} after waiting {max_wait_time}s")
+                logger.error(f"ERROR: No audio file found for session {session_key} after waiting {max_wait_time}s")
                 return {
                     "success": False,
                     "error": f"No audio file found after waiting {max_wait_time}s"

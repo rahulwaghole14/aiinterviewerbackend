@@ -4570,7 +4570,11 @@ def ai_upload_answer(request):
                 print(f"🤖 Intent: {intent}")
                 
                 if not is_cand_q:
-                    last_q = InterviewQuestion.objects.filter(session=django_session, role='AI').order_by('-order').first()
+                    last_q = InterviewQuestion.objects.filter(
+                        session=django_session, 
+                        role='AI',
+                        question_type__in=['INTRODUCTORY', 'TECHNICAL', 'FOLLOW_UP', 'CLARIFICATION', 'ELABORATION_REQUEST']
+                    ).order_by('-order').first()
                     if last_q and not last_q.transcribed_answer:
                         from django.db.models import Max
                         atxt = transcript.strip() or "No answer provided"
@@ -4602,11 +4606,12 @@ def ai_upload_answer(request):
                 # Get the most recent AI question that hasn't been paired with an answer yet
                 # This ensures we're matching the correct question with the candidate's answer
                 
-                # First, get all AI questions in order
+                # First, get all AI questions in order (EXCLUDE CODING questions)
                 all_ai_questions = InterviewQuestion.objects.filter(
                     session=django_session, 
                     role='AI',
-                    question_level__in=['MAIN', 'FOLLOW_UP', 'CLARIFICATION', 'INTRODUCTORY']
+                    question_level__in=['MAIN', 'FOLLOW_UP', 'CLARIFICATION', 'INTRODUCTORY'],
+                    question_type__in=['INTRODUCTORY', 'TECHNICAL', 'FOLLOW_UP', 'CLARIFICATION', 'ELABORATION_REQUEST']
                 ).order_by('conversation_sequence', 'created_at')
                 
                 # Get all questions that already have Q&A pairs
@@ -4614,10 +4619,16 @@ def ai_upload_answer(request):
                     session=django_session
                 ).values_list('question_text', flat=True)
                 
+                print(f"📋 Already answered questions in database:")
+                for i, q_text in enumerate(answered_questions):
+                    print(f"   {i+1}. {q_text[:50]}...")
+                
                 # Find the first AI question that hasn't been answered yet
                 for question in all_ai_questions:
+                    print(f"🔍 Checking question: {question.question_text[:50]}... (Type: {question.question_type})")
                     if question.question_text not in answered_questions:
                         last_ai_question = question
+                        print(f"✅ Selected this question for Q&A pairing")
                         break
                 
                 print(f"🎯 Found last AI question for Q&A pairing: {last_ai_question.question_text[:100] if last_ai_question else 'None'}...")
@@ -4634,11 +4645,17 @@ def ai_upload_answer(request):
                 print(f"🗣️ Candidate asked question: {transcript.strip()[:100]}...")
                 print(f"🤖 AI responded: {ai_response[:100]}...")
                 
+                # Get next conversation sequence for candidate question
+                from django.db.models import Max
+                max_seq = InterviewQuestion.objects.filter(session=django_session).aggregate(max_seq=Max('conversation_sequence'))['max_seq'] or 0
+                candidate_conversation_sequence = max_seq + 1
+                
                 qa_pair = save_qa_pair(
                     session_key=django_session.session_key,
                     question_text=ai_response,  # AI's response
                     answer_text=transcript.strip(),  # Candidate's question
-                    question_type='CANDIDATE_QUESTION'
+                    question_type='CANDIDATE_QUESTION',
+                    conversation_sequence=candidate_conversation_sequence
                 )
                 
                 print(f"✅ Candidate Q&A pair saved with ID: {qa_pair.id if qa_pair else 'None'}")
@@ -4719,13 +4736,14 @@ def ai_upload_answer(request):
                         time_diff = timezone.now() - last_ai_question.created_at
                         response_time = time_diff.total_seconds()
                     
-                    # Save the Q&A pair
+                    # Save the Q&A pair with proper conversation sequence
                     qa_pair = save_qa_pair(
                         session_key=django_session.session_key,
                         question_text=last_ai_question.question_text,
                         answer_text=transcript.strip(),
                         question_type=question_type,
-                        response_time_seconds=response_time
+                        response_time_seconds=response_time,
+                        conversation_sequence=getattr(last_ai_question, 'conversation_sequence', None)
                     )
                     
                     print(f"✅ Q&A pair saved with ID: {qa_pair.id if qa_pair else 'None'}")
@@ -4741,8 +4759,13 @@ def ai_upload_answer(request):
                 print(f"   Transcript: {transcript[:100]}...")
                 print(f"   This might indicate all questions have been answered or there's a timing issue")
             
-            # Update sequence numbering for UI
-            q_count = InterviewQuestion.objects.filter(session=django_session, role='AI', question_level='MAIN').count()
+            # Update sequence numbering for UI (EXCLUDE CODING questions)
+            q_count = InterviewQuestion.objects.filter(
+                session=django_session, 
+                role='AI', 
+                question_level='MAIN',
+                question_type__in=['INTRODUCTORY', 'TECHNICAL', 'FOLLOW_UP', 'CLARIFICATION', 'ELABORATION_REQUEST']
+            ).count()
             ai_session.current_question_number = q_count
             result['question_number'] = q_count
             

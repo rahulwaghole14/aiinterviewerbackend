@@ -273,9 +273,7 @@ def merge_video_audio_moviepy(video_path, audio_file_path, output_path, video_st
                 fps=video_clip.fps,
                 preset='medium',
                 bitrate='5000k',
-                audio_bitrate='192k',
-                verbose=False,  # Reduce MoviePy output
-                logger=None  # Suppress MoviePy progress bars
+                audio_bitrate='192k'
             )
             print(f"   ✅ MoviePy write_videofile completed")
         except Exception as e:

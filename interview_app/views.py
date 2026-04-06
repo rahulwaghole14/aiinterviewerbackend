@@ -225,9 +225,7 @@ def release_camera_for_session(session_key, audio_file_path=None):
             if video_path:
                 try:
                     session = InterviewSession.objects.get(session_key=session_key)
-                    session.interview_video = video_path
-                    session.save()
-                    print(f"✅ Video path saved to InterviewSession: {video_path}")
+                    print(f"ℹ️ Interview video functionality removed - not saving to database")
                     
                     # Upload video to Google Cloud Storage if configured
                     try:
@@ -2752,13 +2750,8 @@ def end_interview_session(request):
                         session = InterviewSession.objects.get(session_key=session_key_bg)
                         session_id_uuid = session.id
                         
-                        if session.interview_video:
-                            video_path_from_db = os.path.join(settings.MEDIA_ROOT, str(session.interview_video))
-                            if '_converted' in str(session.interview_video) and os.path.exists(video_path_from_db):
-                                original_name = str(session.interview_video).replace('_converted', '')
-                                original_path = os.path.join(settings.MEDIA_ROOT, original_name)
-                                if os.path.exists(original_path):
-                                    video_path_from_db = original_path
+                        # Interview video functionality removed - skip database video check
+                        print(f"ℹ️ Interview video functionality removed - skipping database video lookup")
                     except Exception as e:
                         print(f"⚠️ Background: Error looking up session: {e}")
 
@@ -2823,19 +2816,14 @@ def end_interview_session(request):
                                 with open(video_full_path, 'rb') as video_file:
                                     from django.core.files.base import ContentFile
                                     video_content = ContentFile(video_file.read(), name=os.path.basename(video_path))
-                                    session.interview_video.save(os.path.basename(video_path), video_content, save=True)
-                                    print(f"✅ Merged video saved to InterviewSession database field: {session.interview_video.name}")
+                                    print(f"ℹ️ Interview video functionality removed - not saving to database")
                             else:
-                                # Fallback: assign path string if file doesn't exist (shouldn't happen)
-                                session.interview_video = video_path
-                                session.save()
-                                print(f"⚠️ Video file not found, saved path only: {video_path}")
+                                # Fallback: interview video functionality removed
+                                print(f"ℹ️ Interview video functionality removed - not saving path: {video_path}")
                         except Exception as save_error:
-                            print(f"⚠️ Error saving video file to database: {save_error}")
-                            # Fallback: assign path string
-                            session.interview_video = video_path
-                            session.save()
-                            print(f"✅ Merged video path saved to InterviewSession (fallback): {video_path}")
+                            print(f"⚠️ Interview video functionality removed - error handling: {save_error}")
+                            # Fallback: interview video functionality removed
+                            print(f"ℹ️ Interview video functionality removed - not saving path")
                     else:
                         print(f"⚠️ WARNING: Video path is not merged: {video_path}")
                         # Try to find merged version
@@ -2854,14 +2842,11 @@ def end_interview_session(request):
                                     with open(merged_path, 'rb') as video_file:
                                         from django.core.files.base import ContentFile
                                         video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
-                                        session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
-                                        print(f"✅ Found and saved merged video to database: {session.interview_video.name}")
+                                        print(f"ℹ️ Interview video functionality removed - not saving merged video to database")
                                 except Exception as save_error:
-                                    print(f"⚠️ Error saving merged video to database: {save_error}")
-                                    # Fallback: assign path string
-                                    session.interview_video = merged_relative
-                                    session.save()
-                                    print(f"✅ Found and saved merged video (fallback): {merged_relative}")
+                                    print(f"⚠️ Interview video functionality removed - error handling: {save_error}")
+                                    # Fallback: interview video functionality removed
+                                    print(f"ℹ️ Interview video functionality removed - not saving path")
                             else:
                                 print(f"❌ Merged video not found, NOT saving unmerged video to database")
                         except Exception as e:
@@ -2888,14 +2873,11 @@ def end_interview_session(request):
                                                 with open(found_video, 'rb') as video_file:
                                                     from django.core.files.base import ContentFile
                                                     video_content = ContentFile(video_file.read(), name=os.path.basename(found_video))
-                                                    session.interview_video.save(os.path.basename(found_video), video_content, save=True)
-                                                    print(f"✅ Found merged video manually and saved to database: {session.interview_video.name}")
+                                                    print(f"ℹ️ Interview video functionality removed - not saving merged video to database")
                                             except Exception as save_error:
-                                                print(f"⚠️ Error saving video to database: {save_error}")
-                                                # Fallback: assign path string
-                                                session.interview_video = video_path
-                                                session.save()
-                                                print(f"✅ Found merged video manually and saved (fallback): {video_path}")
+                                                print(f"⚠️ Interview video functionality removed - error handling: {save_error}")
+                                                # Fallback: interview video functionality removed
+                                                print(f"ℹ️ Interview video functionality removed - not saving path")
                                             break
                         
                         # If not found in merged, try to merge raw video with audio
@@ -2928,14 +2910,11 @@ def end_interview_session(request):
                                                             with open(merged_path, 'rb') as video_file:
                                                                 from django.core.files.base import ContentFile
                                                                 video_content = ContentFile(video_file.read(), name=os.path.basename(merged_path))
-                                                                session.interview_video.save(os.path.basename(merged_path), video_content, save=True)
-                                                                print(f"✅ Merged and saved video to database: {session.interview_video.name}")
+                                                                print(f"ℹ️ Interview video functionality removed - not saving merged video to database")
                                                         except Exception as save_error:
-                                                            print(f"⚠️ Error saving merged video to database: {save_error}")
-                                                            # Fallback: assign path string
-                                                            session.interview_video = video_path
-                                                            session.save()
-                                                            print(f"✅ Merged and saved video (fallback): {video_path}")
+                                                            print(f"⚠️ Interview video functionality removed - error handling: {save_error}")
+                                                            # Fallback: interview video functionality removed
+                                                            print(f"ℹ️ Interview video functionality removed - not saving path")
                                                         found_video = merged_path
                                                         break
                                             except Exception as merge_err:
@@ -2956,23 +2935,8 @@ def end_interview_session(request):
                         traceback.print_exc()
                 session.save()
                 
-                # FINAL CHECK: Verify merged video was saved
-                if session.interview_video:
-                    video_path_str = str(session.interview_video)
-                    is_merged = '_with_audio' in video_path_str or 'interview_videos_merged' in video_path_str
-                    if is_merged:
-                        print(f"✅ VERIFIED: Merged video saved to database: {video_path_str}")
-                    else:
-                        print(f"⚠️ WARNING: Video saved but NOT merged: {video_path_str}")
-                        print(f"   This should not happen - video should have _with_audio suffix")
-                else:
-                    print(f"❌ CRITICAL: No video path saved to database for session {session_key_bg}")
-                    print(f"   Possible causes:")
-                    print(f"   1. FFmpeg merge failed")
-                    print(f"   2. Video file not found")
-                    print(f"   3. Audio file not found")
-                    print(f"   4. Exception during merge process")
-                    print(f"   Check server logs for detailed error messages")
+                # FINAL CHECK: Interview video functionality removed - no verification needed
+                print(f"ℹ️ Interview video functionality removed - skipping database verification")
                 
                 print(f"--- Spoken-only session {session_key_bg} marked as COMPLETED. ---")
                 
@@ -3021,6 +2985,53 @@ def end_interview_session(request):
                         del CAMERAS[session_key_bg]
                 
                 print(f"✅ Background finalization COMPLETE for session: {session_key_bg}")
+                
+                # Trigger voice analysis after interview completion
+                try:
+                    print(f"🔄 Triggering voice analysis for session {session_key_bg}")
+                    from .voice_analysis_service_fast import FastVoiceAnalysisService
+                    service = FastVoiceAnalysisService()
+                    
+                    # Find audio file for analysis
+                    audio_path = audio_full_path
+                    if not audio_path and session:
+                        # Try to find audio file from session
+                        if hasattr(session, 'audio_file') and session.audio_file:
+                            audio_path = os.path.join(settings.MEDIA_ROOT, str(session.audio_file))
+                        else:
+                            # Try to find any audio file in media directory
+                            media_audio_dir = os.path.join(settings.MEDIA_ROOT, 'interview_audio')
+                            if os.path.exists(media_audio_dir):
+                                for filename in os.listdir(media_audio_dir):
+                                    if session_key_bg in filename and filename.endswith(('.mp3', '.wav', '.webm')):
+                                        audio_path = os.path.join(media_audio_dir, filename)
+                                        print(f"   Found audio file: {audio_path}")
+                                        break
+                    
+                    if audio_path and os.path.exists(audio_path):
+                        result = service.analyze_complete_interview_audio(audio_path, session_key_bg)
+                        print(f"📊 Voice analysis completed: {result}")
+                        
+                        # Generate PDF report after analysis
+                        if result.get('success'):
+                            try:
+                                from .voice_analysis_workflow import VoiceAnalysisWorkflow
+                                workflow = VoiceAnalysisWorkflow()
+                                pdf_result = workflow.generate_voice_analysis_report(session_key_bg)
+                                
+                                if pdf_result.get('success'):
+                                    print(f"📄 Voice analysis PDF generated for session {session_key_bg}")
+                                else:
+                                    print(f"⚠️ PDF generation failed: {pdf_result.get('error', 'Unknown error')}")
+                            except Exception as pdf_error:
+                                print(f"❌ Error generating PDF: {pdf_error}")
+                    else:
+                        print(f"⚠️ No audio file found for voice analysis: {audio_path}")
+                        
+                except Exception as voice_error:
+                    print(f"❌ Error triggering voice analysis: {voice_error}")
+                    import traceback
+                    traceback.print_exc()
             except Exception as e:
                 print(f"❌ CRITICAL error in background thread: {e}")
                 import traceback
@@ -4526,7 +4537,7 @@ def ai_start(request):
 @require_POST
 def ai_upload_answer(request):
     from .complete_ai_bot import upload_answer, sessions
-    from .models import InterviewSession as DjangoSession, InterviewQuestion
+    from .models import InterviewSession as DjangoSession, InterviewQuestion, QAConversationPair
     
     try:
         # 1. Parse Request
@@ -4646,8 +4657,13 @@ def ai_upload_answer(request):
                 print(f"🤖 AI responded: {ai_response[:100]}...")
                 
                 # Get next conversation sequence for candidate question
+                # Use QAConversationPair table to maintain proper chronological sequence
                 from django.db.models import Max
-                max_seq = InterviewQuestion.objects.filter(session=django_session).aggregate(max_seq=Max('conversation_sequence'))['max_seq'] or 0
+                from .models import QAConversationPair
+                
+                max_seq = QAConversationPair.objects.filter(
+                    session=django_session
+                ).aggregate(max_seq=Max('question_number'))['max_seq'] or 0
                 candidate_conversation_sequence = max_seq + 1
                 
                 qa_pair = save_qa_pair(
@@ -4720,6 +4736,8 @@ def ai_upload_answer(request):
                         question_type = 'CLARIFICATION'
                     elif question_type == 'INTRODUCTORY':
                         question_type = 'INTRODUCTORY'
+                    elif question_type == 'PRECLOSE':
+                        question_type = 'CLOSING'  # Handle closing questions like "Do you have any questions?"
                     else:
                         question_type = 'TECHNICAL'  # fallback
                     
@@ -4754,6 +4772,56 @@ def ai_upload_answer(request):
                             analyze_qa_with_gemini(qa_pair)
                         except Exception as e:
                             print(f"⚠️ Error analyzing Q&A pair: {e}")
+            
+            # Special handling: Save Q&A pair for closing questions even when candidate asks their own questions
+            elif is_cand_q and transcript and last_ai_question:
+                # Check if the last AI question was a closing question
+                closing_question_phrases = [
+                    "do you have any question", "do you have any questions", 
+                    "any questions for us", "any questions for me", "any other questions",
+                    "questions for us", "questions for me", "before we wrap up"
+                ]
+                is_closing_question = any(phrase in last_ai_question.question_text.lower() for phrase in closing_question_phrases)
+                
+                if is_closing_question:
+                    # Check if we've already saved a Q&A pair for this closing question
+                    existing_qa = QAConversationPair.objects.filter(
+                        session=django_session,
+                        question_text=last_ai_question.question_text
+                    ).first()
+                    
+                    if not existing_qa:
+                        print(f"🔔 Saving Q&A pair for closing question (candidate asked their own questions):")
+                        print(f"   Closing Question: {last_ai_question.question_text[:100]}...")
+                        print(f"   Candidate's Response: {transcript[:100]}...")
+                        
+                        # Calculate response time (if available)
+                        response_time = None
+                        if hasattr(last_ai_question, 'created_at'):
+                            time_diff = timezone.now() - last_ai_question.created_at
+                            response_time = time_diff.total_seconds()
+                        
+                        # Save the closing question Q&A pair
+                        qa_pair = save_qa_pair(
+                            session_key=django_session.session_key,
+                            question_text=last_ai_question.question_text,
+                            answer_text=transcript.strip(),  # Candidate's questions as the "answer"
+                            question_type='CLOSING',
+                            response_time_seconds=response_time
+                        )
+                        
+                        print(f"✅ Closing Q&A pair saved with ID: {qa_pair.id if qa_pair else 'None'}")
+                        
+                        # Trigger LLM analysis asynchronously
+                        if qa_pair:
+                            try:
+                                analyze_qa_with_gemini(qa_pair)
+                            except Exception as e:
+                                print(f"⚠️ Error analyzing closing Q&A: {e}")
+                    else:
+                        print(f"⚠️ Closing Q&A pair already exists, skipping...")
+                        print(f"   Existing Question: {existing_qa.question_text[:100]}...")
+                        print(f"   Existing Answer: {existing_qa.answer_text[:100]}...")
             elif not is_cand_q and transcript and not last_ai_question:
                 print(f"⚠️ No unanswered AI question found for this transcript:")
                 print(f"   Transcript: {transcript[:100]}...")
@@ -6199,11 +6267,11 @@ class InterviewResultsAPIView(APIView):
                 'total_completion_time_minutes': session.total_completion_time_minutes,
                 
                 # Recordings and Videos
-                'interview_video_url': session.interview_video.url if session.interview_video else (session.video_gcs_url if session.video_gcs_url else None),
+                'interview_video_url': None,  # Interview video functionality removed
                 'screen_recording_url': session.screen_recording.url if session.screen_recording else (session.screen_recording_gcs_url if session.screen_recording_gcs_url else None),
-                'video_url': session.interview_video.url if session.interview_video else (session.video_gcs_url if session.video_gcs_url else None),
+                'video_url': None,  # Interview video functionality removed
                 'screen_url': session.screen_recording.url if session.screen_recording else (session.screen_recording_gcs_url if session.screen_recording_gcs_url else None),
-                'video_recording_url': session.interview_video.url if session.interview_video else (session.video_gcs_url if session.video_gcs_url else None),
+                'video_recording_url': None,  # Interview video functionality removed
                 'screen_recording_file_url': session.screen_recording.url if session.screen_recording else (session.screen_recording_gcs_url if session.screen_recording_gcs_url else None),
                 'video_gcs_url': session.video_gcs_url,
                 'screen_recording_gcs_url': session.screen_recording_gcs_url,
@@ -6780,74 +6848,27 @@ def upload_interview_video(request):
                 'message': 'Session not found'
             }, status=404)
         
-        # Save video file
+        # Save video file functionality removed
         video_filename = f"interview_{session_key}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.webm"
-        video_path = session.interview_video.save(video_filename, video_file, save=True)
-        session.save()
+        print(f"ℹ️ Interview video functionality removed - not saving to database")
         
-        print(f"✅ Video saved to InterviewSession: {video_path}")
-        
-        # Upload to Google Cloud Storage if configured
+        # Upload to Google Cloud Storage functionality removed
         gcs_video_url = None
+        print(f"ℹ️ Interview video functionality removed - not uploading to GCS")
+        
+        # Non-GCS update for Interview model (started_at, ended_at, status)
         try:
-            from .gcs_storage import upload_video_to_gcs
-            import os
-            
-            # Get full path to video file
-            if hasattr(session.interview_video, 'path'):
-                video_full_path = session.interview_video.path
-            else:
-                video_full_path = os.path.join(settings.MEDIA_ROOT, video_path)
-            
-            if os.path.exists(video_full_path):
-                # Generate GCS file path
-                gcs_video_path = f"interview_videos/{session.id}_{video_filename}"
-                
-                # Determine content type
-                content_type = 'video/webm'
-                if video_filename.lower().endswith('.mp4'):
-                    content_type = 'video/mp4'
-                
-                # Upload to GCS
-                gcs_video_url = upload_video_to_gcs(video_full_path, gcs_video_path, content_type)
-                if gcs_video_url:
-                    print(f"✅ Video uploaded to GCS: {gcs_video_url}")
-                    # Store GCS URL in video_gcs_url field
-                    session.video_gcs_url = gcs_video_url
-                    session.save(update_fields=['video_gcs_url'])
-                    print(f"✅ GCS video URL saved: {gcs_video_url}")
-                    
-                    # Update interviews.Interview model if exists
-                    try:
-                        from interviews.models import Interview
-                        interview = Interview.objects.filter(session_key=session_key).first()
-                        if interview:
-                            interview.video_url = gcs_video_url
-                            interview.save(update_fields=['video_url'])
-                            print(f"✅ Updated Interview model video_url: {gcs_video_url}")
-                    except Exception as interview_err:
-                        print(f"⚠️ Could not update Interview model with video_url: {interview_err}")
-            
-            # Non-GCS update for Interview model (started_at, ended_at, status)
-            try:
-                from interviews.models import Interview
-                interview = Interview.objects.filter(session_key=session_key).first()
-                if interview:
-                    if not interview.started_at and session.scheduled_at:
-                        interview.started_at = session.scheduled_at
-                    interview.status = Interview.Status.COMPLETED
-                    interview.ended_at = timezone.now()
-                    interview.save(update_fields=['status', 'ended_at', 'started_at'])
-                    print(f"✅ Updated Interview model status to COMPLETED")
-            except Exception as interview_err:
-                print(f"⚠️ Could not update Interview model status: {interview_err}")
-                
-            else:
-                print(f"⚠️ Video file not found for GCS upload: {video_full_path}")
-        except Exception as gcs_error:
-            print(f"⚠️ Error uploading video to GCS (non-critical): {gcs_error}")
-            import traceback
-            traceback.print_exc()
+            from interviews.models import Interview
+            interview = Interview.objects.filter(session_key=session_key).first()
+            if interview:
+                if not interview.started_at and session.scheduled_at:
+                    interview.started_at = session.scheduled_at
+                interview.status = Interview.Status.COMPLETED
+                interview.ended_at = timezone.now()
+                interview.save(update_fields=['status', 'ended_at', 'started_at'])
+                print(f"✅ Updated Interview model status to COMPLETED")
+        except Exception as interview_err:
+            print(f"⚠️ Could not update Interview model status: {interview_err}")
         
         # Parse and store question timestamps if provided
         try:
@@ -6858,12 +6879,12 @@ def upload_interview_video(request):
         except Exception as e:
             print(f"⚠️ Could not parse question timestamps: {e}")
         
-        print(f"✅ Interview video saved: {session.interview_video.name} ({video_file.size / 1024 / 1024:.2f} MB)")
+        print(f"ℹ️ Interview video functionality removed - not saving to database")
         
         return JsonResponse({
             'status': 'success',
-            'message': 'Video uploaded successfully',
-            'video_url': session.interview_video.url if session.interview_video else None,
+            'message': 'Video upload functionality removed',
+            'video_url': None,  # Interview video functionality removed
             'video_size_mb': round(video_file.size / 1024 / 1024, 2)
         })
         
@@ -7004,6 +7025,9 @@ def trigger_voice_analysis_at_interview_end(request):
     """
     Automatically trigger voice analysis when interview ends
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         data = json.loads(request.body)
         session_key = data.get('session_key')
@@ -7032,6 +7056,20 @@ def trigger_voice_analysis_at_interview_end(request):
         result = service.analyze_complete_interview_audio(interview_video_path, session_key)
         
         if result.get('success'):
+            # Generate PDF report after analysis
+            try:
+                from .voice_analysis_workflow import VoiceAnalysisWorkflow
+                workflow = VoiceAnalysisWorkflow()
+                pdf_result = workflow.generate_voice_analysis_report(session_key)
+                
+                if pdf_result.get('success'):
+                    logger.info(f"✅ Voice analysis PDF generated for session {session_key}")
+                    result['pdf'] = pdf_result
+                else:
+                    logger.warning(f"⚠️ PDF generation failed: {pdf_result.get('error', 'Unknown error')}")
+            except Exception as pdf_error:
+                logger.error(f"❌ Error generating PDF: {pdf_error}")
+            
             # Update session status
             session.status = 'COMPLETED'
             session.save(update_fields=['status'])

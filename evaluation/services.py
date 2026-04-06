@@ -390,7 +390,7 @@ def create_evaluation_from_session(session_key: str):
                 # Legacy fields for backward compatibility
                 'resume_score': session.resume_score * 10 if session.resume_score else None,
                 'answers_score': session.answers_score * 10 if session.answers_score else None,
-                'resume_feedback': session.resume_feedback or '',
+                'resume_feedback': getattr(session, 'resume_feedback', '') or '',
                 'answers_feedback': session.answers_feedback or '',
                 'overall_feedback': session.overall_performance_feedback or '',
             },

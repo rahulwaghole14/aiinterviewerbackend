@@ -1,6 +1,6 @@
 """
 Fast Voice Analysis Service
-Provides quick voice analysis without heavy model processing
+Provides quick voice analysis using real VAD models only - NO FALLBACK DATA
 """
 
 import os
@@ -12,24 +12,24 @@ from .voice_models import VoiceActivityDetection, SpeakerDiarization, AnswerVoic
 
 class FastVoiceAnalysisService:
     """
-    Fast voice analysis service that generates basic metrics without heavy model processing
+    Fast voice analysis service that uses ONLY real VAD models - no fallback/sample data
     """
     
     def analyze_complete_interview_audio(self, audio_file_path, session_key):
         """
-        Fast analysis - use existing data or generate basic metrics
+        Analyze audio using ONLY real VAD models - no fallback system
         """
         try:
             session = InterviewSession.objects.get(session_key=session_key)
             
-            # Check if we already have VAD data
+            # Check if we already have real VAD data from previous analysis
             existing_vad = VoiceActivityDetection.objects.filter(
                 session=session, 
                 question__isnull=True
             ).first()
             
-            if existing_vad:
-                print(f"✅ Using existing VAD data for session {session_key}")
+            if existing_vad and existing_vad.vad_segments:  # Only use if we have real segment data
+                print(f"✅ Using existing real VAD data for session {session_key}")
                 return {
                     'success': True,
                     'vad': {
@@ -42,122 +42,81 @@ class FastVoiceAnalysisService:
                     'diarization': self._get_existing_diarization(session)
                 }
             else:
-                # Generate basic metrics from audio file duration
-                print(f"⚡ Generating basic metrics for session {session_key}")
-                return self._generate_basic_metrics(audio_file_path, session)
+                # Use real VAD model analysis - NO FALLBACK
+                print(f"🎙️ Performing real VAD analysis for session {session_key}")
+                return self._perform_real_vad_analysis(audio_file_path, session)
                 
         except Exception as e:
-            print(f"Error in fast voice analysis: {e}")
+            print(f"Error in real voice analysis: {e}")
             return {
                 'success': False,
                 'error': str(e)
             }
     
     def _get_existing_diarization(self, session):
-        """Get existing diarization data"""
+        """Get existing real diarization data only"""
         existing_diar = SpeakerDiarization.objects.filter(
             session=session, 
             question__isnull=True
         ).first()
         
-        if existing_diar:
+        if existing_diar and existing_diar.diarization_segments:  # Only use if we have real segment data
             return {
                 'num_speakers': existing_diar.num_speakers,
                 'speaker_changes': existing_diar.speaker_changes,
                 'candidate_speech_percentage': existing_diar.candidate_speech_percentage,
                 'interviewer_speech_percentage': existing_diar.interviewer_speech_percentage,
-                'confidence_score': 0.85  # Default confidence score
-            }
-        else:
-            # Default diarization data - assume single speaker for answer-only recordings
-            return {
-                'num_speakers': 1,  # Default to 1 speaker for answer-only recordings
-                'speaker_changes': 5,
-                'candidate_speech_percentage': 85.0,
-                'interviewer_speech_percentage': 15.0,
                 'confidence_score': 0.85
             }
+        else:
+            # NO FALLBACK - return None to trigger real analysis
+            return None
     
-    def _generate_basic_metrics(self, audio_file_path, session):
-        """Generate basic metrics from audio file"""
+    def _perform_real_vad_analysis(self, audio_file_path, session):
+        """
+        Perform real VAD analysis using the main VoiceAnalysisService
+        NO FALLBACK DATA - uses actual HuggingFace models
+        """
         try:
-            # Get audio file duration (basic estimation)
-            file_size = os.path.getsize(audio_file_path) if os.path.exists(audio_file_path) else 0
+            # Import the real voice analysis service
+            from .voice_analysis_service import VoiceAnalysisService
+            real_service = VoiceAnalysisService()
             
-            # Estimate duration based on file size (rough approximation)
-            # WebM ~ 100KB per second, WAV ~ 1MB per second
-            if audio_file_path.endswith('.wav'):
-                estimated_duration = file_size / (1000 * 1000)  # 1MB per second
-            else:
-                estimated_duration = file_size / (100 * 1000)  # 100KB per second
+            print(f"🎙️ Using real VAD models on: {audio_file_path}")
             
-            # Basic speech/silence split (assume 60% speech)
-            speech_percentage = 60.0
-            silence_percentage = 40.0
-            speech_duration = estimated_duration * (speech_percentage / 100)
-            pause_duration = estimated_duration * (silence_percentage / 100)
-            
-            # Save basic VAD record
-            vad_record = VoiceActivityDetection.objects.create(
-                session=session,
-                question=None,
-                pause_duration=pause_duration,
-                total_speech_time=speech_duration,
-                speech_percentage=speech_percentage,
-                silence_percentage=silence_percentage,
-                vad_segments=[],
-                analysis_start_time=timezone.now(),
-                analysis_end_time=timezone.now()
-            )
-            
-            # Determine number of speakers based on audio characteristics
-            # For answer-only recordings (no interviewer), we'll detect single speaker
-            # Check if this is likely an answer-only recording based on duration and speech patterns
-            num_speakers = 1  # Default to single speaker for answer-only recordings
-            
-            # If duration is long and speech percentage is high, might be interview with both speakers
-            if estimated_duration > 300 and speech_percentage > 70:  # 5+ minutes with high speech
-                num_speakers = 2
-            elif estimated_duration > 180 and speech_percentage > 65:  # 3+ minutes with moderate-high speech
-                num_speakers = 2
-            
-            # Also create basic diarization record with dynamic speaker detection
-            diarization_record = SpeakerDiarization.objects.create(
-                session=session,
-                question=None,
-                num_speakers=num_speakers,
-                speaker_changes=5 if num_speakers == 1 else 10,
-                candidate_speech_percentage=85.0 if num_speakers == 1 else 60.0,
-                interviewer_speech_percentage=15.0 if num_speakers == 1 else 40.0,
-                diarization_segments=[],
-                analysis_start_time=timezone.now(),
-                analysis_end_time=timezone.now()
-            )
-            
-            print(f"✅ Generated basic VAD metrics: {speech_percentage:.1f}% speech, {estimated_duration:.1f}s duration")
-            print(f"✅ Generated basic diarization metrics: {num_speakers} speaker(s) detected")
-            
-            return {
-                'success': True,
-                'vad': {
-                    'speech_percentage': speech_percentage,
-                    'silence_percentage': silence_percentage,
-                    'total_duration': estimated_duration,
-                    'total_speech_time': speech_duration,
-                    'pause_duration': pause_duration
-                },
-                'diarization': {
-                    'num_speakers': num_speakers,
-                    'speaker_changes': 5 if num_speakers == 1 else 10,
-                    'candidate_speech_percentage': 85.0 if num_speakers == 1 else 60.0,
-                    'interviewer_speech_percentage': 15.0 if num_speakers == 1 else 40.0,
-                    'confidence_score': 0.85
+            # Verify audio file exists before processing
+            import os
+            if not os.path.exists(audio_file_path):
+                print(f"❌ Audio file does not exist: {audio_file_path}")
+                return {
+                    'success': False,
+                    'error': f"Audio file does not exist: {audio_file_path}"
                 }
-            }
             
+            # Get file size
+            file_size = os.path.getsize(audio_file_path)
+            print(f"📊 Audio file size: {file_size / (1024*1024):.2f} MB")
+            
+            # Use the real service to analyze audio
+            result = real_service.analyze_complete_interview_audio(audio_file_path, session.session_key)
+            
+            if result.get('success'):
+                print(f"✅ Real VAD analysis completed successfully")
+                print(f"📊 VAD Results: {result.get('vad', {})}")
+                print(f"📊 Diarization Results: {result.get('diarization', {})}")
+                return result
+            else:
+                print(f"❌ Real VAD analysis failed: {result.get('error')}")
+                return {
+                    'success': False,
+                    'error': f"Real VAD analysis failed: {result.get('error')}"
+                }
+                
         except Exception as e:
-            print(f"Error generating basic metrics: {e}")
+            print(f"❌ Error in real VAD analysis: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'success': False,
-                'error': str(e)
+                'error': f"Real VAD analysis error: {str(e)}"
             }

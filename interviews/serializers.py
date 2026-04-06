@@ -42,9 +42,6 @@ class InterviewSerializer(serializers.ModelSerializer):
     # Verification ID Image
     verification_id_image = serializers.SerializerMethodField()
     
-    # Interview Video
-    interview_video = serializers.SerializerMethodField()
-    
     # Screen Recording
     screen_recording_file = serializers.SerializerMethodField()
     screen_recording_url = serializers.SerializerMethodField()
@@ -77,7 +74,6 @@ class InterviewSerializer(serializers.ModelSerializer):
             "ai_result",
             "questions_and_answers",
             "verification_id_image",
-            "interview_video",
             "screen_recording_file",
             "screen_recording_url", 
             "screen_recording_duration",
@@ -822,28 +818,6 @@ class InterviewSerializer(serializers.ModelSerializer):
             return None
         except Exception as e:
             print(f"⚠️ Error getting verification ID image: {e}")
-            return None
-
-    def get_interview_video(self, obj):
-        """Get interview video URL"""
-        try:
-            # Try to get from InterviewSession first
-            if obj.session_key:
-                from interview_app.models import InterviewSession
-                try:
-                    session = InterviewSession.objects.get(session_key=obj.session_key)
-                    if session.interview_video and hasattr(session.interview_video, 'url'):
-                        return session.interview_video.url
-                except InterviewSession.DoesNotExist:
-                    pass
-            
-            # Fallback to interview's own video_url
-            if obj.video_url:
-                return obj.video_url
-            
-            return None
-        except Exception as e:
-            print(f"⚠️ Error getting interview video: {e}")
             return None
 
     def get_screen_recording_file(self, obj):

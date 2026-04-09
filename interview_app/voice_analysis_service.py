@@ -422,17 +422,31 @@ class VoiceAnalysisService:
                     'duration': duration
                 })
             
+            # Filter out very short speech segments (likely noise)
+            min_segment_duration = 2.0  # 2 seconds minimum
+            filtered_speaker_times = {}
+            
+            for speaker, segments in speaker_labels.items():
+                valid_duration = sum(seg['duration'] for seg in segments if seg['duration'] >= min_segment_duration)
+                if valid_duration > 0:
+                    filtered_speaker_times[speaker] = valid_duration
+            
+            # Use filtered times if available, otherwise use original
+            if filtered_speaker_times:
+                speaker_times = filtered_speaker_times
+                logger.info(f"Filtered out short speech segments. Updated speaker times: {speaker_times}")
+            
             # Determine number of speakers and handle single speaker with background noise
             num_speakers = len(speaker_times)
             total_speech_time = sum(speaker_times.values())
             
-            # If 2 speakers detected but one is dominant (>65%), treat as single speaker
+            # If 2 speakers detected but one is dominant (>80%), treat as single speaker
             if num_speakers == 2:
                 dominant_speaker = max(speaker_times, key=speaker_times.get)
                 dominant_time = speaker_times[dominant_speaker]
                 dominant_percentage = (dominant_time / total_speech_time) * 100
                 
-                if dominant_percentage > 65:
+                if dominant_percentage > 80:
                     logger.info(f"Dominant speaker {dominant_speaker} has {dominant_percentage:.1f}% of speech time - treating as single speaker")
                     num_speakers = 1
                     candidate_time = dominant_time
@@ -532,10 +546,10 @@ class VoiceAnalysisService:
                 duration = (file_size / (1024 * 1024)) * 60
                 logger.info(f"📊 Estimated audio duration: {duration:.1f}s")
             
-            # Basic diarization assumptions
-            # For most interviews, assume single speaker (candidate only) or 2 speakers
-            # If duration > 5 minutes, likely 2 speakers (interview + candidate)
-            num_speakers = 2 if duration > 300 else 1
+            # Basic diarization assumptions - default to single speaker
+            # Only assume 2 speakers if there are clear indicators of multi-speaker conversation
+            # Most AI interviews are single speaker (candidate only)
+            num_speakers = 1  # Default to single speaker
             
             # Speaker changes based on duration
             speaker_changes = max(5, int(duration / 60))  # At least 5 changes, plus 1 per minute
